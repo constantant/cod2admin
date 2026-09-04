@@ -2,10 +2,15 @@
   "name": "@org/source",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "prepare": "husky",
+    "release": "nx release",
+    "release:dry-run": "nx release --dry-run"
+  },
   "private": true,
-  "dependencies": {},
   "devDependencies": {
+    "@commitlint/cli": "^21.2.2",
+    "@commitlint/config-conventional": "^21.2.2",
     "@nx/js": "23.2.0",
     "@nx/vitest": "23.2.0",
     "@swc-node/register": "1.11.1",
@@ -13,6 +18,7 @@
     "@swc/helpers": "0.5.18",
     "@types/node": "^24.0.0",
     "@vitest/coverage-v8": "~4.1.0",
+    "husky": "^9.1.7",
     "nx": "23.2.0",
     "prettier": "^3.8.1",
     "tslib": "^2.3.0",

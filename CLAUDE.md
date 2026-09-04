@@ -41,6 +41,29 @@ migrated off npm.
   `allowBuilds` in `pnpm-workspace.yaml` (e.g. `'@swc/core': true`) and reinstall — don't blanket-
   approve everything.
 
+## Versioning & changelog
+
+The whole repo is versioned as **one product** with `nx release` — **fixed** relationship, not
+independent per-project (config in `nx.json` under `release`). All current and future
+projects under `packages/`/`apps/` are matched via `release.projects: ["*"]`, which
+deliberately overrides Nx's default behavior of excluding `"private": true` packages from
+release (every project here is and will stay private — nothing is published to a registry).
+One version bump moves every project's `package.json` together, and one root `CHANGELOG.md` is
+generated — no per-project changelogs. New projects need **no extra release config** to be
+included; that's the point of `"projects": ["*"]`.
+
+- **Conventional Commits are required**, enforced by a `commit-msg` git hook
+  (`.husky/commit-msg` → `commitlint`, config in `commitlint.config.js`) and re-checked in CI
+  for PRs (`.github/workflows/ci.yml`) since the local hook can be bypassed with `--no-verify`.
+  `nx release`'s version bump and changelog categorization are both inferred from these commit
+  types (`release.version.conventionalCommits: true` in `nx.json`) — a non-conventional commit
+  (like this repo's own history before this was set up) is silently invisible to versioning, not
+  an error, so get the format right rather than relying on anything to catch it later.
+- To cut a release: `pnpm run release` (interactive) or `pnpm run release:dry-run` to preview
+  first. This bumps versions, writes `CHANGELOG.md`, commits, and tags (`v{version}`) — it does
+  **not** push or publish anywhere by default (nothing here is published; ask before adding
+  `--yes`/publish steps to CI).
+
 ## Project context
 
 See `docs/PLAN.md` for the full design of the CoD2 Admin Telegram/RCON bot this workspace is

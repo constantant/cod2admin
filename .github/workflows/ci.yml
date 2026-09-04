@@ -34,6 +34,12 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Conventional Commits are required for nx release's automatic version/changelog
+      # inference (nx.json release.version.conventionalCommits) - the local commit-msg
+      # hook (.husky/commit-msg) can be bypassed with --no-verify, so also gate it in CI.
+      - run: pnpm exec commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }}
+        if: github.event_name == 'pull_request'
+
       # Prepend any command with "nx record --" to record its logs to Nx Cloud
       - run: pnpm exec nx record -- pnpm exec nx format:check --base="remotes/origin/main"
       - run: pnpm exec nx run-many -t lint test build typecheck e2e
