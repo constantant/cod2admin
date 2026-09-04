@@ -48,3 +48,10 @@ Thumbs.db
 .nx/polygraph
 .nx/self-healing
 .nx/migrate-runs
+
+# Local dev env (see .env.example) - never commit real secrets
+.env
+
+# CoD2 dev server game data - not redistributable, see docker/cod2server/README.md
+docker/cod2server/main/*.iwd
+docker/cod2server/main/games_mp.log

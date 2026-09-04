@@ -1,0 +1,56 @@
+# Local dev/test stack for the CoD2 admin bot — see docs/PLAN.md §11.
+#
+# Usage:
+#   cp .env.example .env         # fill in real values
+#   docker compose up -d postgres
+#   # then follow docker/cod2server/README.md before starting cod2_server
+#   docker compose up -d cod2_server
+#
+# Not for production: the gateway app itself is not part of this stack (it runs natively via
+# `nx serve`, per §11.1 — this only provides the CoD2 server and Postgres it talks to).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - cod2admin-dev-postgres:/var/lib/postgresql/data
+
+  cod2_server:
+    # bgauduch/call-of-duty-2-docker-server — requires game files, see docker/cod2server/README.md
+    image: bgauduch/cod2server:6.0.0-1_3_nodelay_va_loc-ibuddieat
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:28960:28960/tcp'
+      - '127.0.0.1:28960:28960/udp' # game traffic + RCON share this port (§2.4)
+      - '127.0.0.1:20500:20500/udp'
+      - '127.0.0.1:20510:20510/udp'
+    volumes:
+      - ./docker/cod2server/main:/home/cod2/main
+    command:
+      [
+        '+set',
+        'net_port',
+        '28960',
+        '+set',
+        'sv_cheats',
+        '0',
+        '+set',
+        'sv_punkbuster',
+        '0',
+        '+exec',
+        'punkbuster.cfg',
+        '+exec',
+        'server_mp.cfg',
+      ]
+    stdin_open: true
+    tty: true
+
+volumes:
+  cod2admin-dev-postgres:

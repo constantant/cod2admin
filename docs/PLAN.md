@@ -445,6 +445,103 @@ the actual target server (§2.4) is a fact to verify empirically, not a design d
 called out at the top of Phase 3 (§9) as a check to run before building the GUID-vs-IP
 correlation logic further.
 
+## 11. Testing & dev environment
+
+Decided ahead of Phase 0 so every phase lands with tests from the start, not bolted on later.
+
+### 11.1 Local dev stack
+
+- **CoD2 dedicated server**: run a real `cod2_lnxded` via Docker
+  ([bgauduch/call-of-duty-2-docker-server](https://github.com/bgauduch/call-of-duty-2-docker-server),
+  already in §Sources) rather than a hand-rolled protocol fake. **Scaffolded**: root
+  `docker-compose.yml` (`cod2_server` + `postgres` services) and `docker/cod2server/main/`
+  (`server_mp.cfg`/`punkbuster.cfg`, adapted from the upstream project's defaults). The
+  dedicated server *binary* is freely distributed, but the game's `.iwd` data files are **not**
+  — you need your own legitimate CoD2 copy to extract them from; see
+  `docker/cod2server/README.md` for the one-time setup step this requires before the container
+  will actually boot.
+  - The container bind-mounts `docker/cod2server/main` to `/home/cod2/main`, so
+    `games_mp.log` lands at `docker/cod2server/main/games_mp.log` on the host. Per §6 the
+    gateway always reads the log straight off the local filesystem (never over SSH), so in dev
+    the gateway process (run natively via `nx serve`, not containerized) points `log-tailer` at
+    that host path — same code path as prod, just a bind mount standing in for "same host."
+  - RCON and game traffic share one UDP port (`28960`, per the Quake3-derived protocol, §2.4);
+    the compose file binds it (and the game's TCP/UDP `20500`/`20510` ports) to `127.0.0.1`
+    only, matching the same-host/localhost connectivity model from §6.
+  - `server_mp.cfg`'s `rcon_password` is set by the game engine from that file, not from
+    `.env` — the two must be kept in sync by hand (documented in
+    `docker/cod2server/README.md`); nothing automates that today.
+- **Postgres**: a `postgres:16-alpine` service in the same `docker-compose.yml`, port bound to
+  `127.0.0.1` only, data on a named volume so it survives restarts — no reason to diverge from
+  prod's Postgres choice (§3.2) even in dev.
+- **Telegram**: a **separate dev bot** registered via @BotFather (e.g. `cod2admin_dev_bot`),
+  added to a private test group you control, with its own `OWNER_TELEGRAM_ID` claim. Dev config
+  never touches the real admin group/bot token — full isolation, and it means dev testing can
+  never leak a moderation action or spam into a real community's chat.
+- All of the above wired through `docker-compose.yml` (Postgres + CoD2 server) plus a
+  root `.env` (gitignored) holding: dev bot token, dev `OWNER_TELEGRAM_ID`, dev RCON password
+  (kept in sync with `server_mp.cfg` by hand, see above), dev Postgres connection string, and
+  the bind-mounted log path. `.env.example` is checked in with placeholder values as the
+  template — copy it to `.env` and fill in real values before running anything.
+
+### 11.2 Automated test pyramid (runs in CI, no Docker/game binary needed)
+
+- **`rcon-client`**: unit tests against an in-process mock UDP peer (Node `dgram`) — already
+  called for in Phase 0 (§9). Covers OOB packet framing, `status`/`getinfo` parsing, and
+  malformed/short-packet edge cases without any real game server.
+- **`log-tailer`**: fixture-based tests against checked-in sample `games_mp.log` excerpts
+  (`packages/log-tailer/test/fixtures/*.log`) covering: connect/disconnect, `say`/`sayteam`,
+  color-code-embedded names, a GUID-`0` connect line, and `!report` trigger lines (including the
+  "no `!` prefix → ignored" case from §5 step 1). Fixtures should be captured from the real
+  Docker server (§11.1) at least once so they reflect actual format, then frozen as fixtures —
+  no live server needed to run the tests afterward.
+- **`report-pipeline`**: unit tests with an injected fake `rcon-client` (canned `status`
+  responses) and fake `ban-store`/`admin-store` — covers fuzzy name matching, the ambiguous-match
+  `Select:` button path (§5 step 2), anti-spam cooldown/dedup (§5 step 4), and the GUID-0
+  IP-fallback branch (§5 step 7), all without a real DB or UDP socket.
+- **`admin-store`/`ban-store`**: integration tests against a real Postgres — thin repository
+  layers over Drizzle are exactly the kind of code that's not worth mocking a DB for. A
+  Postgres service container in CI (GitHub Actions `services:` — this is unrelated to, and
+  lighter-weight than, the CoD2-server e2e decision below) is fine here since it needs no game
+  binary, just `postgres:<version>`.
+- **Telegram command router**: grammy supports constructing fake `Context`/`Update` objects
+  directly, so command/permission-middleware logic (`/addadmin`, role checks, etc.) is tested by
+  asserting on calls into gateway logic — never hitting Telegram's real API in CI.
+- **Decided: no docker-compose end-to-end suite in CI.** A full stack (real CoD2 server + gateway
+  + Postgres) run in CI adds meaningful time/flakiness for coverage the fixture+mock layers above
+  already get at the unit level. End-to-end validation instead happens manually (§11.3),
+  including the one thing no fixture can cover — a real game client actually connecting and
+  chatting.
+
+### 11.3 Manual end-to-end checklist (local only, not CI)
+
+Run against the Docker CoD2 server + dev Telegram bot from §11.1. Requires an actual CoD2 game
+client to connect to your own dev server — the Docker image alone only hosts the server, it can't
+generate real player connect/chat traffic, and this is also where the GUID behavior verification
+flagged in §2.4/§9 has to happen (a scripted fixture can't tell us what a real client's GUID
+actually looks like against this server config).
+
+- `/status`, `/players` — real `status` output round-trips through Telegram correctly.
+- `/kick`, `/ban`, `/unban`, `/tempban` (+ its gateway-driven expiry, §5.6) via direct commands.
+- `!report <name> <reason>` in-game → card appears in the dev group with correct enrichment
+  (§5 step 3) → each button (`Kick`/`Temp Ban`/`Ban`/`Ignore`/`More info`) → verify `ban.txt`
+  and the `bans`/`ban_ips` tables end up in the expected state.
+- Ambiguous-name report → `Select:` buttons → resolves into the normal card (§5 step 2).
+- GUID-0 path, if/once confirmed reachable on the target server config (§2.4): confirm both
+  `Ban` and `Temp Ban` route through `ban_ips` and the expiry-poller actually kicks/unbans on
+  schedule (§5 step 7).
+- Moderation broadcast (`rcon say ...`) is visible in-game on every kick/ban/tempban (§5 step 6).
+- `/addadmin`, `/setrole`, `/removeadmin`, `/auditlog` — role management and audit trail.
+- `/rcon <raw command>` — owner-only, and confirm it's the one path where argument sanitization
+  (§8) is intentionally skipped.
+
+### 11.4 CI wiring
+
+`nx affected -t lint test` on every PR runs §11.2's unit/fixture/mock-based tests plus the
+Postgres-service-container store tests — fast, no Docker CoD2 image or real Telegram token
+required, so it never depends on secrets that would need to live in CI. The §11.3 manual e2e
+checklist is a pre-release gate run locally, not a CI job.
+
 ## Sources
 
 - https://github.com/atib80/tinyrcon
