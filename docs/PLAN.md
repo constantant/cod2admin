@@ -221,6 +221,15 @@ Roles, stored in `admin-store`:
    - Reporter's own info (name/GUID) for accountability and to apply the anti-spam cooldown.
    - Last N chat lines from this player (small ring buffer kept by `log-tailer` per active
      session) — useful context for admins without needing to watch console live.
+
+   **Restart caveat**: session duration, the chat ring buffer, and the "last-known info" used
+   for the disconnected-target fallback (step 2) are all in-memory state built up from
+   `connect` lines as `log-tailer` follows the log live — none of it is persisted. A gateway
+   restart mid-match loses that context for every currently-connected player until they
+   reconnect (a fresh `connect` line re-seeds it); it does not affect `ban-store`/`admin-store`
+   history, which is on Postgres. Accepted for now as an MVP limitation — revisit (e.g. replay
+   recent log lines on startup to rebuild session state) if restarts during active play turn
+   out to be frequent enough to matter.
 4. **Anti-spam**: per-reporter cooldown (e.g. one report per 60s, configurable) and simple
    duplicate-suppression (same reporter+target within a window collapses into one updated
    card rather than spamming the chat) — otherwise a small flood of `!report` spam becomes a
@@ -239,19 +248,34 @@ Roles, stored in `admin-store`:
    kick/ban/tempban also fires an `rcon say "<target> was <action> by an admin"` broadcast
    into the game for transparency (§6) — not silent, not optional per-action (a per-server
    opt-out toggle can be added later if a community wants it, but the default is on).
-7. **GUID-0 fallback**: if the target's GUID is `0`/blank, the `Ban` button executes an
-   IP-based ban — inserts a row into the `ban_ips` table (§7) — since the game binary can't
-   ban by IP natively. Enforcement is a gateway-owned poller: on a fixed interval (start at
-   10s, configurable) the gateway runs `status` against every configured server and kicks any
-   connected player whose IP matches an active `ban_ips` row. This poller is a third event
+7. **GUID-0 fallback**: if the target's GUID is `0`/blank, **both** the `Ban` and
+   `Temp Ban (30m)` buttons execute an IP-based ban — inserting a row into the `ban_ips` table
+   (§7), with `expires_at` set for temp bans and left null for permanent ones — since the game
+   binary can't ban by IP natively, and (§2.4) `tempBanClient` degrades to a bare kick for
+   GUID 0 with no enforced duration on its own. Routing temp bans through `ban_ips` too, rather
+   than only `Ban`, is what actually gives GUID-0 temp bans a duration. Enforcement is a
+   gateway-owned poller: on a fixed interval (start at 10s, configurable) the gateway runs
+   `status` against every configured server and kicks any connected player whose IP matches an
+   active `ban_ips` row (`expires_at` null or in the future). This poller is a third event
    source alongside log-tailing and Telegram commands (§3 diagram) — it's the one place the
-   gateway acts without being triggered by an external event. The card clearly labels this
-   action as "IP ban (GUID unavailable)".
+   gateway acts without being triggered by an external event. Both buttons label the resulting
+   card action as "IP ban (GUID unavailable)" / "IP temp ban (GUID unavailable)".
+   - **Known limitations, accepted for now**: (a) the poll interval means a banned GUID-0
+     player who is already connected, or who reconnects between polls, has up to one interval's
+     worth of time to act before being kicked; (b) IP bans don't survive the player getting a
+     new IP (dynamic IP / VPN / reconnecting through a different network) — the ban silently
+     stops working rather than erroring; (c) an IP ban can collaterally kick an unrelated
+     player who shares that IP (NAT/shared connection). Since §2.4 flags GUID 0 as possibly the
+     *common* case rather than a rare edge case on the target server, these aren't corner-case
+     caveats — they may be the primary ban mechanism's real-world failure modes, and should be
+     re-assessed once the Phase 3 GUID verification (§9) is done.
 
 ## 6. Server status & management
 
 - `/status [server]` — condensed `status` output (map, player count/max, uptime) as a
-  Telegram message, auto-refreshable via an inline "Refresh" button.
+  Telegram message, with a manual inline "Refresh" button that re-edits the same message on
+  click. **No background timer** — it only ever calls the API in response to a button press,
+  never on an interval.
 - `/players [server]` — live player list with per-player inline `Kick`/`Ban` shortcuts (same
   action path as the report card, just triggered manually).
 - `/map <name>`, `/maprotate`, `/restart`, `/fastrestart` — map control, admin-role-gated.
@@ -279,19 +303,23 @@ Roles, stored in `admin-store`:
 - `admin_servers(telegram_id, server_alias)`
 - `servers(alias, rcon_host, rcon_port, rcon_password_encrypted, log_source_config,
   bound_telegram_chat_id)`
-- `bans(id, server_alias, guid, ip, name, reason, banned_by, banned_at, expires_at,
-  is_ip_fallback)` — GUID-based bans (`is_ip_fallback = false`), enforced natively by the game
-  binary via `banUser`/`banClient`.
+- `bans(id, server_alias, guid, name, reason, banned_by, banned_at, expires_at)` — GUID-based
+  bans (and temp bans, via `expires_at`), enforced natively by the game binary via
+  `banUser`/`banClient`/`tempBanClient`.
 - `ban_ips(id, server_alias, ip, reason, banned_by, banned_at, expires_at)` — IP-based bans
-  used only for the GUID-0 fallback path (§5.7); enforced by the gateway's own status-poller
-  since the game binary has no native IP-ban support. Kept as a separate table from `bans`
-  (rather than overloading `bans.ip` + `is_ip_fallback`) because the two are enforced by
-  completely different mechanisms — native ban-file vs. gateway poll-and-kick — and querying
-  "what does the poller need to check right now" should be a plain scan of one table, not a
-  filtered scan of the general ban history.
+  used only for the GUID-0 fallback path (§5.7), for both permanent and temp bans; enforced by
+  the gateway's own status-poller since the game binary has no native IP-ban support. Kept as a
+  separate table from `bans` rather than an `ip` + `is_ip_fallback` column pair on `bans`,
+  because the two are enforced by completely different mechanisms — native ban-file vs. gateway
+  poll-and-kick — and querying "what does the poller need to check right now" should be a plain
+  scan of one table, not a filtered scan of the general ban history.
 - `reports(id, server_alias, reporter_name, reporter_guid, target_name, target_guid,
   target_ip, reason, raw_chat_line, created_at, resolved_action, resolved_by, resolved_at)`
-- `audit_log(id, actor_telegram_id, action, target, server_alias, detail_json, created_at)`
+- `audit_log(id, actor_telegram_id, action, target, server_alias, reason, source, detail_json,
+  created_at)` — `reason` and `source` (`telegram_button` / `telegram_command` / `auto`, per
+  §4) are explicit columns rather than buried in `detail_json`, since `/auditlog` (§4) needs to
+  filter/display them directly; `detail_json` holds any action-specific extra data (e.g. the
+  raw command text for `/rcon`, §6).
 
 `rcon_password` and any other secrets stored **encrypted at rest** (e.g. libsodium secretbox
 with a key from env), not plaintext in the DB — the gateway is the only thing that ever needs
@@ -317,9 +345,12 @@ failure, and this DB now holds durable ban/audit history, not just cache-able st
   it's a deliberate raw passthrough for the owner, not a bug — but that's exactly why it's
   owner-only and always logged verbatim to `audit_log`, unlike every other command path.
 - Respect Telegram's own API rate limits (roughly 30 messages/sec bot-wide, ~20/minute per
-  group) when designing anything that posts/edits messages in a loop — an auto-refreshing
-  `/status` (§6) or a burst of report cards during a raid should back off/coalesce rather than
-  firing one API call per event, or Telegram will start silently dropping/delaying updates.
+  group) when designing anything that posts/edits messages programmatically rather than in
+  direct response to one user click — a burst of report cards during a raid, or the moderation
+  broadcasts (§5/§6) firing for several near-simultaneous actions, should back off/coalesce
+  rather than firing one API call per event, or Telegram will start silently dropping/delaying
+  updates. `/status`'s Refresh button (§6) is manual/button-only with no background timer, so
+  it isn't a source of this risk on its own.
 
 ## 9. Phased delivery plan
 
@@ -328,7 +359,9 @@ failure, and this DB now holds durable ban/audit history, not just cache-able st
   vars, no DB yet.
 - **Phase 1 — Telegram MVP**: `apps/gateway` wraps Phase 0 lib; grammy bot exposes
   `/status`, `/players`, `/kick`, `/ban`, `/unban`, `/map`. Owner-only, single admin (env
-  var), no roles yet.
+  var), no roles yet. **No `audit_log` yet either** (it lands with `admin-store` in Phase 2) —
+  Phase 1 moderation actions are unaudited by design; acceptable for a single-owner MVP with no
+  role delegation, since the owner is the only actor who could act anyway.
 - **Phase 2 — admin & data layer**: `admin-store`/`ban-store` on Postgres via Drizzle;
   `/addadmin`/`/removeadmin`/`/setrole`, audit log, multi-server support (`servers` table,
   per-group binding).
