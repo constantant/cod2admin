@@ -8,9 +8,9 @@ A Telegram bot that acts as the primary admin interface for one or more Call of 
 dedicated servers:
 
 - Full RCON-backed moderation: kick / ban / unban / tempban, map control, server status.
-- **In-game report automation**: a player types `report <name>` (or `!report <name> <reason>`)
-  in game chat, and admins on Telegram instantly get a card with everything they need to
-  act — no need to alt-tab into the server console.
+- **In-game report automation**: a player types `!report <name> <reason>` in game chat, and
+  admins on Telegram instantly get a card with everything they need to act — no need to
+  alt-tab into the server console.
 - Multi-admin system with roles, managed entirely from Telegram (no config-file editing to
   add/remove an admin).
 - Designed to run inside the existing Nx workspace as a small set of apps/libs.
@@ -68,9 +68,16 @@ dedicated servers:
   `tempBanClient` only kicks. Our ban flow must detect GUID `0`/empty and fall back to an
   **IP-based ban** (kick + add IP to a firewall/deny list or a `ban.txt` IP-based workaround)
   rather than silently failing.
+  - **Caveat (verify before Phase 3):** because the master server is *permanently* defunct,
+    GUID 0 may be the common case on today's internet rather than a rare edge case — some
+    community server configs/patches work around this and recover a real GUID, others don't.
+    Treat this as unverified until checked against the actual target server. If GUID 0 turns
+    out to be the default, GUID can't be the primary correlation key for ban/report history
+    (§5.3, §7) — history lookups must key off IP+name instead whenever GUID is `0`, since
+    every GUID-0 player would otherwise collide into one shared identity.
 - Game events (connect/disconnect/chat/kills) are written to
   `$fs_homepath/main/games_mp.log`. This is the standard integration point for detecting the
-  `report <name>` chat trigger when running vanilla CoD2.
+  `!report <name>` chat trigger when running vanilla CoD2.
 - **CoD2x** (unofficial community patch) adds a UDP rate limiter (DDoS mitigation — good, we
   should recommend it regardless) and GSC-level `http_fetch` / `websocket_connect` /
   `websocket_sendText` script functions, which could in principle push events out of the game
@@ -110,6 +117,10 @@ from.
                                               (admin chat, inline buttons)
 ```
 
+The gateway has three ways it starts doing something: an inbound log-tail event (chat/connect/
+disconnect), an inbound Telegram command/button, and — the one non-event-driven path — a
+fixed-interval self-poll of `status` used only to enforce IP bans against GUID-0 players (§5.7).
+
 ### 3.1 Components (proposed Nx layout under `packages/`)
 
 - `packages/rcon-client` — lib. Pure TS implementation of the Quake3/CoD OOB UDP RCON
@@ -118,19 +129,17 @@ from.
 - `packages/log-tailer` — lib. Follows `games_mp.log` on the local filesystem (same-host
   deployment, see §6), parses connect/disconnect/say/kill lines into typed events. Sole
   report-intake path — no GSC/push adapter.
-- `packages/report-pipeline` — lib. Owns the `report <name>` chat-trigger logic: fuzzy-
+- `packages/report-pipeline` — lib. Owns the `!report <name>` chat-trigger logic: fuzzy-
   matches the reported name against the live player list (pulled via `rcon-client` status),
   assembles the report card (see §5), applies per-reporter cooldown/anti-spam.
 - `packages/ban-store` + `packages/admin-store` — lib. Persistence (see §7): bans, tempban
   expiries, admin roles, audit log. Thin repository layer over SQLite/Postgres.
-- `apps/gateway` — the long-running service: owns the RCON connections to every configured
-  game server, runs the log tailer(s), runs the report pipeline, exposes an internal command
-  bus.
-- `apps/telegram-bot` — Telegram webhook/long-poll handler, command router, inline-keyboard
-  callback handler. Talks to `apps/gateway` in-process (simplest: one process, two entry
-  concerns) or via an internal queue if we want them separately deployable later. **Recommend
-  starting as a single deployable app** (`apps/gateway` hosts both the Telegram bot and the
-  RCON/log logic) — split later only if a real scaling reason shows up.
+- `apps/gateway` — the single long-running service for now: owns the RCON connections to
+  every configured game server, runs the log tailer(s), runs the report pipeline, and hosts
+  the Telegram bot (grammy long-polling — see §3.2) as an internal module (command router +
+  inline-keyboard callback handler calling straight into the in-process gateway logic, no
+  queue). Split the Telegram side into its own `apps/telegram-bot` deployable later only if a
+  real scaling reason shows up — not planned up front.
 
 ### 3.2 Tech stack recommendation
 
@@ -140,6 +149,11 @@ from.
 - **Telegram library**: [grammy](https://grammy.dev) (modern, TS-first, good middleware
   model for inline keyboards and role-gated commands) — preferred over
   `node-telegram-bot-api`, which is effectively unmaintained.
+- **Telegram transport** *(decided)*: **long-polling**, not webhooks. The gateway runs on the
+  game server host (§6), which has no reason to expose a public HTTPS endpoint/cert — long
+  polling needs only outbound HTTPS to Telegram's API, which is simpler to firewall correctly
+  than standing up an inbound webhook receiver on a box whose main job is hosting a game
+  server.
 - **RCON transport**: hand-rolled over Node's `dgram` module — the protocol is ~30 lines,
   not worth a dependency (and no well-maintained CoD-specific one exists).
 - **DB** *(decided)*: **Postgres**, via **Drizzle ORM** (TS-first, good migration story).
@@ -150,9 +164,13 @@ from.
 
 Roles, stored in `admin-store`:
 
-- **Owner** — bootstrapped once via an env var (`OWNER_TELEGRAM_ID`) or a one-time setup
-  command from the first person to `/claim` with a secret printed in the gateway's startup
-  logs. Can add/remove admins of any role, manage per-server access, view full audit log.
+- **Owner** — bootstrapped once, via **either** an env var (`OWNER_TELEGRAM_ID`, checked and
+  inserted into `admin-store` on first startup) **or** a one-time `/claim <secret>` command
+  matching a secret printed in the gateway's startup logs — whichever happens first wins.
+  `/claim` is a no-op (and gets an explicit "owner already set" reply) the moment any row with
+  role `Owner` exists in `admin-store` — it is not a standing command, so a second person
+  can't claim ownership later. Owners can add/remove admins of any role, manage per-server
+  access, and view the full audit log.
 - **Admin** — kick/ban/unban/tempban, map/server control, sees report cards, can act on them.
 - **Moderator** — kick/tempban/mute only (no permanent ban, no server/map control) — useful
   for trusted community members who triage reports without full authority.
@@ -167,31 +185,49 @@ Roles, stored in `admin-store`:
 - Multi-server support: admins can be scoped to specific servers (`admin_servers` join
   table); `/servers` lists configured servers, most commands take an optional
   `--server <alias>` (default = the group chat's bound server, one Telegram group per
-  server, configured via `/bindserver <alias>` in that group).
+  server, configured via `/bindserver <alias>` in that group). **Scoping is access-only, not
+  per-server role** — `admins.role` is one global value per Telegram ID, so an admin can be
+  granted or denied a given server, but can't be e.g. Moderator on one server and Admin on
+  another. Acceptable for now (single-operator/small-team use case); revisit if multi-tenant
+  usage with different trust levels per server actually comes up.
 
 ## 5. In-game report automation (the core feature)
 
-1. **Trigger detection**: player sends `report PlayerName` or `!report PlayerName reason...`
-   in game chat. `log-tailer` watches `games_mp.log` (local file, same host), matches the
+1. **Trigger detection**: player sends `!report PlayerName reason...` in game chat —
+   **`!report` prefix required**, no bare `report` trigger. A bare-word trigger would fire on
+   ordinary chat containing the word "report" (e.g. "report card", "reporting in"); requiring
+   the `!` prefix matches the convention RCM's chat commands already use (§2.2) and avoids
+   false positives. `log-tailer` watches `games_mp.log` (local file, same host), matches the
    `say`/`sayteam` line pattern, and extracts reporter + raw text into an internal
    `ReportEvent`.
 2. **Resolve target**: pull live `status` via `rcon-client`, fuzzy-match `PlayerName`
    against connected players (handles partial names, color-code-stripped comparison,
    case-insensitivity). If ambiguous, the report card lists candidates for the admin to pick.
+   If the named player has already disconnected by the time `status` comes back (race between
+   the chat line and the rcon round-trip), post the card anyway using the last-known info
+   `log-tailer` cached for that session (§5.3), clearly labeled "target disconnected" with no
+   action buttons except `Ignore` — kick/ban buttons are pointless against a player who isn't
+   connected, and `Ban` would still need a resolvable GUID/IP, which is exactly what's now
+   stale.
 3. **Enrich**: for the resolved player, gather everything available without extra rcon
    round-trips beyond `status`:
    - Client ID, current GUID (flag if `0`/masterserver-unavailable), IP address, ping,
      score, current session duration (tracked by `log-tailer` since their `connect` line).
    - Prior history from `ban-store`/`admin-store` audit log: previous reports against this
      name/GUID/IP, previous kicks/bans/warnings, first-seen date if we've logged them
-     before.
+     before. **When the current GUID is `0`** (see §2.4 caveat), skip GUID in the
+     correlation key entirely and match on IP+name only — otherwise every GUID-0 player
+     would incorrectly share one "identity" in the history lookup.
    - Reporter's own info (name/GUID) for accountability and to apply the anti-spam cooldown.
    - Last N chat lines from this player (small ring buffer kept by `log-tailer` per active
      session) — useful context for admins without needing to watch console live.
 4. **Anti-spam**: per-reporter cooldown (e.g. one report per 60s, configurable) and simple
    duplicate-suppression (same reporter+target within a window collapses into one updated
-   card rather than spamming the chat) — otherwise a small flood of `report` spam becomes a
-   Telegram-flood vector.
+   card rather than spamming the chat) — otherwise a small flood of `!report` spam becomes a
+   Telegram-flood vector. The collapse only applies while the existing card is still
+   unresolved (no action taken yet, tracked via `reports.resolved_action` — §7); once a card
+   has been acted on (kicked/banned/ignored), a new report against the same target posts a
+   **fresh** card instead of re-editing a message admins already treated as closed.
 5. **Deliver to Telegram**: message posted to the server's bound admin group, with:
    - Header: `🚨 Report: <reporter> reported <target>` + reason if given.
    - Body: the enrichment data from step 3, formatted compactly.
@@ -204,10 +240,13 @@ Roles, stored in `admin-store`:
    into the game for transparency (§6) — not silent, not optional per-action (a per-server
    opt-out toggle can be added later if a community wants it, but the default is on).
 7. **GUID-0 fallback**: if the target's GUID is `0`/blank, the `Ban` button executes an
-   IP-based ban (add to a `ban_ips` table enforced by the gateway itself — e.g. gateway
-   periodically diffs `status` against `ban_ips` and auto-kicks matches — since the game
-   binary can't ban by IP natively) and the card clearly labels this as "IP ban (GUID
-   unavailable)".
+   IP-based ban — inserts a row into the `ban_ips` table (§7) — since the game binary can't
+   ban by IP natively. Enforcement is a gateway-owned poller: on a fixed interval (start at
+   10s, configurable) the gateway runs `status` against every configured server and kicks any
+   connected player whose IP matches an active `ban_ips` row. This poller is a third event
+   source alongside log-tailing and Telegram commands (§3 diagram) — it's the one place the
+   gateway acts without being triggered by an external event. The card clearly labels this
+   action as "IP ban (GUID unavailable)".
 
 ## 6. Server status & management
 
@@ -241,16 +280,27 @@ Roles, stored in `admin-store`:
 - `servers(alias, rcon_host, rcon_port, rcon_password_encrypted, log_source_config,
   bound_telegram_chat_id)`
 - `bans(id, server_alias, guid, ip, name, reason, banned_by, banned_at, expires_at,
-  is_ip_fallback)`
+  is_ip_fallback)` — GUID-based bans (`is_ip_fallback = false`), enforced natively by the game
+  binary via `banUser`/`banClient`.
+- `ban_ips(id, server_alias, ip, reason, banned_by, banned_at, expires_at)` — IP-based bans
+  used only for the GUID-0 fallback path (§5.7); enforced by the gateway's own status-poller
+  since the game binary has no native IP-ban support. Kept as a separate table from `bans`
+  (rather than overloading `bans.ip` + `is_ip_fallback`) because the two are enforced by
+  completely different mechanisms — native ban-file vs. gateway poll-and-kick — and querying
+  "what does the poller need to check right now" should be a plain scan of one table, not a
+  filtered scan of the general ban history.
 - `reports(id, server_alias, reporter_name, reporter_guid, target_name, target_guid,
   target_ip, reason, raw_chat_line, created_at, resolved_action, resolved_by, resolved_at)`
 - `audit_log(id, actor_telegram_id, action, target, server_alias, detail_json, created_at)`
 
 `rcon_password` and any other secrets stored **encrypted at rest** (e.g. libsodium secretbox
 with a key from env), not plaintext in the DB — the gateway is the only thing that ever needs
-the decrypted value. Postgres runs on the same host (§3.2); back it up with routine
-`pg_dump` snapshots since it now holds the durable ban/audit history, not just cache-able
-state.
+the decrypted value. Note the limits of this: the decryption key lives in env on the same host
+as the database, so this protects against a leaked DB dump/backup, not against full compromise
+of the host itself (which gets the key too). Postgres runs on the same host (§3.2); back it up
+with routine `pg_dump` snapshots **shipped off-host** (e.g. synced to object storage or a
+second machine) — a same-host-only backup is lost together with the primary on any host
+failure, and this DB now holds durable ban/audit history, not just cache-able state.
 
 ## 8. Security notes
 
@@ -263,7 +313,13 @@ state.
   clicks or a report flood shouldn't hammer the game server).
 - Validate/sanitize anything interpolated into an RCON command (player-supplied report
   reasons, chat text) before it could ever be echoed via `rcon say` — avoid command/argument
-  injection into the RCON stream.
+  injection into the RCON stream. **`/rcon` (§6) is an intentional exception** to this rule —
+  it's a deliberate raw passthrough for the owner, not a bug — but that's exactly why it's
+  owner-only and always logged verbatim to `audit_log`, unlike every other command path.
+- Respect Telegram's own API rate limits (roughly 30 messages/sec bot-wide, ~20/minute per
+  group) when designing anything that posts/edits messages in a loop — an auto-refreshing
+  `/status` (§6) or a burst of report cards during a raid should back off/coalesce rather than
+  firing one API call per event, or Telegram will start silently dropping/delaying updates.
 
 ## 9. Phased delivery plan
 
@@ -276,9 +332,11 @@ state.
 - **Phase 2 — admin & data layer**: `admin-store`/`ban-store` on Postgres via Drizzle;
   `/addadmin`/`/removeadmin`/`/setrole`, audit log, multi-server support (`servers` table,
   per-group binding).
-- **Phase 3 — report automation**: `log-tailer` + `report-pipeline`; `report <name>` chat
+- **Phase 3 — report automation**: `log-tailer` + `report-pipeline`; `!report <name>` chat
   trigger → enriched Telegram card → inline-button actions → anti-spam cooldown → GUID-0
-  IP-fallback ban path.
+  IP-fallback ban path. Verify actual GUID behavior on the target server before/at the start
+  of this phase (§2.4 caveat) — it decides whether GUID-0 handling is the rare-path fallback
+  as designed, or needs to become the primary path.
 - **Phase 4 — nice-to-haves** (borrow from RCM): GeoIP-enriched player info on report cards,
   proxy/VPN auto-kick list, bad-nickname auto-kicker, `!getss`-style screenshot capture if an
   anticheat hook is available, periodic stats digest posted to the Telegram group.
@@ -292,9 +350,14 @@ state.
 - ~~SQLite vs Postgres~~ — **resolved**: Postgres from the start (§3.2, §7).
 - ~~In-game ban feedback~~ — **resolved**: every kick/ban/tempban broadcasts via `rcon say`
   (§5 step 6, §6), not silent.
+- ~~Webhook vs long-polling~~ — **resolved**: long-polling (§3.2) — no public HTTPS endpoint
+  needed on the game server host.
 
 All open questions are resolved — plan is ready to move into Phase 0 implementation whenever
-you want to start.
+you want to start. One item is flagged rather than open: whether GUID 0 is the common case on
+the actual target server (§2.4) is a fact to verify empirically, not a design decision — it's
+called out at the top of Phase 3 (§9) as a check to run before building the GUID-vs-IP
+correlation logic further.
 
 ## Sources
 
