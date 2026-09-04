@@ -24,17 +24,19 @@ jobs:
       # Learn more at https://nx.dev/docs/reference/nx-cloud-cli#npx-nxcloud-startcirun
       - run: npx nx start-ci-run --distribute-on="3 linux-medium-js" --stop-agents-after="e2e"
 
+      - uses: pnpm/action-setup@v4
+
       # Cache node_modules
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-          cache: 'npm'
+          cache: 'pnpm'
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       # Prepend any command with "nx record --" to record its logs to Nx Cloud
-      - run: npx nx record -- npx nx format:check --base="remotes/origin/main"
-      - run: npx nx run-many -t lint test build typecheck e2e
+      - run: pnpm exec nx record -- pnpm exec nx format:check --base="remotes/origin/main"
+      - run: pnpm exec nx run-many -t lint test build typecheck e2e
       # Nx Cloud recommends fixes for failures to help you get CI green faster. Learn more: https://nx.dev/docs/features/ci-features/self-healing-ci
-      - run: npx nx fix-ci
+      - run: pnpm exec nx fix-ci
         if: always()

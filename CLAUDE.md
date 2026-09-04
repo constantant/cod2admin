@@ -21,3 +21,33 @@
 - The `nx-generate` skill handles generator discovery internally - don't call nx_docs just to look up generator syntax
 
 <!-- nx configuration end-->
+
+# Project-specific instructions
+
+## Package manager
+
+This workspace uses **pnpm** (see `packageManager` in `package.json`, `pnpm-workspace.yaml`,
+`pnpm-lock.yaml`) — not npm. Always run nx through pnpm: `pnpm exec nx ...` (or `pnpm nx ...`).
+Do not use `npm install`/`npm ci`/`npx nx` here — this workspace hit a reproducible npm 10.x
+arborist bug (`Cannot read properties of null (reading 'edgesOut')`) on install, which is why it
+migrated off npm.
+
+- If a bare `pnpm` command isn't on `PATH`, use `corepack pnpm ...` instead of installing pnpm
+  globally — Node ships Corepack, and it resolves the exact version pinned in `packageManager`.
+  `corepack enable` may fail with `EPERM` on Windows without an elevated shell; that's fine,
+  `corepack pnpm` works either way and doesn't need it.
+- pnpm blocks dependency postinstall/build scripts by default. If `pnpm install` reports
+  `Ignored build scripts`, review the named package before approving it, then add it to
+  `allowBuilds` in `pnpm-workspace.yaml` (e.g. `'@swc/core': true`) and reinstall — don't blanket-
+  approve everything.
+
+## Project context
+
+See `docs/PLAN.md` for the full design of the CoD2 Admin Telegram/RCON bot this workspace is
+building (architecture, phased delivery plan in §9, dev/test environment in §11). `docs/PLAN-ru.md`
+is a condensed Russian summary for the server owner, kept in sync with the same decisions.
+
+Current status: Phase 0 (`packages/rcon-client` — the RCON protocol client) is scaffolded and
+passing `test`/`build`/`typecheck`. Nothing beyond that phase exists yet (no `apps/gateway`, no
+DB layer). Before starting later-phase work, check `docs/PLAN.md` §9 for what that phase covers
+and whether any of its "Open questions"/caveats (§10, §2.4's GUID-0 verification) still apply.

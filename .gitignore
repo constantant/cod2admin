@@ -55,3 +55,7 @@ Thumbs.db
 # CoD2 dev server game data - not redistributable, see docker/cod2server/README.md
 docker/cod2server/main/*.iwd
 docker/cod2server/main/games_mp.log
+vitest.config.*.timestamp*
+
+# npm lockfile - workspace uses pnpm (pnpm-lock.yaml), don't let a stray `npm install` add this back
+package-lock.json
