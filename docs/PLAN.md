@@ -68,6 +68,12 @@ dedicated servers:
   `tempBanClient` only kicks. Our ban flow must detect GUID `0`/empty and fall back to an
   **IP-based ban** (kick + add IP to a firewall/deny list or a `ban.txt` IP-based workaround)
   rather than silently failing.
+  - Separately: `tempBanClient`'s own ban *duration* is controlled by a server-wide cvar
+    rather than a per-call argument, and (unverified, but consistent with how this family of
+    Q3-derived RCON servers behaves) the block is likely in-memory and doesn't survive a
+    map/server restart. Neither property is compatible with an admin picking an arbitrary
+    duration from a Telegram button. **Decision: our temp-ban flow never calls
+    `tempBanClient` at all** — see §5.6.
   - **Caveat (verify before Phase 3):** because the master server is *permanently* defunct,
     GUID 0 may be the common case on today's internet rather than a rare edge case — some
     community server configs/patches work around this and recover a real GUID, others don't.
@@ -115,6 +121,10 @@ from.
                                                           ▼
                                               Telegram group/channel
                                               (admin chat, inline buttons)
+
+                                              ↻ (not shown above: the gateway also self-polls
+                                                 `status` on a fixed interval — bans/ban_ips
+                                                 expiry enforcement only, see §5.7)
 ```
 
 The gateway has three ways it starts doing something: an inbound log-tail event (chat/connect/
@@ -169,11 +179,16 @@ Roles, stored in `admin-store`:
   matching a secret printed in the gateway's startup logs — whichever happens first wins.
   `/claim` is a no-op (and gets an explicit "owner already set" reply) the moment any row with
   role `Owner` exists in `admin-store` — it is not a standing command, so a second person
-  can't claim ownership later. Owners can add/remove admins of any role, manage per-server
-  access, and view the full audit log.
+  can't claim ownership later. Enforced via a DB-level unique constraint/transaction on
+  `role = 'Owner'`, not just an application-level check-then-insert, so two people racing
+  `/claim` at the same instant can't both succeed. Owners can add/remove admins of any role,
+  manage per-server access, and view the full audit log.
 - **Admin** — kick/ban/unban/tempban, map/server control, sees report cards, can act on them.
-- **Moderator** — kick/tempban/mute only (no permanent ban, no server/map control) — useful
-  for trusted community members who triage reports without full authority.
+- **Moderator** — kick/tempban only (no permanent ban, no server/map control) — useful for
+  trusted community members who triage reports without full authority. (Chat **mute** was
+  considered but dropped from v1: vanilla CoD2 RCON has no native per-player mute, and faking
+  one server-side would need a GSC chat hook — see the Phase 4 note in §9 if this becomes a
+  priority.)
 - Commands (owner/admin only, enforced by a grammy middleware checking `admin-store`):
   - `/addadmin <reply-or-@user> <role>`
   - `/removeadmin <@user>`
@@ -202,7 +217,11 @@ Roles, stored in `admin-store`:
    `ReportEvent`.
 2. **Resolve target**: pull live `status` via `rcon-client`, fuzzy-match `PlayerName`
    against connected players (handles partial names, color-code-stripped comparison,
-   case-insensitivity). If ambiguous, the report card lists candidates for the admin to pick.
+   case-insensitivity). If ambiguous, the card posts with **no** `Kick`/`Temp Ban`/`Ban`
+   buttons yet — instead one row of `Select: <candidate 1>` / `Select: <candidate 2>` / ...
+   buttons (plus `Ignore`), built from the same `status` pull with no extra rcon round trip.
+   Picking one edits the message in place into the normal resolved card (step 5) for that
+   specific player; `Ignore` here dismisses the whole report without acting on anyone.
    If the named player has already disconnected by the time `status` comes back (race between
    the chat line and the rcon round-trip), post the card anyway using the last-known info
    `log-tailer` cached for that session (§5.3), clearly labeled "target disconnected" with no
@@ -248,17 +267,31 @@ Roles, stored in `admin-store`:
    kick/ban/tempban also fires an `rcon say "<target> was <action> by an admin"` broadcast
    into the game for transparency (§6) — not silent, not optional per-action (a per-server
    opt-out toggle can be added later if a community wants it, but the default is on).
+
+   **Temp-ban mechanism (decided)**: per the §2.4 caveat, native `tempBanClient`'s duration is
+   a server-wide cvar, not a per-call argument, and likely doesn't survive a restart — unfit
+   as the source of truth for an admin-chosen "30m". So `Temp Ban` does **not** call
+   `tempBanClient`: it calls `banClient`/`banUser` — the same native call as a permanent
+   `Ban`, GUID written to `ban.txt` — and inserts a `bans` row with `expires_at` set (a
+   permanent `Ban` leaves `expires_at` null; the two buttons differ only in that field). The
+   gateway's expiry-enforcement poller (§5.7, generalized beyond just GUID-0) calls
+   `unbanUser`/removes the `ban.txt` entry once `expires_at` passes. This makes `bans` and
+   `ban_ips` symmetric — both gateway-timed — and `tempBanClient`'s own duration semantics are
+   never relied on.
 7. **GUID-0 fallback**: if the target's GUID is `0`/blank, **both** the `Ban` and
    `Temp Ban (30m)` buttons execute an IP-based ban — inserting a row into the `ban_ips` table
    (§7), with `expires_at` set for temp bans and left null for permanent ones — since the game
    binary can't ban by IP natively, and (§2.4) `tempBanClient` degrades to a bare kick for
    GUID 0 with no enforced duration on its own. Routing temp bans through `ban_ips` too, rather
    than only `Ban`, is what actually gives GUID-0 temp bans a duration. Enforcement is a
-   gateway-owned poller: on a fixed interval (start at 10s, configurable) the gateway runs
-   `status` against every configured server and kicks any connected player whose IP matches an
-   active `ban_ips` row (`expires_at` null or in the future). This poller is a third event
-   source alongside log-tailing and Telegram commands (§3 diagram) — it's the one place the
-   gateway acts without being triggered by an external event. Both buttons label the resulting
+   gateway-owned poller, generalized to do two jobs on the same fixed interval (start at 10s,
+   configurable): (a) run `status` against every configured server and kick any connected
+   player whose IP matches an active `ban_ips` row (`expires_at` null or in the future) — the
+   GUID-0 case; and (b) scan `bans` for rows whose `expires_at` has just passed and call
+   `unbanUser`/remove them from `ban.txt` — the GUID-based temp-ban expiry from step 6 above.
+   This poller is a third event source alongside log-tailing and Telegram commands (§3
+   diagram) — it's the one place the gateway acts without being triggered by an external
+   event. Both buttons label the resulting
    card action as "IP ban (GUID unavailable)" / "IP temp ban (GUID unavailable)".
    - **Known limitations, accepted for now**: (a) the poll interval means a banned GUID-0
      player who is already connected, or who reconnects between polls, has up to one interval's
@@ -276,8 +309,15 @@ Roles, stored in `admin-store`:
   Telegram message, with a manual inline "Refresh" button that re-edits the same message on
   click. **No background timer** — it only ever calls the API in response to a button press,
   never on an interval.
-- `/players [server]` — live player list with per-player inline `Kick`/`Ban` shortcuts (same
-  action path as the report card, just triggered manually).
+- `/kick <player>`, `/ban <player> [reason]`, `/tempban <player> [duration]`,
+  `/unban <guid-or-ip>` — direct commands taking a player name/slot or ban target, for when an
+  admin doesn't want to open `/players` first. Same permission checks, same RCON/DB mechanism,
+  and same audit logging as the button-driven paths (§5.6) — `/tempban` in particular goes
+  through the `banClient`+`expires_at`+expiry-poller flow, not native `tempBanClient`. These
+  give Moderators (§4, kick/tempban only, no `/ban`) a way to act proactively instead of only
+  reacting to an in-game `!report`.
+- `/players [server]` — live player list with per-player inline `Kick`/`Temp Ban (30m)`/`Ban`
+  shortcuts (same action path as the report card, just triggered manually).
 - `/map <name>`, `/maprotate`, `/restart`, `/fastrestart` — map control, admin-role-gated.
 - `/say <message>` — broadcast to the game via `rcon say`.
 - **Moderation broadcasts** *(decided)*: every kick/ban/tempban (whether triggered via a
@@ -304,15 +344,20 @@ Roles, stored in `admin-store`:
 - `servers(alias, rcon_host, rcon_port, rcon_password_encrypted, log_source_config,
   bound_telegram_chat_id)`
 - `bans(id, server_alias, guid, name, reason, banned_by, banned_at, expires_at)` — GUID-based
-  bans (and temp bans, via `expires_at`), enforced natively by the game binary via
-  `banUser`/`banClient`/`tempBanClient`.
+  bans (and temp bans, via `expires_at`). The initial block is enforced natively by the game
+  binary via `banUser`/`banClient` (GUID written to `ban.txt`); **expiry is gateway-enforced**
+  (§5.6/§5.7), not via `tempBanClient`'s own duration semantics — see the caveat in §2.4/§5.6.
+  `tempBanClient` itself is not called anywhere in our ban flow; it's referenced in §2.4 purely
+  as prior-art protocol knowledge (its GUID-0 behavior).
 - `ban_ips(id, server_alias, ip, reason, banned_by, banned_at, expires_at)` — IP-based bans
   used only for the GUID-0 fallback path (§5.7), for both permanent and temp bans; enforced by
-  the gateway's own status-poller since the game binary has no native IP-ban support. Kept as a
-  separate table from `bans` rather than an `ip` + `is_ip_fallback` column pair on `bans`,
-  because the two are enforced by completely different mechanisms — native ban-file vs. gateway
-  poll-and-kick — and querying "what does the poller need to check right now" should be a plain
-  scan of one table, not a filtered scan of the general ban history.
+  the gateway's own status-poller since the game binary has no native IP-ban support (the same
+  poller also drives `bans`' temp-ban expiry — §5.6/§5.7). Kept as a separate table from `bans`
+  rather than an `ip` + `is_ip_fallback` column pair on `bans`, because the two are enforced by
+  completely different mechanisms for the *initial* block — native ban-file vs. gateway
+  poll-and-kick — even though expiry enforcement is now shared logic; querying "what does the
+  poller need to check right now" should be a plain scan of one table, not a filtered scan of
+  the general ban history.
 - `reports(id, server_alias, reporter_name, reporter_guid, target_name, target_guid,
   target_ip, reason, raw_chat_line, created_at, resolved_action, resolved_by, resolved_at)`
 - `audit_log(id, actor_telegram_id, action, target, server_alias, reason, source, detail_json,
@@ -340,8 +385,11 @@ failure, and this DB now holds durable ban/audit history, not just cache-able st
 - Rate-limit outgoing RCON commands from the gateway itself (a burst of Telegram button
   clicks or a report flood shouldn't hammer the game server).
 - Validate/sanitize anything interpolated into an RCON command (player-supplied report
-  reasons, chat text) before it could ever be echoed via `rcon say` — avoid command/argument
-  injection into the RCON stream. **`/rcon` (§6) is an intentional exception** to this rule —
+  reasons, chat text, **and player names** — reporter/target names are just as
+  player-controlled as chat text, and the mandatory moderation broadcast (§5/§6) echoes the
+  target's name via `rcon say` on every kick/ban/tempban) before it could ever be echoed via
+  `rcon say` — avoid command/argument injection into the RCON stream. **`/rcon` (§6) is an
+  intentional exception** to this rule —
   it's a deliberate raw passthrough for the owner, not a bug — but that's exactly why it's
   owner-only and always logged verbatim to `audit_log`, unlike every other command path.
 - Respect Telegram's own API rate limits (roughly 30 messages/sec bot-wide, ~20/minute per
@@ -364,7 +412,10 @@ failure, and this DB now holds durable ban/audit history, not just cache-able st
   role delegation, since the owner is the only actor who could act anyway.
 - **Phase 2 — admin & data layer**: `admin-store`/`ban-store` on Postgres via Drizzle;
   `/addadmin`/`/removeadmin`/`/setrole`, audit log, multi-server support (`servers` table,
-  per-group binding).
+  per-group binding). Also where `/tempban` and the `Temp Ban` shortcuts (§6) become usable —
+  they need `ban-store`'s expiry-enforcement poller (§5.6/§5.7), which needs Postgres. This is
+  also the first phase where the Moderator role (§4) has any real capability, since roles
+  (and therefore Moderators) don't exist before it.
 - **Phase 3 — report automation**: `log-tailer` + `report-pipeline`; `!report <name>` chat
   trigger → enriched Telegram card → inline-button actions → anti-spam cooldown → GUID-0
   IP-fallback ban path. Verify actual GUID behavior on the target server before/at the start
@@ -372,7 +423,9 @@ failure, and this DB now holds durable ban/audit history, not just cache-able st
   as designed, or needs to become the primary path.
 - **Phase 4 — nice-to-haves** (borrow from RCM): GeoIP-enriched player info on report cards,
   proxy/VPN auto-kick list, bad-nickname auto-kicker, `!getss`-style screenshot capture if an
-  anticheat hook is available, periodic stats digest posted to the Telegram group.
+  anticheat hook is available, periodic stats digest posted to the Telegram group, and
+  investigate a GSC-hook-based chat **mute** for Moderators (§4) if CoD2x exposes one — dropped
+  from v1 since vanilla RCON has no native per-player mute.
 
 ## 10. Open questions for the user
 
