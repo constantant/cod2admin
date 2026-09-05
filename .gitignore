@@ -54,7 +54,11 @@ Thumbs.db
 
 # CoD2 dev server game data - not redistributable, see docker/cod2server/README.md
 docker/cod2server/main/*.iwd
-docker/cod2server/main/games_mp.log
+
+# CoD2 dev server fs_homepath - runtime-generated logs/config/punkbuster state, see
+# docker/cod2server/README.md and docs/PLAN.md §11.1
+docker/cod2server/homedir/*
+!docker/cod2server/homedir/.gitkeep
 vitest.config.*.timestamp*
 
 # npm lockfile - workspace uses pnpm (pnpm-lock.yaml), don't let a stray `npm install` add this back

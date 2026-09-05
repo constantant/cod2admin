@@ -135,22 +135,29 @@ dedicated servers:
     populated. Connect/quit lines follow the same `guid;num;name` shape (`J;...`/`Q;...`); kill/
     death lines (`K;`/`D;`) carry attacker and victim blocks back to back — parsed by
     `log-tailer`'s `chat-parser.ts` so far, connect/quit/kill parsing not yet implemented.
-  - **Dev-environment gap found the same day, not yet fixed:** §11.1 documents
+  - **Dev-environment gap found 2026-09-06, fixed same day:** §11.1 previously documented
     `games_mp.log` as landing at `docker/cod2server/main/games_mp.log` on the host via a bind
-    mount, but that's now stale on two counts, discovered while capturing the fixture above: (a)
-    `docker-compose.yml`'s `cod2_server` volume was since changed to a **named volume**
-    (`cod2admin-dev-cod2-main:/home/cod2/main`, working around an upstream bind-mount bug,
-    #94) — nothing under `/home/cod2/main` reaches the host filesystem anymore, so `.env`'s
-    `COD2_LOG_PATH=./docker/cod2server/main/games_mp.log` points at a path that is never
-    written; and (b) `games_mp.log` itself is a symlink to `/dev/stdout` inside the container
-    (confirmed via `docker exec ... ls -la`) — the image routes game-event logging into
-    `docker logs` rather than a real file, so even a correct bind mount wouldn't make it
-    tailable as a plain file. The fixture above was captured via `docker logs`, not a
-    filesystem tail. **Needs a fix before `log-tailer` can be wired to the dev container
-    end-to-end** (§11.3's manual checklist depends on this) — options include setting
-    `fs_homepath` in `server_mp.cfg` to a bind-mounted path and confirming the image doesn't
-    re-symlink it, or having `log-tailer` consume `docker logs -f` in dev only. Real production
-    (§6, same-host, not necessarily this Docker image) may not have either issue — unconfirmed.
+    mount, but that was stale on two counts, discovered while capturing the fixture above: (a)
+    `docker-compose.yml`'s `cod2_server` volume for `fs_basepath` (game data) was since changed
+    to a **named volume** (`cod2admin-dev-cod2-main:/home/cod2/main`, working around an
+    upstream bind-mount bug, #94) — nothing under `/home/cod2/main` reaches the host filesystem
+    anymore; and (b) `games_mp.log` itself, under the image's *default* `fs_homepath`
+    (`~/.callofduty2`), is a symlink to `/dev/stdout` (confirmed via `docker exec ... ls -la`) —
+    routed into `docker logs` rather than written as a real file, so even a correct bind mount at
+    the old path wouldn't have made it tailable. The fixture above was captured via `docker
+    logs`, not a filesystem tail. **Fixed** by giving `fs_homepath` its own separate bind mount,
+    distinct from `fs_basepath`'s named volume: `docker-compose.yml` now passes
+    `+set fs_homepath /home/cod2/homedir` at launch (a `set`/`seta` inside an `+exec`'d config is
+    too late — `fs_homepath` is a "protected" cvar per `server_mp.cfg`'s own comment) and mounts
+    `./docker/cod2server/homedir:/home/cod2/homedir`. Verified: `games_mp.log` now lands as a
+    real, growing text file at `docker/cod2server/homedir/main/games_mp.log` on the host
+    (`COD2_LOG_PATH` in `.env`/`.env.example`, updated), containing only game-event lines
+    (`InitGame`/`J`/`Q`/`K`/`D`/`say`/`sayteam`/...) — console noise (heartbeats, hitch warnings,
+    `Rcon from ...`) stays in the separate `console_mp_server.log` next to it, cleanly split for
+    the first time. See `docker/cod2server/README.md`'s "Known issue" section for the two-volume
+    rationale. Real production (§6, same-host, not necessarily this Docker image) may never have
+    had either issue — unconfirmed, and moot now that dev matches the intended filesystem-tail
+    model either way.
 - **CoD2x** (unofficial community patch) adds a UDP rate limiter (DDoS mitigation — good, we
   should recommend it regardless) and GSC-level `http_fetch` / `websocket_connect` /
   `websocket_sendText` script functions, which could in principle push events out of the game
@@ -527,11 +534,16 @@ Decided ahead of Phase 0 so every phase lands with tests from the start, not bol
   — you need your own legitimate CoD2 copy to extract them from; see
   `docker/cod2server/README.md` for the one-time setup step this requires before the container
   will actually boot.
-  - The container bind-mounts `docker/cod2server/main` to `/home/cod2/main`, so
-    `games_mp.log` lands at `docker/cod2server/main/games_mp.log` on the host. Per §6 the
-    gateway always reads the log straight off the local filesystem (never over SSH), so in dev
-    the gateway process (run natively via `nx serve`, not containerized) points `log-tailer` at
-    that host path — same code path as prod, just a bind mount standing in for "same host."
+  - **Two separate volumes, not one** (§2.4 has the full investigation/fix, 2026-09-06):
+    `docker/cod2server/main` (`fs_basepath`, game data) is seeded into a **named volume** —
+    an upstream bug (bgauduch/call-of-duty-2-docker-server#94) breaks a bind mount there — so
+    it never reaches the host filesystem. `docker/cod2server/homedir` (`fs_homepath`, set via
+    `+set fs_homepath /home/cod2/homedir` at launch) *is* a real bind mount, and that's what
+    `games_mp.log` lands under: `docker/cod2server/homedir/main/games_mp.log` on the host. Per
+    §6 the gateway always reads the log straight off the local filesystem (never over SSH), so
+    in dev the gateway process (run natively via `nx serve`, not containerized) points
+    `log-tailer` at that host path (`COD2_LOG_PATH` in `.env`) — same code path as prod, just a
+    bind mount standing in for "same host."
   - RCON and game traffic share one UDP port (`28960`, per the Quake3-derived protocol, §2.4);
     the compose file binds it (and the game's TCP/UDP `20500`/`20510` ports) to `127.0.0.1`
     only, matching the same-host/localhost connectivity model from §6.

@@ -63,6 +63,14 @@ services:
       # --rm cod2_server_seed` (see that service below) and re-synced the same way after
       # changing any file there (e.g. editing server_mp.cfg).
       - cod2admin-dev-cod2-main:/home/cod2/main
+      # fs_homepath (below) — a real bind mount, unlike fs_basepath's named volume above. It only
+      # ever holds small generated text/config files (log, punkbuster state), never the .iwd game
+      # data, so it doesn't hit the #94 bug that forced fs_basepath onto a named volume. This is
+      # what makes games_mp.log reachable from the host filesystem at all (docs/PLAN.md §11.1) —
+      # the image's own default fs_homepath (~/.callofduty2) ships games_mp.log pre-symlinked to
+      # /dev/stdout (merged into `docker logs`, not a tailable file), which fs_homepath below
+      # steers the engine away from entirely.
+      - ./docker/cod2server/homedir:/home/cod2/homedir
     command:
       [
         '+set',
@@ -74,6 +82,11 @@ services:
         '+set',
         'sv_punkbuster',
         '0',
+        # fs_homepath/fs_basepath are "protected" cvars (server_mp.cfg's comment) — must be set
+        # here at launch, a `set`/`seta` inside an +exec'd config is silently too late.
+        '+set',
+        'fs_homepath',
+        '/home/cod2/homedir',
         '+exec',
         'punkbuster.cfg',
         '+exec',
