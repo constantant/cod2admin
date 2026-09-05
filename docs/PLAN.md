@@ -74,13 +74,14 @@ dedicated servers:
     map/server restart. Neither property is compatible with an admin picking an arbitrary
     duration from a Telegram button. **Decision: our temp-ban flow never calls
     `tempBanClient` at all** — see §5.6.
-  - **Caveat (verify before Phase 3):** because the master server is *permanently* defunct,
-    GUID 0 may be the common case on today's internet rather than a rare edge case — some
-    community server configs/patches work around this and recover a real GUID, others don't.
-    Treat this as unverified until checked against the actual target server. If GUID 0 turns
-    out to be the default, GUID can't be the primary correlation key for ban/report history
-    (§5.3, §7) — history lookups must key off IP+name instead whenever GUID is `0`, since
-    every GUID-0 player would otherwise collide into one shared identity.
+  - **Confirmed (was: verify before Phase 3):** tested 2026-09-05 against the actual dev server
+    (§11.1, real CoD2 1.4.6.8 client connecting over LAN) — the connecting player got GUID `0`
+    (`Connecting player #0 has a zero GUID` in the server log). Since a modern, unmodified client
+    hit this on the very first connection attempt, GUID 0 should be treated as **the default
+    case, not a rare fallback** — GUID can't be the primary correlation key for ban/report history
+    (§5.3, §7); history lookups must key off IP+name whenever GUID is `0`, since every GUID-0
+    player would otherwise collide into one shared identity. Design for this as the common path
+    when Phase 3 (§9) is built, not as an edge case.
 - Game events (connect/disconnect/chat/kills) are written to
   `$fs_homepath/main/games_mp.log`. This is the standard integration point for detecting the
   `!report <name>` chat trigger when running vanilla CoD2.
@@ -418,9 +419,9 @@ failure, and this DB now holds durable ban/audit history, not just cache-able st
   (and therefore Moderators) don't exist before it.
 - **Phase 3 — report automation**: `log-tailer` + `report-pipeline`; `!report <name>` chat
   trigger → enriched Telegram card → inline-button actions → anti-spam cooldown → GUID-0
-  IP-fallback ban path. Verify actual GUID behavior on the target server before/at the start
-  of this phase (§2.4 caveat) — it decides whether GUID-0 handling is the rare-path fallback
-  as designed, or needs to become the primary path.
+  IP-fallback ban path. **Confirmed (§2.4)**: GUID 0 is the common case on the target server,
+  not a rare fallback — build the GUID-vs-IP correlation logic (§5.3, §7) with that as the
+  default path from the start, not as an edge case bolted on later.
 - **Phase 4 — nice-to-haves** (borrow from RCM): GeoIP-enriched player info on report cards,
   proxy/VPN auto-kick list, bad-nickname auto-kicker, `!getss`-style screenshot capture if an
   anticheat hook is available, periodic stats digest posted to the Telegram group, and
@@ -440,10 +441,10 @@ failure, and this DB now holds durable ban/audit history, not just cache-able st
   needed on the game server host.
 
 All open questions are resolved — plan is ready to move into Phase 0 implementation whenever
-you want to start. One item is flagged rather than open: whether GUID 0 is the common case on
-the actual target server (§2.4) is a fact to verify empirically, not a design decision — it's
-called out at the top of Phase 3 (§9) as a check to run before building the GUID-vs-IP
-correlation logic further.
+you want to start. One item was flagged rather than open — whether GUID 0 is the common case on
+the actual target server (§2.4) — and has since been **confirmed empirically** (2026-09-05,
+real client connecting over LAN got GUID 0 on the first attempt): treat it as the default case
+for the GUID-vs-IP correlation logic (§5.3, §7) when Phase 3 is built, not an edge case.
 
 ## 11. Testing & dev environment
 

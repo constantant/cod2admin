@@ -4,6 +4,7 @@
 #   cp .env.example .env         # fill in real values
 #   docker compose up -d postgres
 #   # then follow docker/cod2server/README.md before starting cod2_server
+#   docker compose run --rm cod2_server_seed   # copy game files into the named volume — see below
 #   docker compose up -d cod2_server
 #
 # Not for production: the gateway app itself is not part of this stack (it runs natively via
@@ -22,17 +23,46 @@ services:
     volumes:
       - cod2admin-dev-postgres:/var/lib/postgresql/data
 
+  # One-shot: copies docker/cod2server/main into the cod2admin-dev-cod2-main named volume that
+  # cod2_server actually mounts (see the comment on that volume below for why). Re-run after
+  # changing any file under docker/cod2server/main (new game files, edited server_mp.cfg, etc);
+  # `docker compose run --rm cod2_server_seed` exits on its own once the copy is done.
+  cod2_server_seed:
+    image: alpine
+    volumes:
+      - ./docker/cod2server/main:/source:ro
+      - cod2admin-dev-cod2-main:/dest
+    entrypoint: ['sh', '-c', 'cp -a /source/. /dest/ && echo "Seeded cod2admin-dev-cod2-main from ./docker/cod2server/main"']
+
   cod2_server:
     # bgauduch/call-of-duty-2-docker-server — requires game files, see docker/cod2server/README.md
-    image: bgauduch/cod2server:6.0.0-1_3_nodelay_va_loc-ibuddieat
+    # "cracked" variant, not the original "nodelay_va_loc" one (no tag combines both) — Activision's
+    # CD-key validation backend is permanently defunct, so a non-cracked binary rejects virtually
+    # every real client today with "invalid key" (confirmed against this exact server). The cracked
+    # binary skips that check entirely. Trades away the nodelay input-lag optimization, which
+    # doesn't matter for a dev/test box. The previously pinned "6.0.0-..." tag was never actually
+    # published either (404 manifest unknown) — this project's version numbering has moved on.
+    image: bgauduch/cod2server:7.0.0-1_3_cracked-ibuddieat
     restart: unless-stopped
     ports:
-      - '127.0.0.1:28960:28960/tcp'
-      - '127.0.0.1:28960:28960/udp' # game traffic + RCON share this port (§2.4)
-      - '127.0.0.1:20500:20500/udp'
-      - '127.0.0.1:20510:20510/udp'
+      # Bound to all interfaces (not just 127.0.0.1) so other devices on the LAN can join —
+      # RCON shares this same port with game traffic (§2.4) and is cleartext/unauthenticated
+      # per-packet (§8), so anyone on the LAN who learns COD2_RCON_PASSWORD could send rcon
+      # commands too. Acceptable for a home-LAN dev server; do not do this on an
+      # internet-facing host without a firewall restricting the rcon path to the gateway's IP.
+      - '28960:28960/tcp'
+      - '28960:28960/udp'
+      - '20500:20500/udp'
+      - '20510:20510/udp'
     volumes:
-      - ./docker/cod2server/main:/home/cod2/main
+      # Named volume, NOT a bind mount — see docker/cod2server/README.md "Known issue" section.
+      # A bind mount of ./docker/cod2server/main hits an open upstream bug (bgauduch/
+      # call-of-duty-2-docker-server#94): the game binary reports "0 files in iwd files" and
+      # refuses to start, even though the files are present/readable in the container. Content
+      # is seeded into this volume from docker/cod2server/main once via `docker compose run
+      # --rm cod2_server_seed` (see that service below) and re-synced the same way after
+      # changing any file there (e.g. editing server_mp.cfg).
+      - cod2admin-dev-cod2-main:/home/cod2/main
     command:
       [
         '+set',
@@ -54,3 +84,4 @@ services:
 
 volumes:
   cod2admin-dev-postgres:
+  cod2admin-dev-cod2-main:
