@@ -82,6 +82,27 @@ dedicated servers:
     (§5.3, §7); history lookups must key off IP+name whenever GUID is `0`, since every GUID-0
     player would otherwise collide into one shared identity. Design for this as the common path
     when Phase 3 (§9) is built, not as an edge case.
+  - **Correction (2026-09-06):** the same real-server testing found `rcon status`'s player table
+    *can* include a `guid` column directly (this dev server's — a "cracked"/ibuddieat-patched
+    build — does, value `0`, matching the confirmed finding above) — contradicting the
+    Phase-2-planning-time research conclusion that GUID is only obtainable by tailing
+    `games_mp.log`. That conclusion still holds as the *general*/portable answer (no other
+    source documents a `guid` column, and `rcon-client`'s parser has to treat it as
+    optional/absent on servers that don't have it), but Phase 3 should re-check `status()` for a
+    `guid` column on the actual target server before assuming log-tailing is the only source.
+  - **Quirks found empirically (2026-09-05/06), now handled in `rcon-client`:** (a) this
+    server's `status` table has a column-width mismatch starting right after `name` — every
+    server build should be assumed capable of this, not just this one, since it stems from the
+    game engine's own formatting, not our parser (fixed: `status-parser.ts` now derives
+    everything after `name` from the line's actual remaining text rather than trusting the
+    header/separator's byte offsets literally); (b) `kick` only accepts a player's **name**, not
+    the numeric slot `status` reports — passing a slot number gets a silent-looking
+    "Player N is not on the server" reply; (c) that same `kick` needs the name **unquoted** for
+    plain ASCII names but **quoted** for names containing non-ASCII bytes (e.g. Cyrillic) —
+    the opposite quoting fails each case differently. `RconClient#kick` now resolves numeric
+    input by looking up the name via `status()` first, and automatically retries with quotes if
+    the first attempt's response looks like either failure shape, rather than guessing from the
+    name's content.
 - Game events (connect/disconnect/chat/kills) are written to
   `$fs_homepath/main/games_mp.log`. This is the standard integration point for detecting the
   `!report <name>` chat trigger when running vanilla CoD2.
