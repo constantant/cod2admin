@@ -103,10 +103,22 @@ describe('parseRconStatusTable', () => {
         name: 'const',
         lastmsg: 0,
         ip: '172.18.0.1',
-        port: -27419,
+        // Raw text is the signed-16-bit wraparound of 38117 (see status-parser.ts's
+        // unwrapSignedPort) — the engine prints high ports through a signed formatter.
+        port: 38117,
         qport: 1199,
         rate: 25000,
       },
     ]);
+  });
+
+  it('un-wraps a signed-16-bit port above 32767', () => {
+    const table = buildStatusTable('mp_toujane', [
+      ['0', '0', '10', 'Solo', '0', '1.2.3.4:-12605', '990', '25000'],
+    ]);
+
+    const status = parseRconStatusTable(table);
+
+    expect(status.players[0].port).toBe(52931);
   });
 });

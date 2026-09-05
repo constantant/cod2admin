@@ -90,6 +90,16 @@ dedicated servers:
     source documents a `guid` column, and `rcon-client`'s parser has to treat it as
     optional/absent on servers that don't have it), but Phase 3 should re-check `status()` for a
     `guid` column on the actual target server before assuming log-tailing is the only source.
+  - **Re-confirmed (2026-09-06, live query against the running dev server, not just re-reading
+    the note above):** `RconClient#status()` returns the `guid` column today (`status-parser.ts`
+    already parses it generically), value `0` for the connected test player — same result as the
+    2026-09-05 finding, now checked directly rather than inferred. **Phase 3 implication:**
+    `report-pipeline`'s enrichment step (§5.3) can read GUID straight off the `status()` call it
+    already makes for target resolution (§5 step 2) on this target server — it does not need
+    `log-tailer` to extract GUID from `games_mp.log` connect lines. `log-tailer`'s scope stays
+    limited to `!report` trigger detection and in-memory session bookkeeping (§5 step 3). A
+    server without a `guid` column in `status` would still need log-tailing for it, per the
+    general/portable caveat above — just not this one.
   - **Quirks found empirically (2026-09-05/06), now handled in `rcon-client`:** (a) this
     server's `status` table has a column-width mismatch starting right after `name` — every
     server build should be assumed capable of this, not just this one, since it stems from the
@@ -103,6 +113,16 @@ dedicated servers:
     input by looking up the name via `status()` first, and automatically retries with quotes if
     the first attempt's response looks like either failure shape, rather than guessing from the
     name's content.
+  - **Bug found during the 2026-09-06 GUID re-check, fixed same day:** `status()`'s parsed
+    `port` field went negative for high port numbers (e.g. a real `address` of
+    `172.18.0.1:52931` came back as `ip: "172.18.0.1", port: -12605` — `65536 - 12605 = 52931`).
+    Root cause: the game engine itself prints the unsigned 16-bit UDP port through a signed
+    16-bit formatter, so anything above `32767` prints as a negative decimal in the raw `status`
+    text — not a parsing mistake on our side, a quirk of the server's own output. Fixed in
+    `status-parser.ts` (`unwrapSignedPort`): negative parsed ports are corrected back via
+    `port + 65536`. Never blocked Phase 3 (the GUID-0 IP-fallback ban path, §5 step 7/§7
+    `ban_ips`, matches on `ip` only, never `port`), but `StatusPlayer.port` is now correct for
+    any future use.
 - Game events (connect/disconnect/chat/kills) are written to
   `$fs_homepath/main/games_mp.log`. This is the standard integration point for detecting the
   `!report <name>` chat trigger when running vanilla CoD2.

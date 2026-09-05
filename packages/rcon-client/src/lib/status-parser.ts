@@ -66,6 +66,16 @@ function toInt(value: string | undefined): number | undefined {
   return Number.isNaN(n) ? undefined : n;
 }
 
+/**
+ * The engine prints a UDP port (unsigned 16-bit, 0-65535) through a signed 16-bit formatter,
+ * so any port above 32767 comes back as a negative decimal (e.g. `52931` prints as `-12605`;
+ * confirmed against a real server, docs/PLAN.md §2.4). Undo that wraparound here rather than
+ * exposing the raw signed value to callers.
+ */
+function unwrapSignedPort(port: number | undefined): number | undefined {
+  return port !== undefined && port < 0 ? port + 65536 : port;
+}
+
 function fieldsToPlayer(fields: Record<string, string>): StatusPlayer | null {
   const num = toInt(fields['num']);
   if (num === undefined) {
@@ -74,7 +84,7 @@ function fieldsToPlayer(fields: Record<string, string>): StatusPlayer | null {
   const address = fields['address'] ?? '';
   const lastColon = address.lastIndexOf(':');
   const ip = lastColon > -1 ? address.slice(0, lastColon) : address || undefined;
-  const port = lastColon > -1 ? toInt(address.slice(lastColon + 1)) : undefined;
+  const port = lastColon > -1 ? unwrapSignedPort(toInt(address.slice(lastColon + 1))) : undefined;
 
   return {
     num,
