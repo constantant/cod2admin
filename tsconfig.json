@@ -7,6 +7,12 @@
       "path": "./packages/rcon-client"
     },
     {
+      "path": "./packages/admin-store"
+    },
+    {
+      "path": "./packages/ban-store"
+    },
+    {
       "path": "./apps/gateway"
     }
   ],
