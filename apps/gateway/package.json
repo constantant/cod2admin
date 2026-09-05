@@ -1,0 +1,25 @@
+{
+  "name": "@cod2admin/gateway",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/main.js",
+  "nx": {
+    "name": "gateway",
+    "targets": {
+      "serve": {
+        "dependsOn": ["build"],
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "node dist/main.js",
+          "cwd": "{projectRoot}"
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "@cod2admin/rcon-client": "workspace:*",
+    "grammy": "^1.46.0",
+    "tslib": "^2.3.0"
+  }
+}

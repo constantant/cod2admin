@@ -1,7 +1,7 @@
 <!-- nx configuration start-->
 <!-- Leave the start & end comments to automatically receive updates. -->
 
-# General Guidelines for working with Nx
+## General Guidelines for working with Nx
 
 - For navigating/exploring the workspace, invoke the `nx-workspace` skill first - it has patterns for querying projects, targets, and dependencies
 - When running tasks (for example build, lint, test, e2e, etc.), always prefer running the task through `nx` (i.e. `nx run`, `nx run-many`, `nx affected`) instead of using the underlying tooling directly
@@ -70,7 +70,10 @@ See `docs/PLAN.md` for the full design of the CoD2 Admin Telegram/RCON bot this 
 building (architecture, phased delivery plan in §9, dev/test environment in §11). `docs/PLAN-ru.md`
 is a condensed Russian summary for the server owner, kept in sync with the same decisions.
 
-Current status: Phase 0 (`packages/rcon-client` — the RCON protocol client) is scaffolded and
-passing `test`/`build`/`typecheck`. Nothing beyond that phase exists yet (no `apps/gateway`, no
-DB layer). Before starting later-phase work, check `docs/PLAN.md` §9 for what that phase covers
-and whether any of its "Open questions"/caveats (§10, §2.4's GUID-0 verification) still apply.
+Current status: Phase 0 (`packages/rcon-client`) and Phase 1 (`apps/gateway` — grammy Telegram
+bot wrapping `rcon-client` with `/status`, `/players`, `/kick`, `/ban`, `/unban`, `/map`,
+owner-only via `OWNER_TELEGRAM_ID`) are scaffolded and passing `test`/`build`/`typecheck`.
+No `admin-store`/`ban-store`/roles/audit-log/multi-server support yet (Phase 2) and no
+`log-tailer`/`report-pipeline` (Phase 3). Before starting later-phase work, check `docs/PLAN.md`
+§9 for what that phase covers and whether any of its "Open questions"/caveats (§10, §2.4's
+GUID-0 verification) still apply.

@@ -5,6 +5,9 @@
   "references": [
     {
       "path": "./packages/rcon-client"
+    },
+    {
+      "path": "./apps/gateway"
     }
   ],
   "compilerOptions": {}
