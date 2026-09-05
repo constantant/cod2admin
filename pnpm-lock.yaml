@@ -116,8 +116,29 @@ importers:
         specifier: ^0.31.10
         version: 0.31.10
 
+  packages/log-tailer:
+    dependencies:
+      tslib:
+        specifier: ^2.3.0
+        version: 2.8.1
+
   packages/rcon-client:
     dependencies:
+      tslib:
+        specifier: ^2.3.0
+        version: 2.8.1
+
+  packages/report-pipeline:
+    dependencies:
+      '@cod2admin/admin-store':
+        specifier: workspace:*
+        version: link:../admin-store
+      '@cod2admin/ban-store':
+        specifier: workspace:*
+        version: link:../ban-store
+      '@cod2admin/rcon-client':
+        specifier: workspace:*
+        version: link:../rcon-client
       tslib:
         specifier: ^2.3.0
         version: 2.8.1
