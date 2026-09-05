@@ -323,6 +323,29 @@ Roles, stored in `admin-store`:
    history, which is on Postgres. Accepted for now as an MVP limitation — revisit (e.g. replay
    recent log lines on startup to rebuild session state) if restarts during active play turn
    out to be frequent enough to matter.
+
+   **Implemented (2026-09-06)**, `packages/log-tailer`:
+   - `FileTailer` follows `games_mp.log` by **polling** `fs.stat`/re-reading new bytes on a
+     timer (default 1s), not `fs.watch`/`fs.watchFile` — in dev this file is written by a
+     process inside a Docker container into a host bind mount (§11.1), and change-notification
+     delivery across that boundary isn't reliable; a poll works the same way regardless of what's
+     writing the file. It starts reading from the file's *current* end (matching the restart
+     caveat above — nothing is replayed), buffers a trailing partial line across polls, and
+     restarts from byte 0 if the file shrinks (covers log rotation/truncation, not currently
+     expected from this game server but cheap to handle).
+   - `SessionTracker` is pure in-memory logic (no file I/O, independent of `FileTailer`, its own
+     unit tests) keyed by client **slot number** (`num`), not GUID — GUID is `0` for multiple
+     concurrent players (§2.4), so it can't identify one specific connection. A session's
+     duration is measured against **wall-clock `Date.now()`**, captured when its `connect` line
+     is processed — deliberately not the log's own in-game `mm:ss` field, which resets to `0:00`
+     on every map change and so can't measure a session spanning a map rotation. A session is
+     never deleted on disconnect, only marked (`disconnectedAt` set, duration frozen) and kept
+     until that slot's next `connect` overwrites it — this *is* the "last-known info" step 2
+     needs for its disconnected-target fallback, not a separate cache.
+   - `GameLogTailer` composes both into the `!report`-detection + session-state entry point
+     report-pipeline will consume (`chat`/`reportTrigger`/`connect`/`disconnect` events,
+     `getSession`/`listSessions`). Verified against the real dev container's `games_mp.log`
+     (post-§2.4-fix), not just temp-file tests.
 4. **Anti-spam**: per-reporter cooldown (e.g. one report per 60s, configurable) and simple
    duplicate-suppression (same reporter+target within a window collapses into one updated
    card rather than spamming the chat) — otherwise a small flood of `!report` spam becomes a
