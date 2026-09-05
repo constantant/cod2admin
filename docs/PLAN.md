@@ -126,6 +126,31 @@ dedicated servers:
 - Game events (connect/disconnect/chat/kills) are written to
   `$fs_homepath/main/games_mp.log`. This is the standard integration point for detecting the
   `!report <name>` chat trigger when running vanilla CoD2.
+  - **Confirmed format (2026-09-06, real dedicated server, `packages/log-tailer/test/fixtures/`):**
+    chat lines are `<minutes>:<seconds> (say|sayteam);<guid>;<num>;<name>;<message>` — e.g.
+    `115:19 say;0;0;WOWOWOW;HEU!`. `<guid>` is field 1, matching the `status()` GUID-0 finding
+    above (the same real session's chat lines all showed `guid=0`). `<name>` was observed
+    **empty** on a player's first couple of chat lines right after connecting, before their name
+    had propagated into the log stream — `log-tailer` callers must not assume `name` is
+    populated. Connect/quit lines follow the same `guid;num;name` shape (`J;...`/`Q;...`); kill/
+    death lines (`K;`/`D;`) carry attacker and victim blocks back to back — parsed by
+    `log-tailer`'s `chat-parser.ts` so far, connect/quit/kill parsing not yet implemented.
+  - **Dev-environment gap found the same day, not yet fixed:** §11.1 documents
+    `games_mp.log` as landing at `docker/cod2server/main/games_mp.log` on the host via a bind
+    mount, but that's now stale on two counts, discovered while capturing the fixture above: (a)
+    `docker-compose.yml`'s `cod2_server` volume was since changed to a **named volume**
+    (`cod2admin-dev-cod2-main:/home/cod2/main`, working around an upstream bind-mount bug,
+    #94) — nothing under `/home/cod2/main` reaches the host filesystem anymore, so `.env`'s
+    `COD2_LOG_PATH=./docker/cod2server/main/games_mp.log` points at a path that is never
+    written; and (b) `games_mp.log` itself is a symlink to `/dev/stdout` inside the container
+    (confirmed via `docker exec ... ls -la`) — the image routes game-event logging into
+    `docker logs` rather than a real file, so even a correct bind mount wouldn't make it
+    tailable as a plain file. The fixture above was captured via `docker logs`, not a
+    filesystem tail. **Needs a fix before `log-tailer` can be wired to the dev container
+    end-to-end** (§11.3's manual checklist depends on this) — options include setting
+    `fs_homepath` in `server_mp.cfg` to a bind-mounted path and confirming the image doesn't
+    re-symlink it, or having `log-tailer` consume `docker logs -f` in dev only. Real production
+    (§6, same-host, not necessarily this Docker image) may not have either issue — unconfirmed.
 - **CoD2x** (unofficial community patch) adds a UDP rate limiter (DDoS mitigation — good, we
   should recommend it regardless) and GSC-level `http_fetch` / `websocket_connect` /
   `websocket_sendText` script functions, which could in principle push events out of the game
