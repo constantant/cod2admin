@@ -148,4 +148,50 @@ describe('RconClient', () => {
 
     await expect(client.getInfo()).rejects.toThrow(/unexpected response header/i);
   });
+
+  describe('kick', () => {
+    it('retries quoted when the unquoted attempt looks like a failure, and returns that result', async () => {
+      const received: string[] = [];
+      peer = await createMockPeer((payload, respond) => {
+        received.push(payload);
+        if (payload === 'rcon secret kick name') {
+          respond('print\nUsage: kick <player name>\nkick all = kick everyone\n');
+        } else if (payload === 'rcon secret kick "name"') {
+          respond('print\n0:name EXE_PLAYERKICKED\n');
+        }
+      });
+      const client = new RconClient({ host: '127.0.0.1', port: peer.port, password: 'secret' });
+
+      const result = await client.kick('name');
+
+      expect(received).toEqual(['rcon secret kick name', 'rcon secret kick "name"']);
+      expect(result).toBe('0:name EXE_PLAYERKICKED\n');
+    });
+
+    it('does not retry when the unquoted attempt succeeds', async () => {
+      const received: string[] = [];
+      peer = await createMockPeer((payload, respond) => {
+        received.push(payload);
+        respond('print\n0:name EXE_PLAYERKICKED\n');
+      });
+      const client = new RconClient({ host: '127.0.0.1', port: peer.port, password: 'secret' });
+
+      await client.kick('name');
+
+      expect(received).toEqual(['rcon secret kick name']);
+    });
+
+    it('never retries for a numeric client id', async () => {
+      const received: string[] = [];
+      peer = await createMockPeer((payload, respond) => {
+        received.push(payload);
+        respond('print\nUsage: kick <player name>\nkick all = kick everyone\n');
+      });
+      const client = new RconClient({ host: '127.0.0.1', port: peer.port, password: 'secret' });
+
+      await client.kick(3);
+
+      expect(received).toEqual(['rcon secret kick 3']);
+    });
+  });
 });

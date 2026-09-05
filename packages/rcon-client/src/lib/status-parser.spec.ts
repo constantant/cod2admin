@@ -77,4 +77,36 @@ describe('parseRconStatusTable', () => {
     const status = parseRconStatusTable(`${table}\n\n`);
     expect(status.players).toHaveLength(1);
   });
+
+  it('parses a guid column, and recovers from a real server\'s off-by-one column drift', () => {
+    // Captured verbatim from a real dedicated server (docs/PLAN.md §2.4 GUID-0 verification):
+    // its data row is consistently 1 character narrower than its own header/separator claims
+    // for every column from `address` onward, which fixed-width slicing alone misparses (the
+    // `lastmsg` value bleeds into what would otherwise be read as the IP).
+    const table = [
+      'map: mp_burgundy',
+      'num score ping guid   name            lastmsg address               qport rate',
+      '--- ----- ---- ------ --------------- ------- --------------------- ----- -----',
+      '  0     0   48      0 const^7                 0 172.18.0.1:-27419      1199 25000',
+      '',
+    ].join('\n');
+
+    const status = parseRconStatusTable(table);
+
+    expect(status.mapName).toBe('mp_burgundy');
+    expect(status.players).toEqual([
+      {
+        num: 0,
+        score: 0,
+        ping: 48,
+        guid: '0',
+        name: 'const',
+        lastmsg: 0,
+        ip: '172.18.0.1',
+        port: -27419,
+        qport: 1199,
+        rate: 25000,
+      },
+    ]);
+  });
 });

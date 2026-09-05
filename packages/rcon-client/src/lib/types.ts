@@ -25,6 +25,12 @@ export interface StatusPlayer {
   score: number;
   ping: number;
   name: string;
+  /**
+   * Not present on every server/build — docs/PLAN.md §2.4 originally assumed this was only
+   * obtainable via log-tailing, but at least one real server config exposes it directly here.
+   * `'0'` means no valid GUID (masterserver-unavailable — §2.4), same as the log-tailer case.
+   */
+  guid?: string;
   lastmsg?: number;
   ip?: string;
   port?: number;

@@ -6,6 +6,7 @@ import { sendOobQuery } from './udp-transport.js';
 const DEFAULT_TIMEOUT_MS = 2000;
 const DEFAULT_RETRIES = 2;
 const DEFAULT_MIN_SEND_INTERVAL_MS = 100;
+const KICK_FAILURE_PATTERN = /^Usage:|is not on the server/i;
 
 /**
  * Pure TS client for the Quake3/CoD out-of-band UDP RCON protocol (docs/PLAN.md §2.4/§3.1).
@@ -67,8 +68,20 @@ export class RconClient {
     return parseRconStatusTable(raw);
   }
 
+  /**
+   * Confirmed empirically against a real server: its `kick` console command tokenizes plain
+   * ASCII names unquoted, but a name containing non-ASCII bytes (e.g. Cyrillic) only resolves
+   * when quoted — the opposite quoting fails a *different* way for each case (a generic "Usage:"
+   * message for non-ASCII unquoted, "is not on the server" for ASCII quoted), so rather than
+   * guess from the name's content, retry with the other quoting style if the first attempt's
+   * response looks like one of those known failure shapes.
+   */
   async kick(clientIdOrName: string | number): Promise<string> {
-    return this.rcon(`kick ${clientIdOrName}`);
+    const result = await this.rcon(`kick ${clientIdOrName}`);
+    if (typeof clientIdOrName === 'string' && KICK_FAILURE_PATTERN.test(result)) {
+      return this.rcon(`kick "${clientIdOrName}"`);
+    }
+    return result;
   }
 
   /**
