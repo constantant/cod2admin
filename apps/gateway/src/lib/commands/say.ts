@@ -3,27 +3,27 @@ import type { GatewayDeps } from '../deps.js';
 import { extractServerFlag, resolveServer } from '../resolve-server.js';
 import { sanitizeRconArg } from '../sanitize.js';
 
-/** `/unban <guid> [--server <alias>]` (docs/PLAN.md §6). */
-export async function unbanCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
+/** `/say <message> [--server <alias>]` (docs/PLAN.md §6). */
+export async function sayCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
   const { alias: serverAlias, rest } = extractServerFlag(matchText(ctx));
   const server = await resolveServer(ctx, deps, serverAlias);
   if (!server) {
     return;
   }
 
-  const guid = sanitizeRconArg(rest);
-  if (!guid) {
-    await ctx.reply('Usage: /unban <guid> [--server <alias>]');
+  const message = sanitizeRconArg(rest);
+  if (!message) {
+    await ctx.reply('Usage: /say <message> [--server <alias>]');
     return;
   }
 
-  await server.rcon.unbanUser(guid);
+  await server.rcon.say(message);
   await deps.adminStore.recordAuditLog({
     actorTelegramId: ctx.admin!.telegramId,
-    action: 'unban',
-    target: guid,
+    action: 'say',
+    target: message,
     serverAlias: server.alias,
     source: 'telegram_command',
   });
-  await ctx.reply(`Unbanned GUID ${guid}.`);
+  await ctx.reply('Sent.');
 }

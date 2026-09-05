@@ -1,7 +1,7 @@
 import type { ServerStatus } from '@cod2admin/rcon-client';
-import { describe, expect, it } from 'vitest';
-import { createFakeEditableCtx, createFakeCtx } from '../testing/fake-ctx.js';
-import { asRconClient, createFakeRcon } from '../testing/fake-rcon.js';
+import { describe, expect, it, vi } from 'vitest';
+import { createFakeCtx, createFakeEditableCtx } from '../testing/fake-ctx.js';
+import { createFakeDeps } from '../testing/fake-deps.js';
 import { formatStatusMessage, statusCommand, statusRefreshCallback } from './status.js';
 
 const SAMPLE_STATUS: ServerStatus = {
@@ -27,12 +27,12 @@ describe('formatStatusMessage', () => {
 
 describe('statusCommand', () => {
   it('replies with the status message and a Refresh keyboard', async () => {
-    const fake = createFakeRcon();
-    fake.status.mockResolvedValue(SAMPLE_STATUS);
-    fake.getInfo.mockResolvedValue({ sv_maxclients: '32' });
+    const { deps, rcon } = createFakeDeps();
+    rcon.status.mockResolvedValue(SAMPLE_STATUS);
+    rcon.getInfo.mockResolvedValue({ sv_maxclients: '32' });
     const ctx = createFakeCtx();
 
-    await statusCommand(ctx, asRconClient(fake));
+    await statusCommand(ctx, deps);
 
     expect(ctx.reply).toHaveBeenCalledWith(
       expect.stringContaining('Map: mp_toujane'),
@@ -43,17 +43,39 @@ describe('statusCommand', () => {
 
 describe('statusRefreshCallback', () => {
   it('edits the message in place and answers the callback query', async () => {
-    const fake = createFakeRcon();
-    fake.status.mockResolvedValue(SAMPLE_STATUS);
-    fake.getInfo.mockResolvedValue({ sv_maxclients: '32' });
+    const { deps, rcon } = createFakeDeps();
+    rcon.status.mockResolvedValue(SAMPLE_STATUS);
+    rcon.getInfo.mockResolvedValue({ sv_maxclients: '32' });
     const ctx = createFakeEditableCtx();
 
-    await statusRefreshCallback(ctx, asRconClient(fake));
+    await statusRefreshCallback(ctx, deps);
 
     expect(ctx.editMessageText).toHaveBeenCalledWith(
       expect.stringContaining('Map: mp_toujane'),
       expect.objectContaining({ reply_markup: expect.anything() }),
     );
     expect(ctx.answerCallbackQuery).toHaveBeenCalledOnce();
+  });
+
+  it('swallows a "message is not modified" error and still answers the callback query', async () => {
+    const { deps, rcon } = createFakeDeps();
+    rcon.status.mockResolvedValue(SAMPLE_STATUS);
+    rcon.getInfo.mockResolvedValue({ sv_maxclients: '32' });
+    const ctx = createFakeEditableCtx({
+      editMessageText: vi.fn().mockRejectedValue(new Error('Bad Request: message is not modified: blah')),
+    });
+
+    await expect(statusRefreshCallback(ctx, deps)).resolves.toBeUndefined();
+
+    expect(ctx.answerCallbackQuery).toHaveBeenCalledOnce();
+  });
+
+  it('re-throws any other error from editMessageText', async () => {
+    const { deps, rcon } = createFakeDeps();
+    rcon.status.mockResolvedValue(SAMPLE_STATUS);
+    rcon.getInfo.mockResolvedValue({ sv_maxclients: '32' });
+    const ctx = createFakeEditableCtx({ editMessageText: vi.fn().mockRejectedValue(new Error('network error')) });
+
+    await expect(statusRefreshCallback(ctx, deps)).rejects.toThrow('network error');
   });
 });

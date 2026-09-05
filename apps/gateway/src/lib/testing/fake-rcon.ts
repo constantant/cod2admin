@@ -9,6 +9,7 @@ import { vi, type Mock } from 'vitest';
 export interface FakeRcon {
   getInfo: Mock<() => Promise<CvarMap>>;
   status: Mock<() => Promise<ServerStatus>>;
+  rcon: Mock<(command: string) => Promise<string>>;
   kick: Mock<(clientIdOrName: string | number) => Promise<string>>;
   banClient: Mock<(clientId: number) => Promise<string>>;
   banUser: Mock<(clientId: number) => Promise<string>>;
@@ -21,6 +22,7 @@ export function createFakeRcon(): FakeRcon {
   return {
     getInfo: vi.fn().mockResolvedValue({}),
     status: vi.fn().mockResolvedValue({ raw: '', players: [] } satisfies ServerStatus),
+    rcon: vi.fn().mockResolvedValue(''),
     kick: vi.fn().mockResolvedValue(''),
     banClient: vi.fn().mockResolvedValue(''),
     banUser: vi.fn().mockResolvedValue(''),

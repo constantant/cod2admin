@@ -1,7 +1,7 @@
 import type { StatusPlayer } from '@cod2admin/rcon-client';
 import { describe, expect, it } from 'vitest';
 import { createFakeCtx } from '../testing/fake-ctx.js';
-import { asRconClient, createFakeRcon } from '../testing/fake-rcon.js';
+import { createFakeDeps } from '../testing/fake-deps.js';
 import { formatPlayersMessage, playersCommand } from './players.js';
 
 const PLAYER: StatusPlayer = { num: 3, score: 5, ping: 42, name: 'PlayerOne', ip: '123.45.67.89' };
@@ -18,11 +18,11 @@ describe('formatPlayersMessage', () => {
 
 describe('playersCommand', () => {
   it('replies with the formatted player list from status()', async () => {
-    const fake = createFakeRcon();
-    fake.status.mockResolvedValue({ raw: '', players: [PLAYER] });
+    const { deps, rcon } = createFakeDeps();
+    rcon.status.mockResolvedValue({ raw: '', players: [PLAYER] });
     const ctx = createFakeCtx();
 
-    await playersCommand(ctx, asRconClient(fake));
+    await playersCommand(ctx, deps);
 
     expect(ctx.reply).toHaveBeenCalledWith(formatPlayersMessage([PLAYER]));
   });

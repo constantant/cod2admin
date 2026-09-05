@@ -1,6 +1,8 @@
 import type { CvarMap, RconClient, ServerStatus } from '@cod2admin/rcon-client';
 import { InlineKeyboard } from 'grammy';
-import type { BotContext } from '../bot-context.js';
+import { matchText, type BotContext } from '../bot-context.js';
+import type { GatewayDeps } from '../deps.js';
+import { extractServerFlag, resolveServer } from '../resolve-server.js';
 
 export const STATUS_REFRESH_CALLBACK_DATA = 'status:refresh';
 
@@ -23,9 +25,14 @@ async function fetchStatusMessage(rcon: RconClient): Promise<string> {
   return formatStatusMessage(status, cvars);
 }
 
-/** `/status` — no background timer; only ever fetched on command or Refresh-button click (§6). */
-export async function statusCommand(ctx: BotContext, rcon: RconClient): Promise<void> {
-  const text = await fetchStatusMessage(rcon);
+/** `/status [--server <alias>]` — no background timer; only fetched on command/Refresh (§6). */
+export async function statusCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
+  const { alias: serverAlias } = extractServerFlag(matchText(ctx));
+  const server = await resolveServer(ctx, deps, serverAlias);
+  if (!server) {
+    return;
+  }
+  const text = await fetchStatusMessage(server.rcon);
   await ctx.reply(text, { reply_markup: statusRefreshKeyboard });
 }
 
@@ -34,8 +41,25 @@ export interface EditableBotContext extends BotContext {
   answerCallbackQuery(): Promise<unknown>;
 }
 
-export async function statusRefreshCallback(ctx: EditableBotContext, rcon: RconClient): Promise<void> {
-  const text = await fetchStatusMessage(rcon);
-  await ctx.editMessageText(text, { reply_markup: statusRefreshKeyboard });
+/**
+ * Re-resolves the server the same way the original command would (no per-server bound chat, the
+ * button click re-resolves rather than remembering the original alias — a known Phase 2
+ * limitation with more than one server, acceptable since the dev setup only has one).
+ */
+export async function statusRefreshCallback(ctx: EditableBotContext, deps: GatewayDeps): Promise<void> {
+  const server = await resolveServer(ctx, deps, undefined);
+  if (!server) {
+    return;
+  }
+  const text = await fetchStatusMessage(server.rcon);
+  try {
+    await ctx.editMessageText(text, { reply_markup: statusRefreshKeyboard });
+  } catch (error) {
+    // Telegram rejects an edit whose content is byte-identical to the current message — the
+    // status genuinely hasn't changed since the last refresh, which isn't an error worth logging.
+    if (!(error instanceof Error) || !error.message.includes('message is not modified')) {
+      throw error;
+    }
+  }
   await ctx.answerCallbackQuery();
 }

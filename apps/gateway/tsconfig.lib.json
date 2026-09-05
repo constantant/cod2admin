@@ -12,6 +12,12 @@
   "references": [
     {
       "path": "../../packages/rcon-client/tsconfig.lib.json"
+    },
+    {
+      "path": "../../packages/admin-store/tsconfig.lib.json"
+    },
+    {
+      "path": "../../packages/ban-store/tsconfig.lib.json"
     }
   ],
   "exclude": [

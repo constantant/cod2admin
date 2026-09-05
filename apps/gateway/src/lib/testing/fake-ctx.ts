@@ -5,6 +5,7 @@ import type { EditableBotContext } from '../commands/status.js';
 export function createFakeCtx(overrides: Partial<BotContext> = {}): BotContext {
   return {
     from: { id: 1 },
+    chat: { id: 100 },
     match: '',
     reply: vi.fn().mockResolvedValue(undefined),
     ...overrides,

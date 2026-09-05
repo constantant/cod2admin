@@ -1,10 +1,15 @@
 /**
- * Phase 1 config: single hardcoded server via env vars, single owner-admin — no `servers`/
- * `admins` tables yet (those land in Phase 2, see docs/PLAN.md §9).
+ * Phase 2 config (docs/PLAN.md §9): admin-store/ban-store on Postgres, roles instead of a
+ * single hardcoded owner check, multi-server via the `servers` table. `ownerTelegramId` is now
+ * optional — the owner can also be established via `/claim` (§4) if the env var isn't set.
+ * `rcon`/`serverAlias` seed the one `servers` row the gateway bootstraps on first startup.
  */
 export interface GatewayConfig {
   telegramBotToken: string;
-  ownerTelegramId: number;
+  ownerTelegramId: number | undefined;
+  databaseUrl: string;
+  secretsEncryptionKey: string;
+  serverAlias: string;
   rcon: {
     host: string;
     port: number;
@@ -22,6 +27,18 @@ function requireEnv(env: NodeJS.ProcessEnv, key: string): string {
   return value;
 }
 
+function optionalIntEnv(env: NodeJS.ProcessEnv, key: string): number | undefined {
+  const raw = env[key];
+  if (!raw) {
+    return undefined;
+  }
+  const value = Number.parseInt(raw, 10);
+  if (Number.isNaN(value)) {
+    throw new ConfigError(`Env var ${key} must be an integer, got "${raw}"`);
+  }
+  return value;
+}
+
 function requireIntEnv(env: NodeJS.ProcessEnv, key: string): number {
   const raw = requireEnv(env, key);
   const value = Number.parseInt(raw, 10);
@@ -34,7 +51,10 @@ function requireIntEnv(env: NodeJS.ProcessEnv, key: string): number {
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig {
   return {
     telegramBotToken: requireEnv(env, 'TELEGRAM_BOT_TOKEN'),
-    ownerTelegramId: requireIntEnv(env, 'OWNER_TELEGRAM_ID'),
+    ownerTelegramId: optionalIntEnv(env, 'OWNER_TELEGRAM_ID'),
+    databaseUrl: requireEnv(env, 'DATABASE_URL'),
+    secretsEncryptionKey: requireEnv(env, 'SECRETS_ENCRYPTION_KEY'),
+    serverAlias: env['COD2_SERVER_ALIAS']?.trim() || 'default',
     rcon: {
       host: requireEnv(env, 'COD2_RCON_HOST'),
       port: requireIntEnv(env, 'COD2_RCON_PORT'),
