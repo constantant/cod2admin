@@ -14,6 +14,9 @@
       "path": "../rcon-client/tsconfig.lib.json"
     },
     {
+      "path": "../log-tailer/tsconfig.lib.json"
+    },
+    {
       "path": "../ban-store/tsconfig.lib.json"
     },
     {

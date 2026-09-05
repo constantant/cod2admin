@@ -136,6 +136,9 @@ importers:
       '@cod2admin/ban-store':
         specifier: workspace:*
         version: link:../ban-store
+      '@cod2admin/log-tailer':
+        specifier: workspace:*
+        version: link:../log-tailer
       '@cod2admin/rcon-client':
         specifier: workspace:*
         version: link:../rcon-client

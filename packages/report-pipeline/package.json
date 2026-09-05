@@ -21,6 +21,7 @@
   "dependencies": {
     "@cod2admin/admin-store": "workspace:*",
     "@cod2admin/ban-store": "workspace:*",
+    "@cod2admin/log-tailer": "workspace:*",
     "@cod2admin/rcon-client": "workspace:*",
     "tslib": "^2.3.0"
   }

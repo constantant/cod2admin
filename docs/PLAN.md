@@ -302,6 +302,21 @@ Roles, stored in `admin-store`:
    action buttons except `Ignore` — kick/ban buttons are pointless against a player who isn't
    connected, and `Ban` would still need a resolvable GUID/IP, which is exactly what's now
    stale.
+
+   **Implemented (2026-09-06)**, `packages/report-pipeline`: `resolveReportTarget()` takes the
+   `!report` target name plus a `{ rcon, sessions }` dependency pair (narrow interfaces —
+   `status()` / `listSessions()` — not the concrete `RconClient`/`GameLogTailer` classes, so
+   tests inject fakes per §11.2) and returns one of `resolved` / `ambiguous` / `disconnected` /
+   `not-found`. Matching (`matchPlayersByName`, shared between the live-`status()` lookup and the
+   session-cache fallback) is an exact case-insensitive match if one exists, else case-insensitive
+   substring containment — no color-code stripping needed here, since `status()` already returns
+   color-stripped names (`rcon-client`'s `status-parser.ts`) and log-tailer's chat-derived names
+   never had codes to begin with. `not-found` (matching nothing live *or* cached) isn't named in
+   this plan section but is a real reachable state (typo'd/already-fully-expired name) — treated
+   like the disconnected case's "nothing to act on," left for the Telegram-card layer to word
+   appropriately. When more than one cached session matches (two different slots having carried
+   the same name at different times — possible since sessions are never deleted, only marked
+   disconnected, §5 step 3), picks whichever was active most recently rather than an arbitrary one.
 3. **Enrich**: for the resolved player, gather everything available without extra rcon
    round-trips beyond `status`:
    - Client ID, current GUID (flag if `0`/masterserver-unavailable), IP address, ping,
