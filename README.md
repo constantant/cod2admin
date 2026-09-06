@@ -1,5 +1,8 @@
 # cod2admin
 
+[![Release](https://img.shields.io/github/v/release/constantant/cod2admin)](https://github.com/constantant/cod2admin/releases/latest)
+[![CI](https://github.com/constantant/cod2admin/actions/workflows/ci.yml/badge.svg)](https://github.com/constantant/cod2admin/actions/workflows/ci.yml)
+
 A Telegram/RCON admin bot for Call of Duty 2 dedicated servers: ban/kick/tempban players,
 receive `!report` cards from players in-game, manage other admins, and more.
 
