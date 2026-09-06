@@ -31,11 +31,17 @@ else
 fi
 
 DRY_RUN=false
+SPECIFIER=""
 EXTRA_ARGS=()
 for arg in "$@"; do
   case "$arg" in
     --dry-run|-d) DRY_RUN=true ;;
-    *) EXTRA_ARGS+=("$arg") ;;
+    -*) EXTRA_ARGS+=("$arg") ;;
+    # A bare positional (e.g. "patch", "minor", "1.2.3") is a version specifier - valid for
+    # `nx release version` but not for `nx release changelog`, which only takes a version string
+    # (already supplied explicitly below) plus flags. Keep it out of EXTRA_ARGS so it doesn't
+    # get forwarded to changelog as a stray, unexpected positional.
+    *) SPECIFIER="$arg" ;;
   esac
 done
 
@@ -45,7 +51,9 @@ if $DRY_RUN; then
   # the part that actually varies release to release (which bump, what the changelog will say).
   echo "==> Dry run: previewing version bump + changelog only"
   echo "    (root version sync, archive build, commit, and tag only happen on a real release)"
-  $PNPM exec nx release --dry-run "${EXTRA_ARGS[@]}"
+  DRY_SPECIFIER_ARGS=()
+  [ -n "$SPECIFIER" ] && DRY_SPECIFIER_ARGS+=("$SPECIFIER")
+  $PNPM exec nx release --dry-run "${DRY_SPECIFIER_ARGS[@]}" "${EXTRA_ARGS[@]}"
   exit 0
 fi
 
@@ -53,7 +61,9 @@ echo "==> Bumping versions"
 # nx.json sets versionActionsOptions.skipLockFileUpdate: true - nx's own lockfile step shells out
 # to a bare `pnpm` binary, which isn't on PATH in this workspace (see CLAUDE.md: only
 # `corepack pnpm` is guaranteed to resolve). We update the lockfile ourselves below instead.
-$PNPM exec nx release version --no-git-commit --no-git-tag "${EXTRA_ARGS[@]}"
+SPECIFIER_ARGS=()
+[ -n "$SPECIFIER" ] && SPECIFIER_ARGS+=("$SPECIFIER")
+$PNPM exec nx release version --no-git-commit --no-git-tag "${SPECIFIER_ARGS[@]}" "${EXTRA_ARGS[@]}"
 
 VERSION=$(node -p "require('./apps/gateway/package.json').version")
 echo "==> Resolved release version: $VERSION"
