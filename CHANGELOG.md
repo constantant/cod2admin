@@ -1,3 +1,16 @@
+## [0.0.3](https://github.com/constantant/cod2admin/releases/tag/v0.0.3) (2026-09-06)
+
+### 🩹 Fixes
+
+- **release:** publish one install-ready archive instead of the bare gateway bundle ([c68a39e](https://github.com/constantant/cod2admin/commit/c68a39e))
+- **release:** link changelog headings to their GitHub release, fix regex escaping bug ([b77b6ad](https://github.com/constantant/cod2admin/commit/b77b6ad))
+- **release:** keep version specifiers out of the changelog command ([cf9b695](https://github.com/constantant/cod2admin/commit/cf9b695))
+
+### ❤️ Thank You
+
+- Claude Sonnet 5
+- kk
+
 ## [0.0.2](https://github.com/constantant/cod2admin/releases/tag/v0.0.2) (2026-09-06)
 
 ### 🚀 Features
