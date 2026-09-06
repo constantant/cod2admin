@@ -9,10 +9,15 @@
 #   3. write the changelog                   (nx release changelog)
 #   4. rebuild installer/cod2admin-gateway-<version>.tar.gz from the newly bumped/built sources
 #   5. commit + tag everything as one release
+#   6. push the release commit/tag and publish a GitHub Release with the archive attached
 #
 # Split into `nx release version` + `nx release changelog` (each with --no-git-commit
 # --no-git-tag) instead of the single `nx release` command, specifically so steps 2 and 4 can run
 # in between with the new version already on disk but before anything is committed/tagged.
+#
+# Step 6 pushes straight to main and publishes publicly - no further confirmation prompt once
+# this script is running for real. main is PR-protected for everyone else, but pushes from an
+# admin account (enforce_admins: false) still go through directly, which is what this relies on.
 set -euo pipefail
 
 ROOT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
@@ -74,7 +79,37 @@ git add package.json apps/*/package.json packages/*/package.json CHANGELOG.md pn
 git commit -m "chore(release): publish v${VERSION}"
 git tag "v${VERSION}"
 
+echo "==> Pushing release commit and tag"
+git push origin HEAD
+git push origin "v${VERSION}"
+
+echo "==> Publishing GitHub release v${VERSION}"
+if ! command -v gh >/dev/null 2>&1; then
+  echo "gh CLI not found - skipping GitHub release. Run manually:"
+  echo "  gh release create v${VERSION} installer/cod2admin-gateway-${VERSION}.tar.gz --title v${VERSION} --notes-file <(sed -n '/^## ${VERSION} /,/^## /p' CHANGELOG.md)"
+else
+  # CHANGELOG.md accumulates every past release - pull out just this version's section so old
+  # entries aren't repeated as this release's notes.
+  NOTES_FILE=$(mktemp)
+  node -e '
+  const fs = require("fs");
+  const version = process.argv[1];
+  const text = fs.readFileSync("CHANGELOG.md", "utf8");
+  const heading = new RegExp("^## " + version.replace(/[.*+?^${}()|[\]\\\\]/g, "\\\\$&") + " ", "m");
+  const start = text.search(heading);
+  if (start === -1) throw new Error("No CHANGELOG.md section found for " + version);
+  const rest = text.slice(start);
+  const nextHeadingOffset = rest.slice(1).search(/^## /m);
+  const section = nextHeadingOffset === -1 ? rest : rest.slice(0, nextHeadingOffset + 1);
+  fs.writeFileSync(process.argv[2], section.trim() + "\n");
+  ' "$VERSION" "$NOTES_FILE"
+
+  gh release create "v${VERSION}" "installer/cod2admin-gateway-${VERSION}.tar.gz" \
+    --title "v${VERSION}" \
+    --notes-file "$NOTES_FILE"
+  rm -f "$NOTES_FILE"
+fi
+
 echo
-echo "Done: release v${VERSION} committed and tagged locally."
-echo "Archive ready at installer/cod2admin-gateway-${VERSION}.tar.gz"
-echo "Nothing was pushed - push when ready: git push --follow-tags"
+echo "Done: v${VERSION} released - committed, tagged, pushed, and published on GitHub."
+echo "Archive: installer/cod2admin-gateway-${VERSION}.tar.gz"

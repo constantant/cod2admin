@@ -1,12 +1,15 @@
-# New Nx Repository
+# cod2admin
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+A Telegram/RCON admin bot for Call of Duty 2 dedicated servers: ban/kick/tempban players,
+receive `!report` cards from players in-game, manage other admins, and more.
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is ready ✨.
+- **Using the bot on your server?** See [`installer/README.md`](./installer/README.md).
+- **Contributing code?** See [`CONTRIBUTING.md`](./CONTRIBUTING.md).
+- **Project design/roadmap:** see [`docs/PLAN.md`](./docs/PLAN.md) (condensed Russian summary:
+  [`docs/PLAN-ru.md`](./docs/PLAN-ru.md)).
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/docs/technologies/typescript/introduction?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
-
-🚀 If you haven't connected to Nx Cloud yet, [complete your setup here](https://cloud.nx.app/get-started). Get faster builds with remote caching, distributed task execution, and self-healing CI. [See how your workspace can benefit](#nx-cloud).
+This is an [Nx workspace](https://nx.dev). The rest of this README covers the Nx-specific
+day-to-day commands.
 
 ## Generate a library
 
