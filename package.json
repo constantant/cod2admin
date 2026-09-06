@@ -4,8 +4,8 @@
   "license": "MIT",
   "scripts": {
     "prepare": "husky",
-    "release": "nx release",
-    "release:dry-run": "nx release --dry-run"
+    "release": "bash scripts/release.sh",
+    "release:dry-run": "bash scripts/release.sh --dry-run"
   },
   "private": true,
   "devDependencies": {
