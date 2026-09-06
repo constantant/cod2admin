@@ -392,6 +392,26 @@ Roles, stored in `admin-store`:
    unresolved (no action taken yet, tracked via `reports.resolved_action` — §7); once a card
    has been acted on (kicked/banned/ignored), a new report against the same target posts a
    **fresh** card instead of re-editing a message admins already treated as closed.
+
+   **Implemented (2026-09-06)**, `packages/report-pipeline`'s `ReportAntiSpam<TCardRef>`: pure
+   in-memory tracker (same restart caveat as `SessionTracker` — a gateway restart clears
+   cooldowns/open-report tracking; accepted for the same reason, this is short-lived
+   flood-control, not the durable history enrichment reads from `admin-store`/`ban-store`/an
+   eventual `reports` table). Two decisions worth calling out:
+   - **Keyed on the raw `targetName` string from the trigger, not a resolved player identity** —
+     dedup needs to behave the same whether the target resolved, was ambiguous, or wasn't found
+     (§5 step 2) — "reports against Cheatr123" is one thread to an admin regardless. This also
+     means `check()` can run right after trigger detection (step 1), before the rcon/DB round
+     trips of resolve/enrich (steps 2-3), skipping them entirely for a cooldown-blocked report —
+     an optimization the plan's step numbering doesn't require but doesn't preclude either.
+   - **A duplicate collapse is never blocked by cooldown** — only a genuinely *new* report (a
+     different target, or the same one after its dedup window has lapsed) can be. Collapsing
+     repeats into the same card *is* the anti-flood mechanism for one ongoing complaint;
+     gating it behind the same per-reporter cooldown that limits *distinct* new reports would
+     fight that. The dedup window also **slides forward** on each collapsed repeat (`track()`),
+     so a card being actively re-reported stays open rather than going stale mid-flood.
+   - Generic over `TCardRef` (whatever step 5 ends up using to identify a posted Telegram
+     message) rather than committing to a concrete shape before that step exists.
 5. **Deliver to Telegram**: message posted to the server's bound admin group, with:
    - Header: `🚨 Report: <reporter> reported <target>` + reason if given.
    - Body: the enrichment data from step 3, formatted compactly.
