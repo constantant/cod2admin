@@ -495,15 +495,24 @@ Roles, stored in `admin-store`:
    full GUID/IP — a new field added to `ReportCard` for this, since the card's own `text` only
    shows the last 3 lines compactly per §5 step 5).
 
-   **Still not wired to a live trigger source**: `bot.ts` registers the callback route and owns
-   process-lifetime `ReportRegistry`/`ReportAntiSpam` instances, but nothing calls
-   `handleReportTrigger()` yet — that needs a `GameLogTailer` instantiated per configured server
-   (reading `ServerConfig.logSourceConfig`, in the schema since Phase 2 but unused until now) and
-   wired to its `reportTrigger` event, plus a `sessionsByServer` map actually populated per
-   server instead of the empty placeholder `bot.ts` currently passes. This is deployment/startup
-   plumbing (`main.ts`/`config.ts`), not step 6/7 logic — everything above is fully functional
-   and tested via `handleReportTrigger`/`reportActionCallback`'s own unit tests, just not yet
-   triggered by a real `!report` in the current running gateway.
+   **Wired (2026-09-06)**: `main.ts` now builds the shared `GatewayDeps` (moved `ReportRegistry`/
+   `ReportAntiSpam`/`sessionsByServer` there from `bot.ts`, so both the callback handler and the
+   tailer wiring below see the same instances) and calls the new `startReportTailers(servers,
+   deps, bot)` (`apps/gateway/src/lib/report-tailers.ts`) right after `createBot`. For each
+   configured server with both a log path (`ServerConfig.logSourceConfig` — populated from
+   `COD2_LOG_PATH` for the bootstrapped server via a new `GatewayConfig.logPath`, in the schema
+   since Phase 2 but unread until now) and a bound Telegram chat (`/bindserver`), it starts a
+   `GameLogTailer`, registers it in `sessionsByServer`, and wires its `reportTrigger` event to
+   `handleReportTrigger()`. A server missing either prerequisite is skipped with a `console.warn`
+   — RCON-only operation (no report automation) stays a valid configuration, not an error.
+   **Known limitation, accepted for now**: this snapshot of `servers` is taken once at startup —
+   a server bound to a chat via `/bindserver` *after* the gateway starts won't get a tailer until
+   the next restart. Revisit (e.g. `/bindserver` starting a tailer on the spot if one doesn't
+   exist yet) if that turns out to matter in practice; not fixed here to keep this change to
+   startup wiring. **Not done**: no signal-handling/graceful-shutdown for the started tailers
+   (`startReportTailers` returns them for exactly this, but nothing calls `.stop()`) — matches
+   this codebase's existing style (the expiry-poller's `setInterval` isn't cleared on shutdown
+   either); revisit together if that ever needs to change.
 7. **GUID-0 fallback**: if the target's GUID is `0`/blank, **both** the `Ban` and
    `Temp Ban (30m)` buttons execute an IP-based ban — inserting a row into the `ban_ips` table
    (§7), with `expires_at` set for temp bans and left null for permanent ones — since the game

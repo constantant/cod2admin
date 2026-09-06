@@ -1,4 +1,3 @@
-import { ReportAntiSpam, type SessionLookup } from '@cod2admin/report-pipeline';
 import { Bot, type Context } from 'grammy';
 import { requireRole } from './auth.js';
 import type { BotContext } from './bot-context.js';
@@ -13,7 +12,7 @@ import { mapCommand } from './commands/map.js';
 import { playersCommand } from './commands/players.js';
 import { rconCommand } from './commands/rcon.js';
 import { removeAdminCommand } from './commands/removeadmin.js';
-import { reportActionCallback, ReportRegistry, type ReportCallbackContext } from './reports.js';
+import { reportActionCallback, type ReportCallbackContext } from './reports.js';
 import { sayCommand } from './commands/say.js';
 import { serversCommand } from './commands/servers.js';
 import { setRoleCommand } from './commands/setrole.js';
@@ -59,15 +58,6 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
   const requireAdmin = requireRole('admin', deps.adminStore);
   const requireAny = requireRole('moderator', deps.adminStore);
 
-  // Report-card state (docs/PLAN.md §5 steps 4/6) — process-lifetime, not persisted (see
-  // ReportRegistry's own doc comment). `sessionsByServer` starts empty: nothing populates it
-  // until a GameLogTailer is actually wired per server (§5 step 5's "deliberately not done
-  // here" note) — `select`'s re-enrichment just gets no chat-history/session-duration data
-  // until then, which is a graceful degradation, not a crash.
-  const reportRegistry = new ReportRegistry();
-  const reportAntiSpam = new ReportAntiSpam<string>();
-  const sessionsByServer = new Map<string, SessionLookup>();
-
   bot.command('claim', (ctx) => claimCommand(ctx, deps, claimSecret));
 
   bot.command('status', requireAny, (ctx) => statusCommand(ctx, deps));
@@ -93,12 +83,12 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
   bot.callbackQuery(/^report:/, requireAny, (ctx) =>
     reportActionCallback(toReportCallbackContext(ctx), {
       bot,
-      registry: reportRegistry,
-      antiSpam: reportAntiSpam,
+      registry: deps.reportRegistry,
+      antiSpam: deps.reportAntiSpam,
       rconClients: deps.rconClients,
       adminStore: deps.adminStore,
       banStore: deps.banStore,
-      sessionsByServer,
+      sessionsByServer: deps.sessionsByServer,
     }),
   );
 

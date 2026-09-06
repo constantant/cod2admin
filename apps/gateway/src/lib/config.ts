@@ -15,6 +15,12 @@ export interface GatewayConfig {
     port: number;
     password: string;
   };
+  /**
+   * `games_mp.log` path for the bootstrapped server (docs/PLAN.md §5/§11.1's `COD2_LOG_PATH`) —
+   * optional, since a deployment can run RCON-only without Phase 3's report automation.
+   * Stored as that server's `logSourceConfig` (in the schema since Phase 2, unused until now).
+   */
+  logPath: string | undefined;
 }
 
 class ConfigError extends Error {}
@@ -60,5 +66,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
       port: requireIntEnv(env, 'COD2_RCON_PORT'),
       password: requireEnv(env, 'COD2_RCON_PASSWORD'),
     },
+    logPath: env['COD2_LOG_PATH']?.trim() || undefined,
   };
 }

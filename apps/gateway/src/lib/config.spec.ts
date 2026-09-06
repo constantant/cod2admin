@@ -19,7 +19,13 @@ describe('loadConfig', () => {
       secretsEncryptionKey: 'base64key',
       serverAlias: 'default',
       rcon: { host: '127.0.0.1', port: 28960, password: 'secret' },
+      logPath: undefined,
     });
+  });
+
+  it('parses COD2_LOG_PATH when given, and leaves it undefined otherwise', () => {
+    expect(loadConfig(VALID_ENV).logPath).toBeUndefined();
+    expect(loadConfig({ ...VALID_ENV, COD2_LOG_PATH: './games_mp.log' }).logPath).toBe('./games_mp.log');
   });
 
   it('parses OWNER_TELEGRAM_ID and COD2_SERVER_ALIAS when given', () => {
