@@ -11,13 +11,19 @@
   "include": ["src/**/*.ts"],
   "references": [
     {
+      "path": "../../packages/report-pipeline/tsconfig.lib.json"
+    },
+    {
       "path": "../../packages/rcon-client/tsconfig.lib.json"
     },
     {
-      "path": "../../packages/admin-store/tsconfig.lib.json"
+      "path": "../../packages/log-tailer/tsconfig.lib.json"
     },
     {
       "path": "../../packages/ban-store/tsconfig.lib.json"
+    },
+    {
+      "path": "../../packages/admin-store/tsconfig.lib.json"
     }
   ],
   "exclude": [

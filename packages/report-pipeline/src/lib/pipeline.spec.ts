@@ -65,7 +65,11 @@ describe('processReportTrigger', () => {
 
     const outcome = await processReportTrigger(trigger(), deps);
 
-    expect(outcome).toEqual({ kind: 'sent', cardRef: 'card-1' });
+    expect(outcome).toEqual({
+      kind: 'sent',
+      cardRef: 'card-1',
+      context: { serverAlias: 'default', targetNum: 1, targetName: 'Cheatr123', targetGuid: undefined, targetIp: undefined },
+    });
     expect(cardSender.send).toHaveBeenCalledTimes(1);
     const [chatId, card] = cardSender.send.mock.calls[0] as [number, ReportCard];
     expect(chatId).toBe(555);
@@ -76,6 +80,30 @@ describe('processReportTrigger', () => {
     ]);
     // Tracked, so an immediate repeat collapses instead of sending again.
     expect(antiSpam.check(9, 'Cheatr123')).toMatchObject({ reason: 'duplicate', existing: 'card-1' });
+  });
+
+  it('carries no action context for an ambiguous or not-found resolution', async () => {
+    const ambiguousDeps = { ...baseDeps([statusPlayer({ num: 1, name: 'Bobby' }), statusPlayer({ num: 2, name: 'BobTheBuilder' })]), antiSpam: new ReportAntiSpam<string>({ now: () => 0 }), cardSender: fakeCardSender() };
+    const ambiguousOutcome = await processReportTrigger(trigger({ targetName: 'bob' }), ambiguousDeps);
+    expect(ambiguousOutcome).toMatchObject({ context: undefined });
+
+    const notFoundDeps = { ...baseDeps([]), antiSpam: new ReportAntiSpam<string>({ now: () => 0 }), cardSender: fakeCardSender() };
+    const notFoundOutcome = await processReportTrigger(trigger({ targetName: 'NoSuchPlayer' }), notFoundDeps);
+    expect(notFoundOutcome).toMatchObject({ context: undefined });
+  });
+
+  it('carries the target guid/num/name (but no ip) for a disconnected resolution', async () => {
+    const cardSender = fakeCardSender();
+    const antiSpam = new ReportAntiSpam<string>({ now: () => 0 });
+    const session = playerSession({ guid: 'realguid', disconnectedAt: 5_000 });
+    const deps = { ...baseDeps([], [session]), antiSpam, cardSender };
+
+    const outcome = await processReportTrigger(trigger(), deps);
+
+    expect(outcome).toMatchObject({
+      context: { serverAlias: 'default', targetNum: 1, targetName: 'Cheatr123', targetGuid: 'realguid' },
+    });
+    expect((outcome as { context?: { targetIp?: string } }).context?.targetIp).toBeUndefined();
   });
 
   it('builds the ambiguous card and does not touch enrichment (admin/ban stores) for it', async () => {
@@ -139,7 +167,7 @@ describe('processReportTrigger', () => {
 
     const outcome = await processReportTrigger(trigger(), deps);
 
-    expect(outcome).toEqual({ kind: 'updated', cardRef: 'card-1' });
+    expect(outcome).toMatchObject({ kind: 'updated', cardRef: 'card-1' });
     expect(cardSender.send).not.toHaveBeenCalled();
     expect(cardSender.update).toHaveBeenCalledWith('card-1', expect.objectContaining({ text: expect.any(String) }));
   });

@@ -77,6 +77,16 @@ describe('buildReportCard', () => {
     expect(card.text).toContain('GUID: 0 (unavailable');
   });
 
+  it('includes a detailText with the full (untrimmed) chat history for More info', () => {
+    const chatHistory = ['one', 'two', 'three', 'four'].map((message) => chatEvent({ message }));
+    const card = buildReportCard(enrichedReport({ chatHistory, guid: 'realguid', ip: '9.9.9.9' }), trigger());
+
+    expect(card.detailText).toContain('Full GUID: realguid');
+    expect(card.detailText).toContain('Full IP: 9.9.9.9');
+    expect(card.detailText).toContain('"one"');
+    expect(card.detailText).toContain('"four"');
+  });
+
   it('gives a disconnected target only an Ignore button and no IP/ping/score line', () => {
     const disconnected = enrichedReport({ connected: false, ip: undefined, ping: undefined, score: undefined, sessionDurationMs: 120_000 });
     const card = buildReportCard(disconnected, trigger());

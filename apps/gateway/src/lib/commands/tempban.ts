@@ -1,10 +1,8 @@
 import { matchText, type BotContext } from '../bot-context.js';
-import { broadcastModerationAction } from '../broadcast.js';
 import type { GatewayDeps } from '../deps.js';
+import { executeModerationAction } from '../moderation-actions.js';
 import { extractServerFlag, resolveServer } from '../resolve-server.js';
-import { sanitizeRconArg } from '../sanitize.js';
 
-const DEFAULT_DURATION_MS = 30 * 60_000;
 const UNIT_MS: Record<string, number> = { m: 60_000, h: 3_600_000, d: 86_400_000 };
 const DURATION_TOKEN = /^(\d+)(m|h|d)?$/;
 
@@ -30,10 +28,9 @@ export function formatDuration(ms: number): string {
 }
 
 /**
- * `/tempban <client id> [duration] [reason] [--server <alias>]` — IP-only in Phase 2 (docs/PLAN.md
- * §9 Phase 2 plan: no rcon command exposes a connected player's real GUID, so a GUID-based temp
- * ban could never be reversed later — see the plan's "tempban mechanism" decision). Kicks
- * immediately and IP-bans via `ban-store`'s `ban_ips`, enforced/expired purely by the poller.
+ * `/tempban <client id> [duration] [reason] [--server <alias>]` — GUID path when `status()`
+ * reports one, IP-fallback otherwise (`executeModerationAction`, docs/PLAN.md §5 steps 6/7).
+ * Never calls native `tempBanClient` — see the plan's "tempban mechanism" decision for why.
  */
 export async function tempbanCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
   const { alias: serverAlias, rest } = extractServerFlag(matchText(ctx));
@@ -52,41 +49,29 @@ export async function tempbanCommand(ctx: BotContext, deps: GatewayDeps): Promis
   const durationMs = parseDurationMs(durationToken);
   // If the "duration" token didn't parse as one, it's actually the start of the reason.
   const reasonTokens = durationMs === undefined && durationToken ? [durationToken, ...reasonParts] : reasonParts;
-  const reason = sanitizeRconArg(reasonTokens.join(' '));
+  const reason = reasonTokens.join(' ');
 
   const { players } = await server.rcon.status();
   const player = players.find((candidate) => candidate.num === clientId);
-  if (!player?.ip) {
-    await ctx.reply(`Client ${clientId} is not currently connected (or has no IP) — cannot IP-ban.`);
+  if (!player) {
+    await ctx.reply(`Client ${clientId} is not currently connected — cannot temp-ban.`);
     return;
   }
 
-  // This server's `kick` rcon command only accepts a player's name, not the numeric slot
-  // `status` reports (confirmed empirically — see kick.ts).
-  await server.rcon.kick(player.name);
-
-  const durationMsResolved = durationMs ?? DEFAULT_DURATION_MS;
-  const expiresAt = new Date(Date.now() + durationMsResolved);
-  await deps.banStore.recordIpBan({
-    serverAlias: server.alias,
-    ip: player.ip,
-    reason: reason || null,
-    bannedBy: ctx.admin!.telegramId,
-    expiresAt,
-  });
-
-  await broadcastModerationAction(server.rcon, player.name, 'temp-banned');
-  await deps.adminStore.recordAuditLog({
-    actorTelegramId: ctx.admin!.telegramId,
-    action: 'tempban',
-    target: player.name,
-    serverAlias: server.alias,
-    reason,
-    source: 'telegram_command',
-    detailJson: { ip: player.ip, durationMs: durationMsResolved },
-  });
-  await ctx.reply(
-    `Temp-banned ${player.name}'s IP for ${formatDuration(durationMsResolved)}. ` +
-      `(IP-based — GUID-based temp bans aren't reliable without Phase 3's log-tailer.)`,
+  const result = await executeModerationAction(
+    'tempban',
+    { num: player.num, name: player.name, guid: player.guid, ip: player.ip },
+    {
+      serverAlias: server.alias,
+      rcon: server.rcon,
+      banStore: deps.banStore,
+      adminStore: deps.adminStore,
+      actorTelegramId: ctx.admin!.telegramId,
+      reason: reason || null,
+      source: 'telegram_command',
+      durationMs,
+    },
   );
+
+  await ctx.reply(`${result.label} ${player.name} for ${formatDuration(result.durationMs!)}.`);
 }

@@ -16,7 +16,7 @@ describe('tempbanCommand', () => {
     vi.useRealTimers();
   });
 
-  it('kicks, IP-bans with the default 30m duration, and audit-logs it', async () => {
+  it('IP-temp-bans with the default 30m duration when the target has no GUID', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
     const { deps, rcon, banStore, adminStore } = createFakeDeps();
@@ -25,6 +25,7 @@ describe('tempbanCommand', () => {
 
     await tempbanCommand(ctx, deps);
 
+    expect(rcon.banUser).not.toHaveBeenCalled();
     expect(rcon.kick).toHaveBeenCalledWith('Griefer');
     expect(banStore.recordIpBan).toHaveBeenCalledWith({
       serverAlias: 'default',
@@ -35,7 +36,20 @@ describe('tempbanCommand', () => {
     });
     expect(rcon.say).toHaveBeenCalledWith('Griefer was temp-banned by an admin');
     expect(adminStore.recordAuditLog).toHaveBeenCalledWith(expect.objectContaining({ action: 'tempban', target: 'Griefer' }));
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining("Temp-banned Griefer's IP for 30m."));
+    expect(ctx.reply).toHaveBeenCalledWith("IP temp-banned (GUID unavailable) Griefer for 30m.");
+  });
+
+  it('temp-bans via the GUID path when status() reports one', async () => {
+    const { deps, rcon, banStore } = createFakeDeps();
+    rcon.status.mockResolvedValue({ raw: '', players: [{ num: 3, score: 0, ping: 0, name: 'Griefer', guid: 'realguid', ip: '1.2.3.4' }] });
+    const ctx = createFakeCtx({ match: '3', admin: { telegramId: 1, role: 'admin' } });
+
+    await tempbanCommand(ctx, deps);
+
+    expect(rcon.banUser).toHaveBeenCalledWith(3);
+    expect(rcon.kick).not.toHaveBeenCalled();
+    expect(banStore.recordBan).toHaveBeenCalledWith(expect.objectContaining({ guid: 'realguid', name: 'Griefer' }));
+    expect(ctx.reply).toHaveBeenCalledWith('Temp-banned Griefer for 30m.');
   });
 
   it('parses an explicit duration and reason', async () => {
@@ -70,7 +84,7 @@ describe('tempbanCommand', () => {
 
     expect(rcon.kick).not.toHaveBeenCalled();
     expect(banStore.recordIpBan).not.toHaveBeenCalled();
-    expect(ctx.reply).toHaveBeenCalledWith('Client 3 is not currently connected (or has no IP) — cannot IP-ban.');
+    expect(ctx.reply).toHaveBeenCalledWith('Client 3 is not currently connected — cannot temp-ban.');
   });
 
   it('prompts for usage when the client id is missing or not a number', async () => {

@@ -1,14 +1,28 @@
 import type { ServerStatus } from '@cod2admin/rcon-client';
 import { describe, expect, it } from 'vitest';
-import { runIpBanSweep } from './poller.js';
+import { runBanExpirySweep, runIpBanSweep } from './poller.js';
 import { asBanStore, asRconClient, createFakeBanStore, createFakeRcon } from './testing/fakes.js';
-import type { BanIp } from './types.js';
+import type { Ban, BanIp } from './types.js';
 
 function sampleBan(overrides: Partial<BanIp> = {}): BanIp {
   return {
     id: 1,
     serverAlias: 'default',
     ip: '1.2.3.4',
+    reason: null,
+    bannedBy: 1,
+    bannedAt: new Date(),
+    expiresAt: null,
+    ...overrides,
+  };
+}
+
+function sampleGuidBan(overrides: Partial<Ban> = {}): Ban {
+  return {
+    id: 1,
+    serverAlias: 'default',
+    guid: 'realguid',
+    name: 'PlayerOne',
     reason: null,
     bannedBy: 1,
     bannedAt: new Date(),
@@ -79,5 +93,54 @@ describe('runIpBanSweep', () => {
 
     expect(rconA.kick).toHaveBeenCalledWith('A');
     expect(rconB.kick).toHaveBeenCalledWith('B');
+  });
+});
+
+describe('runBanExpirySweep', () => {
+  it('unbans (rcon) and expires (store) a GUID-path temp ban whose expiry has passed', async () => {
+    const banStoreFake = createFakeBanStore({ expiredBans: [sampleGuidBan({ id: 7, guid: 'realguid' })] });
+    const rconFake = createFakeRcon();
+
+    await runBanExpirySweep(asBanStore(banStoreFake), new Map([['default', asRconClient(rconFake)]]));
+
+    expect(rconFake.unbanUser).toHaveBeenCalledWith('realguid');
+    expect(banStoreFake.expireBan).toHaveBeenCalledWith(7);
+  });
+
+  it('skips the rcon unban call for a row with no guid, but still expires it', async () => {
+    const banStoreFake = createFakeBanStore({ expiredBans: [sampleGuidBan({ id: 8, guid: null })] });
+    const rconFake = createFakeRcon();
+
+    await runBanExpirySweep(asBanStore(banStoreFake), new Map([['default', asRconClient(rconFake)]]));
+
+    expect(rconFake.unbanUser).not.toHaveBeenCalled();
+    expect(banStoreFake.expireBan).toHaveBeenCalledWith(8);
+  });
+
+  it('does nothing when there are no expired GUID bans', async () => {
+    const banStoreFake = createFakeBanStore({ expiredBans: [] });
+    const rconFake = createFakeRcon();
+
+    await runBanExpirySweep(asBanStore(banStoreFake), new Map([['default', asRconClient(rconFake)]]));
+
+    expect(rconFake.unbanUser).not.toHaveBeenCalled();
+    expect(banStoreFake.expireBan).not.toHaveBeenCalled();
+  });
+
+  it('sweeps every configured server independently', async () => {
+    const banStoreFake = createFakeBanStore({ expiredBans: [sampleGuidBan({ id: 1, guid: 'guid-x' })] });
+    const rconA = createFakeRcon();
+    const rconB = createFakeRcon();
+
+    await runBanExpirySweep(
+      asBanStore(banStoreFake),
+      new Map([
+        ['server-a', asRconClient(rconA)],
+        ['server-b', asRconClient(rconB)],
+      ]),
+    );
+
+    expect(rconA.unbanUser).toHaveBeenCalledWith('guid-x');
+    expect(rconB.unbanUser).toHaveBeenCalledWith('guid-x');
   });
 });

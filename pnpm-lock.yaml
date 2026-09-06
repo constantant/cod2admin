@@ -65,9 +65,15 @@ importers:
       '@cod2admin/ban-store':
         specifier: workspace:*
         version: link:../../packages/ban-store
+      '@cod2admin/log-tailer':
+        specifier: workspace:*
+        version: link:../../packages/log-tailer
       '@cod2admin/rcon-client':
         specifier: workspace:*
         version: link:../../packages/rcon-client
+      '@cod2admin/report-pipeline':
+        specifier: workspace:*
+        version: link:../../packages/report-pipeline
       grammy:
         specifier: ^1.46.0
         version: 1.46.0(supports-color@7.2.0)

@@ -29,9 +29,23 @@ export interface ProcessReportTriggerDeps<TCardRef> {
   historyLimit?: number;
 }
 
+/**
+ * Everything the gateway's button handler (§5 step 6, not built by this package — see
+ * `pipeline.ts`'s own doc comment) needs to act on a report later, derived once here rather than
+ * re-resolving. Only present when the resolution actually names one player (`resolved` or
+ * `disconnected`) — an `ambiguous`/`not-found` card has nothing to act on yet.
+ */
+export interface ReportActionContext {
+  serverAlias: string;
+  targetNum: number;
+  targetName: string;
+  targetGuid?: string;
+  targetIp?: string;
+}
+
 export type ProcessReportTriggerOutcome<TCardRef> =
-  | { kind: 'sent'; cardRef: TCardRef }
-  | { kind: 'updated'; cardRef: TCardRef }
+  | { kind: 'sent'; cardRef: TCardRef; context: ReportActionContext | undefined }
+  | { kind: 'updated'; cardRef: TCardRef; context: ReportActionContext | undefined }
   | { kind: 'cooldown'; retryAfterMs: number };
 
 /**
@@ -53,16 +67,34 @@ export async function processReportTrigger<TCardRef>(
   const resolution = await resolveReportTarget(trigger.targetName, { rcon: deps.rcon, sessions: deps.sessions });
 
   const card = await buildCardFor(resolution, trigger, deps);
+  const context = deriveReportActionContext(resolution, deps.serverAlias);
 
   if (check.reason === 'duplicate') {
     await deps.cardSender.update(check.existing, card);
     deps.antiSpam.track(trigger.chat.num, trigger.targetName, check.existing);
-    return { kind: 'updated', cardRef: check.existing };
+    return { kind: 'updated', cardRef: check.existing, context };
   }
 
   const cardRef = await deps.cardSender.send(deps.chatId, card);
   deps.antiSpam.track(trigger.chat.num, trigger.targetName, cardRef);
-  return { kind: 'sent', cardRef };
+  return { kind: 'sent', cardRef, context };
+}
+
+/**
+ * Public so `apps/gateway`'s `select` button handler (re-resolving one ambiguous candidate into
+ * a full card, §5 step 2/6) can derive the same context shape `processReportTrigger` uses,
+ * rather than re-deriving its own version of this mapping.
+ */
+export function deriveReportActionContext(resolution: TargetResolution, serverAlias: string): ReportActionContext | undefined {
+  if (resolution.kind === 'resolved') {
+    const { player } = resolution;
+    return { serverAlias, targetNum: player.num, targetName: player.name, targetGuid: player.guid, targetIp: player.ip };
+  }
+  if (resolution.kind === 'disconnected') {
+    const { lastKnown } = resolution;
+    return { serverAlias, targetNum: lastKnown.num, targetName: lastKnown.name, targetGuid: lastKnown.guid };
+  }
+  return undefined;
 }
 
 async function buildCardFor<TCardRef>(

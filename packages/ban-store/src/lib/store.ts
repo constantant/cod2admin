@@ -16,11 +16,11 @@ export class DrizzleBanStore implements BanStore {
   async recordBan(input: RecordBanInput): Promise<void> {
     await this.db.insert(bans).values({
       serverAlias: input.serverAlias,
-      guid: null,
+      guid: input.guid ?? null,
       name: input.name,
       reason: input.reason ?? null,
       bannedBy: input.bannedBy,
-      expiresAt: null,
+      expiresAt: input.expiresAt ?? null,
     });
   }
 
@@ -50,6 +50,17 @@ export class DrizzleBanStore implements BanStore {
 
   async expireIpBan(id: number): Promise<void> {
     await this.db.delete(banIps).where(eq(banIps.id, id));
+  }
+
+  async listExpiredBans(serverAlias: string, now: Date): Promise<Ban[]> {
+    return this.db
+      .select()
+      .from(bans)
+      .where(and(eq(bans.serverAlias, serverAlias), isNotNull(bans.expiresAt), lte(bans.expiresAt, now)));
+  }
+
+  async expireBan(id: number): Promise<void> {
+    await this.db.delete(bans).where(eq(bans.id, id));
   }
 
   async listBansByGuid(serverAlias: string, guid: string, limit: number): Promise<Ban[]> {

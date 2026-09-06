@@ -1,4 +1,4 @@
-import type { BanIp, BanStore } from '@cod2admin/ban-store';
+import type { Ban, BanIp, BanStore } from '@cod2admin/ban-store';
 import { vi, type Mock } from 'vitest';
 
 export interface FakeBanStore extends BanStore {
@@ -7,19 +7,23 @@ export interface FakeBanStore extends BanStore {
   listActiveIpBans: Mock<BanStore['listActiveIpBans']>;
   listExpiredIpBans: Mock<BanStore['listExpiredIpBans']>;
   expireIpBan: Mock<BanStore['expireIpBan']>;
+  listExpiredBans: Mock<BanStore['listExpiredBans']>;
+  expireBan: Mock<BanStore['expireBan']>;
   listBansByGuid: Mock<BanStore['listBansByGuid']>;
   listBansByName: Mock<BanStore['listBansByName']>;
   listIpBansByIp: Mock<BanStore['listIpBansByIp']>;
   close: Mock<BanStore['close']>;
 }
 
-export function createFakeBanStore(overrides: Partial<{ active: BanIp[] }> = {}): FakeBanStore {
+export function createFakeBanStore(overrides: Partial<{ active: BanIp[]; expiredBans: Ban[] }> = {}): FakeBanStore {
   return {
     recordBan: vi.fn().mockResolvedValue(undefined),
     recordIpBan: vi.fn().mockResolvedValue(undefined),
     listActiveIpBans: vi.fn().mockResolvedValue(overrides.active ?? []),
     listExpiredIpBans: vi.fn().mockResolvedValue([]),
     expireIpBan: vi.fn().mockResolvedValue(undefined),
+    listExpiredBans: vi.fn().mockResolvedValue(overrides.expiredBans ?? []),
+    expireBan: vi.fn().mockResolvedValue(undefined),
     listBansByGuid: vi.fn().mockResolvedValue([]),
     listBansByName: vi.fn().mockResolvedValue([]),
     listIpBansByIp: vi.fn().mockResolvedValue([]),

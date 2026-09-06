@@ -33,3 +33,26 @@ export async function runIpBanSweep(banStore: BanStore, rconClients: Map<string,
     }
   }
 }
+
+/**
+ * The GUID-path half of the poller's expiry job (docs/PLAN.md §5 step 7's job (b), added
+ * alongside the report card's `Temp Ban` button) — unlike an IP ban, a GUID ban was actually
+ * written to `ban.txt` by the game binary, so reversing it needs `unbanUser(guid)` before the row
+ * is dropped, not just a delete. A `null` guid can't have been banned this way to begin with
+ * (§2.4's GUID-0 case always goes through `ban_ips`/`runIpBanSweep` instead) and is skipped.
+ * Run on the same fixed interval as `runIpBanSweep`, as its own function so each stays
+ * independently testable — `apps/gateway`'s poller wiring calls both.
+ */
+export async function runBanExpirySweep(banStore: BanStore, rconClients: Map<string, RconClient>): Promise<void> {
+  const now = new Date();
+
+  for (const [serverAlias, rcon] of rconClients) {
+    const expiredBans = await banStore.listExpiredBans(serverAlias, now);
+    for (const ban of expiredBans) {
+      if (ban.guid) {
+        await rcon.unbanUser(ban.guid);
+      }
+      await banStore.expireBan(ban.id);
+    }
+  }
+}

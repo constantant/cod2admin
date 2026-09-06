@@ -1,14 +1,13 @@
 import { bigint, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 
 /**
- * GUID-based bans (docs/PLAN.md §7). `guid` is nullable: as of Phase 2, `recordBan`'s input has
- * no `guid` field and the store always inserts `null` — Phase 2-era research assumed no rcon
- * command ever exposes a connected player's GUID (only log-tailing does). Phase 3 (§2.4) found
- * that's not universally true — this target server's `status()` does return `guid` — so
- * `/ban`'s command handler could pass a real one now; it just hasn't been updated to. Until it
- * is, every row here has `guid: null` regardless of what `status()` could have provided.
- * Populated only by `/ban` (permanent — `expiresAt: null`); never by `/tempban`, which is
- * IP-only in Phase 2 (see `poller.ts` and the Phase 2 plan's "tempban mechanism" decision).
+ * GUID-based bans (docs/PLAN.md §7). `guid` is nullable: a GUID-0 target (§2.4's confirmed-common
+ * case) has none to record, and `recordBan`'s caller passes `undefined`/`null` for it — this
+ * table is the GUID *path*, used only when a real GUID is available; a GUID-0 target's ban goes
+ * to `ban_ips` instead (§5 step 7's fallback). `expiresAt` is set by the report card's
+ * `Temp Ban` button (§5 step 6 — it deliberately doesn't use native `tempBanClient`, see that
+ * section) and left `null` by a permanent `/ban`/`Ban` button; `poller.ts`'s `runBanExpirySweep`
+ * (added alongside `Temp Ban`) calls `unbanUser(guid)` once a temp entry's `expiresAt` passes.
  */
 export const bans = pgTable('bans', {
   id: serial('id').primaryKey(),

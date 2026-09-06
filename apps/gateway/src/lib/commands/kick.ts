@@ -1,6 +1,6 @@
 import { matchText, type BotContext } from '../bot-context.js';
-import { broadcastModerationAction } from '../broadcast.js';
 import type { GatewayDeps } from '../deps.js';
+import { executeModerationAction } from '../moderation-actions.js';
 import { extractServerFlag, resolveServer } from '../resolve-server.js';
 import { sanitizeRconArg } from '../sanitize.js';
 
@@ -26,7 +26,7 @@ export async function kickCommand(ctx: BotContext, deps: GatewayDeps): Promise<v
   }
 
   let kickTarget = target;
-  const clientId = Number.parseInt(target, 10);
+  let clientId = Number.parseInt(target, 10);
   if (!Number.isNaN(clientId) && String(clientId) === target) {
     const { players } = await server.rcon.status();
     const player = players.find((candidate) => candidate.num === clientId);
@@ -35,16 +35,14 @@ export async function kickCommand(ctx: BotContext, deps: GatewayDeps): Promise<v
       return;
     }
     kickTarget = player.name;
+  } else {
+    clientId = -1; // a raw name, not a resolved slot — irrelevant to executeModerationAction's kick branch
   }
 
-  await server.rcon.kick(kickTarget);
-  await broadcastModerationAction(server.rcon, kickTarget, 'kicked');
-  await deps.adminStore.recordAuditLog({
-    actorTelegramId: ctx.admin!.telegramId,
-    action: 'kick',
-    target: kickTarget,
-    serverAlias: server.alias,
-    source: 'telegram_command',
-  });
+  await executeModerationAction(
+    'kick',
+    { num: clientId, name: kickTarget },
+    { serverAlias: server.alias, rcon: server.rcon, banStore: deps.banStore, adminStore: deps.adminStore, actorTelegramId: ctx.admin!.telegramId, source: 'telegram_command' },
+  );
   await ctx.reply(`Kicked ${kickTarget}.`);
 }

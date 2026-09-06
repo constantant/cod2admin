@@ -12,8 +12,12 @@ export interface Ban {
 export interface RecordBanInput {
   serverAlias: string;
   name: string;
+  /** The banned client's GUID, if known — undefined/omitted inserts `null` (docs/PLAN.md §2.4/§5 step 6). */
+  guid?: string | null;
   reason?: string | null;
   bannedBy: number;
+  /** Set for the report card's `Temp Ban` button (§5 step 6); omitted/null for a permanent `/ban`. */
+  expiresAt?: Date | null;
 }
 
 export interface BanIp {
@@ -49,10 +53,17 @@ export interface BanStore {
   expireIpBan(id: number): Promise<void>;
 
   /**
+   * GUID-path temp bans whose `expiresAt` has passed (docs/PLAN.md §5 step 7's poller job (b)) —
+   * the `bans`-table equivalent of `listExpiredIpBans`. Unlike an IP ban, reversing this needs an
+   * rcon call (`unbanUser(guid)`, to remove the ban.txt entry) before the row is dropped — that's
+   * why this returns full `Ban` rows (for their `guid`), not just IDs.
+   */
+  listExpiredBans(serverAlias: string, now: Date): Promise<Ban[]>;
+  expireBan(id: number): Promise<void>;
+
+  /**
    * Prior GUID-path bans against a specific GUID (docs/PLAN.md §5 step 3's report enrichment),
-   * newest first. Always empty today — `recordBan` has no `guid` input and always inserts
-   * `null` (see `schema.ts`'s note); kept for when that's fixed, and so callers can write the
-   * §2.4 correlation rule ("GUID unless it's 0") once, now, rather than after that fix lands.
+   * newest first.
    */
   listBansByGuid(serverAlias: string, guid: string, limit: number): Promise<Ban[]>;
   /** Fallback for the common GUID-0 case (§2.4), or today, the only case that ever matches. */

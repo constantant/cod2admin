@@ -25,6 +25,8 @@ export interface ReportCardButton {
 export interface ReportCard {
   text: string;
   buttons: ReportCardButton[][];
+  /** What `More info ▾` (§5 step 5) should show — full (untrimmed) chat history, unlike `text`'s last-3 summary. Undefined for ambiguous/not-found cards, which have nothing to expand. */
+  detailText?: string;
 }
 
 /** `5s` / `3m 12s` / `1h 05m` — used for both a live session-so-far and a frozen final duration. */
@@ -85,6 +87,19 @@ function formatBody(enriched: EnrichedReport): string {
 
 const IGNORE_BUTTON: ReportCardButton = { label: 'Ignore', action: { kind: 'ignore' } };
 
+/** Full chat history plus identity detail for `More info ▾` — `formatBody` only shows the last 3 lines. */
+function formatDetail(enriched: EnrichedReport): string {
+  const { target } = enriched;
+  const lines = [`Full GUID: ${target.guid || '(none)'}`, `Full IP: ${target.ip ?? 'unknown'}`];
+  if (target.chatHistory.length > 0) {
+    lines.push('Chat history:');
+    lines.push(...target.chatHistory.map((chat) => `  "${chat.message}"`));
+  } else {
+    lines.push('No chat history recorded for this session.');
+  }
+  return lines.join('\n');
+}
+
 /**
  * Builds the report card for a resolved target — live (full action buttons) or disconnected
  * (§5 step 2's fallback: `Ignore` only, since kick/ban need a player who's actually connected
@@ -92,11 +107,13 @@ const IGNORE_BUTTON: ReportCardButton = { label: 'Ignore', action: { kind: 'igno
  */
 export function buildReportCard(enriched: EnrichedReport, trigger: ReportTrigger): ReportCard {
   const text = [formatHeader(trigger), '', formatBody(enriched)].join('\n');
+  const detailText = formatDetail(enriched);
 
   if (!enriched.target.connected) {
     return {
       text: `${text}\n\n⚠️ Target disconnected before this could be resolved live.`,
       buttons: [[IGNORE_BUTTON]],
+      detailText,
     };
   }
 
@@ -110,6 +127,7 @@ export function buildReportCard(enriched: EnrichedReport, trigger: ReportTrigger
       ],
       [IGNORE_BUTTON, { label: 'More info ▾', action: { kind: 'more-info' } }],
     ],
+    detailText,
   };
 }
 

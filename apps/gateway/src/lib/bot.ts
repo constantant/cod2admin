@@ -1,3 +1,4 @@
+import { ReportAntiSpam, type SessionLookup } from '@cod2admin/report-pipeline';
 import { Bot, type Context } from 'grammy';
 import { requireRole } from './auth.js';
 import type { BotContext } from './bot-context.js';
@@ -12,6 +13,7 @@ import { mapCommand } from './commands/map.js';
 import { playersCommand } from './commands/players.js';
 import { rconCommand } from './commands/rcon.js';
 import { removeAdminCommand } from './commands/removeadmin.js';
+import { reportActionCallback, ReportRegistry, type ReportCallbackContext } from './reports.js';
 import { sayCommand } from './commands/say.js';
 import { serversCommand } from './commands/servers.js';
 import { setRoleCommand } from './commands/setrole.js';
@@ -39,12 +41,32 @@ function withReplyToUserId(ctx: Context): BotContext {
   return target;
 }
 
+/** Adapts grammy's real `Context` to `ReportCallbackContext` — mirrors `EditableBotContext`'s approach in status.ts. */
+function toReportCallbackContext(ctx: Context & BotContext): ReportCallbackContext {
+  return {
+    from: ctx.from,
+    admin: ctx.admin,
+    callbackData: ctx.callbackQuery?.data ?? '',
+    editMessageText: (text, other) => ctx.editMessageText(text, other as never),
+    answerCallbackQuery: (other) => ctx.answerCallbackQuery(other),
+  };
+}
+
 export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret: string): Bot {
   const bot = new Bot(config.telegramBotToken);
 
   const requireOwner = requireRole('owner', deps.adminStore);
   const requireAdmin = requireRole('admin', deps.adminStore);
   const requireAny = requireRole('moderator', deps.adminStore);
+
+  // Report-card state (docs/PLAN.md §5 steps 4/6) — process-lifetime, not persisted (see
+  // ReportRegistry's own doc comment). `sessionsByServer` starts empty: nothing populates it
+  // until a GameLogTailer is actually wired per server (§5 step 5's "deliberately not done
+  // here" note) — `select`'s re-enrichment just gets no chat-history/session-duration data
+  // until then, which is a graceful degradation, not a crash.
+  const reportRegistry = new ReportRegistry();
+  const reportAntiSpam = new ReportAntiSpam<string>();
+  const sessionsByServer = new Map<string, SessionLookup>();
 
   bot.command('claim', (ctx) => claimCommand(ctx, deps, claimSecret));
 
@@ -68,6 +90,17 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
   bot.command('rcon', requireOwner, (ctx) => rconCommand(ctx, deps));
 
   bot.callbackQuery(STATUS_REFRESH_CALLBACK_DATA, requireAny, (ctx) => statusRefreshCallback(ctx, deps));
+  bot.callbackQuery(/^report:/, requireAny, (ctx) =>
+    reportActionCallback(toReportCallbackContext(ctx), {
+      bot,
+      registry: reportRegistry,
+      antiSpam: reportAntiSpam,
+      rconClients: deps.rconClients,
+      adminStore: deps.adminStore,
+      banStore: deps.banStore,
+      sessionsByServer,
+    }),
+  );
 
   bot.catch(({ error, ctx }) => {
     console.error(`Gateway bot error handling update ${ctx.update.update_id}:`, error);

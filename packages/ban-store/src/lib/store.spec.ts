@@ -34,6 +34,16 @@ describe('DrizzleBanStore', () => {
     expect(rows[0]).toMatchObject({ server_alias: 'default', guid: null, name: 'PlayerOne', reason: 'cheating', expires_at: null });
   });
 
+  it('records a GUID-path ban with a real guid and an expiry (the report card Temp Ban button, §5 step 6)', async () => {
+    const expiresAt = new Date(Date.now() + 60_000);
+    await store.recordBan({ serverAlias: 'default', name: 'PlayerOne', guid: 'realguid', reason: 'aimbot', bannedBy: 1, expiresAt });
+
+    const { rows } = await pool.query('SELECT * FROM bans');
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ guid: 'realguid', expires_at: expiresAt });
+  });
+
   it('records an IP ban with an expiry and lists it as active', async () => {
     const expiresAt = new Date(Date.now() + 60_000);
     await store.recordIpBan({ serverAlias: 'default', ip: '1.2.3.4', reason: 'griefing', bannedBy: 1, expiresAt });
@@ -69,10 +79,30 @@ describe('DrizzleBanStore', () => {
     await expect(store.listActiveIpBans('default')).resolves.toEqual([]);
   });
 
+  describe('GUID-path ban expiry (docs/PLAN.md §5 step 7 job (b))', () => {
+    it('lists a GUID-path temp ban whose expiry has passed, and expireBan removes it', async () => {
+      const expiresAt = new Date(Date.now() - 1000);
+      await store.recordBan({ serverAlias: 'default', name: 'PlayerOne', guid: 'realguid', bannedBy: 1, expiresAt });
+
+      const expired = await store.listExpiredBans('default', new Date());
+      expect(expired).toEqual([expect.objectContaining({ guid: 'realguid' })]);
+
+      await store.expireBan(expired[0].id);
+
+      await expect(store.listExpiredBans('default', new Date())).resolves.toEqual([]);
+    });
+
+    it('does not list a permanent ban (no expiry) or one whose expiry is still in the future', async () => {
+      await store.recordBan({ serverAlias: 'default', name: 'Permanent', guid: 'guid-a', bannedBy: 1 });
+      await store.recordBan({ serverAlias: 'default', name: 'NotYet', guid: 'guid-b', bannedBy: 1, expiresAt: new Date(Date.now() + 60_000) });
+
+      await expect(store.listExpiredBans('default', new Date())).resolves.toEqual([]);
+    });
+  });
+
   describe('history lookups (docs/PLAN.md §5 step 3)', () => {
     it('finds bans by GUID, newest first, scoped to server and limit', async () => {
-      // recordBan never sets a guid (schema.ts's note) - insert directly to set up this case,
-      // with explicit banned_at values so "newest first" isn't left to same-statement now() ties.
+      // Explicit banned_at values so "newest first" isn't left to same-statement now() ties.
       await pool.query(
         "INSERT INTO bans (server_alias, guid, name, banned_by, banned_at) VALUES " +
           "('default', 'abc123', 'Old Name', 1, now() - interval '1 hour')," +

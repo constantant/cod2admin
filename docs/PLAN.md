@@ -463,6 +463,47 @@ Roles, stored in `admin-store`:
    `unbanUser`/removes the `ban.txt` entry once `expires_at` passes. This makes `bans` and
    `ban_ips` symmetric — both gateway-timed — and `tempBanClient`'s own duration semantics are
    never relied on.
+
+   **Implemented (2026-09-06)**: `apps/gateway`'s `executeModerationAction()`
+   (`lib/moderation-actions.ts`) is the one place implementing kick/ban/tempban plus the §5 step
+   7 GUID-vs-IP branching — rcon call, `ban-store`/`admin-store` writes, and the moderation
+   broadcast, all in one function shared by `/kick`/`/ban`/`/tempban` **and** the report card's
+   buttons, so both call paths ban a target identically. Building this surfaced (and fixed) two
+   Phase-2-era bugs now that §2.4's GUID finding applies: `/ban` previously always called
+   `banUser` unconditionally — a silent no-op for a GUID-0 target, i.e. the common case here —
+   with no IP fallback at all; and `/tempban` was hardcoded IP-only even when a real GUID was
+   available. Both commands now go through the same branching as the report card. `/ban` and
+   `/tempban` also now require the target still be connected (previously `/ban` didn't check),
+   since with proper GUID/IP branching there's nothing left to ban by once they're gone. The
+   broadcast text stays a plain player-facing verb ("banned"/"kicked") regardless of which path
+   was taken — the "(GUID unavailable)" detail is for the admin-facing result label only, not
+   something players need to see in a chat announcement.
+
+   The report-card button wiring itself (`apps/gateway/src/lib/reports.ts`): a `ReportRegistry`
+   maps a short numeric id (embedded in `callback_data`, well under Telegram's 64-byte limit —
+   real player names are never encoded into it) to the message's chat/message id, its original
+   `ReportTrigger`, and the resolved `ReportActionContext` from report-pipeline's `pipeline.ts`.
+   `GatewayCardSender implements CardSender<string>` over `bot.api.sendMessage`/
+   `editMessageText`, using that same id as the `TCardRef` anti-spam already tracks — one id
+   serves both purposes. `reportActionCallback` handles all six button kinds: `kick`/`tempban`
+   (moderator+) and `ban` (admin+) via `executeModerationAction`; `ignore` clears the anti-spam
+   dedup entry (§5 step 4) via `resolve()` so a later report gets a fresh card; `select`
+   re-resolves one ambiguous candidate (§5 step 2) into a full card via a fresh `status()` call
+   plus `enrichReport`/`buildReportCard`, reusing `deriveReportActionContext` (exported from
+   `pipeline.ts` for exactly this reuse) rather than re-deriving that mapping; `more-info`
+   answers with an alert popup showing `ReportCard.detailText` (full, untrimmed chat history +
+   full GUID/IP — a new field added to `ReportCard` for this, since the card's own `text` only
+   shows the last 3 lines compactly per §5 step 5).
+
+   **Still not wired to a live trigger source**: `bot.ts` registers the callback route and owns
+   process-lifetime `ReportRegistry`/`ReportAntiSpam` instances, but nothing calls
+   `handleReportTrigger()` yet — that needs a `GameLogTailer` instantiated per configured server
+   (reading `ServerConfig.logSourceConfig`, in the schema since Phase 2 but unused until now) and
+   wired to its `reportTrigger` event, plus a `sessionsByServer` map actually populated per
+   server instead of the empty placeholder `bot.ts` currently passes. This is deployment/startup
+   plumbing (`main.ts`/`config.ts`), not step 6/7 logic — everything above is fully functional
+   and tested via `handleReportTrigger`/`reportActionCallback`'s own unit tests, just not yet
+   triggered by a real `!report` in the current running gateway.
 7. **GUID-0 fallback**: if the target's GUID is `0`/blank, **both** the `Ban` and
    `Temp Ban (30m)` buttons execute an IP-based ban — inserting a row into the `ban_ips` table
    (§7), with `expires_at` set for temp bans and left null for permanent ones — since the game
@@ -487,6 +528,19 @@ Roles, stored in `admin-store`:
      *common* case rather than a rare edge case on the target server, these aren't corner-case
      caveats — they may be the primary ban mechanism's real-world failure modes, and should be
      re-assessed once the Phase 3 GUID verification (§9) is done.
+
+   **Implemented (2026-09-06)**: job (a) (kick-on-sight for active `ban_ips` rows) already
+   existed from Phase 2 as `ban-store`'s `runIpBanSweep`. Job (b) — the GUID-based temp-ban
+   expiry this section calls for — is new: `runBanExpirySweep` (same package, its own function
+   rather than folded into `runIpBanSweep`, so each stays independently testable) scans `bans`
+   for rows past `expires_at`, calls `unbanUser(guid)` for any with a real GUID (skipped for a
+   `null` one — those were never written to `ban.txt` via this path to begin with), then drops
+   the row. `apps/gateway`'s `expiry-poller.ts` runs both sweeps on the same interval, per the
+   "same fixed interval" requirement above. Required extending `BanStore`/`bans`'s
+   `RecordBanInput` with `guid`/`expiresAt` fields (previously `recordBan` always inserted
+   `guid: null, expiresAt: null` — see step 6's note on the `/ban`/`/tempban` bugs this
+   uncovered) and two new store methods, `listExpiredBans`/`expireBan`, mirroring the existing
+   `ban_ips` pair.
 
 ## 6. Server status & management
 
