@@ -20,16 +20,15 @@ running* somewhere reachable from this machine. It never touches that server's f
 
 ## Install
 
-1. On the target machine, download the latest release archive and extract it:
+1. On the target machine, download and extract the latest release — this always gets the
+   newest version, no version number to look up or type in:
    ```sh
-   curl -LO https://github.com/constantant/cod2admin/releases/latest/download/cod2admin-installer-VERSION.tar.gz
-   tar -xzf cod2admin-installer-VERSION.tar.gz
-   cd cod2admin-installer-VERSION
+   curl -s https://api.github.com/repos/constantant/cod2admin/releases/latest \
+     | grep browser_download_url | cut -d '"' -f 4 | xargs curl -LO
+   tar -xzf cod2admin-*.tar.gz
+   cd cod2admin-*/
    ```
-   Replace `VERSION` with the version number from the
-   [releases page](https://github.com/constantant/cod2admin/releases/latest) (e.g. `0.0.2`) —
-   GitHub's `/latest/download/` links require the exact filename, not just "latest". The archive
-   contains everything needed: `install.sh`, this README, and the bot itself.
+   The archive contains everything needed: `install.sh`, this README, and the bot itself.
 2. Run:
    ```sh
    sudo ./install.sh

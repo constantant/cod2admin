@@ -59,15 +59,14 @@ Telegram-бот, который заменяет консоль админист
 
 Готовый инсталлятор уже есть — устанавливать бота вручную не нужно.
 
-1. Скачайте архив последнего релиза на сервер и распакуйте:
+1. Скачайте и распакуйте архив последнего релиза — эта команда сама находит самую свежую
+   версию, номер версии искать и подставлять вручную не нужно:
    ```sh
-   curl -LO https://github.com/constantant/cod2admin/releases/latest/download/cod2admin-installer-VERSION.tar.gz
-   tar -xzf cod2admin-installer-VERSION.tar.gz
-   cd cod2admin-installer-VERSION
+   curl -s https://api.github.com/repos/constantant/cod2admin/releases/latest \
+     | grep browser_download_url | cut -d '"' -f 4 | xargs curl -LO
+   tar -xzf cod2admin-*.tar.gz
+   cd cod2admin-*/
    ```
-   `VERSION` замените на номер версии со
-   [страницы релизов](https://github.com/constantant/cod2admin/releases/latest) (например,
-   `0.0.2`) — ссылка вида `/latest/download/` требует точное имя файла, а не слово «latest».
    В архиве уже всё нужное: `install.sh`, инструкция и сам бот — ничего скачивать отдельно
    не придётся.
 2. Запустите на сервере:

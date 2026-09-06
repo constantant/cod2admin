@@ -814,15 +814,16 @@ Admins install from a GitHub Release rather than building from source — full w
 prerequisites in `installer/README.md` (condensed Russian version in `PLAN-ru.md`). In short:
 
 ```sh
-curl -LO https://github.com/constantant/cod2admin/releases/latest/download/cod2admin-installer-VERSION.tar.gz
-tar -xzf cod2admin-installer-VERSION.tar.gz
-cd cod2admin-installer-VERSION
+curl -s https://api.github.com/repos/constantant/cod2admin/releases/latest \
+  | grep browser_download_url | cut -d '"' -f 4 | xargs curl -LO
+tar -xzf cod2admin-*.tar.gz
+cd cod2admin-*/
 sudo ./install.sh
 ```
 
-`VERSION` is the tag from the [releases page](https://github.com/constantant/cod2admin/releases/latest)
-(e.g. `0.0.2`) — GitHub's `/latest/download/` redirect needs the exact asset filename, not the
-literal word "latest". `scripts/release.sh` builds and publishes this single archive
+The GitHub API call resolves whatever the current latest release's asset is named, so there's
+no version number to look up or substitute by hand — this always fetches the newest release.
+`scripts/release.sh` builds and publishes a single `cod2admin-<version>.tar.gz` archive
 (`install.sh` + its README + the built gateway bundle, vendored with its real non-workspace
 deps — see `scripts/build-installer-bundle.sh`) as the one release asset for every tagged
 version, so there's never more than one thing to download.
