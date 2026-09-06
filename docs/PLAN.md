@@ -808,6 +808,33 @@ Postgres-service-container store tests — fast, no Docker CoD2 image or real Te
 required, so it never depends on secrets that would need to live in CI. The §11.3 manual e2e
 checklist is a pre-release gate run locally, not a CI job.
 
+## 12. Installing on a production server
+
+Admins install from a GitHub Release rather than building from source — full walkthrough and
+prerequisites in `installer/README.md` (condensed Russian version in `PLAN-ru.md`). In short:
+
+```sh
+curl -LO https://github.com/constantant/cod2admin/releases/latest/download/cod2admin-installer-VERSION.tar.gz
+tar -xzf cod2admin-installer-VERSION.tar.gz
+cd cod2admin-installer-VERSION
+sudo ./install.sh
+```
+
+`VERSION` is the tag from the [releases page](https://github.com/constantant/cod2admin/releases/latest)
+(e.g. `0.0.2`) — GitHub's `/latest/download/` redirect needs the exact asset filename, not the
+literal word "latest". `scripts/release.sh` builds and publishes this single archive
+(`install.sh` + its README + the built gateway bundle, vendored with its real non-workspace
+deps — see `scripts/build-installer-bundle.sh`) as the one release asset for every tagged
+version, so there's never more than one thing to download.
+
+`install.sh` installs Node.js and Postgres if missing, validates the Telegram token and RCON
+reachability live (real API/UDP calls, not just presence checks) before writing any config, and
+falls back to a supervised background process on hosts without systemd/OpenRC. Verified by
+extracting a real release archive into a clean container with no pre-installed dependencies and
+confirming the gateway actually started and connected, end to end, using a real dev Telegram
+token and a live RCON probe against the real dev CoD2 server — not just that the script exited
+0.
+
 ## Sources
 
 - https://github.com/atib80/tinyrcon
