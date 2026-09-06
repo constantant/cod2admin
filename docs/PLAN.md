@@ -417,6 +417,35 @@ Roles, stored in `admin-store`:
    - Body: the enrichment data from step 3, formatted compactly.
    - Inline keyboard: `Kick` · `Temp Ban (30m)` · `Ban` · `Ignore` · `More info ▾` (expands
      with full status dump / chat history).
+
+   **Implemented (2026-09-06)**, `packages/report-pipeline` — the card content and the
+   send/update decision, deliberately **not yet wired into the running gateway** (see below):
+   - `report-card.ts` builds all four cards this pipeline can produce — the resolved/disconnected
+     one above (disconnected gets `Ignore` only, per step 2), the ambiguous `Select:` one (§5
+     step 2), and a **`not-found` card** the plan doesn't explicitly spec (a typo'd or
+     fully-expired name still needs *some* response, not silence) — as plain data
+     (`{ text, buttons }`, buttons as a framework-agnostic `{ label, action }` shape), no grammy
+     dependency. `formatDuration()` renders a session length as `45s` / `3m 12s` / `1h 05m`.
+   - `pipeline.ts`'s `processReportTrigger()` is the full step 1-5 orchestration minus button
+     handling: checks `ReportAntiSpam` first (before any rcon/DB calls — a cooldown-blocked
+     report skips resolve/enrich entirely), resolves the target, enriches it if
+     resolved/disconnected, builds the right card, and sends or updates it through an injected
+     `CardSender<TCardRef>` interface (`send`/`update`), generic over whatever a real Telegram
+     send ends up returning as a reference (chat id + message id, most likely) — the same
+     "narrow injected interface, no concrete framework dependency" pattern as every other piece
+     of this package.
+   - **Deliberately not done here**: actually calling the Telegram Bot API. `apps/gateway` has
+     no `InlineKeyboard`→`ReportCardButton[][]` mapping, no `CardSender` implementation over
+     grammy's `bot.api`, no per-server `GameLogTailer` instance wired to its `reportTrigger`
+     event, and no config plumbing for `ServerConfig.logSourceConfig` (already in the schema,
+     unused until now) as each server's `COD2_LOG_PATH`. That wiring is significant on its own
+     and is more naturally done together with step 6 below: the callback button payload
+     (`ReportCardAction`) has to be encoded into a real `callback_data` string (Telegram's
+     64-byte limit rules out embedding raw player names — a short server-side report id looked
+     up in an in-memory map is the likely shape, mirroring `STATUS_REFRESH_CALLBACK_DATA`'s
+     existing simple-string precedent in `apps/gateway/src/lib/commands/status.ts`), and
+     designing that separately from the handler that parses it risks redoing it once the
+     handler's actual needs are clear.
 6. **Action execution**: button press → grammy callback handler → permission check → RCON
    command via `rcon-client` → on success, edit the Telegram message to show the resolved
    state (who acted, what action, timestamp) and write the audit log row. **Decided**: every
