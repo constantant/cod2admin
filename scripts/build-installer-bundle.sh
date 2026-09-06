@@ -32,6 +32,10 @@ rm -rf "$BUNDLE_DIR"
 mkdir -p "$BUNDLE_DIR/node_modules/@cod2admin"
 
 cp -r "apps/gateway/dist" "$BUNDLE_DIR/dist"
+# /help and /help_ru resolve these relative to the package root at runtime
+# (fileURLToPath(new URL('../../../docs/BOT-HELP*.md', import.meta.url)) in help.ts) — same pattern
+# as admin-store/ban-store's drizzle/ folder below.
+cp -r "apps/gateway/docs" "$BUNDLE_DIR/docs"
 
 for name in admin-store ban-store log-tailer rcon-client report-pipeline; do
   dest="$BUNDLE_DIR/node_modules/@cod2admin/$name"

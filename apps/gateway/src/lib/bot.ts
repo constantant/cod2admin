@@ -6,6 +6,7 @@ import { auditLogCommand } from './commands/auditlog.js';
 import { banCommand } from './commands/ban.js';
 import { bindServerCommand } from './commands/bindserver.js';
 import { claimCommand } from './commands/claim.js';
+import { helpCommand, helpRuCommand } from './commands/help.js';
 import { kickCommand } from './commands/kick.js';
 import { listAdminsCommand } from './commands/listadmins.js';
 import { mapCommand } from './commands/map.js';
@@ -59,6 +60,8 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
   const requireAny = requireRole('moderator', deps.adminStore);
 
   bot.command('claim', (ctx) => claimCommand(ctx, deps, claimSecret));
+  bot.command('help', (ctx) => helpCommand(ctx));
+  bot.command('help_ru', (ctx) => helpRuCommand(ctx));
 
   bot.command('status', requireAny, (ctx) => statusCommand(ctx, deps));
   bot.command('players', requireAny, (ctx) => playersCommand(ctx, deps));
