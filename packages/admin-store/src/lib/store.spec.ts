@@ -98,5 +98,26 @@ describe('DrizzleAdminStore', () => {
       expect(entries).toHaveLength(1);
       expect(entries[0]).toMatchObject({ action: 'ban', target: 'PlayerTwo' });
     });
+
+    it('finds prior entries for a target, case-insensitively, scoped to the server and newest first', async () => {
+      await store.recordAuditLog({ actorTelegramId: 1, action: 'kick', target: 'Cheatr123', serverAlias: 'default', source: 'telegram_command' });
+      await store.recordAuditLog({ actorTelegramId: 1, action: 'ban', target: 'cheatr123', serverAlias: 'default', source: 'telegram_button' });
+      await store.recordAuditLog({ actorTelegramId: 1, action: 'kick', target: 'Cheatr123', serverAlias: 'other', source: 'telegram_command' });
+      await store.recordAuditLog({ actorTelegramId: 1, action: 'kick', target: 'SomeoneElse', serverAlias: 'default', source: 'telegram_command' });
+
+      const entries = await store.listAuditLogForTarget('default', 'CHEATR123', 10);
+
+      expect(entries.map((e) => e.action)).toEqual(['ban', 'kick']);
+    });
+
+    it('respects the limit on a targeted lookup too', async () => {
+      await store.recordAuditLog({ actorTelegramId: 1, action: 'kick', target: 'Cheatr123', serverAlias: 'default', source: 'telegram_command' });
+      await store.recordAuditLog({ actorTelegramId: 1, action: 'ban', target: 'Cheatr123', serverAlias: 'default', source: 'telegram_button' });
+
+      const entries = await store.listAuditLogForTarget('default', 'Cheatr123', 1);
+
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({ action: 'ban' });
+    });
   });
 });

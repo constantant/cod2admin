@@ -74,6 +74,14 @@ export interface AdminStore {
 
   recordAuditLog(entry: RecordAuditLogInput): Promise<void>;
   listAuditLog(limit: number): Promise<AuditLogEntry[]>;
+  /**
+   * Prior kicks/bans/etc. against a given player name (docs/PLAN.md §5 step 3's report
+   * enrichment), newest first. Case-insensitive exact match on `target` — command handlers
+   * record the player's name there verbatim (e.g. `apps/gateway/src/lib/commands/ban.ts`), not a
+   * structured GUID/IP, so that's the only identity this can match on regardless of the report's
+   * own GUID/IP correlation rule (§2.4).
+   */
+  listAuditLogForTarget(serverAlias: string, targetName: string, limit: number): Promise<AuditLogEntry[]>;
 
   close(): Promise<void>;
 }

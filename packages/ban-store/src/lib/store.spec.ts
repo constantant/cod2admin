@@ -68,4 +68,39 @@ describe('DrizzleBanStore', () => {
 
     await expect(store.listActiveIpBans('default')).resolves.toEqual([]);
   });
+
+  describe('history lookups (docs/PLAN.md §5 step 3)', () => {
+    it('finds bans by GUID, newest first, scoped to server and limit', async () => {
+      // recordBan never sets a guid (schema.ts's note) - insert directly to set up this case,
+      // with explicit banned_at values so "newest first" isn't left to same-statement now() ties.
+      await pool.query(
+        "INSERT INTO bans (server_alias, guid, name, banned_by, banned_at) VALUES " +
+          "('default', 'abc123', 'Old Name', 1, now() - interval '1 hour')," +
+          "('default', 'abc123', 'New Name', 1, now())," +
+          "('other', 'abc123', 'Elsewhere', 1, now())",
+      );
+
+      const found = await store.listBansByGuid('default', 'abc123', 10);
+
+      expect(found.map((b) => b.name)).toEqual(['New Name', 'Old Name']);
+    });
+
+    it('finds bans by name case-insensitively — the only lookup that matches real recordBan data today', async () => {
+      await store.recordBan({ serverAlias: 'default', name: 'Cheatr123', reason: 'aimbot', bannedBy: 1 });
+
+      const found = await store.listBansByName('default', 'CHEATR123', 10);
+
+      expect(found).toEqual([expect.objectContaining({ name: 'Cheatr123', reason: 'aimbot' })]);
+    });
+
+    it('finds IP bans by exact IP, newest first, scoped to server and limit', async () => {
+      await store.recordIpBan({ serverAlias: 'default', ip: '1.2.3.4', bannedBy: 1, expiresAt: null });
+      await store.recordIpBan({ serverAlias: 'default', ip: '1.2.3.4', reason: 'second offense', bannedBy: 1, expiresAt: null });
+      await store.recordIpBan({ serverAlias: 'other', ip: '1.2.3.4', bannedBy: 1, expiresAt: null });
+
+      const found = await store.listIpBansByIp('default', '1.2.3.4', 10);
+
+      expect(found).toEqual([expect.objectContaining({ reason: 'second offense' }), expect.objectContaining({ reason: null })]);
+    });
+  });
 });

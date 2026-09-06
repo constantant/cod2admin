@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, ilike } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import { admins, auditLog, servers } from './schema.js';
@@ -124,6 +124,16 @@ export class DrizzleAdminStore implements AdminStore {
 
   async listAuditLog(limit: number): Promise<AuditLogEntry[]> {
     const rows = await this.db.select().from(auditLog).orderBy(desc(auditLog.createdAt)).limit(limit);
+    return rows;
+  }
+
+  async listAuditLogForTarget(serverAlias: string, targetName: string, limit: number): Promise<AuditLogEntry[]> {
+    const rows = await this.db
+      .select()
+      .from(auditLog)
+      .where(and(eq(auditLog.serverAlias, serverAlias), ilike(auditLog.target, targetName)))
+      .orderBy(desc(auditLog.createdAt))
+      .limit(limit);
     return rows;
   }
 

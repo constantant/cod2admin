@@ -18,6 +18,9 @@ export type TargetResolution =
   | { kind: 'disconnected'; lastKnown: PlayerSession }
   | { kind: 'not-found' };
 
+/** The two `TargetResolution` outcomes that actually name one player — what `enrichReport` needs. */
+export type ResolvedTarget = Extract<TargetResolution, { kind: 'resolved' } | { kind: 'disconnected' }>;
+
 /**
  * Resolves a `!report` target name against the live player list (docs/PLAN.md §5 step 2), with
  * exactly one extra rcon round trip (`status()`) — the ambiguous-match `Select:` candidates and

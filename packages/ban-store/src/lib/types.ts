@@ -48,5 +48,17 @@ export interface BanStore {
   listExpiredIpBans(serverAlias: string, now: Date): Promise<BanIp[]>;
   expireIpBan(id: number): Promise<void>;
 
+  /**
+   * Prior GUID-path bans against a specific GUID (docs/PLAN.md §5 step 3's report enrichment),
+   * newest first. Always empty today — `recordBan` has no `guid` input and always inserts
+   * `null` (see `schema.ts`'s note); kept for when that's fixed, and so callers can write the
+   * §2.4 correlation rule ("GUID unless it's 0") once, now, rather than after that fix lands.
+   */
+  listBansByGuid(serverAlias: string, guid: string, limit: number): Promise<Ban[]>;
+  /** Fallback for the common GUID-0 case (§2.4), or today, the only case that ever matches. */
+  listBansByName(serverAlias: string, name: string, limit: number): Promise<Ban[]>;
+  /** IP-ban history — `bans` has no IP column, so IP-based history only ever comes from here. */
+  listIpBansByIp(serverAlias: string, ip: string, limit: number): Promise<BanIp[]>;
+
   close(): Promise<void>;
 }

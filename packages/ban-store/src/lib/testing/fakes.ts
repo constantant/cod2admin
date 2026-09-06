@@ -25,6 +25,9 @@ export interface FakeBanStore {
   listActiveIpBans: Mock<BanStore['listActiveIpBans']>;
   listExpiredIpBans: Mock<BanStore['listExpiredIpBans']>;
   expireIpBan: Mock<BanStore['expireIpBan']>;
+  listBansByGuid: Mock<BanStore['listBansByGuid']>;
+  listBansByName: Mock<BanStore['listBansByName']>;
+  listIpBansByIp: Mock<BanStore['listIpBansByIp']>;
   close: Mock<BanStore['close']>;
 }
 
@@ -35,6 +38,9 @@ export function createFakeBanStore(overrides: Partial<{ active: BanIp[]; expired
     listActiveIpBans: vi.fn().mockResolvedValue(overrides.active ?? []),
     listExpiredIpBans: vi.fn().mockResolvedValue(overrides.expired ?? []),
     expireIpBan: vi.fn().mockResolvedValue(undefined),
+    listBansByGuid: vi.fn().mockResolvedValue([]),
+    listBansByName: vi.fn().mockResolvedValue([]),
+    listIpBansByIp: vi.fn().mockResolvedValue([]),
     close: vi.fn().mockResolvedValue(undefined),
   };
 }

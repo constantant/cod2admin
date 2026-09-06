@@ -361,6 +361,30 @@ Roles, stored in `admin-store`:
      report-pipeline will consume (`chat`/`reportTrigger`/`connect`/`disconnect` events,
      `getSession`/`listSessions`). Verified against the real dev container's `games_mp.log`
      (post-§2.4-fix), not just temp-file tests.
+
+   **Implemented (2026-09-06)**, `packages/report-pipeline`'s `enrichReport()`: assembles
+   everything above from data already in hand — no new rcon/DB round-trips beyond the ones
+   listed. Live fields (IP/ping/score) come from `resolveReportTarget`'s `status()` result;
+   session duration/chat history from log-tailer's `getSession(num)` (undefined/`[]` if
+   log-tailer never saw that player's `connect` line — e.g. gateway restarted mid-session, per
+   the restart caveat above); reporter info straight off the trigger's own `ChatEvent`, no lookup
+   needed. **Not included**: "previous reports against this identity" — no `reports`
+   table/store exists yet (§7 sketches one, but nothing writes to it until this pipeline's
+   card-delivery/persistence step is built, which is also naturally when the write-path would be
+   added) — only prior `audit_log` actions and ban history are available today.
+   - Required two new read-only queries, added to the existing stores rather than a new one:
+     `AdminStore.listAuditLogForTarget` (matches `audit_log.target`, case-insensitive — that
+     column is always a free-text player *name*, e.g. `apps/gateway/src/lib/commands/ban.ts`'s
+     `player?.name ?? String(clientId)`, never a structured GUID/IP, so name is the only thing
+     it can ever match on) and `BanStore`'s `listBansByGuid`/`listBansByName`/`listIpBansByIp`
+     (GUID unless `0`, else name — same §2.4 rule as target resolution; IP always queried
+     separately against `ban_ips`, since `bans` has no IP column at all).
+   - **Follow-up gap, not fixed here**: `listBansByGuid` will return nothing in practice today —
+     `ban-store`'s `recordBan`/`schema.ts` still always insert `guid: null` (a Phase 2-era
+     limitation, from before §2.4 found some servers *do* expose GUID via `status()`). Fixing
+     that means updating `/ban`'s command handler (`apps/gateway`) to pass `player?.guid`
+     through to a new `RecordBanInput.guid` field — a small, separate, apps/gateway-side change,
+     intentionally not bundled into this report-pipeline work.
 4. **Anti-spam**: per-reporter cooldown (e.g. one report per 60s, configurable) and simple
    duplicate-suppression (same reporter+target within a window collapses into one updated
    card rather than spamming the chat) — otherwise a small flood of `!report` spam becomes a

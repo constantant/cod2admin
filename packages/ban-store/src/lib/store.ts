@@ -1,8 +1,8 @@
-import { and, eq, gt, isNotNull, isNull, lte, or } from 'drizzle-orm';
+import { and, desc, eq, gt, ilike, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import { banIps, bans } from './schema.js';
-import type { BanIp, BanStore, RecordBanInput, RecordIpBanInput } from './types.js';
+import type { Ban, BanIp, BanStore, RecordBanInput, RecordIpBanInput } from './types.js';
 
 export class DrizzleBanStore implements BanStore {
   private readonly pool: Pool;
@@ -50,6 +50,33 @@ export class DrizzleBanStore implements BanStore {
 
   async expireIpBan(id: number): Promise<void> {
     await this.db.delete(banIps).where(eq(banIps.id, id));
+  }
+
+  async listBansByGuid(serverAlias: string, guid: string, limit: number): Promise<Ban[]> {
+    return this.db
+      .select()
+      .from(bans)
+      .where(and(eq(bans.serverAlias, serverAlias), eq(bans.guid, guid)))
+      .orderBy(desc(bans.bannedAt))
+      .limit(limit);
+  }
+
+  async listBansByName(serverAlias: string, name: string, limit: number): Promise<Ban[]> {
+    return this.db
+      .select()
+      .from(bans)
+      .where(and(eq(bans.serverAlias, serverAlias), ilike(bans.name, name)))
+      .orderBy(desc(bans.bannedAt))
+      .limit(limit);
+  }
+
+  async listIpBansByIp(serverAlias: string, ip: string, limit: number): Promise<BanIp[]> {
+    return this.db
+      .select()
+      .from(banIps)
+      .where(and(eq(banIps.serverAlias, serverAlias), eq(banIps.ip, ip)))
+      .orderBy(desc(banIps.bannedAt))
+      .limit(limit);
   }
 
   async close(): Promise<void> {
