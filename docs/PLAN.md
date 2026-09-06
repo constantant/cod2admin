@@ -779,6 +779,19 @@ actually looks like against this server config).
 - `!report <name> <reason>` in-game → card appears in the dev group with correct enrichment
   (§5 step 3) → each button (`Kick`/`Temp Ban`/`Ban`/`Ignore`/`More info`) → verify `ban.txt`
   and the `bans`/`ban_ips` tables end up in the expected state.
+  - **Partially confirmed (2026-09-06)**: the full pipeline was smoke-tested against the real
+    dev server + dev Telegram bot (`@CoD2MPRusDevBot`), `/bindserver default` bound live for the
+    first time, then a synthetic `J`/`say;...!report...` pair appended directly to the real
+    `games_mp.log` (no real client connected, so the target was live-unresolvable by design —
+    exercises the **disconnected-target fallback**, §5 step 2). Confirmed working end-to-end:
+    trigger detection → log-tailer session cache resolution → enrichment → card delivery (correct
+    reporter/target/reason, "target disconnected" label, `Ignore`-only keyboard as expected for
+    this path) → `Ignore` button press → message edited to the resolved state → anti-spam
+    dedup entry cleared, all with no gateway errors. **Not yet exercised this way**: the
+    resolved-live path (needs a real client actually connected — a synthetic log line alone
+    can't appear in a live `status()` call) and therefore `Kick`/`Temp Ban`/`Ban`, `Select:` for
+    an ambiguous match, and `More info`. Needs a real CoD2 client connected to close out the rest
+    of this checklist item.
 - Ambiguous-name report → `Select:` buttons → resolves into the normal card (§5 step 2).
 - GUID-0 path, if/once confirmed reachable on the target server config (§2.4): confirm both
   `Ban` and `Temp Ban` route through `ban_ips` and the expiry-poller actually kicks/unbans on
