@@ -7,9 +7,10 @@
 #   2. sync root package.json to that version (build-installer-bundle.sh reads it for the
 #      archive's filename, so it must match the just-bumped release version)
 #   3. write the changelog                   (nx release changelog)
-#   4. rebuild installer/cod2admin-gateway-<version>.tar.gz from the newly bumped/built sources
+#   4. rebuild installer/cod2admin-gateway-<version>.tar.gz from the newly bumped/built sources,
+#      then wrap it with install.sh + README.md into one install-ready release archive
 #   5. commit + tag everything as one release
-#   6. push the release commit/tag and publish a GitHub Release with the archive attached
+#   6. push the release commit/tag and publish a GitHub Release with that one archive attached
 #
 # Split into `nx release version` + `nx release changelog` (each with --no-git-commit
 # --no-git-tag) instead of the single `nx release` command, specifically so steps 2 and 4 can run
@@ -74,6 +75,18 @@ $PNPM exec nx release changelog "$VERSION" --no-git-commit --no-git-tag "${EXTRA
 echo "==> Building installer archive for $VERSION"
 "$ROOT_DIR/scripts/build-installer-bundle.sh"
 
+echo "==> Packaging single install-ready release archive for $VERSION"
+# installer/install.sh expects install.sh, README.md, and cod2admin-gateway-*.tar.gz to sit
+# together in one directory (see installer/README.md's "Download this whole folder" step) - wrap
+# all three into one archive so the GitHub release has exactly one asset to download.
+RELEASE_STAGE="$ROOT_DIR/out/cod2admin-installer-${VERSION}"
+RELEASE_ARCHIVE="$ROOT_DIR/out/cod2admin-installer-${VERSION}.tar.gz"
+rm -rf "$RELEASE_STAGE" "$RELEASE_ARCHIVE"
+mkdir -p "$RELEASE_STAGE"
+cp "installer/install.sh" "installer/README.md" "installer/cod2admin-gateway-${VERSION}.tar.gz" "$RELEASE_STAGE/"
+tar -czf "$RELEASE_ARCHIVE" -C "$ROOT_DIR/out" "cod2admin-installer-${VERSION}"
+rm -rf "$RELEASE_STAGE"
+
 echo "==> Committing and tagging release"
 git add package.json apps/*/package.json packages/*/package.json CHANGELOG.md pnpm-lock.yaml
 git commit -m "chore(release): publish v${VERSION}"
@@ -86,7 +99,7 @@ git push origin "v${VERSION}"
 echo "==> Publishing GitHub release v${VERSION}"
 if ! command -v gh >/dev/null 2>&1; then
   echo "gh CLI not found - skipping GitHub release. Run manually:"
-  echo "  gh release create v${VERSION} installer/cod2admin-gateway-${VERSION}.tar.gz --title v${VERSION} --notes-file <(sed -n '/^## ${VERSION} /,/^## /p' CHANGELOG.md)"
+  echo "  gh release create v${VERSION} $RELEASE_ARCHIVE --title v${VERSION} --notes-file <(sed -n '/^## ${VERSION} /,/^## /p' CHANGELOG.md)"
 else
   # CHANGELOG.md accumulates every past release - pull out just this version's section so old
   # entries aren't repeated as this release's notes.
@@ -104,7 +117,7 @@ else
   fs.writeFileSync(process.argv[2], section.trim() + "\n");
   ' "$VERSION" "$NOTES_FILE"
 
-  gh release create "v${VERSION}" "installer/cod2admin-gateway-${VERSION}.tar.gz" \
+  gh release create "v${VERSION}" "$RELEASE_ARCHIVE" \
     --title "v${VERSION}" \
     --notes-file "$NOTES_FILE"
   rm -f "$NOTES_FILE"
@@ -112,4 +125,4 @@ fi
 
 echo
 echo "Done: v${VERSION} released - committed, tagged, pushed, and published on GitHub."
-echo "Archive: installer/cod2admin-gateway-${VERSION}.tar.gz"
+echo "Release archive: $RELEASE_ARCHIVE"
