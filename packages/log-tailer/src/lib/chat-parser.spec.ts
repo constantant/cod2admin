@@ -58,6 +58,19 @@ describe('parseChatLine', () => {
     expect(parseChatLine('Sending heartbeat to cod2master.fucker    .com')).toBeNull();
     expect(parseChatLine('Rcon from 172.18.0.1:-21456:')).toBeNull();
   });
+
+  it('parses a line with the leading space a live bgauduch/cod2server deployment writes (confirmed on a real QNAP install, 2026-09-06 — without this, no line in that server\'s games_mp.log ever matched)', () => {
+    const line = ' 33:56 say;0;1;WOWOWOW;!report KonOgon is cheating';
+    expect(parseChatLine(line)).toEqual({
+      channel: 'say',
+      guid: '0',
+      num: 1,
+      name: 'WOWOWOW',
+      message: '!report KonOgon is cheating',
+      timestamp: { minutes: 33, seconds: 56 },
+      raw: line,
+    });
+  });
 });
 
 describe('detectReportTrigger', () => {
@@ -99,5 +112,14 @@ describe('detectReportTrigger', () => {
   it('does not trigger on a bare "!report" with no target name', () => {
     const chat = parseChatLine('999:00 say;0;0;WOWOWOW;!report')!;
     expect(detectReportTrigger(chat)).toBeNull();
+  });
+
+  it('still triggers when the message has a leading control byte, as a live deployment logs it (confirmed on a real QNAP install, 2026-09-06 — the CoD2 client itself inserts it, before !report even reaches games_mp.log)', () => {
+    const chat = parseChatLine(' 74:36 say;0;1;WOWOWOW;!report KonOgon is cheating!!')!;
+    expect(detectReportTrigger(chat)).toEqual({
+      chat,
+      targetName: 'KonOgon',
+      reason: 'is cheating!!',
+    });
   });
 });

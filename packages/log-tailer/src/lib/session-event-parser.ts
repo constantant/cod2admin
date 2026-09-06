@@ -5,8 +5,11 @@ import type { SessionEvent } from './types.js';
  * `<minutes>:<seconds> (J|Q);<guid>;<num>;<name>` — e.g. `121:19 J;0;0;WOWOWOW` (captured
  * verbatim, `test/fixtures/chat-lines.log`). Same `guid;num;name` shape as a chat line, just
  * without a trailing message field, so `<name>` is the rest of the line rather than `[^;]*`.
+ *
+ * Leading `\s*`: see the identical note on `CHAT_LINE` in chat-parser.ts — a live deployment
+ * writes every line with a leading space that this fixture doesn't have.
  */
-const SESSION_EVENT_LINE = /^(\d+):(\d{2}) (J|Q);(-?\d+);(-?\d+);(.*)$/;
+const SESSION_EVENT_LINE = /^\s*(\d+):(\d{2}) (J|Q);(-?\d+);(-?\d+);(.*)$/;
 
 /** Parses one `games_mp.log` line as a connect/quit event, or returns null for anything else. */
 export function parseSessionEventLine(line: string): SessionEvent | null {

@@ -34,4 +34,15 @@ describe('parseSessionEventLine', () => {
     expect(parseSessionEventLine(FIXTURE_LINES[10])).toBeNull(); // a `D;...` death-event line
     expect(parseSessionEventLine('Sending heartbeat to cod2master.fucker    .com')).toBeNull();
   });
+
+  it('parses a line with the leading space a live bgauduch/cod2server deployment writes (confirmed on a real QNAP install, 2026-09-06)', () => {
+    expect(parseSessionEventLine(' 35:30 J;0;1;WOWOWOW')).toEqual({
+      kind: 'connect',
+      guid: '0',
+      num: 1,
+      name: 'WOWOWOW',
+      timestamp: { minutes: 35, seconds: 30 },
+      raw: ' 35:30 J;0;1;WOWOWOW',
+    });
+  });
 });
