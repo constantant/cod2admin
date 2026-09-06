@@ -567,10 +567,16 @@ command="$_node"
 command_args="$INSTALL_DIR/dist/main.js"
 command_user="cod2admin"
 directory="$INSTALL_DIR"
-command_background=true
 pidfile="/run/cod2admin.pid"
 output_log="$INSTALL_DIR/cod2admin.log"
 error_log="$INSTALL_DIR/cod2admin.log"
+
+# Plain start-stop-daemon (the default supervisor) only starts the process - it doesn't notice or
+# react if it later dies. supervise-daemon actively monitors the child and restarts it, giving
+# OpenRC hosts the same crash-restart behavior as the systemd unit's Restart=on-failure above.
+supervisor="supervise-daemon"
+respawn_delay=3
+respawn_max=0
 
 start_pre() {
   set -a; . "$INSTALL_DIR/.env"; set +a
