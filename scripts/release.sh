@@ -72,13 +72,26 @@ fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
 echo "==> Generating changelog for $VERSION"
 $PNPM exec nx release changelog "$VERSION" --no-git-commit --no-git-tag "${EXTRA_ARGS[@]}"
 
+echo "==> Linking the changelog heading to its GitHub release"
+# nx's changelog renderer doesn't have a repo configured to link against, so the heading it
+# writes is plain text - point it at the release this script publishes below.
+node -e '
+const fs = require("fs");
+const version = process.argv[1];
+const text = fs.readFileSync("CHANGELOG.md", "utf8");
+const heading = new RegExp("^## " + version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + " \\(", "m");
+const url = "https://github.com/constantant/cod2admin/releases/tag/v" + version;
+const linked = text.replace(heading, "## [" + version + "](" + url + ") (");
+fs.writeFileSync("CHANGELOG.md", linked);
+' "$VERSION"
+
 echo "==> Building installer archive for $VERSION"
 "$ROOT_DIR/scripts/build-installer-bundle.sh"
 
 echo "==> Packaging single install-ready release archive for $VERSION"
 # installer/install.sh expects install.sh, README.md, and cod2admin-gateway-*.tar.gz to sit
-# together in one directory (see installer/README.md's "Download this whole folder" step) - wrap
-# all three into one archive so the GitHub release has exactly one asset to download.
+# together in one directory (see installer/README.md's install steps) - wrap all three into one
+# archive so the GitHub release has exactly one asset to download.
 RELEASE_STAGE="$ROOT_DIR/out/cod2admin-installer-${VERSION}"
 RELEASE_ARCHIVE="$ROOT_DIR/out/cod2admin-installer-${VERSION}.tar.gz"
 rm -rf "$RELEASE_STAGE" "$RELEASE_ARCHIVE"
@@ -99,7 +112,7 @@ git push origin "v${VERSION}"
 echo "==> Publishing GitHub release v${VERSION}"
 if ! command -v gh >/dev/null 2>&1; then
   echo "gh CLI not found - skipping GitHub release. Run manually:"
-  echo "  gh release create v${VERSION} $RELEASE_ARCHIVE --title v${VERSION} --notes-file <(sed -n '/^## ${VERSION} /,/^## /p' CHANGELOG.md)"
+  echo "  gh release create v${VERSION} $RELEASE_ARCHIVE --title v${VERSION} --notes-file <(sed -n '/^## \[${VERSION}\]/,/^## /p' CHANGELOG.md)"
 else
   # CHANGELOG.md accumulates every past release - pull out just this version's section so old
   # entries aren't repeated as this release's notes.
@@ -108,7 +121,8 @@ else
   const fs = require("fs");
   const version = process.argv[1];
   const text = fs.readFileSync("CHANGELOG.md", "utf8");
-  const heading = new RegExp("^## " + version.replace(/[.*+?^${}()|[\]\\\\]/g, "\\\\$&") + " ", "m");
+  const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const heading = new RegExp("^## \\[" + escaped + "\\]", "m");
   const start = text.search(heading);
   if (start === -1) throw new Error("No CHANGELOG.md section found for " + version);
   const rest = text.slice(start);
