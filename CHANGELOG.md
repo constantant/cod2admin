@@ -1,3 +1,14 @@
+## [0.0.4](https://github.com/constantant/cod2admin/releases/tag/v0.0.4) (2026-09-06)
+
+### 🩹 Fixes
+
+- **installer:** actually respawn the OpenRC service on crash ([18e8d4c](https://github.com/constantant/cod2admin/commit/18e8d4c))
+
+### ❤️ Thank You
+
+- Claude Sonnet 5
+- kk
+
 ## [0.0.3](https://github.com/constantant/cod2admin/releases/tag/v0.0.3) (2026-09-06)
 
 ### 🩹 Fixes
