@@ -44,7 +44,10 @@
     "projects": ["*"],
     "projectsRelationship": "fixed",
     "version": {
-      "conventionalCommits": true
+      "conventionalCommits": true,
+      "versionActionsOptions": {
+        "skipLockFileUpdate": true
+      }
     },
     "changelog": {
       "workspaceChangelog": {

@@ -44,10 +44,16 @@ if $DRY_RUN; then
 fi
 
 echo "==> Bumping versions"
+# nx.json sets versionActionsOptions.skipLockFileUpdate: true - nx's own lockfile step shells out
+# to a bare `pnpm` binary, which isn't on PATH in this workspace (see CLAUDE.md: only
+# `corepack pnpm` is guaranteed to resolve). We update the lockfile ourselves below instead.
 $PNPM exec nx release version --no-git-commit --no-git-tag "${EXTRA_ARGS[@]}"
 
 VERSION=$(node -p "require('./apps/gateway/package.json').version")
 echo "==> Resolved release version: $VERSION"
+
+echo "==> Updating pnpm lock file"
+$PNPM install --lockfile-only
 
 echo "==> Syncing root package.json to $VERSION (nx release never touches it - not an Nx project)"
 node -e '
