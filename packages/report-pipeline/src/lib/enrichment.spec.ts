@@ -148,7 +148,7 @@ describe('enrichReport', () => {
       { id: 1, actorTelegramId: 1, action: 'kick', target: 'Cheatr123', serverAlias: 'default', reason: null, source: 'telegram_command', detailJson: null, createdAt: new Date() },
     ];
     const bans: Ban[] = [
-      { id: 1, serverAlias: 'default', guid: null, name: 'Cheatr123', reason: 'past offense', bannedBy: 1, bannedAt: new Date(), expiresAt: null },
+      { id: 1, serverAlias: 'default', guid: null, name: 'Cheatr123', reason: 'past offense', bannedBy: 1, bannedAt: new Date(), expiresAt: null, unbannedAt: null },
     ];
     const resolution: ResolvedTarget = { kind: 'resolved', player: statusPlayer({ guid: '0' }) };
     const deps = fakeDeps({ auditLog, bans });

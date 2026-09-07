@@ -103,7 +103,7 @@ describe('buildReportCard', () => {
       history: {
         auditLog: [{ id: 1, actorTelegramId: 1, action: 'kick', target: 'Cheatr123', serverAlias: 'default', reason: null, source: 'telegram_command', detailJson: null, createdAt: new Date() }],
         bans: [],
-        ipBans: [{ id: 1, serverAlias: 'default', ip: '1.2.3.4', reason: null, bannedBy: 1, bannedAt: new Date(), expiresAt: null }],
+        ipBans: [{ id: 1, serverAlias: 'default', ip: '1.2.3.4', reason: null, bannedBy: 1, bannedAt: new Date(), expiresAt: null, unbannedAt: null }],
       },
     };
 
