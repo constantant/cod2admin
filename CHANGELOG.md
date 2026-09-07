@@ -1,3 +1,18 @@
+## [1.0.2](https://github.com/constantant/cod2admin/releases/tag/v1.0.2) (2026-09-07)
+
+### 🚀 Features
+
+- **installer:** add crash recovery to the no-systemd/no-OpenRC fallback ([b71c7c5](https://github.com/constantant/cod2admin/commit/b71c7c5))
+
+### 🩹 Fixes
+
+- **report-pipeline:** add missing unbannedAt to test fixtures ([eb52a76](https://github.com/constantant/cod2admin/commit/eb52a76))
+
+### ❤️ Thank You
+
+- Claude Sonnet 5
+- kk
+
 ## [1.0.1](https://github.com/constantant/cod2admin/releases/tag/v1.0.1) (2026-09-07)
 
 ### 🚀 Features
