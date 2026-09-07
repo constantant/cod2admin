@@ -80,12 +80,15 @@ cp "apps/gateway/package.json" "$BUNDLE_DIR/package.json"
 
 echo "==> Packing $TARBALL"
 mkdir -p "$(dirname "$TARBALL")"
-rm -f "$TARBALL"
+rm -f "$TARBALL" "$TARBALL.sha256"
 tar -czf "$TARBALL" -C "$OUT_DIR" gateway-bundle
+
+echo "==> Writing checksum (docs/PLAN.md §13.5 - the future /update command verifies this before trusting the tarball)"
+( cd "$(dirname "$TARBALL")" && sha256sum "$(basename "$TARBALL")" > "$(basename "$TARBALL").sha256" )
 
 echo "==> Sanity check: booting the bundle standalone"
 ( cd "$BUNDLE_DIR" && node -e "import('./dist/main.js')" ) 2>&1 | head -n5 || true
 
 echo
-echo "Done: $TARBALL"
+echo "Done: $TARBALL (+ .sha256)"
 echo "Copy it next to installer/install.sh and installer/README.md to ship a full bundle."

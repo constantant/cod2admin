@@ -19,19 +19,27 @@ INSTALL_DIR="/opt/cod2admin"
 CONFIG_FILE=""
 NODE_MIN_MAJOR=20
 
-# ── Output helpers ────────────────────────────────────────────────────────────────────────────
+# ── Shared helpers (output helpers, init-system detection, service restart/verify, pruning) ────
+# See installer/lib/service.sh - also sourced by apply-update.sh from its own installed location.
+# shellcheck source=lib/service.sh
+. "$SCRIPT_DIR/lib/service.sh"
 
-if [ -t 1 ]; then
-  C_RESET='\033[0m'; C_BOLD='\033[1m'; C_GREEN='\033[32m'; C_YELLOW='\033[33m'; C_RED='\033[31m'; C_CYAN='\033[36m'
-else
-  C_RESET=''; C_BOLD=''; C_GREEN=''; C_YELLOW=''; C_RED=''; C_CYAN=''
-fi
-
-step()    { printf '\n%s==>%s %s%s%s\n' "$C_CYAN" "$C_RESET" "$C_BOLD" "$1" "$C_RESET"; }
-info()    { printf '    %s\n' "$1"; }
-warn()    { printf '%s    warning:%s %s\n' "$C_YELLOW" "$C_RESET" "$1" >&2; }
-die()     { printf '%s    error:%s %s\n' "$C_RED" "$C_RESET" "$1" >&2; exit 1; }
-success() { printf '%s✔%s %s\n' "$C_GREEN" "$C_RESET" "$1"; }
+# Layout (docs/PLAN.md §13.5): $INSTALL_DIR itself is stable and never swapped. Each
+# install/update lands in its own $RELEASES_DIR/<version>, and $CURRENT_LINK always points at
+# whichever one is live - the systemd unit/OpenRC script/fallback start.sh all run out of
+# $CURRENT_LINK, so applying an update (apply-update.sh) never has to touch them, only the
+# symlink. Set below, once INSTALL_DIR is final (after --install-dir parsing).
+RELEASES_DIR=""
+CURRENT_LINK=""
+BIN_DIR=""
+STAGING_DIR=""
+set_layout_paths() {
+  RELEASES_DIR="$INSTALL_DIR/releases"
+  CURRENT_LINK="$INSTALL_DIR/current"
+  BIN_DIR="$INSTALL_DIR/bin"
+  STAGING_DIR="$INSTALL_DIR/staging"
+}
+set_layout_paths
 
 # Prints "$1" as a prompt (with optional default shown), reads a line into $REPLY_VALUE.
 ask() {
@@ -105,6 +113,9 @@ EOF
       die "Unknown argument: $1 (see --help)" ;;
   esac
 done
+
+# --install-dir, if given, is only known once the loop above finishes.
+set_layout_paths
 
 if [ -n "$CONFIG_FILE" ]; then
   [ -f "$CONFIG_FILE" ] || die "--config file not found: $CONFIG_FILE"
@@ -371,11 +382,19 @@ wizard_database() {
 }
 
 # ── App install ──────────────────────────────────────────────────────────────────────────────
+# Layout (docs/PLAN.md §13.5): each install/reconfigure lands its bundle in its own
+# $RELEASES_DIR/<version>, owned by root and only readable (not writable) by the cod2admin service
+# user - it can run its own code but never modify it. $CURRENT_LINK is repointed at the new
+# version; apply-update.sh (installed below by install_update_machinery) later does the same thing
+# unattended, which is why nothing here is INSTALL_DIR-flat anymore.
 
 install_app() {
   step "Installing cod2admin to $INSTALL_DIR"
   _tarball=$(ls "$SCRIPT_DIR"/cod2admin-gateway-*.tar.gz 2>/dev/null | head -n1) || true
   [ -n "${_tarball:-}" ] || die "Could not find cod2admin-gateway-*.tar.gz next to install.sh. Make sure you extracted the full installer bundle."
+  _tarball_name=$(basename -- "$_tarball")
+  _version=${_tarball_name#cod2admin-gateway-}
+  _version=${_version%.tar.gz}
 
   if id cod2admin >/dev/null 2>&1; then
     :
@@ -386,10 +405,54 @@ install_app() {
     esac
   fi
 
-  mkdir -p "$INSTALL_DIR"
-  tar -xzf "$_tarball" -C "$INSTALL_DIR" --strip-components=1
-  chown -R cod2admin "$INSTALL_DIR"
-  success "App files extracted."
+  mkdir -p "$INSTALL_DIR" "$RELEASES_DIR" "$BIN_DIR" "$STAGING_DIR"
+  chown root:root "$INSTALL_DIR" "$BIN_DIR"
+
+  _release_dir="$RELEASES_DIR/$_version"
+  rm -rf "$_release_dir"
+  mkdir -p "$_release_dir"
+  tar -xzf "$_tarball" -C "$_release_dir" --strip-components=1
+  chown -R root:root "$_release_dir"
+  # Read/execute for everyone (cod2admin needs to run node against this), no write access for
+  # anyone but root - the service can't modify its own code.
+  chmod -R a+rX "$_release_dir"
+
+  ln -sfn "releases/$_version" "$CURRENT_LINK"
+
+  chown cod2admin "$STAGING_DIR"
+  chmod 700 "$STAGING_DIR"
+
+  prune_old_releases
+  success "App files extracted (v$_version)."
+}
+
+install_update_machinery() {
+  step "Installing update machinery"
+  mkdir -p "$BIN_DIR/lib"
+  cp "$SCRIPT_DIR/apply-update.sh" "$BIN_DIR/apply-update.sh"
+  cp "$SCRIPT_DIR/lib/service.sh" "$BIN_DIR/lib/service.sh"
+  chown -R root:root "$BIN_DIR"
+  chmod 700 "$BIN_DIR/apply-update.sh"
+  chmod 644 "$BIN_DIR/lib/service.sh"
+
+  _sudoers_file=$(mktemp)
+  cat > "$_sudoers_file" <<EOF
+# Managed by cod2admin's installer - see docs/PLAN.md §13.4/§13.5. Re-run install.sh to update.
+cod2admin ALL=(root) NOPASSWD: $BIN_DIR/apply-update.sh $STAGING_DIR/*
+EOF
+  if command -v visudo >/dev/null 2>&1; then
+    visudo -cf "$_sudoers_file" >/dev/null || {
+      rm -f "$_sudoers_file"
+      die "Generated sudoers rule failed visudo validation - refusing to install it (this would break sudo system-wide). This is a bug in install.sh, please report it."
+    }
+  else
+    warn "visudo not found - skipping syntax validation of the sudoers rule before installing it."
+  fi
+  cp "$_sudoers_file" /etc/sudoers.d/cod2admin
+  chown root:root /etc/sudoers.d/cod2admin
+  chmod 440 /etc/sudoers.d/cod2admin
+  rm -f "$_sudoers_file"
+  success "Installed apply-update.sh and its sudoers rule (the Telegram /update command that uses them ships in a later phase)."
 }
 
 # ── Config wizard ────────────────────────────────────────────────────────────────────────────
@@ -514,18 +577,9 @@ write_env() {
 }
 
 # ── Service registration ─────────────────────────────────────────────────────────────────────
-
-INIT_SYSTEM="none"
-
-detect_init_system() {
-  if [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1; then
-    INIT_SYSTEM="systemd"
-  elif [ -d /run/openrc ] && command -v rc-service >/dev/null 2>&1; then
-    INIT_SYSTEM="openrc"
-  else
-    INIT_SYSTEM="none"
-  fi
-}
+# detect_init_system/restart_service/verify_running come from installer/lib/service.sh (sourced
+# above) - shared with apply-update.sh, which reuses restart_service/verify_running to apply an
+# update without ever touching the unit/init files this function writes.
 
 register_service() {
   step "Registering the cod2admin service"
@@ -543,9 +597,9 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=cod2admin
-WorkingDirectory=$INSTALL_DIR
+WorkingDirectory=$CURRENT_LINK
 EnvironmentFile=$INSTALL_DIR/.env
-ExecStart=$_node $INSTALL_DIR/dist/main.js
+ExecStart=$_node $CURRENT_LINK/dist/main.js
 Restart=on-failure
 RestartSec=3
 
@@ -554,19 +608,15 @@ WantedBy=multi-user.target
 EOF
       systemctl daemon-reload
       systemctl enable cod2admin >/dev/null
-      # restart, not "enable --now": on a reconfigure the service may already be running, and
-      # --now/start are no-ops against an already-active unit — the new .env would never load.
-      systemctl restart cod2admin
-      success "Installed and started as a systemd service (cod2admin.service)."
       ;;
     openrc)
       cat > /etc/init.d/cod2admin <<EOF
 #!/sbin/openrc-run
 name="cod2admin"
 command="$_node"
-command_args="$INSTALL_DIR/dist/main.js"
+command_args="$CURRENT_LINK/dist/main.js"
 command_user="cod2admin"
-directory="$INSTALL_DIR"
+directory="$CURRENT_LINK"
 pidfile="/run/cod2admin.pid"
 output_log="$INSTALL_DIR/cod2admin.log"
 error_log="$INSTALL_DIR/cod2admin.log"
@@ -584,69 +634,33 @@ start_pre() {
 EOF
       chmod 755 /etc/init.d/cod2admin
       rc-update add cod2admin default >/dev/null 2>&1 || true
-      # stop-if-running, then start: a plain "start" is a no-op against an already-running
-      # service, so a reconfigure would never pick up the new .env.
-      rc-service cod2admin stop >/dev/null 2>&1 || true
-      rc-service cod2admin start
-      success "Installed and started as an OpenRC service (cod2admin)."
       ;;
     none)
       warn "No systemd or OpenRC detected (common inside minimal containers) — falling back to a"
       warn "background process. It will NOT automatically restart on crash or survive a reboot;"
       warn "set up your own supervision (e.g. your container's own restart policy) for production."
-      _pidfile="$INSTALL_DIR/cod2admin.pid"
-      if [ -f "$_pidfile" ] && kill -0 "$(cat "$_pidfile")" 2>/dev/null; then
-        kill "$(cat "$_pidfile")" 2>/dev/null || true
-        sleep 1
-      fi
       cat > "$INSTALL_DIR/start.sh" <<EOF
 #!/bin/sh
 set -a
 . "$INSTALL_DIR/.env"
 set +a
-exec "$_node" "$INSTALL_DIR/dist/main.js"
+exec "$_node" "$CURRENT_LINK/dist/main.js"
 EOF
       chown cod2admin "$INSTALL_DIR/start.sh"
       chmod 755 "$INSTALL_DIR/start.sh"
-      su -s /bin/sh cod2admin -c "cd '$INSTALL_DIR' && nohup ./start.sh > cod2admin.log 2>&1 < /dev/null & echo \$! > '$_pidfile'"
-      success "Started in the background (logs: $INSTALL_DIR/cod2admin.log)."
       ;;
   esac
-}
 
-# ── Start + verify ───────────────────────────────────────────────────────────────────────────
+  # restart, not "start"/"enable --now": on a reconfigure the service may already be running, and
+  # a plain start is a no-op against an already-active unit — the new .env/version would never
+  # load. restart_service (installer/lib/service.sh) is the same restart apply-update.sh uses.
+  restart_service
 
-verify_running() {
-  step "Verifying"
-  _log=""
   case $INIT_SYSTEM in
-    systemd) _log_cmd="journalctl -u cod2admin --no-pager -n 200" ;;
-    openrc|none) _log_cmd="cat $INSTALL_DIR/cod2admin.log" ;;
+    systemd) success "Installed and started as a systemd service (cod2admin.service)." ;;
+    openrc)  success "Installed and started as an OpenRC service (cod2admin)." ;;
+    none)    success "Started in the background (logs: $INSTALL_DIR/cod2admin.log)." ;;
   esac
-
-  _tries=0
-  while true; do
-    _out=$(eval "$_log_cmd" 2>/dev/null || true)
-    if printf '%s' "$_out" | grep -q 'cod2admin gateway started as @'; then
-      success "$(printf '%s' "$_out" | grep 'cod2admin gateway started as @' | tail -n1)"
-      break
-    fi
-    if printf '%s' "$_out" | grep -qi 'error\|Missing required env var'; then
-      die "The service failed to start. Recent output:
-$_out"
-    fi
-    _tries=$((_tries + 1))
-    if [ "$_tries" -ge 20 ]; then
-      die "Timed out waiting for cod2admin to start. Recent output:
-$_out"
-    fi
-    sleep 1
-  done
-
-  if printf '%s' "$_out" | grep -q '/claim secret'; then
-    printf '\n%s%s%s\n' "$C_YELLOW" "$(printf '%s' "$_out" | grep '/claim secret' | tail -n1)" "$C_RESET"
-    info "Message your bot on Telegram with: /claim <that secret> to become its owner."
-  fi
 }
 
 # ── Idempotency ──────────────────────────────────────────────────────────────────────────────
@@ -665,6 +679,40 @@ check_existing_install() {
   esac
 }
 
+# Detects the old flat layout (everything - dist/, node_modules/, .env - directly under
+# $INSTALL_DIR, no versioned releases/current symlink, per pre-§13.5 install.sh) and moves it out
+# of the way so install_app() below can build the new layout fresh. Doesn't bother preserving the
+# old .env by hand - write_env() below always regenerates it in full from this run's wizard
+# answers regardless (that was already true before this layout existed; re-running install.sh has
+# never read back a prior .env). Admin/ban data lives in Postgres, untouched by any of this.
+migrate_legacy_layout() {
+  [ -f "$INSTALL_DIR/.env" ] || return 0
+  [ -L "$CURRENT_LINK" ] && return 0
+
+  step "Migrating to the versioned release layout"
+  info "This install predates release directories/self-update support (docs/PLAN.md §13.5)."
+  info "Rebuilding it fresh from this release's bundle - your Telegram/RCON details will be"
+  info "re-asked below (or re-read from --config); admin/ban data in Postgres is untouched."
+
+  detect_init_system
+  case $INIT_SYSTEM in
+    systemd) systemctl stop cod2admin >/dev/null 2>&1 || true ;;
+    openrc)  rc-service cod2admin stop >/dev/null 2>&1 || true ;;
+    none)
+      _pidfile="$INSTALL_DIR/cod2admin.pid"
+      if [ -f "$_pidfile" ] && kill -0 "$(cat "$_pidfile")" 2>/dev/null; then
+        kill "$(cat "$_pidfile")" 2>/dev/null || true
+      fi
+      ;;
+  esac
+
+  _backup="${INSTALL_DIR}.pre-migration-backup"
+  [ -e "$_backup" ] && die "$_backup already exists - refusing to overwrite it. Move or remove it by hand, then re-run install.sh."
+  mv "$INSTALL_DIR" "$_backup"
+  mkdir -p "$INSTALL_DIR"
+  success "Moved the old install aside to $_backup (kept, not deleted)."
+}
+
 # ── Main ─────────────────────────────────────────────────────────────────────────────────────
 
 main() {
@@ -673,10 +721,12 @@ main() {
   info "CoD2 dedicated server. It won't modify that server in any way."
 
   check_existing_install
+  migrate_legacy_layout
   ensure_node
   write_helper_scripts
   wizard_database
   install_app
+  install_update_machinery
   wizard_telegram
   wizard_rcon
   wizard_log_path
@@ -684,7 +734,8 @@ main() {
   generate_secrets
   write_env
   register_service
-  verify_running
+  step "Verifying"
+  verify_running || die "cod2admin failed to start after install. See the output above for details."
 
   step "Done"
   success "cod2admin is installed and running."

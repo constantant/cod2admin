@@ -99,14 +99,18 @@ echo "==> Building installer archive for $VERSION"
 "$ROOT_DIR/scripts/build-installer-bundle.sh"
 
 echo "==> Packaging single install-ready release archive for $VERSION"
-# installer/install.sh expects install.sh, README.md, and cod2admin-gateway-*.tar.gz to sit
-# together in one directory (see installer/README.md's install steps) - wrap all three into one
-# archive so the GitHub release has exactly one asset to download.
+# installer/install.sh expects install.sh, README.md, cod2admin-gateway-*.tar.gz (+ its .sha256),
+# apply-update.sh, and lib/ to sit together in one directory (see installer/README.md's install
+# steps and docs/PLAN.md §13.5) - wrap all of it into one archive so the GitHub release has
+# exactly one asset to download.
 RELEASE_STAGE="$ROOT_DIR/out/cod2admin-${VERSION}"
 RELEASE_ARCHIVE="$ROOT_DIR/out/cod2admin-${VERSION}.tar.gz"
 rm -rf "$RELEASE_STAGE" "$RELEASE_ARCHIVE"
 mkdir -p "$RELEASE_STAGE"
-cp "installer/install.sh" "installer/README.md" "installer/cod2admin-gateway-${VERSION}.tar.gz" "$RELEASE_STAGE/"
+cp "installer/install.sh" "installer/apply-update.sh" "installer/README.md" \
+  "installer/cod2admin-gateway-${VERSION}.tar.gz" "installer/cod2admin-gateway-${VERSION}.tar.gz.sha256" \
+  "$RELEASE_STAGE/"
+cp -r "installer/lib" "$RELEASE_STAGE/lib"
 tar -czf "$RELEASE_ARCHIVE" -C "$ROOT_DIR/out" "cod2admin-${VERSION}"
 rm -rf "$RELEASE_STAGE"
 
