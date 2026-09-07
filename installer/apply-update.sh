@@ -108,7 +108,11 @@ restart_service
 if verify_running; then
   log_line "Update to v$VERSION succeeded."
   prune_old_releases
-  rm -f "$TARBALL" "${TARBALL}.sha256" "$STAGING_DIR/pending-update.env"
+  # NOT pending-update.env here - that's read (and removed) by the new process itself on boot,
+  # before it ever logs the "started as @..." line verify_running() just matched above, so it
+  # always wins that race. Leaving its removal to this script would mean the new process's own
+  # success confirmation (docs/PLAN.md §13.3 step 6) could never find the marker.
+  rm -f "$TARBALL" "${TARBALL}.sha256"
   step "Done"
   success "cod2admin is running v$VERSION."
   exit 0
@@ -117,6 +121,17 @@ fi
 # ── Rollback ──────────────────────────────────────────────────────────────────────────────────
 warn "New version failed to start - rolling back."
 log_line "Update to v$VERSION FAILED - rolling back to ${OLD_TARGET:-<none>}."
+
+# Capture the pending-update marker's chat id (for notify_failure below) and remove the marker
+# itself *before* rolling back and restarting - the rollback brings the OLD version back up, and
+# that process's own boot-time check (docs/PLAN.md §13.3 step 6) doesn't know this restart was a
+# failed update, not a successful one. Left in place, it would race apply-update.sh's own failure
+# alert below and could send a false "✅ Updated" for a version that never actually changed.
+PENDING_CHAT_ID=""
+if [ -f "$STAGING_DIR/pending-update.env" ]; then
+  PENDING_CHAT_ID=$(grep '^CHAT_ID=' "$STAGING_DIR/pending-update.env" 2>/dev/null | tail -n1 | cut -d= -f2-)
+  rm -f "$STAGING_DIR/pending-update.env"
+fi
 
 if [ -n "$OLD_TARGET" ]; then
   ln -sfn "$OLD_TARGET" "$CURRENT_LINK"
@@ -135,15 +150,13 @@ fi
 
 # Best-effort Telegram alert - only this script can see the failure, since the new process never
 # came up to report it itself. Silently skipped if there's no bot token or no pending-update
-# marker (the marker is written by the future /update command, docs/PLAN.md §13.3 - this script
-# is also usable standalone, by an admin running it by hand, before that command exists).
+# marker was ever found (this script is also usable standalone, by an admin running it by hand,
+# without going through the /update command that writes one, docs/PLAN.md §13.3).
 notify_failure() {
   [ -f "$INSTALL_DIR/.env" ] || return 0
   _token=$(grep '^TELEGRAM_BOT_TOKEN=' "$INSTALL_DIR/.env" 2>/dev/null | tail -n1 | cut -d= -f2-)
   [ -n "$_token" ] || return 0
-  [ -f "$STAGING_DIR/pending-update.env" ] || return 0
-  _chat_id=$(grep '^CHAT_ID=' "$STAGING_DIR/pending-update.env" 2>/dev/null | tail -n1 | cut -d= -f2-)
-  [ -n "$_chat_id" ] || return 0
+  [ -n "$PENDING_CHAT_ID" ] || return 0
   command -v curl >/dev/null 2>&1 || return 0
 
   _text="❌ Update to v$VERSION failed and was rolled back"
@@ -153,7 +166,7 @@ notify_failure() {
     _text="$_text, but no previous version could be restored - the bot may be down. Check $LOG_FILE."
   fi
   curl -s -X POST "https://api.telegram.org/bot${_token}/sendMessage" \
-    --data-urlencode "chat_id=${_chat_id}" \
+    --data-urlencode "chat_id=${PENDING_CHAT_ID}" \
     --data-urlencode "text=${_text}" >/dev/null 2>&1 || true
 }
 notify_failure

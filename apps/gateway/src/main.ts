@@ -12,6 +12,7 @@ import { startExpiryPoller } from './lib/expiry-poller.js';
 import { createGithubReleaseClient } from './lib/github-releases.js';
 import { startReportTailers } from './lib/report-tailers.js';
 import { ReportRegistry } from './lib/reports.js';
+import { checkPendingUpdateOnBoot } from './lib/update-boot-check.js';
 import { UpdateRegistry } from './lib/update-registry.js';
 import { startVersionCheckPoller } from './lib/version-check-poller.js';
 
@@ -77,6 +78,9 @@ const deps: GatewayDeps = {
 startExpiryPoller(deps);
 
 const bot = createBot(config, deps, claimSecret);
+
+// Must run (and finish) before bot.start() - see checkPendingUpdateOnBoot's doc comment for why.
+await checkPendingUpdateOnBoot(deps, bot);
 
 startVersionCheckPoller(deps, bot);
 

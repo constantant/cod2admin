@@ -859,7 +859,7 @@ confirming the gateway actually started and connected, end to end, using a real 
 token and a live RCON probe against the real dev CoD2 server — not just that the script exited
 0.
 
-## 13. Self-updating from Telegram (implemented and live-tested end-to-end 2026-09-07 — §13.2/§13.3/§13.4/§13.5 all landed and `/update` was exercised for real against the real v1.0.0 release; the new-process boot-time success confirmation noted in §13.3 step 6 is the one piece still outstanding)
+## 13. Self-updating from Telegram (implemented and live-tested end-to-end 2026-09-07 — §13.2 through §13.5 all landed, including the boot-time success confirmation, and `/update` was exercised for real against the real v1.0.0 release)
 
 Admins running the bot on their own servers (§12) currently have no way to learn a new version
 exists, or to install it, other than re-running the installer's curl one-liner by hand. This adds
@@ -915,12 +915,23 @@ Owner-only, same permission tier as `/rcon`. `apps/gateway/src/lib/commands/upda
    **not awaited to completion**: `apply-update.sh` restarts the service partway through, which
    kills the very gateway process that just spawned it, so there may never be a normal exit to
    observe.
-6. **Not yet implemented**: the gateway process itself dies as part of step 5's restart — the
-   **new** process is what would need to check for the pending-update marker on boot and post
-   "✅ Updated to vX.Y.Z" back to the same chat. That boot-time check is `main.ts` startup wiring
-   on the *other side* of a restart and needs its own small follow-up pass; until it lands, a
-   successful update goes uncommented-on (the owner just sees the bot come back), while a *failed*
-   update still gets the real-time alert (§13.4 step 6, already implemented and live-tested).
+6. **Implemented (2026-09-07)**: the gateway process itself dies as part of step 5's restart, so
+   it's the **new** process that confirms success — `apps/gateway/src/lib/update-boot-check.ts`'s
+   `checkPendingUpdateOnBoot(deps, bot)`, awaited in `main.ts` *before* `bot.start()`. If
+   `staging/pending-update.env` is still there, it posts "✅ Updated to vX.Y.Z" to the marker's
+   chat id and removes the marker; if there's nothing to find (every normal boot), it's a no-op.
+   Has to run and finish before `bot.start()` specifically because `apply-update.sh`'s own health
+   check is "the log shows 'started as @...'", which only happens once `bot.start()`'s `onStart`
+   fires — running the check earlier than that guarantees it always sees the marker first.
+   - **Found and fixed a real race while building this**: `apply-update.sh`'s *rollback* path
+     restarts the **old** version after a failed update — and that old process's own boot-time
+     check has no way to tell "this restart followed a failed update" from "this restart followed
+     a successful one," so a leftover marker would make it falsely announce "✅ Updated" for a
+     version that never changed. Fixed by having `apply-update.sh` capture the marker's chat id
+     and delete the marker itself *before* the rollback restart (not after, and not left to the
+     new-process check at all) — ownership of the marker is now: the confirm handler writes it,
+     the **successfully** updated new process consumes it, and a **failed** update's rollback path
+     deletes it directly without ever handing it to the (old-version) process that boots next.
 
 **Live-tested end-to-end (2026-09-07)**, against the real `v1.0.0` GitHub release and the real dev
 Telegram bot: a container running a build that had this command's code but reported itself as an
@@ -936,6 +947,11 @@ failure) — re-ran against a build that actually has the code, which worked imm
 and fixed a minor real cleanup gap while verifying: `apply-update.sh`'s success path removed the
 downloaded tarball and the pending-update marker but left the `.sha256` file behind in `staging/`
 — harmless (overwritten by the next update) but now cleaned up too.
+
+**Step 6 (the boot-time confirmation) itself is unit-tested but not yet live-tested** — doing so
+needs a second real update cycle (this session's live test predates step 6 landing). Worth doing
+before fully trusting it, the same way step 5's live test caught real issues unit tests alone
+didn't.
 
 ### 13.4 `apply-update.sh` — the trusted-root half (implemented 2026-09-07)
 
@@ -958,15 +974,19 @@ Deliberately small and dumb, since it's the trusted-root part (`installer/apply-
    `restart_service()`/`verify_running()` in `installer/lib/service.sh` (also used by
    `install.sh`'s `register_service()`), so applying an update never touches the systemd
    unit/OpenRC init script, only the symlink.
-6. **On failure**: repoints the symlink back to the previous release, restarts again, and sends
-   the Telegram failure alert itself via a direct `curl` call to `api.telegram.org` — it's the
-   only thing that can see the failure. Degrades to log-only (no Telegram call) if there's no
-   `staging/pending-update.env` marker yet (that marker is written by the not-yet-built `/update`
-   command, §13.3 step 4) or no bot token — which also makes the script independently usable by
-   an admin running it by hand, before `/update` exists.
+6. **On failure**: captures the `staging/pending-update.env` marker's chat id and deletes the
+   marker *before* rolling back (not after — see §13.3 step 6's note on why: the **old** version
+   is about to restart too, and its own boot-time check has no way to tell a failed-update restart
+   from a successful one, so a lingering marker would make it falsely claim success). Then
+   repoints the symlink back to the previous release, restarts again, and sends the Telegram
+   failure alert itself via a direct `curl` call to `api.telegram.org` using the captured chat
+   id — it's the only thing that can see the failure. Degrades to log-only (no Telegram call) if
+   no marker was ever found or there's no bot token — which also makes the script independently
+   usable by an admin running it by hand, without `/update` involved at all.
 7. **On success**: prunes old release directories (keeps the current one + 1 previous) and sends
-   nothing itself — the new process's own pending-update-marker check (§13.3 step 6, not yet
-   built) is what confirms success back to the owner.
+   nothing itself — deliberately leaves `staging/pending-update.env` in place for the **new**
+   process's own boot-time check (`update-boot-check.ts`, §13.3 step 6) to find, confirm, and
+   clean up.
 8. A `mkdir`-based lock (`update.lock`) rejects a second concurrent invocation rather than racing
    with itself. Every step is appended to `$INSTALL_DIR/update.log`, timestamped, since this runs
    unattended and has to be debuggable without a terminal attached.
@@ -1052,9 +1072,6 @@ this ships in a release, per §12's own past verification approach.
 
 ### 13.7 Open questions
 
-- **Follow-up, not yet started**: the new process's boot-time pending-update-marker check (§13.3
-  step 6) — needed so a *successful* update also gets a "✅ Updated to vX.Y.Z" confirmation, not
-  just a silent return-to-normal. Small, self-contained `main.ts` addition.
 - Poller interval: is 6h a reasonable default, or should it be configurable per install?
 - Should `/update` support pinning to a specific version (rolling back to an older release, not
   just forward to latest)? Not needed for v1 — `apply-update.sh`'s "previous release dir"
