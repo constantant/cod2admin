@@ -60,7 +60,23 @@ interactive prompts:
 sudo ./install.sh --config my-server.conf
 ```
 
-Run `./install.sh --help` to see the file format.
+`my-server.conf` is a plain `KEY=VALUE` file, one per line — for example:
+
+```sh
+TELEGRAM_BOT_TOKEN=123456789:AAH-your-real-bot-token-from-BotFather
+OWNER_TELEGRAM_ID=987654321
+COD2_SERVER_ALIAS=default
+COD2_RCON_HOST=127.0.0.1
+COD2_RCON_PORT=28960
+COD2_RCON_PASSWORD=the-rcon_password-from-server_mp.cfg
+COD2_LOG_PATH=/path/to/games_mp.log
+DB_MODE=local
+```
+
+`OWNER_TELEGRAM_ID` and `COD2_LOG_PATH` are optional (see above for what leaving them out means).
+`DB_MODE=local` has the installer manage its own Postgres — use `DB_MODE=external` plus a
+`DATABASE_URL=postgres://user:password@host:5432/dbname` line instead to point at a Postgres you
+already run yourself. Run `./install.sh --help` for the full, authoritative field list.
 
 ## Limitations
 
