@@ -1,3 +1,16 @@
+# 1.0.0 (2026-09-07)
+
+### 🚀 Features
+
+- **gateway:** add /bans command, fix /unban to match its own guid-or-ip signature ([95405eb](https://github.com/constantant/cod2admin/commit/95405eb))
+- **gateway:** self-update poller and /update command ([ee21b54](https://github.com/constantant/cod2admin/commit/ee21b54))
+- **installer:** versioned release layout + apply-update.sh for self-updates ([cf2ce8c](https://github.com/constantant/cod2admin/commit/cf2ce8c))
+
+### ❤️ Thank You
+
+- Claude Sonnet 5
+- kk
+
 ## [0.0.4](https://github.com/constantant/cod2admin/releases/tag/v0.0.4) (2026-09-06)
 
 ### 🩹 Fixes
