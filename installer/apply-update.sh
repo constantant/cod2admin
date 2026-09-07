@@ -108,7 +108,7 @@ restart_service
 if verify_running; then
   log_line "Update to v$VERSION succeeded."
   prune_old_releases
-  rm -f "$TARBALL" "$STAGING_DIR/pending-update.env"
+  rm -f "$TARBALL" "${TARBALL}.sha256" "$STAGING_DIR/pending-update.env"
   step "Done"
   success "cod2admin is running v$VERSION."
   exit 0

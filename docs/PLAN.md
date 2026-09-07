@@ -859,7 +859,7 @@ confirming the gateway actually started and connected, end to end, using a real 
 token and a live RCON probe against the real dev CoD2 server — not just that the script exited
 0.
 
-## 13. Self-updating from Telegram (implemented 2026-09-07 — §13.2/§13.3/§13.4/§13.5 all landed; the new-process boot-time success confirmation noted in §13.3 step 6 is the one piece still outstanding)
+## 13. Self-updating from Telegram (implemented and live-tested end-to-end 2026-09-07 — §13.2/§13.3/§13.4/§13.5 all landed and `/update` was exercised for real against the real v1.0.0 release; the new-process boot-time success confirmation noted in §13.3 step 6 is the one piece still outstanding)
 
 Admins running the bot on their own servers (§12) currently have no way to learn a new version
 exists, or to install it, other than re-running the installer's curl one-liner by hand. This adds
@@ -921,6 +921,21 @@ Owner-only, same permission tier as `/rcon`. `apps/gateway/src/lib/commands/upda
    on the *other side* of a restart and needs its own small follow-up pass; until it lands, a
    successful update goes uncommented-on (the owner just sees the bot come back), while a *failed*
    update still gets the real-time alert (§13.4 step 6, already implemented and live-tested).
+
+**Live-tested end-to-end (2026-09-07)**, against the real `v1.0.0` GitHub release and the real dev
+Telegram bot: a container running a build that had this command's code but reported itself as an
+older version was sent a real `/update`, the owner tapped the real inline `Update` button, and the
+whole chain worked for real — download, checksum verification, `staging/pending-update.env`,
+`recordAuditLog` (confirmed in Postgres: `704781 | update | v1.0.0 | telegram_command`), the
+unprivileged `cod2admin` user invoking `sudo apply-update.sh` for real, the symlink swap to
+`releases/1.0.0`, and the service restarting successfully on the real released code. One earlier
+attempt in the same session produced no card at all — turned out to be test-setup error, not a
+bug: the starting build (a real, older `v0.0.4`) predates this command entirely, so grammy
+silently ignored the unmatched `/update` (expected behavior for an unrecognized command, not a
+failure) — re-ran against a build that actually has the code, which worked immediately. Also found
+and fixed a minor real cleanup gap while verifying: `apply-update.sh`'s success path removed the
+downloaded tarball and the pending-update marker but left the `.sha256` file behind in `staging/`
+— harmless (overwritten by the next update) but now cleaned up too.
 
 ### 13.4 `apply-update.sh` — the trusted-root half (implemented 2026-09-07)
 
