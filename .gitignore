@@ -67,3 +67,4 @@ package-lock.json
 # scripts/build-installer-bundle.sh output - large build artifacts, not source
 /out
 installer/*.tar.gz
+installer/*.tar.gz.sha256

@@ -1,4 +1,4 @@
-# 1.0.0 (2026-09-07)
+# [1.0.0](https://github.com/constantant/cod2admin/releases/tag/v1.0.0) (2026-09-07)
 
 ### 🚀 Features
 

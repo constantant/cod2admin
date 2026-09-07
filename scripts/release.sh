@@ -84,14 +84,19 @@ $PNPM exec nx release changelog "$VERSION" --no-git-commit --no-git-tag "${EXTRA
 
 echo "==> Linking the changelog heading to its GitHub release"
 # nx's changelog renderer doesn't have a repo configured to link against, so the heading it
-# writes is plain text - point it at the release this script publishes below.
+# writes is plain text - point it at the release this script publishes below. Heading level
+# varies: nx emits "# VERSION (" (H1) for a new major version's first release, "## VERSION ("
+# (H2) otherwise - match either and preserve whichever it used (found the hard way: 1.0.0's H1
+# heading silently didn't match a hardcoded "## " here, so it went out unlinked - see the same
+# fix below in the notes-extraction step, which failed loudly instead).
 node -e '
 const fs = require("fs");
 const version = process.argv[1];
 const text = fs.readFileSync("CHANGELOG.md", "utf8");
-const heading = new RegExp("^## " + version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + " \\(", "m");
+const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const heading = new RegExp("^(#{1,2}) " + escaped + " \\(", "m");
 const url = "https://github.com/constantant/cod2admin/releases/tag/v" + version;
-const linked = text.replace(heading, "## [" + version + "](" + url + ") (");
+const linked = text.replace(heading, (_match, hashes) => hashes + " [" + version + "](" + url + ") (");
 fs.writeFileSync("CHANGELOG.md", linked);
 ' "$VERSION"
 
@@ -133,21 +138,22 @@ GATEWAY_TARBALL="installer/cod2admin-gateway-${VERSION}.tar.gz"
 GATEWAY_CHECKSUM="installer/cod2admin-gateway-${VERSION}.tar.gz.sha256"
 if ! command -v gh >/dev/null 2>&1; then
   echo "gh CLI not found - skipping GitHub release. Run manually:"
-  echo "  gh release create v${VERSION} $RELEASE_ARCHIVE $GATEWAY_TARBALL $GATEWAY_CHECKSUM --title v${VERSION} --notes-file <(sed -n '/^## \[${VERSION}\]/,/^## /p' CHANGELOG.md)"
+  echo "  gh release create v${VERSION} $RELEASE_ARCHIVE $GATEWAY_TARBALL $GATEWAY_CHECKSUM --title v${VERSION} --notes-file <(sed -n '/^#\{1,2\} \[${VERSION}\]/,/^#\{1,2\} /p' CHANGELOG.md)"
 else
   # CHANGELOG.md accumulates every past release - pull out just this version's section so old
-  # entries aren't repeated as this release's notes.
+  # entries aren't repeated as this release's notes. Heading level varies - see the linking step
+  # above for why (# for a new major's first release, ## otherwise) - match either.
   NOTES_FILE=$(mktemp)
   node -e '
   const fs = require("fs");
   const version = process.argv[1];
   const text = fs.readFileSync("CHANGELOG.md", "utf8");
   const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const heading = new RegExp("^## \\[" + escaped + "\\]", "m");
+  const heading = new RegExp("^#{1,2} \\[" + escaped + "\\]", "m");
   const start = text.search(heading);
   if (start === -1) throw new Error("No CHANGELOG.md section found for " + version);
   const rest = text.slice(start);
-  const nextHeadingOffset = rest.slice(1).search(/^## /m);
+  const nextHeadingOffset = rest.slice(1).search(/^#{1,2} /m);
   const section = nextHeadingOffset === -1 ? rest : rest.slice(0, nextHeadingOffset + 1);
   fs.writeFileSync(process.argv[2], section.trim() + "\n");
   ' "$VERSION" "$NOTES_FILE"
