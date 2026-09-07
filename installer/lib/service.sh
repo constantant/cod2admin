@@ -61,15 +61,42 @@ restart_service() {
       # its directory, but *creating* a missing one would need directory write permission cod2admin
       # doesn't have.
       _pidfile="$INSTALL_DIR/cod2admin.pid"
+      _supervisor_pidfile="$INSTALL_DIR/cod2admin-supervisor.pid"
       _logfile="$INSTALL_DIR/cod2admin.log"
       [ -f "$_logfile" ] || : > "$_logfile"
       [ -f "$_pidfile" ] || : > "$_pidfile"
-      chown cod2admin "$_logfile" "$_pidfile"
+      [ -f "$_supervisor_pidfile" ] || : > "$_supervisor_pidfile"
+      chown cod2admin "$_logfile" "$_pidfile" "$_supervisor_pidfile"
+
+      # Stop any previous supervisor loop *and* the app process it was running - killing just the
+      # loop would leave an orphaned child running the old code behind (it isn't in the same
+      # process group, so the loop dying doesn't take it down).
+      if [ -f "$_supervisor_pidfile" ] && kill -0 "$(cat "$_supervisor_pidfile")" 2>/dev/null; then
+        kill "$(cat "$_supervisor_pidfile")" 2>/dev/null || true
+      fi
       if [ -f "$_pidfile" ] && kill -0 "$(cat "$_pidfile")" 2>/dev/null; then
         kill "$(cat "$_pidfile")" 2>/dev/null || true
         sleep 1
       fi
-      su -s /bin/sh cod2admin -c "cd '$INSTALL_DIR' && nohup ./start.sh > cod2admin.log 2>&1 < /dev/null & echo \$! > '$_pidfile'"
+
+      # Minimal respawn loop (docs/PLAN.md §13.5) - a container with no systemd/OpenRC inside it
+      # otherwise has zero crash recovery: the old one-shot `nohup ... &` here meant a crashed
+      # gateway process just stayed down until someone noticed and re-ran install.sh by hand.
+      # Regenerated on every call so it always reflects the current $INSTALL_DIR/start.sh.
+      cat > "$INSTALL_DIR/supervise.sh" <<EOF
+#!/bin/sh
+while :; do
+  "$INSTALL_DIR/start.sh" >> "$_logfile" 2>&1 &
+  echo \$! > "$_pidfile"
+  wait \$!
+  printf '%s cod2admin exited - respawning in 3s\n' "\$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$_logfile"
+  sleep 3
+done
+EOF
+      chown cod2admin "$INSTALL_DIR/supervise.sh"
+      chmod 755 "$INSTALL_DIR/supervise.sh"
+
+      su -s /bin/sh cod2admin -c "cd '$INSTALL_DIR' && nohup ./supervise.sh </dev/null >/dev/null 2>&1 & echo \$! > '$_supervisor_pidfile'"
       ;;
   esac
 }
