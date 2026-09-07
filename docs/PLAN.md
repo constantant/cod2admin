@@ -948,10 +948,23 @@ and fixed a minor real cleanup gap while verifying: `apply-update.sh`'s success 
 downloaded tarball and the pending-update marker but left the `.sha256` file behind in `staging/`
 — harmless (overwritten by the next update) but now cleaned up too.
 
-**Step 6 (the boot-time confirmation) itself is unit-tested but not yet live-tested** — doing so
-needs a second real update cycle (this session's live test predates step 6 landing). Worth doing
-before fully trusting it, the same way step 5's live test caught real issues unit tests alone
-didn't.
+**Step 6 (the boot-time confirmation) live-tested end-to-end too (2026-09-07)**, in a second real
+cycle after cutting `v1.0.1` (the first real release to actually contain it — the `v1.0.0` update
+above predates it, which is exactly why this needed its own cycle). Confirmed for real: a genuine
+`v1.0.0 → v1.0.1` update via a real `/update` tap produced the real "✅ Updated to v1.0.1" message;
+a deliberately-broken build applied directly via `apply-update.sh` (bypassing `/update`, to target
+the rollback path specifically) rolled back correctly with no false success message from the
+rolled-back process and the real "❌ ... failed and was rolled back" alert still arriving — i.e.
+the marker-race fix (§13.4 step 6's note) actually holds under a real restart, not just in theory.
+
+**A real, unrelated bug surfaced while cutting `v1.0.1`**: CI (`nx run-many -t lint test build
+typecheck e2e`) had been failing on every push since `v1.0.0`, unnoticed because pushes in this
+session went out without checking CI status afterward — `packages/report-pipeline`'s
+`enrichment.spec.ts`/`report-card.spec.ts` fixtures predated `ban-store` gaining a required
+`unbannedAt` field (from the `/bans`/`/unban` work) and never picked it up, breaking
+`report-pipeline:typecheck`. Only test fixtures were affected, never library/runtime code, so the
+already-published `v1.0.0`/`v1.0.1` release artifacts themselves are unaffected — fixed on `main`
+regardless, and verified green with CI's own exact command before pushing.
 
 ### 13.4 `apply-update.sh` — the trusted-root half (implemented 2026-09-07)
 
