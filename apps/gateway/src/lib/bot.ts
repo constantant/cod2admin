@@ -21,6 +21,7 @@ import { setRoleCommand } from './commands/setrole.js';
 import { STATUS_REFRESH_CALLBACK_DATA, statusCommand, statusRefreshCallback } from './commands/status.js';
 import { tempbanCommand } from './commands/tempban.js';
 import { unbanCommand } from './commands/unban.js';
+import { updateActionCallback, updateCommand, type UpdateCallbackContext } from './commands/update.js';
 import type { GatewayConfig } from './config.js';
 import type { GatewayDeps } from './deps.js';
 
@@ -46,6 +47,18 @@ function withReplyToUserId(ctx: Context): BotContext {
 function toReportCallbackContext(ctx: Context & BotContext): ReportCallbackContext {
   return {
     from: ctx.from,
+    admin: ctx.admin,
+    callbackData: ctx.callbackQuery?.data ?? '',
+    editMessageText: (text, other) => ctx.editMessageText(text, other as never),
+    answerCallbackQuery: (other) => ctx.answerCallbackQuery(other),
+  };
+}
+
+/** Same adaptation as `toReportCallbackContext`, plus `chat` — `/update`'s pending-update marker needs the chat id. */
+function toUpdateCallbackContext(ctx: Context & BotContext): UpdateCallbackContext {
+  return {
+    from: ctx.from,
+    chat: ctx.chat,
     admin: ctx.admin,
     callbackData: ctx.callbackQuery?.data ?? '',
     editMessageText: (text, other) => ctx.editMessageText(text, other as never),
@@ -83,8 +96,10 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
 
   bot.command('auditlog', requireOwner, (ctx) => auditLogCommand(ctx, deps));
   bot.command('rcon', requireOwner, (ctx) => rconCommand(ctx, deps));
+  bot.command('update', requireOwner, (ctx) => updateCommand(ctx, deps));
 
   bot.callbackQuery(STATUS_REFRESH_CALLBACK_DATA, requireAny, (ctx) => statusRefreshCallback(ctx, deps));
+  bot.callbackQuery(/^update:/, requireOwner, (ctx) => updateActionCallback(toUpdateCallbackContext(ctx), deps));
   bot.callbackQuery(/^report:/, requireAny, (ctx) =>
     reportActionCallback(toReportCallbackContext(ctx), {
       bot,

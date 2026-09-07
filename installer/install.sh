@@ -428,6 +428,12 @@ install_app() {
 
 install_update_machinery() {
   step "Installing update machinery"
+  # The sudoers rule below is useless without the sudo binary itself - nothing else in this
+  # installer requires it, so it's not installed anywhere else (found the gap while wiring up the
+  # gateway's `/update` command, docs/PLAN.md §13.2/§13.3: `sudo apply-update.sh ...` would fail
+  # with "command not found" on a host where it isn't already present).
+  command -v sudo >/dev/null 2>&1 || pkg_install sudo
+
   mkdir -p "$BIN_DIR/lib"
   cp "$SCRIPT_DIR/apply-update.sh" "$BIN_DIR/apply-update.sh"
   cp "$SCRIPT_DIR/lib/service.sh" "$BIN_DIR/lib/service.sh"
@@ -452,7 +458,7 @@ EOF
   chown root:root /etc/sudoers.d/cod2admin
   chmod 440 /etc/sudoers.d/cod2admin
   rm -f "$_sudoers_file"
-  success "Installed apply-update.sh and its sudoers rule (the Telegram /update command that uses them ships in a later phase)."
+  success "Installed apply-update.sh and its sudoers rule (used by the gateway's /update command)."
 }
 
 # ── Config wizard ────────────────────────────────────────────────────────────────────────────
@@ -570,6 +576,9 @@ write_env() {
     [ -n "$COD2_LOG_PATH" ] && printf 'COD2_LOG_PATH=%s\n' "$COD2_LOG_PATH"
     printf 'DATABASE_URL=%s\n' "$DATABASE_URL"
     printf 'SECRETS_ENCRYPTION_KEY=%s\n' "$SECRETS_ENCRYPTION_KEY"
+    # Enables the gateway's self-update poller/`/update` command (docs/PLAN.md §13.2/§13.3) -
+    # unconditional, $STAGING_DIR always exists by this point (install_app, earlier in main()).
+    printf 'UPDATE_STAGING_DIR=%s\n' "$STAGING_DIR"
   } > "$_env"
   chown cod2admin "$_env"
   chmod 600 "$_env"

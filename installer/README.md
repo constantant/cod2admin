@@ -24,7 +24,7 @@ running* somewhere reachable from this machine. It never touches that server's f
    newest version, no version number to look up or type in:
    ```sh
    curl -s https://api.github.com/repos/constantant/cod2admin/releases/latest \
-     | grep browser_download_url | cut -d '"' -f 4 | xargs curl -LO
+     | grep browser_download_url | grep -v gateway | cut -d '"' -f 4 | xargs curl -LO
    tar -xzf cod2admin-*.tar.gz
    cd cod2admin-*/
    ```

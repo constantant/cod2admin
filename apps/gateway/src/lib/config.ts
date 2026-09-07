@@ -21,6 +21,13 @@ export interface GatewayConfig {
    * Stored as that server's `logSourceConfig` (in the schema since Phase 2, unused until now).
    */
   logPath: string | undefined;
+  /**
+   * Self-update staging directory (docs/PLAN.md §13.5's `$STAGING_DIR`, written by `install.sh`'s
+   * `write_env()`) — optional, since older installs and `nx serve` won't have it. Unset disables
+   * the version-check poller and `/update` (§13.2/§13.3) entirely, same "gracefully off" pattern
+   * `logPath` uses for report automation.
+   */
+  updateStagingDir: string | undefined;
 }
 
 class ConfigError extends Error {}
@@ -67,5 +74,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
       password: requireEnv(env, 'COD2_RCON_PASSWORD'),
     },
     logPath: env['COD2_LOG_PATH']?.trim() || undefined,
+    updateStagingDir: env['UPDATE_STAGING_DIR']?.trim() || undefined,
   };
 }

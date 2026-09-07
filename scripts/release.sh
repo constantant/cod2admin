@@ -101,8 +101,8 @@ echo "==> Building installer archive for $VERSION"
 echo "==> Packaging single install-ready release archive for $VERSION"
 # installer/install.sh expects install.sh, README.md, cod2admin-gateway-*.tar.gz (+ its .sha256),
 # apply-update.sh, and lib/ to sit together in one directory (see installer/README.md's install
-# steps and docs/PLAN.md §13.5) - wrap all of it into one archive so the GitHub release has
-# exactly one asset to download.
+# steps and docs/PLAN.md §13.5) - wrap all of it into one archive so a human installing by hand
+# has exactly one thing to download (installer/README.md's curl one-liner).
 RELEASE_STAGE="$ROOT_DIR/out/cod2admin-${VERSION}"
 RELEASE_ARCHIVE="$ROOT_DIR/out/cod2admin-${VERSION}.tar.gz"
 rm -rf "$RELEASE_STAGE" "$RELEASE_ARCHIVE"
@@ -124,9 +124,16 @@ git push origin HEAD
 git push origin "v${VERSION}"
 
 echo "==> Publishing GitHub release v${VERSION}"
+# Two extra assets alongside the human-facing $RELEASE_ARCHIVE: the gateway tarball and its
+# checksum, published directly (not just nested inside $RELEASE_ARCHIVE) so the gateway's
+# `/update` command (docs/PLAN.md §13.2/§13.3) can fetch exactly what it needs without unwrapping
+# a tarball-inside-a-tarball. installer/README.md's/docs/PLAN.md §12's/docs/PLAN-ru.md's curl
+# one-liner filters these two out (`grep -v gateway`) so it still only ever grabs $RELEASE_ARCHIVE.
+GATEWAY_TARBALL="installer/cod2admin-gateway-${VERSION}.tar.gz"
+GATEWAY_CHECKSUM="installer/cod2admin-gateway-${VERSION}.tar.gz.sha256"
 if ! command -v gh >/dev/null 2>&1; then
   echo "gh CLI not found - skipping GitHub release. Run manually:"
-  echo "  gh release create v${VERSION} $RELEASE_ARCHIVE --title v${VERSION} --notes-file <(sed -n '/^## \[${VERSION}\]/,/^## /p' CHANGELOG.md)"
+  echo "  gh release create v${VERSION} $RELEASE_ARCHIVE $GATEWAY_TARBALL $GATEWAY_CHECKSUM --title v${VERSION} --notes-file <(sed -n '/^## \[${VERSION}\]/,/^## /p' CHANGELOG.md)"
 else
   # CHANGELOG.md accumulates every past release - pull out just this version's section so old
   # entries aren't repeated as this release's notes.
@@ -145,7 +152,7 @@ else
   fs.writeFileSync(process.argv[2], section.trim() + "\n");
   ' "$VERSION" "$NOTES_FILE"
 
-  gh release create "v${VERSION}" "$RELEASE_ARCHIVE" \
+  gh release create "v${VERSION}" "$RELEASE_ARCHIVE" "$GATEWAY_TARBALL" "$GATEWAY_CHECKSUM" \
     --title "v${VERSION}" \
     --notes-file "$NOTES_FILE"
   rm -f "$NOTES_FILE"

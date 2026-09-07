@@ -20,12 +20,20 @@ describe('loadConfig', () => {
       serverAlias: 'default',
       rcon: { host: '127.0.0.1', port: 28960, password: 'secret' },
       logPath: undefined,
+      updateStagingDir: undefined,
     });
   });
 
   it('parses COD2_LOG_PATH when given, and leaves it undefined otherwise', () => {
     expect(loadConfig(VALID_ENV).logPath).toBeUndefined();
     expect(loadConfig({ ...VALID_ENV, COD2_LOG_PATH: './games_mp.log' }).logPath).toBe('./games_mp.log');
+  });
+
+  it('parses UPDATE_STAGING_DIR when given, and leaves it undefined otherwise', () => {
+    expect(loadConfig(VALID_ENV).updateStagingDir).toBeUndefined();
+    expect(loadConfig({ ...VALID_ENV, UPDATE_STAGING_DIR: '/opt/cod2admin/staging' }).updateStagingDir).toBe(
+      '/opt/cod2admin/staging',
+    );
   });
 
   it('parses OWNER_TELEGRAM_ID and COD2_SERVER_ALIAS when given', () => {
