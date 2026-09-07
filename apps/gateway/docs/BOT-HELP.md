@@ -33,7 +33,8 @@ defaults to 30 minutes if omitted. IP-based.
 *Admin commands*
 
 `/ban <client id> [reason] [--server <alias>]` — permanent
-`/unban <guid> [--server <alias>]`
+`/unban <guid-or-ip> [--server <alias>]`
+`/bans [--server <alias>]` — list currently active GUID/IP bans
 `/map <name> [--server <alias>]`
 `/say <message> [--server <alias>]` — broadcasts to the game server's chat
 `/bindserver <alias>` — makes *this* chat receive report cards for that server

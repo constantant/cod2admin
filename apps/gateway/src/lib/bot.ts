@@ -4,6 +4,7 @@ import type { BotContext } from './bot-context.js';
 import { addAdminCommand } from './commands/addadmin.js';
 import { auditLogCommand } from './commands/auditlog.js';
 import { banCommand } from './commands/ban.js';
+import { bansCommand } from './commands/bans.js';
 import { bindServerCommand } from './commands/bindserver.js';
 import { claimCommand } from './commands/claim.js';
 import { helpCommand, helpRuCommand } from './commands/help.js';
@@ -26,7 +27,7 @@ import type { GatewayDeps } from './deps.js';
 /**
  * Phase 2 Telegram bot (docs/PLAN.md §9): role-gated (owner/admin/moderator), multi-server,
  * audited. Role gates per §4: owner-only for /auditlog and /rcon; owner+admin for admin
- * management, /ban, /unban, /map, /bindserver, /say; any role for read-only/low-risk actions.
+ * management, /ban, /unban, /bans, /map, /bindserver, /say; any role for read-only/low-risk actions.
  * /claim has no gate — it must work before any admin exists.
  */
 /**
@@ -71,6 +72,7 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
 
   bot.command('ban', requireAdmin, (ctx) => banCommand(ctx, deps));
   bot.command('unban', requireAdmin, (ctx) => unbanCommand(ctx, deps));
+  bot.command('bans', requireAdmin, (ctx) => bansCommand(ctx, deps));
   bot.command('map', requireAdmin, (ctx) => mapCommand(ctx, deps));
   bot.command('say', requireAdmin, (ctx) => sayCommand(ctx, deps));
   bot.command('bindserver', requireAdmin, (ctx) => bindServerCommand(ctx, deps));

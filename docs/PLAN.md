@@ -564,6 +564,23 @@ Roles, stored in `admin-store`:
   through the `banClient`+`expires_at`+expiry-poller flow, not native `tempBanClient`. These
   give Moderators (§4, kick/tempban only, no `/ban`) a way to act proactively instead of only
   reacting to an in-game `!report`.
+  - **`/bans [--server <alias>]`, implemented (2026-09-07)**: lists currently active bans —
+    `BanStore.listActiveBans` (new, mirrors `listActiveIpBans`: `bans` rows with `expiresAt`
+    null or in the future) alongside the existing `listActiveIpBans`, admin-gated like
+    `/ban`/`/unban`. Added so an admin has something to read a GUID off of before running
+    `/unban <guid-or-ip>` — previously the only way to find a banned GUID was `/auditlog` or
+    `listBansByGuid`/`listBansByName` (history lookups, not exposed as a command).
+  - **`/unban <guid-or-ip>` fixed to actually match this section's own signature (2026-09-07)**:
+    previously GUID-only, and never touched the `bans` table (rcon `unbanUser` call only), so a
+    manually-unbanned GUID kept showing up in the new `/bans` list forever. Now: an IPv4-shaped
+    argument goes to the new `BanStore.unbanIp` (stamps `unbannedAt`, no rcon call — an IP ban is
+    never written to `ban.txt`, §7); anything else is treated as a GUID, calling `unbanUser`
+    *and* the new `BanStore.unbanByGuid` (same stamp, on the `bans` table). Both `bans`/`ban_ips`
+    gained a nullable `unbanned_at` column (migration `0001_illegal_omega_red.sql`) rather than
+    deleting the row outright, so `listBansByGuid`/`listBansByName`/`listIpBansByIp`'s ban
+    *history* (§5 step 3) still shows an unbanned entry — only `listActiveBans`/`listActiveIpBans`
+    (and, incidentally, `listExpiredBans`/`listExpiredIpBans`, so the expiry poller doesn't
+    reprocess an already-unbanned row) filter on it being `null`.
 - `/players [server]` — live player list with per-player inline `Kick`/`Temp Ban (30m)`/`Ban`
   shortcuts (same action path as the report card, just triggered manually).
 - `/map <name>`, `/maprotate`, `/restart`, `/fastrestart` — map control, admin-role-gated.

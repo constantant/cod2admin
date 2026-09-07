@@ -18,6 +18,13 @@ export const bans = pgTable('bans', {
   bannedBy: bigint('banned_by', { mode: 'number' }).notNull(),
   bannedAt: timestamp('banned_at', { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
+  /**
+   * Set by `/unban` (via `unbanByGuid`) once the row's target has been explicitly unbanned —
+   * `null` means still in effect. Kept distinct from deleting the row so ban-history lookups
+   * (`listBansByGuid`/`listBansByName`) still show it; only `listActiveBans`/`listExpiredBans`
+   * filter it out.
+   */
+  unbannedAt: timestamp('unbanned_at', { withTimezone: true }),
 });
 
 /**
@@ -33,4 +40,6 @@ export const banIps = pgTable('ban_ips', {
   bannedBy: bigint('banned_by', { mode: 'number' }).notNull(),
   bannedAt: timestamp('banned_at', { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
+  /** Set by `/unban <ip>` (via `unbanIp`) once explicitly lifted — same purpose as `bans.unbannedAt`. */
+  unbannedAt: timestamp('unbanned_at', { withTimezone: true }),
 });

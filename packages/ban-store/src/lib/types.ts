@@ -7,6 +7,8 @@ export interface Ban {
   bannedBy: number;
   bannedAt: Date;
   expiresAt: Date | null;
+  /** Set once `/unban <guid>` has explicitly lifted this ban — `null` means still in effect. */
+  unbannedAt: Date | null;
 }
 
 export interface RecordBanInput {
@@ -28,6 +30,8 @@ export interface BanIp {
   bannedBy: number;
   bannedAt: Date;
   expiresAt: Date | null;
+  /** Set once `/unban <ip>` has explicitly lifted this ban — `null` means still in effect. */
+  unbannedAt: Date | null;
 }
 
 export interface RecordIpBanInput {
@@ -47,10 +51,12 @@ export interface BanStore {
   recordBan(input: RecordBanInput): Promise<void>;
 
   recordIpBan(input: RecordIpBanInput): Promise<void>;
-  /** Rows with `expiresAt` null or in the future — what the poller should currently enforce. */
+  /** Rows with `expiresAt` null or in the future, and not yet unbanned — what the poller should currently enforce. */
   listActiveIpBans(serverAlias: string): Promise<BanIp[]>;
   listExpiredIpBans(serverAlias: string, now: Date): Promise<BanIp[]>;
   expireIpBan(id: number): Promise<void>;
+  /** `/unban <ip>` (docs/PLAN.md §6): stamps `unbannedAt` on matching active `ban_ips` rows — never written to ban.txt, so no rcon call is needed. */
+  unbanIp(serverAlias: string, ip: string): Promise<void>;
 
   /**
    * GUID-path temp bans whose `expiresAt` has passed (docs/PLAN.md §5 step 7's poller job (b)) —
@@ -60,6 +66,10 @@ export interface BanStore {
    */
   listExpiredBans(serverAlias: string, now: Date): Promise<Ban[]>;
   expireBan(id: number): Promise<void>;
+  /** Rows with `expiresAt` null or in the future, and not yet unbanned — the `bans`-table equivalent of `listActiveIpBans`, for `/bans`. */
+  listActiveBans(serverAlias: string): Promise<Ban[]>;
+  /** `/unban <guid>` (docs/PLAN.md §6): stamps `unbannedAt` on matching active `bans` rows so `/bans` stops listing them, alongside the caller's own `unbanUser(guid)` rcon call. */
+  unbanByGuid(serverAlias: string, guid: string): Promise<void>;
 
   /**
    * Prior GUID-path bans against a specific GUID (docs/PLAN.md §5 step 3's report enrichment),

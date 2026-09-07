@@ -13,6 +13,7 @@ function sampleBan(overrides: Partial<BanIp> = {}): BanIp {
     bannedBy: 1,
     bannedAt: new Date(),
     expiresAt: null,
+    unbannedAt: null,
     ...overrides,
   };
 }
@@ -27,6 +28,7 @@ function sampleGuidBan(overrides: Partial<Ban> = {}): Ban {
     bannedBy: 1,
     bannedAt: new Date(),
     expiresAt: null,
+    unbannedAt: null,
     ...overrides,
   };
 }

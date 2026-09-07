@@ -100,6 +100,56 @@ describe('DrizzleBanStore', () => {
     });
   });
 
+  describe('listActiveBans (docs/PLAN.md §6, /bans)', () => {
+    it('lists permanent and not-yet-expired GUID bans as active, scoped to server', async () => {
+      await store.recordBan({ serverAlias: 'default', name: 'Permanent', guid: 'guid-a', bannedBy: 1 });
+      await store.recordBan({ serverAlias: 'default', name: 'NotYet', guid: 'guid-b', bannedBy: 1, expiresAt: new Date(Date.now() + 60_000) });
+      await store.recordBan({ serverAlias: 'other', name: 'Elsewhere', guid: 'guid-c', bannedBy: 1 });
+
+      const active = await store.listActiveBans('default');
+
+      expect(active.map((b) => b.name).sort()).toEqual(['NotYet', 'Permanent']);
+    });
+
+    it('excludes a GUID ban whose expiry has already passed', async () => {
+      await store.recordBan({ serverAlias: 'default', name: 'Expired', guid: 'guid-a', bannedBy: 1, expiresAt: new Date(Date.now() - 1000) });
+
+      await expect(store.listActiveBans('default')).resolves.toEqual([]);
+    });
+  });
+
+  describe('unban (docs/PLAN.md §6, /unban <guid-or-ip>)', () => {
+    it('unbanByGuid stamps unbannedAt on the matching active bans row, removing it from listActiveBans', async () => {
+      await store.recordBan({ serverAlias: 'default', name: 'Cheater', guid: 'guid-a', bannedBy: 1 });
+
+      await store.unbanByGuid('default', 'guid-a');
+
+      await expect(store.listActiveBans('default')).resolves.toEqual([]);
+      const [row] = await store.listBansByGuid('default', 'guid-a', 10);
+      expect(row.unbannedAt).not.toBeNull();
+    });
+
+    it('unbanByGuid only touches the matching server/guid', async () => {
+      await store.recordBan({ serverAlias: 'default', name: 'Other', guid: 'guid-b', bannedBy: 1 });
+      await store.recordBan({ serverAlias: 'other', name: 'Elsewhere', guid: 'guid-a', bannedBy: 1 });
+
+      await store.unbanByGuid('default', 'guid-a');
+
+      await expect(store.listActiveBans('default')).resolves.toEqual([expect.objectContaining({ guid: 'guid-b' })]);
+      await expect(store.listActiveBans('other')).resolves.toEqual([expect.objectContaining({ guid: 'guid-a' })]);
+    });
+
+    it('unbanIp stamps unbannedAt on the matching active ban_ips row, removing it from listActiveIpBans', async () => {
+      await store.recordIpBan({ serverAlias: 'default', ip: '1.2.3.4', bannedBy: 1, expiresAt: null });
+
+      await store.unbanIp('default', '1.2.3.4');
+
+      await expect(store.listActiveIpBans('default')).resolves.toEqual([]);
+      const [row] = await store.listIpBansByIp('default', '1.2.3.4', 10);
+      expect(row.unbannedAt).not.toBeNull();
+    });
+  });
+
   describe('history lookups (docs/PLAN.md §5 step 3)', () => {
     it('finds bans by GUID, newest first, scoped to server and limit', async () => {
       // Explicit banned_at values so "newest first" isn't left to same-statement now() ties.
