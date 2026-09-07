@@ -1,3 +1,19 @@
+## [1.0.1](https://github.com/constantant/cod2admin/releases/tag/v1.0.1) (2026-09-07)
+
+### 🚀 Features
+
+- **gateway:** boot-time confirmation for successful self-updates ([1a7dd02](https://github.com/constantant/cod2admin/commit/1a7dd02))
+
+### 🩹 Fixes
+
+- **installer:** clean up the checksum file after a successful update ([6dc46e2](https://github.com/constantant/cod2admin/commit/6dc46e2))
+- **release:** match major-version changelog headings in release.sh ([039d18d](https://github.com/constantant/cod2admin/commit/039d18d))
+
+### ❤️ Thank You
+
+- Claude Sonnet 5
+- kk
+
 # [1.0.0](https://github.com/constantant/cod2admin/releases/tag/v1.0.0) (2026-09-07)
 
 ### 🚀 Features
