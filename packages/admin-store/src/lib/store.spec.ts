@@ -79,6 +79,19 @@ describe('DrizzleAdminStore', () => {
       expect(servers[0]).toMatchObject({ rconPort: 28961, rconPassword: 'new-pw' });
     });
 
+    it('upserts logSourceConfig on conflict too (real bug: re-running install.sh with a newly-added COD2_LOG_PATH silently never persisted it)', async () => {
+      await store.upsertServer({ alias: 'default', rconHost: '127.0.0.1', rconPort: 28960, rconPassword: 'pw' });
+      await store.upsertServer({
+        alias: 'default',
+        rconHost: '127.0.0.1',
+        rconPort: 28960,
+        rconPassword: 'pw',
+        logSourceConfig: '/path/to/games_mp.log',
+      });
+
+      await expect(store.getServer('default')).resolves.toMatchObject({ logSourceConfig: '/path/to/games_mp.log' });
+    });
+
     it('binds a server to a chat and looks it back up', async () => {
       await store.upsertServer({ alias: 'default', rconHost: '127.0.0.1', rconPort: 28960, rconPassword: 'pw' });
 

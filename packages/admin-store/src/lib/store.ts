@@ -87,7 +87,12 @@ export class DrizzleAdminStore implements AdminStore {
       })
       .onConflictDoUpdate({
         target: servers.alias,
-        set: { rconHost: input.rconHost, rconPort: input.rconPort, rconPasswordEncrypted },
+        set: {
+          rconHost: input.rconHost,
+          rconPort: input.rconPort,
+          rconPasswordEncrypted,
+          logSourceConfig: input.logSourceConfig ?? null,
+        },
       });
   }
 
