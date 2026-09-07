@@ -1,3 +1,14 @@
+## [1.0.3](https://github.com/constantant/cod2admin/releases/tag/v1.0.3) (2026-09-07)
+
+### 🩹 Fixes
+
+- **admin-store:** persist logSourceConfig when re-upserting a server ([2b62475](https://github.com/constantant/cod2admin/commit/2b62475))
+
+### ❤️ Thank You
+
+- Claude Sonnet 5
+- kk
+
 ## [1.0.2](https://github.com/constantant/cod2admin/releases/tag/v1.0.2) (2026-09-07)
 
 ### 🚀 Features
