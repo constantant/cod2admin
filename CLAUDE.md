@@ -70,6 +70,12 @@ See `docs/PLAN.md` for the full design of the CoD2 Admin Telegram/RCON bot this 
 building (architecture, phased delivery plan in §9, dev/test environment in §11). `docs/PLAN-ru.md`
 is a condensed Russian summary for the server owner, kept in sync with the same decisions.
 
+`docs/PLAN-miniapp.md` is a companion plan (not yet implemented) for adding a Telegram Mini App
+(Angular + Material 3) as a second, graphical admin surface alongside the chat bot — see it for
+hosting/HTTPS tradeoffs and feature scope. `docs/PLAN-miniapp-ru.md` is its condensed Russian
+summary for the server owner, kept in sync the same way as the `PLAN.md`/`PLAN-ru.md` pair — update
+it whenever `docs/PLAN-miniapp.md` changes.
+
 Current status: Phases 0–2 are done and verified live against a real dev CoD2 server + Telegram
 group (not just unit tests). Phase 0 is `packages/rcon-client`. Phase 1 is `apps/gateway`
 (grammy bot). Phase 2 added `packages/admin-store`/`packages/ban-store` (Postgres via Drizzle),
