@@ -16,6 +16,7 @@ export interface FakeRcon {
   unbanUser: Mock<(guid: string) => Promise<string>>;
   say: Mock<(message: string) => Promise<string>>;
   map: Mock<(mapName: string) => Promise<string>>;
+  getMapRotation: Mock<() => Promise<string[]>>;
 }
 
 export function createFakeRcon(): FakeRcon {
@@ -29,6 +30,7 @@ export function createFakeRcon(): FakeRcon {
     unbanUser: vi.fn().mockResolvedValue(''),
     say: vi.fn().mockResolvedValue(''),
     map: vi.fn().mockResolvedValue(''),
+    getMapRotation: vi.fn().mockResolvedValue([]),
   };
 }
 

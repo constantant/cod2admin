@@ -1,5 +1,5 @@
 import { RateLimiter } from './rate-limiter.js';
-import { parseCvarBlock, parseOobPlayerLine, parseRconStatusTable } from './status-parser.js';
+import { parseCvarBlock, parseMapRotation, parseOobPlayerLine, parseRconStatusTable } from './status-parser.js';
 import type { CvarMap, OobStatusPlayer, RconClientOptions, ServerStatus } from './types.js';
 import { sendOobQuery } from './udp-transport.js';
 
@@ -108,6 +108,11 @@ export class RconClient {
 
   async map(mapName: string): Promise<string> {
     return this.rcon(`map ${mapName}`);
+  }
+
+  /** Map names configured in `sv_mapRotation`, in rotation order — see `parseMapRotation` for why. */
+  async getMapRotation(): Promise<string[]> {
+    return parseMapRotation(await this.rcon('sv_mapRotation'));
   }
 
   private async query(payload: string) {

@@ -11,6 +11,7 @@ import { helpCommand, helpRuCommand } from './commands/help.js';
 import { kickCommand } from './commands/kick.js';
 import { listAdminsCommand } from './commands/listadmins.js';
 import { mapCommand } from './commands/map.js';
+import { mapsCommand, mapsSelectCallback, type MapsCallbackContext } from './commands/maps.js';
 import { playersCommand } from './commands/players.js';
 import { rconCommand } from './commands/rcon.js';
 import { removeAdminCommand } from './commands/removeadmin.js';
@@ -54,6 +55,16 @@ function toReportCallbackContext(ctx: Context & BotContext): ReportCallbackConte
   };
 }
 
+/** Same adaptation as `toReportCallbackContext`, minus `from` — `/maps`'s buttons don't need it. */
+function toMapsCallbackContext(ctx: Context & BotContext): MapsCallbackContext {
+  return {
+    admin: ctx.admin,
+    callbackData: ctx.callbackQuery?.data ?? '',
+    editMessageText: (text, other) => ctx.editMessageText(text, other as never),
+    answerCallbackQuery: (other) => ctx.answerCallbackQuery(other),
+  };
+}
+
 /** Same adaptation as `toReportCallbackContext`, plus `chat` — `/update`'s pending-update marker needs the chat id. */
 function toUpdateCallbackContext(ctx: Context & BotContext): UpdateCallbackContext {
   return {
@@ -87,6 +98,7 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
   bot.command('unban', requireAdmin, (ctx) => unbanCommand(ctx, deps));
   bot.command('bans', requireAdmin, (ctx) => bansCommand(ctx, deps));
   bot.command('map', requireAdmin, (ctx) => mapCommand(ctx, deps));
+  bot.command('maps', requireAdmin, (ctx) => mapsCommand(ctx, deps));
   bot.command('say', requireAdmin, (ctx) => sayCommand(ctx, deps));
   bot.command('bindserver', requireAdmin, (ctx) => bindServerCommand(ctx, deps));
   bot.command('addadmin', requireAdmin, (ctx) => addAdminCommand(withReplyToUserId(ctx), deps));
@@ -99,6 +111,7 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
   bot.command('update', requireOwner, (ctx) => updateCommand(ctx, deps));
 
   bot.callbackQuery(STATUS_REFRESH_CALLBACK_DATA, requireAny, (ctx) => statusRefreshCallback(ctx, deps));
+  bot.callbackQuery(/^map:/, requireAdmin, (ctx) => mapsSelectCallback(toMapsCallbackContext(ctx), deps));
   bot.callbackQuery(/^update:/, requireOwner, (ctx) => updateActionCallback(toUpdateCallbackContext(ctx), deps));
   bot.callbackQuery(/^report:/, requireAny, (ctx) =>
     reportActionCallback(toReportCallbackContext(ctx), {

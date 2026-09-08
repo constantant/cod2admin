@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   parseCvarBlock,
+  parseMapRotation,
   parseOobPlayerLine,
   parseRconStatusTable,
   stripColorCodes,
@@ -37,6 +38,23 @@ describe('parseOobPlayerLine', () => {
   it('returns null for lines that do not match the expected shape', () => {
     expect(parseOobPlayerLine('not a player line')).toBeNull();
     expect(parseOobPlayerLine('')).toBeNull();
+  });
+});
+
+describe('parseMapRotation', () => {
+  it('extracts map names in order, de-duplicated, from a real sv_mapRotation response', () => {
+    const raw =
+      '"sv_mapRotation" is: "gametype tdm map mp_brecourt gametype ctf map mp_carentan gametype tdm map mp_brecourt^7" default: "^7"\n  Domain is any text';
+
+    expect(parseMapRotation(raw)).toEqual(['mp_brecourt', 'mp_carentan']);
+  });
+
+  it('returns an empty array when the dvar value has no map entries', () => {
+    expect(parseMapRotation('"sv_mapRotation" is: "^7" default: "^7"')).toEqual([]);
+  });
+
+  it('returns an empty array for unrecognized input', () => {
+    expect(parseMapRotation('')).toEqual([]);
   });
 });
 

@@ -125,6 +125,17 @@ describe('RconClient', () => {
     expect(status.players[0]).toMatchObject({ num: 0, ip: '123.45.67.89', port: 12345 });
   });
 
+  it('fetches and parses sv_mapRotation into a map name list', async () => {
+    peer = await createMockPeer((payload, respond) => {
+      if (payload === 'rcon secret sv_mapRotation') {
+        respond('print\n"sv_mapRotation" is: "gametype tdm map mp_brecourt gametype ctf map mp_carentan^7" default: "^7"');
+      }
+    });
+    const client = new RconClient({ host: '127.0.0.1', port: peer.port, password: 'secret' });
+
+    await expect(client.getMapRotation()).resolves.toEqual(['mp_brecourt', 'mp_carentan']);
+  });
+
   it('retries and eventually rejects when the server never responds', async () => {
     peer = await createMockPeer(() => {
       // never responds — simulates a dropped UDP packet / unreachable host

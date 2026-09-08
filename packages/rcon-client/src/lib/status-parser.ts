@@ -34,6 +34,28 @@ export function parseOobPlayerLine(line: string): OobStatusPlayer | null {
   };
 }
 
+const MAP_ROTATION_VALUE = /is:\s*"([^"]*)"/;
+const MAP_ROTATION_ENTRY = /\bmap\s+(\S+)/gi;
+
+/**
+ * Extracts map names from a `rcon sv_mapRotation` response, e.g.
+ * `"sv_mapRotation" is: "gametype tdm map mp_brecourt gametype ctf map mp_carentan^7" default: "^7"`
+ * (confirmed against a real server 2026-09-08) — order-preserved, de-duplicated. There's no
+ * RCON-exposed way to list every map installed on disk (stock maps ship packed inside the game's
+ * own pak files, not as loose files), so the configured rotation is the practical "maps available
+ * to switch to" list.
+ */
+export function parseMapRotation(raw: string): string[] {
+  const value = stripColorCodes(MAP_ROTATION_VALUE.exec(raw)?.[1] ?? '');
+  const maps: string[] = [];
+  for (const match of value.matchAll(MAP_ROTATION_ENTRY)) {
+    if (!maps.includes(match[1])) {
+      maps.push(match[1]);
+    }
+  }
+  return maps;
+}
+
 interface ColumnBounds {
   start: number;
   end: number;

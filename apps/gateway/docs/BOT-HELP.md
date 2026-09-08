@@ -36,6 +36,8 @@ defaults to 30 minutes if omitted. IP-based.
 `/unban <guid-or-ip> [--server <alias>]`
 `/bans [--server <alias>]` — list currently active GUID/IP bans
 `/map <name> [--server <alias>]`
+`/maps [--server <alias>]` — tap-to-switch buttons for the maps in `sv_mapRotation`, if typing an
+exact map name for `/map` is inconvenient
 `/say <message> [--server <alias>]` — broadcasts to the game server's chat
 `/bindserver <alias>` — makes *this* chat receive report cards for that server
 `/addadmin <telegram-id-or-reply> <admin|moderator>` — reply to the person's message, or give
