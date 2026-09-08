@@ -1,3 +1,14 @@
+## [1.1.0](https://github.com/constantant/cod2admin/releases/tag/v1.1.0) (2026-09-08)
+
+### 🚀 Features
+
+- **gateway:** add /maps command for tap-to-switch map selection ([f330bad](https://github.com/constantant/cod2admin/commit/f330bad))
+
+### ❤️ Thank You
+
+- Claude Sonnet 5
+- kk
+
 ## [1.0.3](https://github.com/constantant/cod2admin/releases/tag/v1.0.3) (2026-09-07)
 
 ### 🩹 Fixes
