@@ -1,5 +1,6 @@
 import dgram from 'node:dgram';
 import { buildOobPacket, parseOobPacket, type OobPacket } from './protocol.js';
+import type { TextEncoding } from './text-encoding.js';
 
 export interface UdpTransportOptions {
   host: string;
@@ -18,6 +19,8 @@ export interface UdpTransportOptions {
   multiPacketWaitMs: number;
   /** Runs before every attempt, retries included — e.g. the client's own send-rate limiter. */
   beforeAttempt?: () => Promise<void>;
+  /** How the payload is encoded and replies are decoded — see text-encoding.ts. */
+  encoding: TextEncoding;
 }
 
 export class UdpQueryTimeoutError extends Error {
@@ -108,7 +111,7 @@ function sendOnce(payload: string, options: UdpTransportOptions): Promise<OobPac
     socket.on('message', (data) => {
       let packet: OobPacket;
       try {
-        packet = parseOobPacket(data);
+        packet = parseOobPacket(data, options.encoding);
       } catch (err) {
         settle(() => reject(err));
         return;
@@ -121,7 +124,7 @@ function sendOnce(payload: string, options: UdpTransportOptions): Promise<OobPac
       quietTimer = setTimeout(() => settle(() => resolve(mergePackets(packets))), options.multiPacketWaitMs);
     });
 
-    const packet = buildOobPacket(payload);
+    const packet = buildOobPacket(payload, options.encoding);
     socket.send(packet, options.port, options.host, (err) => {
       if (err) {
         settle(() => reject(err));

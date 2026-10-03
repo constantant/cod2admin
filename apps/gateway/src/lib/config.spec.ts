@@ -21,7 +21,13 @@ describe('loadConfig', () => {
       rcon: { host: '127.0.0.1', port: 28960, password: 'secret' },
       logPath: undefined,
       updateStagingDir: undefined,
+      textEncoding: 'cp1251',
     });
+  });
+
+  it('parses COD2_TEXT_ENCODING case-insensitively and rejects unknown encodings', () => {
+    expect(loadConfig({ ...VALID_ENV, COD2_TEXT_ENCODING: 'Latin1' }).textEncoding).toBe('latin1');
+    expect(() => loadConfig({ ...VALID_ENV, COD2_TEXT_ENCODING: 'utf8' })).toThrow(/COD2_TEXT_ENCODING/);
   });
 
   it('parses COD2_LOG_PATH when given, and leaves it undefined otherwise', () => {

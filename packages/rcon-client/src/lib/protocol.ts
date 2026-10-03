@@ -3,10 +3,12 @@
  * Every OOB packet (queries, rcon commands, and their responses) is prefixed with
  * four 0xFF bytes followed by an ASCII payload.
  */
+import { decodeText, encodeText, type TextEncoding } from './text-encoding.js';
+
 const OOB_PREFIX = Buffer.from([0xff, 0xff, 0xff, 0xff]);
 
-export function buildOobPacket(payload: string): Buffer {
-  return Buffer.concat([OOB_PREFIX, Buffer.from(payload, 'binary')]);
+export function buildOobPacket(payload: string, encoding: TextEncoding = 'latin1'): Buffer {
+  return Buffer.concat([OOB_PREFIX, encodeText(payload, encoding)]);
 }
 
 export interface OobPacket {
@@ -16,11 +18,11 @@ export interface OobPacket {
   body: string;
 }
 
-export function parseOobPacket(data: Buffer): OobPacket {
+export function parseOobPacket(data: Buffer, encoding: TextEncoding = 'latin1'): OobPacket {
   if (data.length < 4 || !data.subarray(0, 4).equals(OOB_PREFIX)) {
     throw new Error('Not an out-of-band CoD/Quake3 packet (missing 0xFFFFFFFF prefix)');
   }
-  const text = data.subarray(4).toString('binary');
+  const text = decodeText(data.subarray(4), encoding);
   const newlineIndex = text.indexOf('\n');
   if (newlineIndex === -1) {
     return { header: text, body: '' };

@@ -49,6 +49,25 @@ describe('FileTailer', () => {
     expect(lines).toEqual(['new line']);
   });
 
+  it('decodes raw bytes with the given decoder (e.g. CP1251 chat from a Russian server)', async () => {
+    await writeFile(path, '');
+    const lines: string[] = [];
+    tailer = new FileTailer({
+      path,
+      onLine: (line) => lines.push(line),
+      pollIntervalMs: POLL_INTERVAL_MS,
+      decode: (bytes) => new TextDecoder('windows-1251').decode(bytes),
+    });
+    await tailer.start();
+
+    // "say;...;Димон;!report" with the name in Windows-1251 bytes, as the game writes it
+    const nameBytes = Buffer.from([0xc4, 0xe8, 0xec, 0xee, 0xed]);
+    await appendFile(path, Buffer.concat([Buffer.from('say;'), nameBytes, Buffer.from(';!report\n')]));
+    await until(() => lines.length === 1);
+
+    expect(lines).toEqual(['say;Димон;!report']);
+  });
+
   it('buffers a partial (no trailing newline) line across polls until it completes', async () => {
     await writeFile(path, '');
     const lines: string[] = [];

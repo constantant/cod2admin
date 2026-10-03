@@ -8,6 +8,13 @@ export interface FileTailerOptions {
   onLine: (line: string) => void;
   onError?: (error: Error) => void;
   pollIntervalMs?: number;
+  /**
+   * Turns the file's raw bytes into text. Default UTF-8. The game writes `games_mp.log` in
+   * whatever single-byte code page the server's players use (CP1251 on Russian servers, see
+   * docs/PLAN.md §2.4, "Text encoding"), so the gateway passes the same decoder its RCON client
+   * uses. Otherwise player names from the log wouldn't match the ones from `rcon status`.
+   */
+  decode?: (bytes: Buffer) => string;
 }
 
 /**
@@ -25,6 +32,7 @@ export class FileTailer {
   private readonly onLine: (line: string) => void;
   private readonly onError: (error: Error) => void;
   private readonly pollIntervalMs: number;
+  private readonly decode: (bytes: Buffer) => string;
   private position = 0;
   private buffered = '';
   private timer: ReturnType<typeof setInterval> | undefined;
@@ -35,6 +43,7 @@ export class FileTailer {
     this.onLine = options.onLine;
     this.onError = options.onError ?? (() => {});
     this.pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+    this.decode = options.decode ?? ((bytes) => bytes.toString('utf8'));
   }
 
   /** Starts polling from the file's current size — only lines appended after this point are emitted. */
@@ -87,12 +96,12 @@ export class FileTailer {
 
   private readRange(start: number, end: number): Promise<string> {
     return new Promise((resolve, reject) => {
-      const stream = createReadStream(this.path, { start, end: end - 1, encoding: 'utf8' });
-      let text = '';
+      const stream = createReadStream(this.path, { start, end: end - 1 });
+      const chunks: Buffer[] = [];
       stream.on('data', (chunk) => {
-        text += chunk;
+        chunks.push(chunk as Buffer);
       });
-      stream.on('end', () => resolve(text));
+      stream.on('end', () => resolve(this.decode(Buffer.concat(chunks))));
       stream.on('error', reject);
     });
   }

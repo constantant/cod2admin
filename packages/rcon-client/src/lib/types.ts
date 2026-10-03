@@ -1,3 +1,5 @@
+import type { TextEncoding } from './text-encoding.js';
+
 export interface RconClientOptions {
   host: string;
   port: number;
@@ -10,6 +12,11 @@ export interface RconClientOptions {
   retryDelayMs?: number;
   /** How long to wait for further packets of a multi-packet reply, in ms. Default 150. */
   multiPacketWaitMs?: number;
+  /**
+   * Encoding of text sent (commands, `say` text) and received (player names, output) — see
+   * text-encoding.ts. Default `latin1`, which passes bytes through unchanged.
+   */
+  encoding?: TextEncoding;
   /** Minimum delay enforced between outgoing packets, in ms — see §8 of docs/PLAN.md. Default 100. */
   minSendIntervalMs?: number;
 }

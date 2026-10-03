@@ -218,6 +218,29 @@ describe('RconClient', () => {
     expect(received).toBe(4);
   });
 
+  it('sends and receives cp1251 text when configured, so Russian say text and names survive', async () => {
+    let receivedBytes: Buffer | undefined;
+    const socket = dgram.createSocket('udp4');
+    socket.on('message', (data, rinfo) => {
+      receivedBytes = data.subarray(4);
+      // "print\n" + "Димон" in Windows-1251
+      const reply = Buffer.concat([
+        OOB_PREFIX,
+        Buffer.from('print\n', 'latin1'),
+        Buffer.from([0xc4, 0xe8, 0xec, 0xee, 0xed]),
+      ]);
+      socket.send(reply, rinfo.port, rinfo.address);
+    });
+    await new Promise<void>((resolve) => socket.bind(0, '127.0.0.1', () => resolve()));
+    peer = { port: socket.address().port, close: () => new Promise((resolve) => socket.close(() => resolve())) };
+    const client = new RconClient({ host: '127.0.0.1', port: peer.port, password: 'pw', encoding: 'cp1251' });
+
+    await expect(client.say('всем привет')).resolves.toBe('Димон');
+    expect(receivedBytes).toEqual(
+      Buffer.concat([Buffer.from('rcon pw say ', 'latin1'), Buffer.from('e2f1e5ec20eff0e8e2e5f2', 'hex')]),
+    );
+  });
+
   it('rejects with the unexpected-header message when the server replies with the wrong header', async () => {
     peer = await createMockPeer((_payload, respond) => {
       respond('print\nunexpected');

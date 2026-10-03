@@ -1,5 +1,6 @@
 import { RateLimiter } from './rate-limiter.js';
 import { parseCvarBlock, parseMapRotation, parseOobPlayerLine, parseRconStatusTable } from './status-parser.js';
+import type { TextEncoding } from './text-encoding.js';
 import type { CvarMap, OobStatusPlayer, RconClientOptions, ServerStatus } from './types.js';
 import { sendOobQuery } from './udp-transport.js';
 
@@ -25,6 +26,7 @@ export class RconClient {
   private readonly retries: number;
   private readonly retryDelayMs: number;
   private readonly multiPacketWaitMs: number;
+  private readonly encoding: TextEncoding;
   private readonly rateLimiter: RateLimiter;
 
   constructor(options: RconClientOptions) {
@@ -35,6 +37,7 @@ export class RconClient {
     this.retries = options.retries ?? DEFAULT_RETRIES;
     this.retryDelayMs = options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
     this.multiPacketWaitMs = options.multiPacketWaitMs ?? DEFAULT_MULTI_PACKET_WAIT_MS;
+    this.encoding = options.encoding ?? 'latin1';
     this.rateLimiter = new RateLimiter(options.minSendIntervalMs ?? DEFAULT_MIN_SEND_INTERVAL_MS);
   }
 
@@ -133,6 +136,7 @@ export class RconClient {
       retryDelayMs: this.retryDelayMs,
       multiPacketWaitMs: this.multiPacketWaitMs,
       beforeAttempt: () => this.rateLimiter.wait(),
+      encoding: this.encoding,
     });
   }
 }

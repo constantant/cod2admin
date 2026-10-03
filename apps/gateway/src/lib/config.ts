@@ -4,6 +4,15 @@
  * optional — the owner can also be established via `/claim` (§4) if the env var isn't set.
  * `rcon`/`serverAlias` seed the one `servers` row the gateway bootstraps on first startup.
  */
+import { TEXT_ENCODINGS, type TextEncoding } from '@cod2admin/rcon-client';
+
+/**
+ * CP1251, not latin1: the game has no encoding of its own and shows bytes in the player's Windows
+ * code page, and this bot's servers are Russian — a real one's player names and `say` text were
+ * CP1251 (docs/PLAN.md §2.4, "Text encoding"). ASCII-only servers are unaffected either way.
+ */
+export const DEFAULT_TEXT_ENCODING: TextEncoding = 'cp1251';
+
 export interface GatewayConfig {
   telegramBotToken: string;
   ownerTelegramId: number | undefined;
@@ -28,6 +37,8 @@ export interface GatewayConfig {
    * `logPath` uses for report automation.
    */
   updateStagingDir: string | undefined;
+  /** `COD2_TEXT_ENCODING` — how RCON text and the game log are encoded, for every server. */
+  textEncoding: TextEncoding;
 }
 
 class ConfigError extends Error {}
@@ -61,6 +72,18 @@ function requireIntEnv(env: NodeJS.ProcessEnv, key: string): number {
   return value;
 }
 
+function textEncodingEnv(env: NodeJS.ProcessEnv): TextEncoding {
+  const raw = env['COD2_TEXT_ENCODING']?.trim().toLowerCase();
+  if (!raw) {
+    return DEFAULT_TEXT_ENCODING;
+  }
+  const encoding = TEXT_ENCODINGS.find((candidate) => candidate === raw);
+  if (!encoding) {
+    throw new ConfigError(`Env var COD2_TEXT_ENCODING must be one of ${TEXT_ENCODINGS.join(', ')}, got "${raw}"`);
+  }
+  return encoding;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig {
   return {
     telegramBotToken: requireEnv(env, 'TELEGRAM_BOT_TOKEN'),
@@ -75,5 +98,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
     },
     logPath: env['COD2_LOG_PATH']?.trim() || undefined,
     updateStagingDir: env['UPDATE_STAGING_DIR']?.trim() || undefined,
+    textEncoding: textEncodingEnv(env),
   };
 }

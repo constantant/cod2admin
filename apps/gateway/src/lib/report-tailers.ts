@@ -1,6 +1,8 @@
 import type { ServerConfig } from '@cod2admin/admin-store';
 import { GameLogTailer } from '@cod2admin/log-tailer';
+import { decodeText, type TextEncoding } from '@cod2admin/rcon-client';
 import type { Bot } from 'grammy';
+import { DEFAULT_TEXT_ENCODING } from './config.js';
 import type { GatewayDeps } from './deps.js';
 import { handleReportTrigger } from './reports.js';
 
@@ -16,7 +18,12 @@ import { handleReportTrigger } from './reports.js';
  * A server missing either prerequisite is skipped with a warning, not an error — RCON-only
  * operation (no report automation) is a valid, supported configuration.
  */
-export function startReportTailers(servers: readonly ServerConfig[], deps: GatewayDeps, bot: Bot): GameLogTailer[] {
+export function startReportTailers(
+  servers: readonly ServerConfig[],
+  deps: GatewayDeps,
+  bot: Bot,
+  textEncoding: TextEncoding = DEFAULT_TEXT_ENCODING,
+): GameLogTailer[] {
   const tailers: GameLogTailer[] = [];
 
   for (const server of servers) {
@@ -35,7 +42,8 @@ export function startReportTailers(servers: readonly ServerConfig[], deps: Gatew
       continue; // rconClients is built from this same server list, so this shouldn't happen
     }
 
-    const tailer = new GameLogTailer({ logPath });
+    // Same encoding as the RCON client, so log names match `rcon status` names (§5.3).
+    const tailer = new GameLogTailer({ logPath, decode: (bytes) => decodeText(bytes, textEncoding) });
     deps.sessionsByServer.set(server.alias, tailer);
 
     tailer.on('reportTrigger', (trigger) => {

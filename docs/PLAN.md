@@ -178,6 +178,20 @@ dedicated servers:
   parallel. The same server also split `rcon status` across 3 packets (1303+1303+115 bytes,
   split mid-line). The client used to read only the first one, which cut the player list
   roughly in half; it now joins all packets that arrive within 150ms of each other.
+- **Text encoding (fixed 2026-10-03).** CoD2 has no text encoding of its own. Names, chat,
+  `say` text and `games_mp.log` are raw single-byte strings, shown using each player's Windows
+  code page, which is CP1251 on Russian servers. `rcon-client` used to treat every byte as
+  Latin-1, which mangled Cyrillic both ways:
+  - `/say всем привет` reached players as `2A5< ?@825B`, because only the low byte of each
+    character was kept.
+  - A player called Димон showed up in Telegram as `Äèìîí`.
+
+  `log-tailer` read the log as UTF-8, which loses CP1251 bytes for good. Now the gateway's
+  `COD2_TEXT_ENCODING` (`cp1251` by default, or `latin1`) controls both RCON and the log, so
+  names from the two still match (§5.3). The CP1251 table maps all 256 bytes to distinct
+  characters, so a name read from `rcon status` gets the same bytes back when it's passed to
+  `kick`. Verified on the real server: a cvar set to `всем привет Ёё` was stored as the correct
+  CP1251 bytes, and live players' names decoded as `Димон` and `Ира`.
 
 ### 2.5 Conclusion
 

@@ -43,7 +43,12 @@ const servers = await adminStore.listServers();
 const rconClients = new Map(
   servers.map((server) => [
     server.alias,
-    new RconClient({ host: server.rconHost, port: server.rconPort, password: server.rconPassword }),
+    new RconClient({
+      host: server.rconHost,
+      port: server.rconPort,
+      password: server.rconPassword,
+      encoding: config.textEncoding,
+    }),
   ]),
 );
 
@@ -84,7 +89,7 @@ await checkPendingUpdateOnBoot(deps, bot);
 
 startVersionCheckPoller(deps, bot);
 
-startReportTailers(servers, deps, bot);
+startReportTailers(servers, deps, bot, config.textEncoding);
 
 void bot.start({
   onStart: (botInfo) => {

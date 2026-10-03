@@ -9,6 +9,8 @@ export interface GameLogTailerOptions {
   /** Path to `games_mp.log` (docs/PLAN.md §11.1's `COD2_LOG_PATH`). */
   logPath: string;
   pollIntervalMs?: number;
+  /** Passed to `FileTailer` — see its `decode` option. */
+  decode?: (bytes: Buffer) => string;
   chatHistorySize?: number;
   /** Test hook — overrides the tracker's clock. Not meant for production use. */
   now?: SessionTrackerOptions['now'];
@@ -29,6 +31,7 @@ export class GameLogTailer extends EventEmitter {
     this.fileTailer = new FileTailer({
       path: options.logPath,
       pollIntervalMs: options.pollIntervalMs,
+      decode: options.decode,
       onLine: (line) => this.handleLine(line),
       onError: (error) => this.emitTyped('error', error),
     });
