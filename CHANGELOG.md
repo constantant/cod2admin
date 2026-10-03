@@ -1,3 +1,14 @@
+## [1.1.2](https://github.com/constantant/cod2admin/releases/tag/v1.1.2) (2026-10-03)
+
+### 🩹 Fixes
+
+- **rcon-client:** send and read Russian text as CP1251 ([7822df3](https://github.com/constantant/cod2admin/commit/7822df3))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5 (1M context)
+- kk
+
 ## [1.1.1](https://github.com/constantant/cod2admin/releases/tag/v1.1.1) (2026-10-03)
 
 ### 🩹 Fixes
