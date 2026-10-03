@@ -76,6 +76,12 @@ hosting/HTTPS tradeoffs and feature scope. `docs/PLAN-miniapp-ru.md` is its cond
 summary for the server owner, kept in sync the same way as the `PLAN.md`/`PLAN-ru.md` pair — update
 it whenever `docs/PLAN-miniapp.md` changes.
 
+`docs/PLAN-russia-access.md` (not yet implemented) plans how installs and the running bot work
+on game hosts in Russia, where Telegram has been blocked since March 2026: Bot API relay abroad
+(`TELEGRAM_API_ROOT`), outbound proxy (`TELEGRAM_PROXY_URL`), an installer that no longer hangs on
+an unreachable `api.telegram.org`, and an MTProto proxy for admins. `docs/PLAN-russia-access-ru.md`
+is its Russian summary — keep it in sync the same way.
+
 Current status: Phases 0–2 are done and verified live against a real dev CoD2 server + Telegram
 group (not just unit tests). Phase 0 is `packages/rcon-client`. Phase 1 is `apps/gateway`
 (grammy bot). Phase 2 added `packages/admin-store`/`packages/ban-store` (Postgres via Drizzle),
