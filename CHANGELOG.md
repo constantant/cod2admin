@@ -1,3 +1,14 @@
+## [1.1.1](https://github.com/constantant/cod2admin/releases/tag/v1.1.1) (2026-10-03)
+
+### 🩹 Fixes
+
+- **rcon-client:** survive rate-limited servers and read multi-packet replies ([f0f6817](https://github.com/constantant/cod2admin/commit/f0f6817))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5 (1M context)
+- kk
+
 ## [1.1.0](https://github.com/constantant/cod2admin/releases/tag/v1.1.0) (2026-09-08)
 
 ### 🚀 Features
