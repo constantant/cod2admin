@@ -3,8 +3,13 @@ import { parseCvarBlock, parseMapRotation, parseOobPlayerLine, parseRconStatusTa
 import type { CvarMap, OobStatusPlayer, RconClientOptions, ServerStatus } from './types.js';
 import { sendOobQuery } from './udp-transport.js';
 
-const DEFAULT_TIMEOUT_MS = 2000;
-const DEFAULT_RETRIES = 2;
+// Short attempts, many retries — a real busy server drops ~50% of queries in bursts of up to ~5s
+// while replying in ~50ms otherwise (docs/PLAN.md §2.4, "Rate limiting"), so a long per-attempt
+// wait only wastes time. Worst case before giving up: 8 × 1000ms + 7 × 300ms ≈ 10s.
+const DEFAULT_TIMEOUT_MS = 1000;
+const DEFAULT_RETRIES = 7;
+const DEFAULT_RETRY_DELAY_MS = 300;
+const DEFAULT_MULTI_PACKET_WAIT_MS = 150;
 const DEFAULT_MIN_SEND_INTERVAL_MS = 100;
 const KICK_FAILURE_PATTERN = /^Usage:|is not on the server/i;
 
@@ -18,6 +23,8 @@ export class RconClient {
   private readonly password: string;
   private readonly timeoutMs: number;
   private readonly retries: number;
+  private readonly retryDelayMs: number;
+  private readonly multiPacketWaitMs: number;
   private readonly rateLimiter: RateLimiter;
 
   constructor(options: RconClientOptions) {
@@ -26,6 +33,8 @@ export class RconClient {
     this.password = options.password;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.retries = options.retries ?? DEFAULT_RETRIES;
+    this.retryDelayMs = options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
+    this.multiPacketWaitMs = options.multiPacketWaitMs ?? DEFAULT_MULTI_PACKET_WAIT_MS;
     this.rateLimiter = new RateLimiter(options.minSendIntervalMs ?? DEFAULT_MIN_SEND_INTERVAL_MS);
   }
 
@@ -116,12 +125,14 @@ export class RconClient {
   }
 
   private async query(payload: string) {
-    await this.rateLimiter.wait();
     return sendOobQuery(payload, {
       host: this.host,
       port: this.port,
       timeoutMs: this.timeoutMs,
       retries: this.retries,
+      retryDelayMs: this.retryDelayMs,
+      multiPacketWaitMs: this.multiPacketWaitMs,
+      beforeAttempt: () => this.rateLimiter.wait(),
     });
   }
 }

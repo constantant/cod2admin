@@ -151,6 +151,73 @@ describe('RconClient', () => {
     await expect(client.getInfo()).rejects.toThrow(/timed out/i);
   });
 
+  it('joins a print response split across several packets, including a split mid-line', async () => {
+    // Real server, ~40 players: `rcon status` came back as 3 packets (1303+1303+115 bytes), each
+    // with its own "print" header, the body split wherever the packet filled up.
+    const table = [
+      'map: mp_toujane',
+      'num score ping guid   name            lastmsg address               qport rate',
+      '--- ----- ---- ------ --------------- ------- --------------------- ----- -----',
+      '  0     5   42 111111 PlayerOne^7           0 123.45.67.89:12345    54321 25000',
+      '  1     3   50 222222 PlayerTwo^7           0 123.45.67.90:12345    54322 25000',
+      '  2     1   60 333333 PlayerThree^7         0 123.45.67.91:12345    54323 25000',
+      '',
+    ].join('\n');
+    const splitAt = [table.indexOf('PlayerTwo') + 4, table.indexOf('PlayerThree')];
+    peer = await createMockPeer((payload, respond) => {
+      if (payload === 'rcon secret status') {
+        respond(`print\n${table.slice(0, splitAt[0])}`);
+        respond(`print\n${table.slice(splitAt[0], splitAt[1])}`);
+        respond(`print\n${table.slice(splitAt[1])}`);
+      }
+    });
+    const client = new RconClient({ host: '127.0.0.1', port: peer.port, password: 'secret' });
+
+    const status = await client.status();
+
+    expect(status.raw).toBe(table);
+    expect(status.players.map((player) => player.name)).toEqual(['PlayerOne', 'PlayerTwo', 'PlayerThree']);
+  });
+
+  it('keeps retrying through a burst of dropped queries and succeeds once one gets through', async () => {
+    // Mirrors the real rate-limited server: several queries in a row silently dropped, then a reply.
+    let received = 0;
+    peer = await createMockPeer((_payload, respond) => {
+      received++;
+      if (received >= 4) {
+        respond('print\nOK\n');
+      }
+    });
+    const client = new RconClient({
+      host: '127.0.0.1',
+      port: peer.port,
+      password: 'secret',
+      timeoutMs: 30,
+      retryDelayMs: 5,
+    });
+
+    await expect(client.rcon('say hi')).resolves.toBe('OK\n');
+    expect(received).toBe(4);
+  });
+
+  it('sends exactly retries + 1 attempts before giving up', async () => {
+    let received = 0;
+    peer = await createMockPeer(() => {
+      received++;
+    });
+    const client = new RconClient({
+      host: '127.0.0.1',
+      port: peer.port,
+      password: 'secret',
+      timeoutMs: 20,
+      retries: 3,
+      retryDelayMs: 0,
+    });
+
+    await expect(client.rcon('status')).rejects.toThrow(/timed out/i);
+    expect(received).toBe(4);
+  });
+
   it('rejects with the unexpected-header message when the server replies with the wrong header', async () => {
     peer = await createMockPeer((_payload, respond) => {
       respond('print\nunexpected');

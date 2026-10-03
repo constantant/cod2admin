@@ -1,3 +1,4 @@
+import { UdpQueryTimeoutError } from '@cod2admin/rcon-client';
 import { Bot, type Context } from 'grammy';
 import { requireRole } from './auth.js';
 import type { BotContext } from './bot-context.js';
@@ -77,6 +78,23 @@ function toUpdateCallbackContext(ctx: Context & BotContext): UpdateCallbackConte
   };
 }
 
+export const SERVER_UNRESPONSIVE_MESSAGE =
+  "The game server didn't respond, even after retrying for ~10 seconds — it may be rate-limiting queries " +
+  'or offline. Try again in a moment.';
+
+/**
+ * RCON gave up (UDP, all retries timed out — see rcon-client's udp-transport.ts). Without this the
+ * command just silently does nothing from the user's point of view; a button press also stays
+ * stuck on its loading spinner until the callback query is answered.
+ */
+async function notifyServerUnresponsive(ctx: Context): Promise<void> {
+  if (ctx.callbackQuery) {
+    await ctx.answerCallbackQuery({ text: SERVER_UNRESPONSIVE_MESSAGE, show_alert: true });
+  } else if (ctx.chat) {
+    await ctx.reply(SERVER_UNRESPONSIVE_MESSAGE);
+  }
+}
+
 export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret: string): Bot {
   const bot = new Bot(config.telegramBotToken);
 
@@ -125,8 +143,14 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
     }),
   );
 
-  bot.catch(({ error, ctx }) => {
+  bot.catch(async ({ error, ctx }) => {
     console.error(`Gateway bot error handling update ${ctx.update.update_id}:`, error);
+    // The one failure worth telling the user about: everything else stays log-only, as before.
+    if (error instanceof UdpQueryTimeoutError) {
+      await notifyServerUnresponsive(ctx).catch((notifyError: unknown) => {
+        console.error('Gateway bot failed to report an unresponsive server:', notifyError);
+      });
+    }
   });
 
   return bot;

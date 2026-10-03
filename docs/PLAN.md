@@ -166,6 +166,18 @@ dedicated servers:
   log-tailing is dodging log-format quirks (color codes, encoding) — not latency or
   reachability. **Decision: not worth the added GSC-mod surface for that alone; log-tailing
   is the sole report-intake path (§5, §9).**
+- **Rate limiting (measured 2026-10-03 against a real busy public server, ~40 players).** The
+  server silently ignored ~50% of *all* queries (`rcon status`, `getinfo` and `getstatus`
+  alike), in bursts of up to ~5s, while answering the rest in ~50ms. Querying less often
+  didn't fix it: one query every 6s still lost ~20%. Sending more often got *more* replies per
+  minute, so it behaves like the server shedding load in windows, not a per-IP penalty for us.
+  It drops queries **before executing them**: in 8 of 8 missed replies to `rcon set <cvar> <n>`,
+  reading the cvar back showed the command had never run. So `rcon-client` retries fast
+  (1s attempts, up to 8 of them, ~10s total) instead of the old 3 × 2s, and a retried `say`/`map`
+  doesn't run twice in that case. `/status` uses a single `getstatus` instead of two queries in
+  parallel. The same server also split `rcon status` across 3 packets (1303+1303+115 bytes,
+  split mid-line). The client used to read only the first one, which cut the player list
+  roughly in half; it now joins all packets that arrive within 150ms of each other.
 
 ### 2.5 Conclusion
 

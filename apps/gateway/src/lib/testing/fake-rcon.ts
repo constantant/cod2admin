@@ -1,4 +1,4 @@
-import type { CvarMap, RconClient, ServerStatus } from '@cod2admin/rcon-client';
+import type { CvarMap, OobStatusPlayer, RconClient, ServerStatus } from '@cod2admin/rcon-client';
 import { vi, type Mock } from 'vitest';
 
 /**
@@ -8,6 +8,7 @@ import { vi, type Mock } from 'vitest';
  */
 export interface FakeRcon {
   getInfo: Mock<() => Promise<CvarMap>>;
+  getStatus: Mock<() => Promise<{ cvars: CvarMap; players: OobStatusPlayer[] }>>;
   status: Mock<() => Promise<ServerStatus>>;
   rcon: Mock<(command: string) => Promise<string>>;
   kick: Mock<(clientIdOrName: string | number) => Promise<string>>;
@@ -22,6 +23,7 @@ export interface FakeRcon {
 export function createFakeRcon(): FakeRcon {
   return {
     getInfo: vi.fn().mockResolvedValue({}),
+    getStatus: vi.fn().mockResolvedValue({ cvars: {}, players: [] }),
     status: vi.fn().mockResolvedValue({ raw: '', players: [] } satisfies ServerStatus),
     rcon: vi.fn().mockResolvedValue(''),
     kick: vi.fn().mockResolvedValue(''),

@@ -2,10 +2,14 @@ export interface RconClientOptions {
   host: string;
   port: number;
   password: string;
-  /** Time to wait for a response before retrying/giving up, in ms. Default 2000. */
+  /** Time one attempt waits for the first reply packet before retrying/giving up, in ms. Default 1000. */
   timeoutMs?: number;
-  /** Retries on timeout before rejecting (UDP packets can be silently dropped). Default 2. */
+  /** Retries on timeout before rejecting (UDP packets can be silently dropped). Default 7. */
   retries?: number;
+  /** Pause between a timed-out attempt and the next, in ms. Default 300. */
+  retryDelayMs?: number;
+  /** How long to wait for further packets of a multi-packet reply, in ms. Default 150. */
+  multiPacketWaitMs?: number;
   /** Minimum delay enforced between outgoing packets, in ms — see §8 of docs/PLAN.md. Default 100. */
   minSendIntervalMs?: number;
 }

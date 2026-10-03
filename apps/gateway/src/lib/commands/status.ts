@@ -1,4 +1,4 @@
-import type { CvarMap, RconClient, ServerStatus } from '@cod2admin/rcon-client';
+import { stripColorCodes, type CvarMap, type RconClient } from '@cod2admin/rcon-client';
 import { InlineKeyboard } from 'grammy';
 import { matchText, type BotContext } from '../bot-context.js';
 import type { GatewayDeps } from '../deps.js';
@@ -10,19 +10,24 @@ export const statusRefreshKeyboard = new InlineKeyboard().text('Refresh', STATUS
 
 /**
  * Formats the condensed `/status` message: hostname, map, player count/max (docs/PLAN.md §6).
- * No uptime — nothing in `status`/`getinfo` reports it, and session tracking is a Phase 3
+ * No uptime — nothing in `getstatus` reports it, and session tracking is a Phase 3
  * (`log-tailer`) concern (§5.3), not available here.
  */
-export function formatStatusMessage(status: ServerStatus, cvars: CvarMap): string {
-  const hostname = status.hostname ?? 'unknown';
-  const map = status.mapName ?? 'unknown';
+export function formatStatusMessage(cvars: CvarMap, playerCount: number): string {
+  const hostname = cvars['sv_hostname'] ? stripColorCodes(cvars['sv_hostname']).trim() : 'unknown';
+  const map = cvars['mapname'] ?? 'unknown';
   const maxClients = cvars['sv_maxclients'] ?? '?';
-  return [`Server: ${hostname}`, `Map: ${map}`, `Players: ${status.players.length}/${maxClients}`].join('\n');
+  return [`Server: ${hostname}`, `Map: ${map}`, `Players: ${playerCount}/${maxClients}`].join('\n');
 }
 
+/**
+ * One public `getstatus` query has everything this needs (cvars + player list) — deliberately
+ * not `rcon status` + `getinfo` in parallel, which doubled the load on servers that rate-limit
+ * queries (docs/PLAN.md §2.4, "Rate limiting"). `rcon status` never reported a hostname either.
+ */
 async function fetchStatusMessage(rcon: RconClient): Promise<string> {
-  const [status, cvars] = await Promise.all([rcon.status(), rcon.getInfo()]);
-  return formatStatusMessage(status, cvars);
+  const { cvars, players } = await rcon.getStatus();
+  return formatStatusMessage(cvars, players.length);
 }
 
 /** `/status [--server <alias>]` — no background timer; only fetched on command/Refresh (§6). */
