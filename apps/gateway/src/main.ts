@@ -39,16 +39,14 @@ await adminStore.upsertServer({
   logSourceConfig: config.logPath,
 });
 
+const createRconClient = (server: { host: string; port: number; password: string }) =>
+  new RconClient({ ...server, encoding: config.textEncoding });
+
 const servers = await adminStore.listServers();
 const rconClients = new Map(
   servers.map((server) => [
     server.alias,
-    new RconClient({
-      host: server.rconHost,
-      port: server.rconPort,
-      password: server.rconPassword,
-      encoding: config.textEncoding,
-    }),
+    createRconClient({ host: server.rconHost, port: server.rconPort, password: server.rconPassword }),
   ]),
 );
 
@@ -72,6 +70,8 @@ const deps: GatewayDeps = {
   adminStore,
   banStore,
   rconClients,
+  createRconClient,
+  bootstrapServerAlias: config.serverAlias,
   reportRegistry: new ReportRegistry(),
   reportAntiSpam: new ReportAntiSpam<string>(),
   sessionsByServer: new Map<string, SessionLookup>(),

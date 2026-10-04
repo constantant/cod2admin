@@ -1,5 +1,16 @@
 import { sql } from 'drizzle-orm';
-import { bigint, jsonb, pgEnum, pgTable, primaryKey, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  bigint,
+  boolean,
+  jsonb,
+  pgEnum,
+  pgTable,
+  primaryKey,
+  serial,
+  text,
+  timestamp,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 
 export const adminRoleEnum = pgEnum('admin_role', ['owner', 'admin', 'moderator']);
 export const auditSourceEnum = pgEnum('audit_source', ['telegram_button', 'telegram_command', 'auto']);
@@ -31,14 +42,23 @@ export const adminServers = pgTable(
 );
 
 /** docs/PLAN.md §7. `rconPasswordEncrypted` is opaque here — see `secrets.ts` for the codec. */
-export const servers = pgTable('servers', {
-  alias: text('alias').primaryKey(),
-  rconHost: text('rcon_host').notNull(),
-  rconPort: bigint('rcon_port', { mode: 'number' }).notNull(),
-  rconPasswordEncrypted: text('rcon_password_encrypted').notNull(),
-  logSourceConfig: text('log_source_config'),
-  boundTelegramChatId: bigint('bound_telegram_chat_id', { mode: 'number' }),
-});
+export const servers = pgTable(
+  'servers',
+  {
+    alias: text('alias').primaryKey(),
+    rconHost: text('rcon_host').notNull(),
+    rconPort: bigint('rcon_port', { mode: 'number' }).notNull(),
+    rconPasswordEncrypted: text('rcon_password_encrypted').notNull(),
+    logSourceConfig: text('log_source_config'),
+    boundTelegramChatId: bigint('bound_telegram_chat_id', { mode: 'number' }),
+    /** Target of commands without `--server` in chats not bound via `/bindserver` (`/setdefault`). */
+    isDefault: boolean('is_default').notNull().default(false),
+  },
+  (table) => [
+    // At most one default server, enforced by the DB like admins_one_owner_idx.
+    uniqueIndex('servers_one_default_idx').on(table.isDefault).where(sql`${table.isDefault}`),
+  ],
+);
 
 /** docs/PLAN.md §4/§7 — every privileged action, reviewable via `/auditlog`. */
 export const auditLog = pgTable('audit_log', {

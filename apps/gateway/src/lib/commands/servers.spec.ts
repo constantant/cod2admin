@@ -11,6 +11,7 @@ const SERVER: ServerConfig = {
   rconPassword: 'pw',
   logSourceConfig: null,
   boundTelegramChatId: null,
+  isDefault: false,
 };
 
 describe('formatServersMessage', () => {
@@ -22,6 +23,12 @@ describe('formatServersMessage', () => {
     expect(formatServersMessage([{ ...SERVER, boundTelegramChatId: 100 }])).toBe(
       'default — 127.0.0.1:28960 (bound to chat 100)',
     );
+  });
+
+  it('marks the default server and the config-file server', () => {
+    expect(
+      formatServersMessage([{ ...SERVER, isDefault: true }, { ...SERVER, alias: 'ctf2', rconPort: 28996 }], 'default'),
+    ).toBe(['default — 127.0.0.1:28960 (default, from config file)', 'ctf2 — 127.0.0.1:28996'].join('\n'));
   });
 
   it('reports no servers configured when the list is empty', () => {
@@ -37,6 +44,6 @@ describe('serversCommand', () => {
 
     await serversCommand(ctx, deps);
 
-    expect(ctx.reply).toHaveBeenCalledWith('default — 127.0.0.1:28960');
+    expect(ctx.reply).toHaveBeenCalledWith('default — 127.0.0.1:28960 (from config file)');
   });
 });

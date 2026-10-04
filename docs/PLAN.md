@@ -297,6 +297,16 @@ Roles, stored in `admin-store`:
 - Every privileged action (kick/ban/unban/role change) is written to an **audit log** table
   (who, what, target, reason, timestamp, source = telegram button / telegram command / auto)
   and a `/auditlog [n]` command lets an owner review recent actions.
+- Adding servers (implemented 2026-10-04): the owner runs
+  `/addserver <alias> <host:port> <password>` in a private chat. The bot deletes that message
+  (it contains the password), checks the server answers `rcon status` with that password, and
+  only then saves it and starts using it, with no restart. In a group the command is refused,
+  and the bot tries to delete the message there too. `/removeserver <alias>` takes a server
+  out. `/setdefault <alias>` sets `servers.is_default`, which a partial unique index limits to
+  one row. Commands without `--server` use the chat's bound server first, then the default,
+  then the only server if there's just one. The server from `.env` is saved again on every
+  start, so neither command touches it. Adding the first extra server makes the `.env` server
+  the default, so commands without `--server` keep going where they went before.
 - Multi-server support: admins can be scoped to specific servers (`admin_servers` join
   table); `/servers` lists configured servers, most commands take an optional
   `--server <alias>` (default = the group chat's bound server, one Telegram group per

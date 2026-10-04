@@ -1,0 +1,2 @@
+ALTER TABLE "servers" ADD COLUMN "is_default" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "servers_one_default_idx" ON "servers" USING btree ("is_default") WHERE "servers"."is_default";

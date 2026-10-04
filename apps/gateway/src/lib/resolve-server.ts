@@ -21,8 +21,8 @@ export interface ResolvedServer {
 
 /**
  * Resolves which server a command targets (docs/PLAN.md §4/§6): an explicit `--server <alias>`
- * token, else the current chat's bound server, else the single configured server. Replies with a
- * clear error and returns `undefined` if none of those apply.
+ * token, else the current chat's bound server, else the default server (`/setdefault`), else the
+ * single configured server. Replies with a clear error and returns `undefined` if none apply.
  */
 export async function resolveServer(
   ctx: BotContext,
@@ -37,10 +37,19 @@ export async function resolveServer(
   }
 
   if (!alias) {
+    const defaultServer = await deps.adminStore.getDefaultServer();
+    if (defaultServer && deps.rconClients.has(defaultServer.alias)) {
+      alias = defaultServer.alias;
+    }
+  }
+
+  if (!alias) {
     if (deps.rconClients.size === 1) {
       alias = deps.rconClients.keys().next().value;
     } else {
-      await ctx.reply('Multiple servers configured — specify --server <alias>, or bind this chat with /bindserver.');
+      await ctx.reply(
+        'Multiple servers configured — specify --server <alias>, pick a default with /setdefault, or bind this chat with /bindserver.',
+      );
       return undefined;
     }
   }

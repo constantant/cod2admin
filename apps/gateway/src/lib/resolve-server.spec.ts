@@ -49,6 +49,7 @@ describe('resolveServer', () => {
       rconPassword: 'p',
       logSourceConfig: null,
       boundTelegramChatId: 100,
+      isDefault: false,
     });
     const ctx = createFakeCtx({ chat: { id: 100 } });
 
@@ -57,6 +58,40 @@ describe('resolveServer', () => {
     expect(server?.alias).toBe('other');
     expect(server?.rcon).toBe(asRconClient(otherRcon));
     expect(server?.rcon).not.toBe(deps.rconClients.get('default'));
+  });
+
+  it('uses the default server when nothing is specified or bound', async () => {
+    const { deps, adminStore } = createFakeDeps();
+    const otherRcon = createFakeRcon();
+    deps.rconClients.set('other', asRconClient(otherRcon));
+    adminStore.getDefaultServer.mockResolvedValue({
+      alias: 'other',
+      rconHost: 'h',
+      rconPort: 1,
+      rconPassword: 'p',
+      logSourceConfig: null,
+      boundTelegramChatId: null,
+      isDefault: true,
+    });
+    const ctx = createFakeCtx();
+
+    const server = await resolveServer(ctx, deps, undefined);
+
+    expect(server?.alias).toBe('other');
+    expect(server?.rcon).toBe(asRconClient(otherRcon));
+  });
+
+  it('prefers the chat-bound server over the default server', async () => {
+    const { deps, adminStore } = createFakeDeps();
+    deps.rconClients.set('other', asRconClient(createFakeRcon()));
+    const base = { rconHost: 'h', rconPort: 1, rconPassword: 'p', logSourceConfig: null };
+    adminStore.getServerForChat.mockResolvedValue({ ...base, alias: 'default', boundTelegramChatId: 100, isDefault: false });
+    adminStore.getDefaultServer.mockResolvedValue({ ...base, alias: 'other', boundTelegramChatId: null, isDefault: true });
+    const ctx = createFakeCtx({ chat: { id: 100 } });
+
+    const server = await resolveServer(ctx, deps, undefined);
+
+    expect(server?.alias).toBe('default');
   });
 
   it('falls back to the single configured server when there is exactly one', async () => {

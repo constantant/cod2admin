@@ -40,6 +40,7 @@ defaults to 30 minutes if omitted. IP-based.
 exact map name for `/map` is inconvenient
 `/say <message> [--server <alias>]` — broadcasts to the game server's chat
 `/bindserver <alias>` — makes *this* chat receive report cards for that server
+`/setdefault <alias>` — which server commands without `--server` go to
 `/addadmin <telegram-id-or-reply> <admin|moderator>` — reply to the person's message, or give
 their numeric Telegram ID; only the owner can grant `admin`, an admin can grant `moderator`
 `/removeadmin <telegram-id-or-reply>`
@@ -50,6 +51,11 @@ their numeric Telegram ID; only the owner can grant `admin`, an admin can grant 
 
 `/auditlog [n]` — last n actions (default 10, max 50)
 `/rcon <raw command> [--server <alias>]` — sends anything directly to the game server console
+`/addserver <alias> <host:port> <rcon password>` — adds another server to manage (or updates
+one you added before). Send it in a private chat with the bot, never in a group: the bot
+deletes the message because it contains the password, then checks the server answers before
+saving anything
+`/removeserver <alias>` — stops managing a server added with `/addserver`
 
 *Roles*
 
@@ -67,4 +73,6 @@ Everyone else needs an existing admin to run `/addadmin` for them.
 *Multi-server note*
 
 Most commands take an optional `--server <alias>` at the end if this bot manages more than one
-server — see `/servers` for the list of aliases. Without it, commands act on the default server.
+server — see `/servers` for the list of aliases. Without it, a command goes to the server bound
+to this chat (`/bindserver`), otherwise to the default server (`/setdefault`). The server from
+the bot's config file can't be changed or removed from Telegram.

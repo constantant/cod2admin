@@ -1,7 +1,7 @@
 import { and, desc, eq, ilike } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
-import { admins, auditLog, servers } from './schema.js';
+import { adminServers, admins, auditLog, servers } from './schema.js';
 import { SecretBox } from './secrets.js';
 import type {
   Admin,
@@ -115,6 +115,32 @@ export class DrizzleAdminStore implements AdminStore {
     return row ? this.toServerConfig(row) : undefined;
   }
 
+  async removeServer(alias: string): Promise<boolean> {
+    return this.db.transaction(async (tx) => {
+      await tx.delete(adminServers).where(eq(adminServers.serverAlias, alias));
+      const deleted = await tx.delete(servers).where(eq(servers.alias, alias)).returning({ alias: servers.alias });
+      return deleted.length > 0;
+    });
+  }
+
+  async setDefaultServer(alias: string): Promise<boolean> {
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx.select({ alias: servers.alias }).from(servers).where(eq(servers.alias, alias));
+      if (!row) {
+        return false;
+      }
+      // Clear first: servers_one_default_idx allows only one true row at any moment.
+      await tx.update(servers).set({ isDefault: false }).where(eq(servers.isDefault, true));
+      await tx.update(servers).set({ isDefault: true }).where(eq(servers.alias, alias));
+      return true;
+    });
+  }
+
+  async getDefaultServer(): Promise<ServerConfig | undefined> {
+    const [row] = await this.db.select().from(servers).where(eq(servers.isDefault, true));
+    return row ? this.toServerConfig(row) : undefined;
+  }
+
   async recordAuditLog(entry: RecordAuditLogInput): Promise<void> {
     await this.db.insert(auditLog).values({
       actorTelegramId: entry.actorTelegramId,
@@ -154,6 +180,7 @@ export class DrizzleAdminStore implements AdminStore {
       rconPassword: this.secretBox.decrypt(row.rconPasswordEncrypted),
       logSourceConfig: row.logSourceConfig,
       boundTelegramChatId: row.boundTelegramChatId,
+      isDefault: row.isDefault,
     };
   }
 }

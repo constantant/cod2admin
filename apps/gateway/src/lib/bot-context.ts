@@ -8,7 +8,8 @@ import type { AdminRole } from '@cod2admin/admin-store';
  */
 export interface BotContext {
   from?: { id: number; username?: string };
-  chat?: { id: number };
+  /** `type` is "private" | "group" | "supergroup" | "channel" on real updates. */
+  chat?: { id: number; type?: string };
   /** Text following the command name, e.g. "12 griefing" for "/kick 12 griefing". */
   match?: string | number | RegExpMatchArray;
   /** The Telegram ID of whoever's message this command replied to, if any (e.g. /addadmin). */
@@ -16,6 +17,8 @@ export interface BotContext {
   /** Set by `requireRole` (auth.ts) once the actor is looked up — undefined before that runs. */
   admin?: { telegramId: number; role: AdminRole };
   reply(text: string, other?: unknown): Promise<unknown>;
+  /** Deletes the message that triggered this update — grammy's `ctx.deleteMessage()`. */
+  deleteMessage?(): Promise<unknown>;
 }
 
 export function matchText(ctx: BotContext): string {

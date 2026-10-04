@@ -15,6 +15,8 @@ export interface ServerConfig {
   rconPassword: string;
   logSourceConfig: string | null;
   boundTelegramChatId: number | null;
+  /** Set via `setDefaultServer` — at most one server has it. */
+  isDefault: boolean;
 }
 
 export interface UpsertServerInput {
@@ -71,6 +73,11 @@ export interface AdminStore {
   listServers(): Promise<ServerConfig[]>;
   bindServerToChat(alias: string, chatId: number): Promise<void>;
   getServerForChat(chatId: number): Promise<ServerConfig | undefined>;
+  /** Deletes the server and its per-admin scoping rows. `false` if no such server existed. */
+  removeServer(alias: string): Promise<boolean>;
+  /** Makes this server the only default one. `false` (nothing changed) if no such server exists. */
+  setDefaultServer(alias: string): Promise<boolean>;
+  getDefaultServer(): Promise<ServerConfig | undefined>;
 
   recordAuditLog(entry: RecordAuditLogInput): Promise<void>;
   listAuditLog(limit: number): Promise<AuditLogEntry[]>;

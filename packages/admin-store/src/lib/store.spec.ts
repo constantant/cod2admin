@@ -99,6 +99,45 @@ describe('DrizzleAdminStore', () => {
 
       await expect(store.getServerForChat(999)).resolves.toMatchObject({ alias: 'default' });
     });
+
+    it('keeps exactly one default server, switching it on setDefaultServer', async () => {
+      await store.upsertServer({ alias: 'a', rconHost: 'h', rconPort: 1, rconPassword: 'pw' });
+      await store.upsertServer({ alias: 'b', rconHost: 'h', rconPort: 2, rconPassword: 'pw' });
+      await expect(store.getDefaultServer()).resolves.toBeUndefined();
+
+      await expect(store.setDefaultServer('a')).resolves.toBe(true);
+      await expect(store.getDefaultServer()).resolves.toMatchObject({ alias: 'a', isDefault: true });
+
+      await expect(store.setDefaultServer('b')).resolves.toBe(true);
+      await expect(store.getDefaultServer()).resolves.toMatchObject({ alias: 'b' });
+      await expect(store.getServer('a')).resolves.toMatchObject({ isDefault: false });
+    });
+
+    it('leaves the default unchanged when asked to default an unknown server', async () => {
+      await store.upsertServer({ alias: 'a', rconHost: 'h', rconPort: 1, rconPassword: 'pw' });
+      await store.setDefaultServer('a');
+
+      await expect(store.setDefaultServer('nope')).resolves.toBe(false);
+      await expect(store.getDefaultServer()).resolves.toMatchObject({ alias: 'a' });
+    });
+
+    it('keeps the default flag when the same server is upserted again (e.g. on every boot)', async () => {
+      await store.upsertServer({ alias: 'a', rconHost: 'h', rconPort: 1, rconPassword: 'pw' });
+      await store.setDefaultServer('a');
+      await store.upsertServer({ alias: 'a', rconHost: 'h', rconPort: 1, rconPassword: 'new-pw' });
+
+      await expect(store.getDefaultServer()).resolves.toMatchObject({ alias: 'a' });
+    });
+
+    it('removes a server and its per-admin scoping rows', async () => {
+      await store.upsertServer({ alias: 'a', rconHost: 'h', rconPort: 1, rconPassword: 'pw' });
+      await pool.query("INSERT INTO admin_servers (telegram_id, server_alias) VALUES (1, 'a')");
+
+      await expect(store.removeServer('a')).resolves.toBe(true);
+      await expect(store.getServer('a')).resolves.toBeUndefined();
+      await expect(pool.query('SELECT * FROM admin_servers')).resolves.toMatchObject({ rowCount: 0 });
+      await expect(store.removeServer('a')).resolves.toBe(false);
+    });
   });
 
   describe('audit log', () => {

@@ -3,6 +3,7 @@ import { Bot, type Context } from 'grammy';
 import { requireRole } from './auth.js';
 import type { BotContext } from './bot-context.js';
 import { addAdminCommand } from './commands/addadmin.js';
+import { addServerCommand } from './commands/addserver.js';
 import { auditLogCommand } from './commands/auditlog.js';
 import { banCommand } from './commands/ban.js';
 import { bansCommand } from './commands/bans.js';
@@ -16,9 +17,11 @@ import { mapsCommand, mapsSelectCallback, type MapsCallbackContext } from './com
 import { playersCommand } from './commands/players.js';
 import { rconCommand } from './commands/rcon.js';
 import { removeAdminCommand } from './commands/removeadmin.js';
+import { removeServerCommand } from './commands/removeserver.js';
 import { reportActionCallback, type ReportCallbackContext } from './reports.js';
 import { sayCommand } from './commands/say.js';
 import { serversCommand } from './commands/servers.js';
+import { setDefaultCommand } from './commands/setdefault.js';
 import { setRoleCommand } from './commands/setrole.js';
 import { STATUS_REFRESH_CALLBACK_DATA, statusCommand, statusRefreshCallback } from './commands/status.js';
 import { tempbanCommand } from './commands/tempban.js';
@@ -119,6 +122,7 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
   bot.command('maps', requireAdmin, (ctx) => mapsCommand(ctx, deps));
   bot.command('say', requireAdmin, (ctx) => sayCommand(ctx, deps));
   bot.command('bindserver', requireAdmin, (ctx) => bindServerCommand(ctx, deps));
+  bot.command('setdefault', requireAdmin, (ctx) => setDefaultCommand(ctx, deps));
   bot.command('addadmin', requireAdmin, (ctx) => addAdminCommand(withReplyToUserId(ctx), deps));
   bot.command('removeadmin', requireAdmin, (ctx) => removeAdminCommand(withReplyToUserId(ctx), deps));
   bot.command('setrole', requireAdmin, (ctx) => setRoleCommand(withReplyToUserId(ctx), deps));
@@ -127,6 +131,8 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
   bot.command('auditlog', requireOwner, (ctx) => auditLogCommand(ctx, deps));
   bot.command('rcon', requireOwner, (ctx) => rconCommand(ctx, deps));
   bot.command('update', requireOwner, (ctx) => updateCommand(ctx, deps));
+  bot.command('addserver', requireOwner, (ctx) => addServerCommand(ctx, deps));
+  bot.command('removeserver', requireOwner, (ctx) => removeServerCommand(ctx, deps));
 
   bot.callbackQuery(STATUS_REFRESH_CALLBACK_DATA, requireAny, (ctx) => statusRefreshCallback(ctx, deps));
   bot.callbackQuery(/^map:/, requireAdmin, (ctx) => mapsSelectCallback(toMapsCallbackContext(ctx), deps));

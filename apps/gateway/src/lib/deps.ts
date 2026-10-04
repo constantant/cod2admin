@@ -23,7 +23,15 @@ export interface UpdateFeatureConfig {
 export interface GatewayDeps {
   adminStore: AdminStore;
   banStore: BanStore;
+  /** Every managed server by alias. `/addserver`/`/removeserver` change it while the bot runs. */
   rconClients: Map<string, RconClient>;
+  /** Builds an `RconClient` with the gateway's settings (e.g. text encoding) — used by `/addserver`. */
+  createRconClient(server: { host: string; port: number; password: string }): RconClient;
+  /**
+   * The server `main.ts` saves from `.env` (`COD2_SERVER_ALIAS`) on every start. `/addserver` and
+   * `/removeserver` refuse to touch it, since the next restart would undo the change.
+   */
+  bootstrapServerAlias: string;
   /**
    * Report-card state (docs/PLAN.md §5 steps 4/6) — process-lifetime, shared between `bot.ts`'s
    * callback handler and `main.ts`'s `GameLogTailer` wiring (`report-tailers.ts`), so both sides

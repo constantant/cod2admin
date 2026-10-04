@@ -35,6 +35,8 @@ export function createFakeDeps(): FakeDeps {
       adminStore,
       banStore,
       rconClients: new Map([['default', asRconClient(rcon)]]),
+      createRconClient: () => asRconClient(createFakeRcon()),
+      bootstrapServerAlias: 'default',
       reportRegistry: new ReportRegistry(),
       reportAntiSpam: new ReportAntiSpam<string>(),
       sessionsByServer: new Map<string, SessionLookup>(),
