@@ -153,8 +153,12 @@ else
   const start = text.search(heading);
   if (start === -1) throw new Error("No CHANGELOG.md section found for " + version);
   const rest = text.slice(start);
-  const nextHeadingOffset = rest.slice(1).search(/^#{1,2} /m);
-  const section = nextHeadingOffset === -1 ? rest : rest.slice(0, nextHeadingOffset + 1);
+  // Search for the next release heading only past this one's own heading line. Searching from
+  // offset 1 (as this once did) matched this same heading again for "## " ones ("# [x.y.z]" at
+  // offset 1), truncating every H2 release's notes to a lone "#" from v1.0.1 through v1.6.0.
+  const bodyStart = rest.indexOf("\n") + 1;
+  const nextHeadingOffset = rest.slice(bodyStart).search(/^#{1,2} /m);
+  const section = nextHeadingOffset === -1 ? rest : rest.slice(0, bodyStart + nextHeadingOffset);
   fs.writeFileSync(process.argv[2], section.trim() + "\n");
   ' "$VERSION" "$NOTES_FILE"
 
