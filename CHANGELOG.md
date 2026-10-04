@@ -1,3 +1,14 @@
+## [1.5.0](https://github.com/constantant/cod2admin/releases/tag/v1.5.0) (2026-10-04)
+
+### 🚀 Features
+
+- **gateway:** reach Telegram through free relays where it's blocked ([8766fb1](https://github.com/constantant/cod2admin/commit/8766fb1))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5
+- kk
+
 ## [1.4.0](https://github.com/constantant/cod2admin/releases/tag/v1.4.0) (2026-10-04)
 
 ### 🚀 Features
