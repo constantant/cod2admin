@@ -15,6 +15,13 @@
       "when": 1791108392332,
       "tag": "0001_servers_default",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791119205092,
+      "tag": "0002_settings",
+      "breakpoints": true
     }
   ]
 }

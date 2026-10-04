@@ -1,7 +1,7 @@
 import { and, desc, eq, ilike } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
-import { adminServers, admins, auditLog, servers } from './schema.js';
+import { adminServers, admins, auditLog, servers, settings } from './schema.js';
 import { SecretBox } from './secrets.js';
 import type {
   Admin,
@@ -139,6 +139,22 @@ export class DrizzleAdminStore implements AdminStore {
   async getDefaultServer(): Promise<ServerConfig | undefined> {
     const [row] = await this.db.select().from(servers).where(eq(servers.isDefault, true));
     return row ? this.toServerConfig(row) : undefined;
+  }
+
+  async getSetting(key: string): Promise<unknown> {
+    const [row] = await this.db.select({ value: settings.value }).from(settings).where(eq(settings.key, key));
+    return row?.value;
+  }
+
+  async setSetting(key: string, value: unknown): Promise<void> {
+    await this.db
+      .insert(settings)
+      .values({ key, value })
+      .onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: new Date() } });
+  }
+
+  async deleteSetting(key: string): Promise<void> {
+    await this.db.delete(settings).where(eq(settings.key, key));
   }
 
   async recordAuditLog(entry: RecordAuditLogInput): Promise<void> {

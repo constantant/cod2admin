@@ -24,7 +24,7 @@ describe('DrizzleAdminStore', () => {
   });
 
   beforeEach(async () => {
-    await pool.query('TRUNCATE admins, admin_servers, servers, audit_log RESTART IDENTITY CASCADE');
+    await pool.query('TRUNCATE admins, admin_servers, servers, audit_log, settings RESTART IDENTITY CASCADE');
   });
 
   describe('claimOwner', () => {
@@ -137,6 +137,19 @@ describe('DrizzleAdminStore', () => {
       await expect(store.getServer('a')).resolves.toBeUndefined();
       await expect(pool.query('SELECT * FROM admin_servers')).resolves.toMatchObject({ rowCount: 0 });
       await expect(store.removeServer('a')).resolves.toBe(false);
+    });
+  });
+
+  describe('settings', () => {
+    it('stores, overwrites and deletes a JSON setting', async () => {
+      await expect(store.getSetting('telegram.routes')).resolves.toBeUndefined();
+
+      await store.setSetting('telegram.routes', { direct: true, relays: ['https://a.example'] });
+      await store.setSetting('telegram.routes', { direct: false, relays: ['https://b.example'] });
+      await expect(store.getSetting('telegram.routes')).resolves.toEqual({ direct: false, relays: ['https://b.example'] });
+
+      await store.deleteSetting('telegram.routes');
+      await expect(store.getSetting('telegram.routes')).resolves.toBeUndefined();
     });
   });
 

@@ -4,6 +4,7 @@ import type { RconClient } from '@cod2admin/rcon-client';
 import type { ReportAntiSpam, SessionLookup } from '@cod2admin/report-pipeline';
 import type { CountryLookup } from './geoip.js';
 import type { GithubReleaseClient } from './github-releases.js';
+import type { RouteProbeResult, TelegramRouter, TelegramRouteSettings } from './telegram-routes.js';
 import type { ReportRegistry } from './reports.js';
 import type { UpdateRegistry } from './update-registry.js';
 
@@ -35,6 +36,14 @@ export interface GatewayDeps {
   bootstrapServerAlias: string;
   /** IP → country for `/players`, `/bans` and report cards — `NO_COUNTRY_LOOKUP` when off. */
   geoip: CountryLookup;
+  /** How the bot reaches Telegram (telegram-routes.ts) — managed with `/relays`. */
+  telegramRoutes: {
+    router: TelegramRouter;
+    /** What applies until `/relays` changes it: `.env`, else direct + the built-in shared relays. */
+    defaults: TelegramRouteSettings;
+    /** `getMe` through one route, with this bot's token. */
+    probe(root: string): Promise<RouteProbeResult>;
+  };
   /**
    * Report-card state (docs/PLAN.md §5 steps 4/6) — process-lifetime, shared between `bot.ts`'s
    * callback handler and `main.ts`'s `GameLogTailer` wiring (`report-tailers.ts`), so both sides

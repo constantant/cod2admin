@@ -20,6 +20,9 @@ export interface FakeAdminStore extends AdminStore {
   removeServer: Mock<AdminStore['removeServer']>;
   setDefaultServer: Mock<AdminStore['setDefaultServer']>;
   getDefaultServer: Mock<AdminStore['getDefaultServer']>;
+  getSetting: Mock<AdminStore['getSetting']>;
+  setSetting: Mock<AdminStore['setSetting']>;
+  deleteSetting: Mock<AdminStore['deleteSetting']>;
   recordAuditLog: Mock<AdminStore['recordAuditLog']>;
   listAuditLog: Mock<AdminStore['listAuditLog']>;
   listAuditLogForTarget: Mock<AdminStore['listAuditLogForTarget']>;
@@ -48,6 +51,9 @@ export function createFakeAdminStore(overrides: Partial<{ admins: Admin[] }> = {
     removeServer: vi.fn().mockResolvedValue(true),
     setDefaultServer: vi.fn().mockResolvedValue(true),
     getDefaultServer: vi.fn().mockResolvedValue(undefined),
+    getSetting: vi.fn().mockResolvedValue(undefined),
+    setSetting: vi.fn().mockResolvedValue(undefined),
+    deleteSetting: vi.fn().mockResolvedValue(undefined),
     recordAuditLog: vi.fn().mockResolvedValue(undefined),
     listAuditLog: vi.fn().mockResolvedValue([]),
     listAuditLogForTarget: vi.fn().mockResolvedValue([]),

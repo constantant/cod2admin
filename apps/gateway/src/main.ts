@@ -11,6 +11,18 @@ import { loadConfig } from './lib/config.js';
 import type { GatewayDeps, UpdateFeatureConfig } from './lib/deps.js';
 import { startExpiryPoller } from './lib/expiry-poller.js';
 import { GeoIpDatabase, GeoIpUpdater, NO_COUNTRY_LOOKUP } from './lib/geoip.js';
+import {
+  DEFAULT_TELEGRAM_RELAYS,
+  describeRoute,
+  parseRouteSettings,
+  probeRoute,
+  ROUTES_SETTING_KEY,
+  routesFrom,
+  selectWorkingRoute,
+  startPreferredRouteCheck,
+  TelegramRouter,
+  type TelegramRouteSettings,
+} from './lib/telegram-routes.js';
 import { createGithubReleaseClient } from './lib/github-releases.js';
 import { startReportTailers } from './lib/report-tailers.js';
 import { ReportRegistry } from './lib/reports.js';
@@ -80,6 +92,27 @@ if (config.geoip.enabled) {
   void geoipUpdater.start();
 }
 
+// How the bot reaches Telegram (lib/telegram-routes.ts, docs/PLAN-russia-access.md): a /relays
+// change stored in the database wins over .env, which wins over direct + the built-in relays.
+const telegramDefaults: TelegramRouteSettings = {
+  direct: config.telegram.direct,
+  relays: config.telegram.relays ?? [...DEFAULT_TELEGRAM_RELAYS],
+};
+const telegramRouteSettings = parseRouteSettings(await adminStore.getSetting(ROUTES_SETTING_KEY)) ?? telegramDefaults;
+const telegramRouter = new TelegramRouter(routesFrom(telegramRouteSettings));
+const probeTelegramRoute = (root: string) => probeRoute(root, config.telegramBotToken);
+const routeResults = await selectWorkingRoute(telegramRouter, probeTelegramRoute);
+if ([...routeResults.values()].some((result) => result.ok)) {
+  console.log(`Telegram: connecting via ${describeRoute(telegramRouter.current)}`);
+} else {
+  console.warn(
+    'Telegram: no route reaches the Bot API right now (' +
+      [...routeResults].map(([root, result]) => `${describeRoute(root)}: ${result.ok ? 'ok' : result.error}`).join('; ') +
+      ') — retrying in the background. If this host is in Russia, see docs/PLAN-russia-access.md.',
+  );
+}
+startPreferredRouteCheck(telegramRouter, probeTelegramRoute);
+
 // Report-card state (docs/PLAN.md §5 steps 4/6) — process-lifetime, shared between the bot's
 // callback handler and the GameLogTailer wiring below, so both sides see the same in-flight
 // reports/cooldowns.
@@ -90,6 +123,7 @@ const deps: GatewayDeps = {
   createRconClient,
   bootstrapServerAlias: config.serverAlias,
   geoip: config.geoip.enabled ? geoipDatabase : NO_COUNTRY_LOOKUP,
+  telegramRoutes: { router: telegramRouter, defaults: telegramDefaults, probe: probeTelegramRoute },
   reportRegistry: new ReportRegistry(),
   reportAntiSpam: new ReportAntiSpam<string>(),
   sessionsByServer: new Map<string, SessionLookup>(),
@@ -110,6 +144,8 @@ startVersionCheckPoller(deps, bot);
 startReportTailers(servers, deps, bot, config.textEncoding);
 
 void bot.start({
+  // Small batches keep each relay response well under 16 KB (see the Cloudflare note in bot.ts).
+  limit: 10,
   onStart: (botInfo) => {
     console.log(`cod2admin gateway started as @${botInfo.username}`);
   },

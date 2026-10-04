@@ -1,4 +1,5 @@
 import { UdpQueryTimeoutError } from '@cod2admin/rcon-client';
+import { Agent } from 'node:https';
 import { Bot, type Context } from 'grammy';
 import { requireRole } from './auth.js';
 import type { BotContext } from './bot-context.js';
@@ -17,6 +18,7 @@ import { mapsCommand, mapsSelectCallback, type MapsCallbackContext } from './com
 import { playersCommand } from './commands/players.js';
 import { rconCommand } from './commands/rcon.js';
 import { removeAdminCommand } from './commands/removeadmin.js';
+import { relaysCommand } from './commands/relays.js';
 import { removeServerCommand } from './commands/removeserver.js';
 import { reportActionCallback, type ReportCallbackContext } from './reports.js';
 import { sayCommand } from './commands/say.js';
@@ -30,6 +32,7 @@ import { updateActionCallback, updateCommand, type UpdateCallbackContext } from 
 import type { GatewayConfig } from './config.js';
 import type { GatewayDeps } from './deps.js';
 import { describeIpLong } from './geoip.js';
+import { failoverTransformer } from './telegram-routes.js';
 
 /**
  * Phase 2 Telegram bot (docs/PLAN.md §9): role-gated (owner/admin/moderator), multi-server,
@@ -100,7 +103,18 @@ async function notifyServerUnresponsive(ctx: Context): Promise<void> {
 }
 
 export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret: string): Bot {
-  const bot = new Bot(config.telegramBotToken);
+  const { router } = deps.telegramRoutes;
+  const bot = new Bot(config.telegramBotToken, {
+    client: {
+      // Every request goes to the current route — direct or a relay (telegram-routes.ts).
+      buildUrl: router.buildUrl,
+      // A fresh connection per request: Russian ISPs cut connections to Cloudflare (one of the
+      // relay platforms) after 16 KB, which a reused connection would eventually hit. With one long
+      // poll every ~30s, the extra handshakes cost nothing noticeable.
+      baseFetchConfig: { agent: new Agent({ keepAlive: false }) },
+    },
+  });
+  bot.api.config.use(failoverTransformer(router));
 
   const requireOwner = requireRole('owner', deps.adminStore);
   const requireAdmin = requireRole('admin', deps.adminStore);
@@ -134,6 +148,7 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
   bot.command('update', requireOwner, (ctx) => updateCommand(ctx, deps));
   bot.command('addserver', requireOwner, (ctx) => addServerCommand(ctx, deps));
   bot.command('removeserver', requireOwner, (ctx) => removeServerCommand(ctx, deps));
+  bot.command('relays', requireOwner, (ctx) => relaysCommand(ctx, deps));
 
   bot.callbackQuery(STATUS_REFRESH_CALLBACK_DATA, requireAny, (ctx) => statusRefreshCallback(ctx, deps));
   bot.callbackQuery(/^map:/, requireAdmin, (ctx) => mapsSelectCallback(toMapsCallbackContext(ctx), deps));

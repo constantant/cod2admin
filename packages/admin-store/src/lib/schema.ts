@@ -60,6 +60,16 @@ export const servers = pgTable(
   ],
 );
 
+/**
+ * Settings the owner changes from Telegram (e.g. `/relays`), overriding the `.env` defaults. One
+ * row per key, value as JSON — the shape belongs to whichever feature owns the key.
+ */
+export const settings = pgTable('settings', {
+  key: text('key').primaryKey(),
+  value: jsonb('value').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 /** docs/PLAN.md §4/§7 — every privileged action, reviewable via `/auditlog`. */
 export const auditLog = pgTable('audit_log', {
   id: serial('id').primaryKey(),

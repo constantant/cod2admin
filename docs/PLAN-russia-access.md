@@ -1,7 +1,59 @@
 # CoD2 Admin — Working Around the Telegram Block in Russia
 
-Status: **plan, not yet implemented** (2026-10-03). Condensed Russian summary for the server
-owner: `docs/PLAN-russia-access-ru.md` — keep the two in sync.
+Status: **part A implemented (2026-10-04), with free relays instead of a paid VPS** — see §0.
+§1–§8 below are the original plan (2026-10-03), kept for its reasoning. Where they conflict
+with §0, §0 is what was built. Condensed Russian summary for the server owner:
+`docs/PLAN-russia-access-ru.md` — keep the two in sync.
+
+## 0. What was built (2026-10-04)
+
+The owner's constraint: **no extra server and no payment.** That ruled out §2's recommended
+A1, a relay on our own VPS, so a second round of research measured the free options from
+inside Russia instead.
+
+**Measurements** (2026-10-04, [Globalping](https://globalping.io) probes in 8 Russian hosting
+networks: Timeweb, Yandex.Cloud, Selectel ×2, Cloud.ru, Hosting technology, Mediasoft,
+Adman/PortTelekom):
+
+| Target | From Russian hosting |
+|---|---|
+| `api.telegram.org` | **7 of 8 blocked**: the TCP connection never opens. Webhooks don't help either, since the block works both ways. |
+| `*.deno.net` (Deno Deploy), `*.workers.dev` (Cloudflare), `*.netlify.app` | 8 of 8 reachable |
+| `*.vercel.app` | 4 of 8 blocked, so not used |
+| Tor bridges (from reports, not measured) | getting worse: Snowflake partly blocked, obfs4 blocked on some ISPs |
+
+**Design.** A ~70-line relay, `packages/telegram-relay`, runs on free edge platforms. It
+forwards only Bot API paths, logs nothing, and has a token-free `/health` check. Two shared
+relays are run for the project on free accounts with no card:
+`https://cod2admin-telegram-relay.cod2admin.deno.net` and
+`https://cod2admin-telegram-relay.cod2admin.workers.dev`. Both were verified from all 8
+Russian networks: `/health` was reachable and the relay reached Telegram. A real `getMe`
+also worked through each one.
+
+- **Routes in the gateway** (`apps/gateway/src/lib/telegram-routes.ts`): an ordered list, with
+  direct access first, then relays. At startup the gateway picks the first route that answers
+  `getMe`. Every request uses the current route, via grammy's `buildUrl`.
+  - **Failover:** when a request fails with a network error, the gateway moves to the next route
+    and retries.
+  - **Returning to direct:** every 30 minutes it checks whether an earlier route (e.g. direct)
+    works again.
+- **Managed from Telegram:** `/relays` (owner-only) shows, tests, adds (only after the relay
+  actually reaches Telegram), removes and resets routes. Changes are stored in admin-store's new
+  `settings` table and take effect immediately. Precedence: `/relays`, then `.env`
+  (`TELEGRAM_RELAYS`, `TELEGRAM_DIRECT`), then direct plus the built-in shared relays.
+- **Cloudflare's 16 KB cap:** Russian ISPs cut Cloudflare connections after 16 KB. Every Bot
+  API request uses a fresh connection (no keep-alive), and `getUpdates` fetches at most 10
+  updates at a time. Deno is listed first anyway.
+- **Installer:** its token check tries the same routes. A rejected token (exit 2) is asked for
+  again. "No route works" (exit 3) offers to enter a relay URL or finish anyway. With
+  `--config`, it warns and continues. The final start check then only warns, since the bot
+  keeps retrying.
+- **Trust:** tokens pass through the relays. The code is open and logs nothing, and anyone can
+  deploy their own relay (see `packages/telegram-relay/README.md`) and drop the shared ones with
+  `/relays`.
+
+**Still open (B):** admins' own Telegram apps in Russia need a VPN or MTProto proxy. Relays only
+carry the bot's traffic. Free public MTProxy lists exist, but they're unreliable.
 
 ## 1. Problem
 

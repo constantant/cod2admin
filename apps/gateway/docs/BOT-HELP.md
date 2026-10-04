@@ -58,6 +58,9 @@ one you added before). Send it in a private chat with the bot, never in a group:
 deletes the message because it contains the password, then checks the server answers before
 saving anything
 `/removeserver <alias>` — stops managing a server added with `/addserver`
+`/relays` — how the bot reaches Telegram: directly, or through relays where Telegram is blocked
+(e.g. servers in Russia). `/relays test` checks every route; `add <url>`, `remove <n>`,
+`direct on|off` and `reset` change the list, effective immediately
 
 *Roles*
 

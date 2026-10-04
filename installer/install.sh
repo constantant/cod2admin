@@ -105,6 +105,8 @@ FILE format for --config (KEY=VALUE, one per line):
   COD2_RCON_PORT=28960
   COD2_RCON_PASSWORD=...
   COD2_LOG_PATH=/path/to/games_mp.log   (optional)
+  TELEGRAM_RELAYS=https://...      (optional, comma-separated - if Telegram is blocked here)
+  TELEGRAM_DIRECT=false            (optional - skip api.telegram.org, use only relays)
   DB_MODE=local|external
   DATABASE_URL=...                 (required if DB_MODE=external)
 EOF
@@ -213,21 +215,31 @@ socket.send(Buffer.concat([OOB, Buffer.from('getinfo', 'binary')]), Number(port)
 });
 EOF
 
+  # Tries each route to the Bot API in order (direct, then relays - see telegram_routes below).
+  # Exit 0: "ok <bot username> <route>". Exit 2: Telegram rejected the token. Exit 3: no route
+  # reached Telegram at all - e.g. it's blocked from this country (docs/PLAN-russia-access.md).
   cat > "$TMP_DIR/telegram-check.mjs" <<'EOF'
-const token = process.argv[2];
-try {
-  const res = await fetch(`https://api.telegram.org/bot${token}/getMe`, { signal: AbortSignal.timeout(8000) });
-  const body = await res.json();
-  if (body.ok) {
-    process.stdout.write(`ok ${body.result.username}\n`);
-    process.exit(0);
+const [token, routesCsv] = process.argv.slice(2);
+const errors = [];
+for (const root of routesCsv.split(',').filter(Boolean)) {
+  try {
+    const res = await fetch(`${root}/bot${token}/getMe`, { signal: AbortSignal.timeout(8000) });
+    if (res.status === 401) {
+      console.error('Telegram rejected the bot token');
+      process.exit(2);
+    }
+    const body = await res.json();
+    if (body.ok) {
+      process.stdout.write(`ok ${body.result.username} ${root}\n`);
+      process.exit(0);
+    }
+    errors.push(`${root}: ${body.description ?? res.status}`);
+  } catch (err) {
+    errors.push(`${root}: ${err.message ?? String(err)}`);
   }
-  console.error(body.description ?? 'Telegram API rejected the token');
-  process.exit(1);
-} catch (err) {
-  console.error(err.message ?? String(err));
-  process.exit(1);
 }
+console.error(errors.join('; '));
+process.exit(3);
 EOF
 
   cat > "$TMP_DIR/db-check.mjs" <<'EOF'
@@ -465,6 +477,15 @@ EOF
 
 TELEGRAM_BOT_TOKEN=""
 OWNER_TELEGRAM_ID=""
+# Shared relays to the Telegram Bot API, tried when api.telegram.org can't be reached (blocked in
+# Russia - docs/PLAN-russia-access.md). Comma-separated. Keep in sync with DEFAULT_TELEGRAM_RELAYS in
+# apps/gateway/src/lib/telegram-routes.ts - a gateway test checks they match.
+DEFAULT_TELEGRAM_RELAYS="https://cod2admin-telegram-relay.cod2admin.deno.net,https://cod2admin-telegram-relay.cod2admin.workers.dev"
+TELEGRAM_RELAYS=""
+TELEGRAM_DIRECT=""
+# Set when no route reached Telegram during install: the install still finishes, and the final
+# check only warns instead of failing.
+TELEGRAM_UNVERIFIED=""
 COD2_SERVER_ALIAS="default"
 COD2_RCON_HOST=""
 COD2_RCON_PORT=""
@@ -472,18 +493,78 @@ COD2_RCON_PASSWORD=""
 COD2_LOG_PATH=""
 SECRETS_ENCRYPTION_KEY=""
 
+# Routes to the Bot API in the order the bot tries them: api.telegram.org itself (unless
+# TELEGRAM_DIRECT=false), then TELEGRAM_RELAYS if given, else the shared DEFAULT_TELEGRAM_RELAYS.
+telegram_routes() {
+  _routes=""
+  [ "$TELEGRAM_DIRECT" = "false" ] || _routes="https://api.telegram.org"
+  _relays=${TELEGRAM_RELAYS:-$DEFAULT_TELEGRAM_RELAYS}
+  if [ -n "$_relays" ]; then
+    _routes="${_routes:+$_routes,}$_relays"
+  fi
+  printf '%s' "$_routes"
+}
+
+# Sets CHECK_RC (0 ok, 2 token rejected, 3 Telegram unreachable) and CHECK_OUT.
+check_telegram_token() {
+  CHECK_RC=0
+  CHECK_OUT=$(node "$TMP_DIR/telegram-check.mjs" "$1" "$(telegram_routes)" 2>&1) || CHECK_RC=$?
+}
+
+report_telegram_connected() {
+  # CHECK_OUT is "ok <username> <route>"
+  set -- $CHECK_OUT
+  if [ "$3" = "https://api.telegram.org" ]; then
+    success "Connected as @$2"
+  else
+    success "Connected as @$2 (via relay $3 - Telegram isn't reachable directly from this server)"
+  fi
+}
+
 wizard_telegram() {
   step "Telegram bot"
   if [ -n "$CONFIG_FILE" ]; then
     config_get TELEGRAM_BOT_TOKEN; TELEGRAM_BOT_TOKEN=$CONFIG_VALUE
+    config_get TELEGRAM_RELAYS; TELEGRAM_RELAYS=$CONFIG_VALUE
+    config_get TELEGRAM_DIRECT; TELEGRAM_DIRECT=$CONFIG_VALUE
     [ -n "$TELEGRAM_BOT_TOKEN" ] || die "TELEGRAM_BOT_TOKEN missing from config file."
-    node "$TMP_DIR/telegram-check.mjs" "$TELEGRAM_BOT_TOKEN" >/dev/null || die "Telegram rejected TELEGRAM_BOT_TOKEN from the config file."
+    check_telegram_token "$TELEGRAM_BOT_TOKEN"
+    case $CHECK_RC in
+      0) report_telegram_connected ;;
+      2) die "Telegram rejected TELEGRAM_BOT_TOKEN from the config file." ;;
+      *)
+        warn "Couldn't reach Telegram from this server on any route ($CHECK_OUT)."
+        warn "Finishing the install anyway - the bot keeps retrying. If Telegram is blocked here, add"
+        warn "TELEGRAM_RELAYS=<relay url> to the config (see installer/README.md) and re-run with --config."
+        TELEGRAM_UNVERIFIED=1 ;;
+    esac
   else
     info "You'll need a bot token from @BotFather on Telegram (create a bot, it gives you a token)."
     while true; do
       ask "Telegram bot token" ""
-      _out=$(node "$TMP_DIR/telegram-check.mjs" "$REPLY_VALUE" 2>&1) && { TELEGRAM_BOT_TOKEN=$REPLY_VALUE; success "Connected as @${_out#ok }"; break; }
-      warn "Couldn't verify that token: $_out"
+      check_telegram_token "$REPLY_VALUE"
+      case $CHECK_RC in
+        0) TELEGRAM_BOT_TOKEN=$REPLY_VALUE; report_telegram_connected; break ;;
+        2) warn "Telegram rejected that token - copy it again from @BotFather." ;;
+        *)
+          TELEGRAM_BOT_TOKEN=$REPLY_VALUE
+          warn "Couldn't reach Telegram from this server on any route: $CHECK_OUT"
+          info "Telegram is blocked from some countries (e.g. Russia). If you have a relay (see"
+          info "installer/README.md, \"Telegram blocked?\"), enter its URL to try it. Leave blank to finish"
+          info "installing anyway - the bot keeps retrying, and the owner can add relays later with /relays."
+          ask "Relay URL (optional)" ""
+          if [ -z "$REPLY_VALUE" ]; then
+            TELEGRAM_UNVERIFIED=1
+            break
+          fi
+          TELEGRAM_RELAYS="${TELEGRAM_RELAYS:+$TELEGRAM_RELAYS,}$REPLY_VALUE"
+          check_telegram_token "$TELEGRAM_BOT_TOKEN"
+          if [ "$CHECK_RC" -eq 0 ]; then
+            report_telegram_connected
+            break
+          fi
+          warn "Still couldn't reach Telegram: $CHECK_OUT" ;;
+      esac
     done
   fi
 
@@ -574,6 +655,8 @@ write_env() {
     printf 'COD2_RCON_PORT=%s\n' "$COD2_RCON_PORT"
     printf 'COD2_RCON_PASSWORD=%s\n' "$COD2_RCON_PASSWORD"
     [ -n "$COD2_LOG_PATH" ] && printf 'COD2_LOG_PATH=%s\n' "$COD2_LOG_PATH"
+    [ -n "$TELEGRAM_RELAYS" ] && printf 'TELEGRAM_RELAYS=%s\n' "$TELEGRAM_RELAYS"
+    [ -n "$TELEGRAM_DIRECT" ] && printf 'TELEGRAM_DIRECT=%s\n' "$TELEGRAM_DIRECT"
     printf 'DATABASE_URL=%s\n' "$DATABASE_URL"
     printf 'SECRETS_ENCRYPTION_KEY=%s\n' "$SECRETS_ENCRYPTION_KEY"
     # Enables the gateway's self-update poller/`/update` command (docs/PLAN.md §13.2/§13.3) -
@@ -744,7 +827,13 @@ main() {
   write_env
   register_service
   step "Verifying"
-  verify_running || die "cod2admin failed to start after install. See the output above for details."
+  if [ -n "$TELEGRAM_UNVERIFIED" ]; then
+    # Can't confirm a start that needs Telegram while Telegram is unreachable - don't fail the
+    # whole install over it.
+    verify_running || warn "The bot hasn't connected to Telegram yet (it keeps retrying) - see $INSTALL_DIR/cod2admin.log."
+  else
+    verify_running || die "cod2admin failed to start after install. See the output above for details."
+  fi
 
   step "Done"
   success "cod2admin is installed and running."

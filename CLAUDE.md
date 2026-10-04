@@ -76,11 +76,18 @@ hosting/HTTPS tradeoffs and feature scope. `docs/PLAN-miniapp-ru.md` is its cond
 summary for the server owner, kept in sync the same way as the `PLAN.md`/`PLAN-ru.md` pair — update
 it whenever `docs/PLAN-miniapp.md` changes.
 
-`docs/PLAN-russia-access.md` (not yet implemented) plans how installs and the running bot work
-on game hosts in Russia, where Telegram has been blocked since March 2026: Bot API relay abroad
-(`TELEGRAM_API_ROOT`), outbound proxy (`TELEGRAM_PROXY_URL`), an installer that no longer hangs on
-an unreachable `api.telegram.org`, and an MTProto proxy for admins. `docs/PLAN-russia-access-ru.md`
-is its Russian summary — keep it in sync the same way.
+`docs/PLAN-russia-access.md` covers game hosts in Russia, where Telegram has been blocked since
+March 2026 (`api.telegram.org` unreachable from most Russian hosting). Part A is implemented
+(2026-10-04, see its §0):
+- free relays on Deno Deploy and Cloudflare Workers (`packages/telegram-relay`, shared instances
+  built in as `DEFAULT_TELEGRAM_RELAYS`, mirrored in `installer/install.sh`)
+- route failover in `apps/gateway/src/lib/telegram-routes.ts`
+- owner-only `/relays` to manage routes from Telegram
+- an installer that tries the same routes
+
+Deploying the Deno relay must happen from a folder *outside* this repo: the Deno CLI rewrites a
+nearby `package.json` from `pnpm-workspace.yaml`. Admins' own Telegram access (part B) is still
+open. `docs/PLAN-russia-access-ru.md` is its Russian summary — keep it in sync the same way.
 
 Current status: Phases 0–2 are done and verified live against a real dev CoD2 server + Telegram
 group (not just unit tests). Phase 0 is `packages/rcon-client`. Phase 1 is `apps/gateway`

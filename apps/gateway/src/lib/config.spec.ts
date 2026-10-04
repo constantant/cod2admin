@@ -23,7 +23,17 @@ describe('loadConfig', () => {
       updateStagingDir: undefined,
       textEncoding: 'cp1251',
       geoip: { enabled: true, dbPath: undefined },
+      telegram: { direct: true, relays: undefined },
     });
+  });
+
+  it('parses TELEGRAM_RELAYS and TELEGRAM_DIRECT', () => {
+    expect(
+      loadConfig({ ...VALID_ENV, TELEGRAM_DIRECT: 'false', TELEGRAM_RELAYS: 'https://a.deno.dev/, https://b.workers.dev' })
+        .telegram,
+    ).toEqual({ direct: false, relays: ['https://a.deno.dev', 'https://b.workers.dev'] });
+    expect(() => loadConfig({ ...VALID_ENV, TELEGRAM_RELAYS: 'http://plain.example' })).toThrow(/TELEGRAM_RELAYS/);
+    expect(() => loadConfig({ ...VALID_ENV, TELEGRAM_DIRECT: 'false' })).toThrow(/TELEGRAM_DIRECT=false/);
   });
 
   it('parses GEOIP_ENABLED and GEOIP_DB_PATH', () => {

@@ -78,6 +78,28 @@ DB_MODE=local
 `DATABASE_URL=postgres://user:password@host:5432/dbname` line instead to point at a Postgres you
 already run yourself. Run `./install.sh --help` for the full, authoritative field list.
 
+## Telegram blocked?
+
+Since March 2026, servers in Russia (and some other networks) can't connect to Telegram's Bot API
+directly. The bot handles this itself. If it can't reach `api.telegram.org`, it switches to
+free relays run for this project, so installing and running work as usual, with nothing to set
+up. During install you'll see `Connected as @yourbot (via relay ...)`.
+
+- **Change routes from Telegram:** the bot's owner can see and change the routes with
+  `/relays`. `/relays test` checks them, and `/relays add <url>` adds your own relay.
+- **Use only your own relays:** deploy one (free, see
+  [`packages/telegram-relay/README.md`](../packages/telegram-relay/README.md)) and put this in
+  the `--config` file:
+  ```sh
+  TELEGRAM_RELAYS=https://your-relay.example
+  TELEGRAM_DIRECT=false        # optional: don't try api.telegram.org at all
+  ```
+- **If no route works during install:** the installer asks for a relay URL, or lets you finish
+  anyway. The bot keeps retrying in the background.
+
+Admins in Russia also need a way to open Telegram on their own phones (a VPN or an MTProto
+proxy). The relays only cover the bot's own connection.
+
 ## Limitations
 
 - Supports Debian/Ubuntu and Alpine hosts today (the two most common bases for CoD2 dedicated

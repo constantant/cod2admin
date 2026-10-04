@@ -79,6 +79,11 @@ export interface AdminStore {
   setDefaultServer(alias: string): Promise<boolean>;
   getDefaultServer(): Promise<ServerConfig | undefined>;
 
+  /** A setting changed from Telegram, or `undefined` if it was never set (or was reset). */
+  getSetting(key: string): Promise<unknown>;
+  setSetting(key: string, value: unknown): Promise<void>;
+  deleteSetting(key: string): Promise<void>;
+
   recordAuditLog(entry: RecordAuditLogInput): Promise<void>;
   listAuditLog(limit: number): Promise<AuditLogEntry[]>;
   /**

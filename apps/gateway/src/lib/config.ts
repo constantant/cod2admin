@@ -5,6 +5,7 @@
  * `rcon`/`serverAlias` seed the one `servers` row the gateway bootstraps on first startup.
  */
 import { TEXT_ENCODINGS, type TextEncoding } from '@cod2admin/rcon-client';
+import { normalizeRelayUrl } from './telegram-routes.js';
 
 /**
  * CP1251, not latin1: the game has no encoding of its own and shows bytes in the player's Windows
@@ -45,6 +46,12 @@ export interface GatewayConfig {
    * off the automatic monthly download.
    */
   geoip: { enabled: boolean; dbPath: string | undefined };
+  /**
+   * Default routes to the Telegram Bot API (telegram-routes.ts, docs/PLAN-russia-access.md):
+   * `TELEGRAM_DIRECT=false` skips api.telegram.org itself, `TELEGRAM_RELAYS` (comma-separated)
+   * replaces the built-in shared relays. `/relays` changes both at runtime and takes precedence.
+   */
+  telegram: { direct: boolean; relays: string[] | undefined };
 }
 
 class ConfigError extends Error {}
@@ -90,6 +97,24 @@ function textEncodingEnv(env: NodeJS.ProcessEnv): TextEncoding {
   return encoding;
 }
 
+function telegramRoutesEnv(env: NodeJS.ProcessEnv): GatewayConfig['telegram'] {
+  const direct = env['TELEGRAM_DIRECT']?.trim().toLowerCase() !== 'false';
+  const raw = env['TELEGRAM_RELAYS']?.trim();
+  const relays = raw
+    ? raw.split(',').map((entry) => {
+        const url = normalizeRelayUrl(entry);
+        if (!url) {
+          throw new ConfigError(`TELEGRAM_RELAYS entries must be https URLs, got "${entry.trim()}"`);
+        }
+        return url;
+      })
+    : undefined;
+  if (!direct && !relays?.length) {
+    throw new ConfigError('TELEGRAM_DIRECT=false needs at least one relay in TELEGRAM_RELAYS');
+  }
+  return { direct, relays };
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig {
   return {
     telegramBotToken: requireEnv(env, 'TELEGRAM_BOT_TOKEN'),
@@ -105,6 +130,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
     logPath: env['COD2_LOG_PATH']?.trim() || undefined,
     updateStagingDir: env['UPDATE_STAGING_DIR']?.trim() || undefined,
     textEncoding: textEncodingEnv(env),
+    telegram: telegramRoutesEnv(env),
     geoip: {
       enabled: env['GEOIP_ENABLED']?.trim().toLowerCase() !== 'false',
       dbPath: env['GEOIP_DB_PATH']?.trim() || undefined,

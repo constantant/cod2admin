@@ -1,0 +1,8 @@
+# Cloudflare Workers config for the Telegram relay — see README.md.
+name = "cod2admin-telegram-relay"
+main = "deploy/worker.ts"
+compatibility_date = "2026-10-01"
+workers_dev = true
+# No logs: the request path contains the bot token.
+[observability]
+enabled = false

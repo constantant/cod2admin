@@ -20,6 +20,9 @@
     },
     {
       "path": "./packages/report-pipeline"
+    },
+    {
+      "path": "./packages/telegram-relay"
     }
   ],
   "compilerOptions": {}

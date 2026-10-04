@@ -1,6 +1,8 @@
 import { ReportAntiSpam, type SessionLookup } from '@cod2admin/report-pipeline';
 import type { GatewayDeps } from '../deps.js';
 import { NO_COUNTRY_LOOKUP } from '../geoip.js';
+import { DIRECT_TELEGRAM_ROOT, TelegramRouter } from '../telegram-routes.js';
+import { vi } from 'vitest';
 import { ReportRegistry } from '../reports.js';
 import { UpdateRegistry } from '../update-registry.js';
 import { asRconClient, createFakeRcon, type FakeRcon } from './fake-rcon.js';
@@ -39,6 +41,11 @@ export function createFakeDeps(): FakeDeps {
       createRconClient: () => asRconClient(createFakeRcon()),
       bootstrapServerAlias: 'default',
       geoip: NO_COUNTRY_LOOKUP,
+      telegramRoutes: {
+        router: new TelegramRouter([DIRECT_TELEGRAM_ROOT], () => undefined),
+        defaults: { direct: true, relays: [] },
+        probe: vi.fn(async () => ({ ok: true as const, ms: 50, username: 'test_bot' })),
+      },
       reportRegistry: new ReportRegistry(),
       reportAntiSpam: new ReportAntiSpam<string>(),
       sessionsByServer: new Map<string, SessionLookup>(),
