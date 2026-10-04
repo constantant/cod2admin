@@ -1,5 +1,6 @@
 import { ReportAntiSpam, type SessionLookup } from '@cod2admin/report-pipeline';
 import type { GatewayDeps } from '../deps.js';
+import { NO_COUNTRY_LOOKUP } from '../geoip.js';
 import { ReportRegistry } from '../reports.js';
 import { UpdateRegistry } from '../update-registry.js';
 import { asRconClient, createFakeRcon, type FakeRcon } from './fake-rcon.js';
@@ -37,6 +38,7 @@ export function createFakeDeps(): FakeDeps {
       rconClients: new Map([['default', asRconClient(rcon)]]),
       createRconClient: () => asRconClient(createFakeRcon()),
       bootstrapServerAlias: 'default',
+      geoip: NO_COUNTRY_LOOKUP,
       reportRegistry: new ReportRegistry(),
       reportAntiSpam: new ReportAntiSpam<string>(),
       sessionsByServer: new Map<string, SessionLookup>(),

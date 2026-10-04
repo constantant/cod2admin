@@ -11,6 +11,14 @@ receive `!report` cards from players in-game, manage other admins, and more.
 - **Project design/roadmap:** see [`docs/PLAN.md`](./docs/PLAN.md) (condensed Russian summary:
   [`docs/PLAN-ru.md`](./docs/PLAN-ru.md)).
 
+## Attribution
+
+IP country labels (`/players`, report cards, `/bans`) use the
+[IP to Country Lite](https://db-ip.com/db/download/ip-to-country-lite) database by
+[DB-IP.com](https://db-ip.com), licensed under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The bot downloads it itself and
+refreshes it monthly; it isn't part of this repository or its releases.
+
 ## Layout
 
 This is a pnpm/Nx workspace:

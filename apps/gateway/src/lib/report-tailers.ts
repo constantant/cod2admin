@@ -4,6 +4,7 @@ import { decodeText, type TextEncoding } from '@cod2admin/rcon-client';
 import type { Bot } from 'grammy';
 import { DEFAULT_TEXT_ENCODING } from './config.js';
 import type { GatewayDeps } from './deps.js';
+import { describeIpLong } from './geoip.js';
 import { handleReportTrigger } from './reports.js';
 
 /**
@@ -57,6 +58,7 @@ export function startReportTailers(
         sessions: tailer,
         adminStore: deps.adminStore,
         banStore: deps.banStore,
+        describeIp: (ip) => describeIpLong(deps.geoip, ip),
       }).catch((error: unknown) => {
         console.error(`Failed to handle a !report trigger for server "${server.alias}":`, error);
       });

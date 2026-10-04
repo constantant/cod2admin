@@ -52,6 +52,13 @@ describe('formatDuration', () => {
 });
 
 describe('buildReportCard', () => {
+  it('shows the IP country next to the IP, on the card and in More info', () => {
+    const card = buildReportCard(enrichedReport({ ipCountry: '🇷🇺 Russia' }), trigger());
+
+    expect(card.text).toContain('IP: 1.2.3.4 🇷🇺 Russia · Ping: 40');
+    expect(card.detailText).toContain('Full IP: 1.2.3.4 🇷🇺 Russia');
+  });
+
   it('includes the header, target info, and full action buttons for a connected target', () => {
     const card = buildReportCard(enrichedReport(), trigger());
 

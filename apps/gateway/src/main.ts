@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createAdminStore, migrate as migrateAdminStore } from '@cod2admin/admin-store';
 import { createBanStore, migrate as migrateBanStore } from '@cod2admin/ban-store';
@@ -9,6 +10,7 @@ import { createBot } from './lib/bot.js';
 import { loadConfig } from './lib/config.js';
 import type { GatewayDeps, UpdateFeatureConfig } from './lib/deps.js';
 import { startExpiryPoller } from './lib/expiry-poller.js';
+import { GeoIpDatabase, GeoIpUpdater, NO_COUNTRY_LOOKUP } from './lib/geoip.js';
 import { createGithubReleaseClient } from './lib/github-releases.js';
 import { startReportTailers } from './lib/report-tailers.js';
 import { ReportRegistry } from './lib/reports.js';
@@ -63,6 +65,21 @@ const updateConfig: UpdateFeatureConfig | undefined = config.updateStagingDir
     }
   : undefined;
 
+// IP → country labels (lib/geoip.ts). The downloaded database goes in the staging dir: it's the
+// one directory the service user can write to on a real install (install.sh makes the rest of
+// $INSTALL_DIR root-owned), and apply-update.sh only ever deletes the release tarball it applied.
+const geoipDatabase = new GeoIpDatabase();
+if (config.geoip.enabled) {
+  const geoipUpdater = new GeoIpUpdater({
+    database: geoipDatabase,
+    filePath:
+      config.geoip.dbPath ?? path.join(config.updateStagingDir ?? tmpdir(), 'dbip-country-lite.mmdb'),
+    autoDownload: config.geoip.dbPath === undefined,
+  });
+  // Not awaited: a slow or failed download must never delay the bot's start.
+  void geoipUpdater.start();
+}
+
 // Report-card state (docs/PLAN.md §5 steps 4/6) — process-lifetime, shared between the bot's
 // callback handler and the GameLogTailer wiring below, so both sides see the same in-flight
 // reports/cooldowns.
@@ -72,6 +89,7 @@ const deps: GatewayDeps = {
   rconClients,
   createRconClient,
   bootstrapServerAlias: config.serverAlias,
+  geoip: config.geoip.enabled ? geoipDatabase : NO_COUNTRY_LOOKUP,
   reportRegistry: new ReportRegistry(),
   reportAntiSpam: new ReportAntiSpam<string>(),
   sessionsByServer: new Map<string, SessionLookup>(),

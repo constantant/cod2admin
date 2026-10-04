@@ -27,6 +27,8 @@ export interface ProcessReportTriggerDeps<TCardRef> {
   /** The server's bound admin chat (docs/PLAN.md §5 step 5) — `apps/gateway` looks this up via `AdminStore.getServer`. */
   chatId: number;
   historyLimit?: number;
+  /** See `EnrichReportDeps.describeIp`. */
+  describeIp?: (ip: string) => string | undefined;
 }
 
 /**
@@ -114,6 +116,7 @@ async function buildCardFor<TCardRef>(
     banStore: deps.banStore,
     serverAlias: deps.serverAlias,
     historyLimit: deps.historyLimit,
+    describeIp: deps.describeIp,
   });
   return buildReportCard(enriched, trigger);
 }

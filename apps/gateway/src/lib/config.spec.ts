@@ -22,6 +22,15 @@ describe('loadConfig', () => {
       logPath: undefined,
       updateStagingDir: undefined,
       textEncoding: 'cp1251',
+      geoip: { enabled: true, dbPath: undefined },
+    });
+  });
+
+  it('parses GEOIP_ENABLED and GEOIP_DB_PATH', () => {
+    expect(loadConfig({ ...VALID_ENV, GEOIP_ENABLED: 'FALSE' }).geoip.enabled).toBe(false);
+    expect(loadConfig({ ...VALID_ENV, GEOIP_DB_PATH: '/data/country.mmdb' }).geoip).toEqual({
+      enabled: true,
+      dbPath: '/data/country.mmdb',
     });
   });
 

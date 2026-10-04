@@ -155,6 +155,8 @@ export interface HandleReportTriggerOptions {
   sessions: SessionSource & SessionLookup;
   adminStore: AdminStore;
   banStore: BanStore;
+  /** Country label for the target's IP on the card — see report-pipeline's `EnrichReportDeps`. */
+  describeIp?: (ip: string) => string | undefined;
 }
 
 /**
@@ -173,6 +175,7 @@ export async function handleReportTrigger(trigger: ReportTrigger, options: Handl
     cardSender,
     serverAlias: options.serverAlias,
     chatId: options.chatId,
+    describeIp: options.describeIp,
   });
   if (outcome.kind !== 'cooldown') {
     const entry = options.registry.get(outcome.cardRef);
@@ -200,6 +203,7 @@ export interface ReportCallbackDeps {
   banStore: BanStore;
   /** Per-server session lookup for `select`'s re-enrichment — keyed like `rconClients`. */
   sessionsByServer: Map<string, SessionLookup>;
+  describeIp?: (ip: string) => string | undefined;
 }
 
 function requiresAdmin(action: ReportCardAction): boolean {
@@ -269,6 +273,7 @@ export async function reportActionCallback(ctx: ReportCallbackContext, deps: Rep
       adminStore: deps.adminStore,
       banStore: deps.banStore,
       serverAlias: entry.serverAlias,
+      describeIp: deps.describeIp,
     });
     const card = buildReportCard(enriched, entry.trigger);
     const cardSender = new GatewayCardSender(deps.bot, deps.registry, entry.serverAlias, entry.trigger);

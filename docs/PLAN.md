@@ -123,6 +123,14 @@ dedicated servers:
     `port + 65536`. Never blocked Phase 3 (the GUID-0 IP-fallback ban path, §5 step 7/§7
     `ban_ips`, matches on `ip` only, never `port`), but `StatusPlayer.port` is now correct for
     any future use.
+  - **Bug found 2026-10-04 on a real busy public server, fixed same day:** quirk (a)'s fix still
+    trusted the `name` column's width, and names longer than it overflow it. Color codes
+    count, so `^^20Persian^^51Gulf^7` is 21 characters in a 15-character column. Then the
+    rest of the row shifts right, and 14 of 33 players parsed with an IP of `0` or `50`.
+    That broke `/players`, kick-by-name lookups, and the IP an IP ban records. The fix uses
+    the fact that `name` is the only column that can contain spaces. The columns before it
+    are the first tokens of the row, the columns after it are the last tokens, and the name
+    is the text between them. On the same server, all 34 rows then parsed with real IPs.
 - Game events (connect/disconnect/chat/kills) are written to
   `$fs_homepath/main/games_mp.log`. This is the standard integration point for detecting the
   `!report <name>` chat trigger when running vanilla CoD2.
@@ -645,6 +653,16 @@ Roles, stored in `admin-store`:
     public internet regardless — no reason to expose it).
   - CoD2x is still worth running for its built-in UDP rate limiter (§8), independent of the
     report-intake decision.
+- **IP country (implemented 2026-10-04).** `/players` and `/bans` show `🇷🇺 RU` next to each IP,
+  and report cards show `🇷🇺 Russia`. Private addresses show `LAN`. The lookup is offline: the
+  gateway uses DB-IP's free "IP to Country Lite" database (CC BY 4.0, credited in `/help` and
+  the README), so players' IPs are never sent to a third-party lookup service.
+  - **Download:** the gateway fetches the ~4 MB file itself on start and refreshes it monthly,
+    falling back to last month's file and keeping the old one if a download fails. It goes in
+    the staging dir, the only directory the service user can write to on a real install.
+  - **Settings:** `GEOIP_ENABLED=false` turns it off, and `GEOIP_DB_PATH` points at a file the
+    admin supplies, with no download. With no database, the bot just shows no countries.
+  - **Checked live** against 34 real players: every IP resolved to a country.
 
 ## 7. Data model (sketch)
 

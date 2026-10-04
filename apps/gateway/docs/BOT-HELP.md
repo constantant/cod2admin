@@ -78,3 +78,5 @@ Most commands take an optional `--server <alias>` at the end if this bot manages
 server — see `/servers` for the list of aliases. Without it, a command goes to the server bound
 to this chat (`/bindserver`), otherwise to the default server (`/setdefault`). The server from
 the bot's config file can't be changed or removed from Telegram.
+
+_IP country data by [DB-IP.com](https://db-ip.com) (CC BY 4.0)._

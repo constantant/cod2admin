@@ -17,6 +17,8 @@ export interface EnrichReportDeps {
   serverAlias: string;
   /** Max rows per history query (docs/PLAN.md §5 step 3). Default 10. */
   historyLimit?: number;
+  /** Country label for an IP, e.g. "🇷🇺 Russia" — supplied by the gateway; omitted means none shown. */
+  describeIp?: (ip: string) => string | undefined;
 }
 
 export interface EnrichedTarget {
@@ -25,6 +27,8 @@ export interface EnrichedTarget {
   guid?: string;
   /** Only known for a still-connected target — `status()` is the sole source of IP (§5.3). */
   ip?: string;
+  /** Where `ip` is, from `EnrichReportDeps.describeIp` — undefined when unknown. */
+  ipCountry?: string;
   ping?: number;
   score?: number;
   connected: boolean;
@@ -56,7 +60,11 @@ function isUsableGuid(guid: string | undefined): guid is string {
   return guid !== undefined && guid !== '0';
 }
 
-function enrichTarget(resolution: ResolvedTarget, sessions: SessionLookup): EnrichedTarget {
+function enrichTarget(
+  resolution: ResolvedTarget,
+  sessions: SessionLookup,
+  describeIp: EnrichReportDeps['describeIp'],
+): EnrichedTarget {
   if (resolution.kind === 'resolved') {
     const { player } = resolution;
     const session = sessions.getSession(player.num);
@@ -65,6 +73,7 @@ function enrichTarget(resolution: ResolvedTarget, sessions: SessionLookup): Enri
       name: player.name,
       guid: player.guid,
       ip: player.ip,
+      ipCountry: player.ip ? describeIp?.(player.ip) : undefined,
       ping: player.ping,
       score: player.score,
       connected: true,
@@ -100,7 +109,7 @@ export async function enrichReport(
   trigger: ReportTrigger,
   deps: EnrichReportDeps,
 ): Promise<EnrichedReport> {
-  const target = enrichTarget(resolution, deps.sessions);
+  const target = enrichTarget(resolution, deps.sessions, deps.describeIp);
   const limit = deps.historyLimit ?? DEFAULT_HISTORY_LIMIT;
 
   // GUID unless it's the common `0` case (§2.4), where every GUID-0 player would otherwise

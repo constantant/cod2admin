@@ -8,7 +8,9 @@
     "name": "gateway",
     "targets": {
       "serve": {
-        "dependsOn": ["build"],
+        "dependsOn": [
+          "build"
+        ],
         "executor": "nx:run-commands",
         "options": {
           "command": "node dist/main.js",
@@ -24,6 +26,7 @@
     "@cod2admin/rcon-client": "workspace:*",
     "@cod2admin/report-pipeline": "workspace:*",
     "grammy": "^1.46.0",
+    "maxmind": "^5.0.7",
     "tslib": "^2.3.0"
   }
 }

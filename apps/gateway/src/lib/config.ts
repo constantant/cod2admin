@@ -39,6 +39,12 @@ export interface GatewayConfig {
   updateStagingDir: string | undefined;
   /** `COD2_TEXT_ENCODING` — how RCON text and the game log are encoded, for every server. */
   textEncoding: TextEncoding;
+  /**
+   * IP → country labels (geoip.ts). `GEOIP_ENABLED=false` turns them off. `GEOIP_DB_PATH` points at
+   * a .mmdb the admin supplies themselves (e.g. a host that can't reach db-ip.com), which turns
+   * off the automatic monthly download.
+   */
+  geoip: { enabled: boolean; dbPath: string | undefined };
 }
 
 class ConfigError extends Error {}
@@ -99,5 +105,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
     logPath: env['COD2_LOG_PATH']?.trim() || undefined,
     updateStagingDir: env['UPDATE_STAGING_DIR']?.trim() || undefined,
     textEncoding: textEncodingEnv(env),
+    geoip: {
+      enabled: env['GEOIP_ENABLED']?.trim().toLowerCase() !== 'false',
+      dbPath: env['GEOIP_DB_PATH']?.trim() || undefined,
+    },
   };
 }

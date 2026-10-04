@@ -1,6 +1,7 @@
 import type { Ban, BanIp } from '@cod2admin/ban-store';
 import type { BotContext } from '../bot-context.js';
 import type { GatewayDeps } from '../deps.js';
+import { describeIpShort, NO_COUNTRY_LOOKUP, type CountryLookup } from '../geoip.js';
 
 function formatExpiry(expiresAt: Date | null): string {
   return expiresAt ? `expires ${expiresAt.toISOString()}` : 'permanent';
@@ -11,12 +12,13 @@ function formatGuidBan(ban: Ban): string {
   return `${ban.guid ?? 'unknown guid'} — ${ban.name}${reason} — ${formatExpiry(ban.expiresAt)} — banned on ${ban.serverAlias}`;
 }
 
-function formatIpBan(ban: BanIp): string {
+function formatIpBan(ban: BanIp, geoip: CountryLookup): string {
   const reason = ban.reason ? ` (${ban.reason})` : '';
-  return `${ban.ip}${reason} — ${formatExpiry(ban.expiresAt)} — banned on ${ban.serverAlias}`;
+  const country = describeIpShort(geoip, ban.ip);
+  return `${ban.ip}${country ? ` ${country}` : ''}${reason} — ${formatExpiry(ban.expiresAt)} — banned on ${ban.serverAlias}`;
 }
 
-export function formatBansMessage(guidBans: Ban[], ipBans: BanIp[]): string {
+export function formatBansMessage(guidBans: Ban[], ipBans: BanIp[], geoip: CountryLookup = NO_COUNTRY_LOOKUP): string {
   if (guidBans.length === 0 && ipBans.length === 0) {
     return 'No active bans.';
   }
@@ -26,7 +28,7 @@ export function formatBansMessage(guidBans: Ban[], ipBans: BanIp[]): string {
     sections.push(['GUID bans:', ...guidBans.map((ban) => formatGuidBan(ban))].join('\n'));
   }
   if (ipBans.length > 0) {
-    sections.push(['IP bans:', ...ipBans.map((ban) => formatIpBan(ban))].join('\n'));
+    sections.push(['IP bans:', ...ipBans.map((ban) => formatIpBan(ban, geoip))].join('\n'));
   }
   return sections.join('\n\n');
 }
@@ -41,5 +43,5 @@ export function formatBansMessage(guidBans: Ban[], ipBans: BanIp[]): string {
 export async function bansCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
   const [guidBans, ipBans] = await Promise.all([deps.banStore.listActiveBans(), deps.banStore.listActiveIpBans()]);
 
-  await ctx.reply(formatBansMessage(guidBans, ipBans));
+  await ctx.reply(formatBansMessage(guidBans, ipBans, deps.geoip));
 }

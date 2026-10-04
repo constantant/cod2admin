@@ -54,6 +54,12 @@ function formatGuid(guid: string | undefined): string {
   return !guid || guid === '0' ? '0 (unavailable — see docs/PLAN.md §2.4)' : guid;
 }
 
+/** `1.2.3.4 🇷🇺 Russia`, or just the IP when its country isn't known. */
+function formatIp(target: EnrichedReport['target']): string {
+  const ip = target.ip ?? 'unknown';
+  return target.ipCountry ? `${ip} ${target.ipCountry}` : ip;
+}
+
 function formatBody(enriched: EnrichedReport): string {
   const { target, history } = enriched;
   const lines: string[] = [
@@ -62,7 +68,7 @@ function formatBody(enriched: EnrichedReport): string {
   ];
 
   if (target.connected) {
-    lines.push(`IP: ${target.ip ?? 'unknown'} · Ping: ${target.ping ?? '?'} · Score: ${target.score ?? '?'}`);
+    lines.push(`IP: ${formatIp(target)} · Ping: ${target.ping ?? '?'} · Score: ${target.score ?? '?'}`);
   }
   if (target.sessionDurationMs !== undefined) {
     lines.push(`Session: ${formatDuration(target.sessionDurationMs)}${target.connected ? ' so far' : ' (ended)'}`);
@@ -90,7 +96,7 @@ const IGNORE_BUTTON: ReportCardButton = { label: 'Ignore', action: { kind: 'igno
 /** Full chat history plus identity detail for `More info ▾` — `formatBody` only shows the last 3 lines. */
 function formatDetail(enriched: EnrichedReport): string {
   const { target } = enriched;
-  const lines = [`Full GUID: ${target.guid || '(none)'}`, `Full IP: ${target.ip ?? 'unknown'}`];
+  const lines = [`Full GUID: ${target.guid || '(none)'}`, `Full IP: ${formatIp(target)}`];
   if (target.chatHistory.length > 0) {
     lines.push('Chat history:');
     lines.push(...target.chatHistory.map((chat) => `  "${chat.message}"`));

@@ -70,6 +70,16 @@ describe('enrichReport', () => {
     expect(deps.sessions.getSession).toHaveBeenCalledWith(1);
   });
 
+  it('labels the target IP with its country when describeIp is given', async () => {
+    const resolution: ResolvedTarget = { kind: 'resolved', player: statusPlayer({ ip: '1.2.3.4' }) };
+    const describeIp = vi.fn().mockReturnValue('🇷🇺 Russia');
+
+    const result = await enrichReport(resolution, trigger(), { ...fakeDeps(), describeIp });
+
+    expect(describeIp).toHaveBeenCalledWith('1.2.3.4');
+    expect(result.target.ipCountry).toBe('🇷🇺 Russia');
+  });
+
   it('enriches a disconnected target entirely from the cached session (no ip/ping/score available)', async () => {
     const session = playerSession({ disconnectedAt: 5_000, connectedAt: 1_000, chatHistory: [chatEvent()] });
     const resolution: ResolvedTarget = { kind: 'disconnected', lastKnown: session };

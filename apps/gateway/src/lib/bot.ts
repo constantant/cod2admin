@@ -29,6 +29,7 @@ import { unbanCommand } from './commands/unban.js';
 import { updateActionCallback, updateCommand, type UpdateCallbackContext } from './commands/update.js';
 import type { GatewayConfig } from './config.js';
 import type { GatewayDeps } from './deps.js';
+import { describeIpLong } from './geoip.js';
 
 /**
  * Phase 2 Telegram bot (docs/PLAN.md §9): role-gated (owner/admin/moderator), multi-server,
@@ -146,6 +147,7 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
       adminStore: deps.adminStore,
       banStore: deps.banStore,
       sessionsByServer: deps.sessionsByServer,
+      describeIp: (ip) => describeIpLong(deps.geoip, ip),
     }),
   );
 
