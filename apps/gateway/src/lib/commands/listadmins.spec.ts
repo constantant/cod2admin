@@ -4,11 +4,15 @@ import { createFakeCtx } from '../testing/fake-ctx.js';
 import { createFakeDeps } from '../testing/fake-deps.js';
 import { formatAdminsMessage, listAdminsCommand } from './listadmins.js';
 
-const ADMIN: Admin = { telegramId: 1, role: 'owner', addedBy: null, addedAt: new Date() };
+const ADMIN: Admin = { telegramId: 1, role: 'owner', addedBy: null, addedAt: new Date(), username: null, firstName: null };
 
 describe('formatAdminsMessage', () => {
   it('formats one line per admin', () => {
     expect(formatAdminsMessage([ADMIN])).toBe('1 — owner');
+  });
+
+  it('names admins by @username when known', () => {
+    expect(formatAdminsMessage([{ ...ADMIN, username: 'nick' }])).toBe('@nick (1) — owner');
   });
 
   it('reports no admins configured when the list is empty', () => {

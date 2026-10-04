@@ -108,7 +108,7 @@ describe('buildReportCard', () => {
     const withHistory: EnrichedReport = {
       ...enrichedReport(),
       history: {
-        auditLog: [{ id: 1, actorTelegramId: 1, action: 'kick', target: 'Cheatr123', serverAlias: 'default', reason: null, source: 'telegram_command', detailJson: null, createdAt: new Date() }],
+        auditLog: [{ id: 1, actorTelegramId: 1, action: 'kick', target: 'Cheatr123', serverAlias: 'default', reason: null, source: 'telegram_command', detailJson: null, createdAt: new Date(), actorUsername: null, actorFirstName: null }],
         bans: [],
         ipBans: [{ id: 1, serverAlias: 'default', ip: '1.2.3.4', reason: null, bannedBy: 1, bannedAt: new Date(), expiresAt: null, unbannedAt: null }],
       },

@@ -1,6 +1,7 @@
 import type { AuditLogEntry } from '@cod2admin/admin-store';
 import { matchText, type BotContext } from '../bot-context.js';
 import type { GatewayDeps } from '../deps.js';
+import { formatTelegramUser } from '../telegram-user.js';
 
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;
@@ -8,7 +9,8 @@ const MAX_LIMIT = 50;
 function formatEntry(entry: AuditLogEntry): string {
   const target = entry.target ? ` → ${entry.target}` : '';
   const reason = entry.reason ? ` (${entry.reason})` : '';
-  return `${entry.createdAt.toISOString()} · ${entry.actorTelegramId} · ${entry.action}${target}${reason}`;
+  const actor = formatTelegramUser(entry.actorTelegramId, entry.actorUsername, entry.actorFirstName);
+  return `${entry.createdAt.toISOString()} · ${actor} · ${entry.action}${target}${reason}`;
 }
 
 export function formatAuditLogMessage(entries: AuditLogEntry[]): string {

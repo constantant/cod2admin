@@ -22,7 +22,19 @@ export function requireRole(minRole: AdminRole, adminStore: AdminStore) {
       await ctx.reply('Not authorized.');
       return;
     }
-    ctx.admin = { telegramId: admin.telegramId, role: admin.role };
+    // Remember their current @username/first name so logs can show it — only when it changed,
+    // so most commands cost no extra write.
+    const username = ctx.from?.username ?? null;
+    const firstName = ctx.from?.first_name ?? null;
+    if (admin.username !== username || admin.firstName !== firstName) {
+      await adminStore.saveTelegramUser({ telegramId, username, firstName });
+    }
+    ctx.admin = {
+      telegramId: admin.telegramId,
+      role: admin.role,
+      username: username ?? undefined,
+      firstName: firstName ?? undefined,
+    };
     await next();
   };
 }

@@ -299,11 +299,14 @@ describe('reportActionCallback', () => {
     const { deps, registry, antiSpam } = baseDeps();
     antiSpam.track(9, 'Cheatr123', '1');
     registry.set('1', { chatId: 1, messageId: 1, serverAlias: 'default', trigger: trigger() });
-    const ctx = createFakeCallbackCtx({ callbackData: 'report:1:ignore' });
+    const ctx = createFakeCallbackCtx({
+      callbackData: 'report:1:ignore',
+      admin: { telegramId: 1, role: 'admin', username: 'nick' },
+    });
 
     await reportActionCallback(ctx, deps);
 
-    expect(ctx.editMessageText).toHaveBeenCalledWith(expect.stringContaining('ignored'));
+    expect(ctx.editMessageText).toHaveBeenCalledWith("Cheatr123's report was ignored by admin @nick (1).");
     expect(registry.get('1')).toBeUndefined();
     // resolve() clears the dedup collapse (a later report won't fold into the ignored card) -
     // it does not reset the reporter's cooldown clock, so this can still legitimately be 'cooldown'.

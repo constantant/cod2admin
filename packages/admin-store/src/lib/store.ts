@@ -1,7 +1,7 @@
 import { and, desc, eq, ilike } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
-import { adminServers, admins, auditLog, servers, settings } from './schema.js';
+import { adminServers, admins, auditLog, servers, settings, telegramUsers } from './schema.js';
 import { SecretBox } from './secrets.js';
 import type {
   Admin,
@@ -11,6 +11,7 @@ import type {
   ClaimOwnerResult,
   RecordAuditLogInput,
   ServerConfig,
+  TelegramUser,
   UpsertServerInput,
 } from './types.js';
 
@@ -25,9 +26,29 @@ function isUniqueViolation(error: unknown): boolean {
   return code === POSTGRES_UNIQUE_VIOLATION;
 }
 
-function toAdmin(row: typeof admins.$inferSelect): Admin {
-  return { telegramId: row.telegramId, role: row.role, addedBy: row.addedBy, addedAt: row.addedAt };
-}
+/** Admin rows with their remembered Telegram names, if any (left join — names are optional). */
+const ADMIN_COLUMNS = {
+  telegramId: admins.telegramId,
+  role: admins.role,
+  addedBy: admins.addedBy,
+  addedAt: admins.addedAt,
+  username: telegramUsers.username,
+  firstName: telegramUsers.firstName,
+};
+
+const AUDIT_LOG_COLUMNS = {
+  id: auditLog.id,
+  actorTelegramId: auditLog.actorTelegramId,
+  action: auditLog.action,
+  target: auditLog.target,
+  serverAlias: auditLog.serverAlias,
+  reason: auditLog.reason,
+  source: auditLog.source,
+  detailJson: auditLog.detailJson,
+  createdAt: auditLog.createdAt,
+  actorUsername: telegramUsers.username,
+  actorFirstName: telegramUsers.firstName,
+};
 
 export class DrizzleAdminStore implements AdminStore {
   private readonly pool: Pool;
@@ -41,8 +62,8 @@ export class DrizzleAdminStore implements AdminStore {
   }
 
   async getAdmin(telegramId: number): Promise<Admin | undefined> {
-    const [row] = await this.db.select().from(admins).where(eq(admins.telegramId, telegramId));
-    return row ? toAdmin(row) : undefined;
+    const [row] = await this.selectAdmins().where(eq(admins.telegramId, telegramId));
+    return row;
   }
 
   async claimOwner(telegramId: number): Promise<ClaimOwnerResult> {
@@ -70,8 +91,15 @@ export class DrizzleAdminStore implements AdminStore {
   }
 
   async listAdmins(): Promise<Admin[]> {
-    const rows = await this.db.select().from(admins);
-    return rows.map(toAdmin);
+    return this.selectAdmins();
+  }
+
+  async saveTelegramUser(user: TelegramUser): Promise<void> {
+    const { telegramId, username, firstName } = user;
+    await this.db
+      .insert(telegramUsers)
+      .values({ telegramId, username, firstName })
+      .onConflictDoUpdate({ target: telegramUsers.telegramId, set: { username, firstName, updatedAt: new Date() } });
   }
 
   async upsertServer(input: UpsertServerInput): Promise<void> {
@@ -170,22 +198,34 @@ export class DrizzleAdminStore implements AdminStore {
   }
 
   async listAuditLog(limit: number): Promise<AuditLogEntry[]> {
-    const rows = await this.db.select().from(auditLog).orderBy(desc(auditLog.createdAt)).limit(limit);
-    return rows;
+    return this.selectAuditLog().orderBy(desc(auditLog.createdAt)).limit(limit);
   }
 
   async listAuditLogForTarget(serverAlias: string, targetName: string, limit: number): Promise<AuditLogEntry[]> {
-    const rows = await this.db
-      .select()
-      .from(auditLog)
+    return this.selectAuditLog()
       .where(and(eq(auditLog.serverAlias, serverAlias), ilike(auditLog.target, targetName)))
       .orderBy(desc(auditLog.createdAt))
       .limit(limit);
-    return rows;
   }
 
   async close(): Promise<void> {
     await this.pool.end();
+  }
+
+  private selectAdmins() {
+    return this.db
+      .select(ADMIN_COLUMNS)
+      .from(admins)
+      .leftJoin(telegramUsers, eq(telegramUsers.telegramId, admins.telegramId))
+      .$dynamic();
+  }
+
+  private selectAuditLog() {
+    return this.db
+      .select(AUDIT_LOG_COLUMNS)
+      .from(auditLog)
+      .leftJoin(telegramUsers, eq(telegramUsers.telegramId, auditLog.actorTelegramId))
+      .$dynamic();
   }
 
   private toServerConfig(row: typeof servers.$inferSelect): ServerConfig {

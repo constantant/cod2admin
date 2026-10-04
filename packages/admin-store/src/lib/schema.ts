@@ -31,6 +31,18 @@ export const admins = pgTable(
   ],
 );
 
+/**
+ * Last-seen Telegram @username/first name per user, so `/auditlog` and `/listadmins` can show
+ * names instead of bare IDs. Kept apart from `admins` so names survive `/removeadmin` — the audit
+ * log still has to name a removed admin. Refreshed whenever an admin uses the bot (auth.ts).
+ */
+export const telegramUsers = pgTable('telegram_users', {
+  telegramId: bigint('telegram_id', { mode: 'number' }).primaryKey(),
+  username: text('username'),
+  firstName: text('first_name'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 /** docs/PLAN.md §4 — per-server access scoping. No rows for an admin ⇒ access to all servers. */
 export const adminServers = pgTable(
   'admin_servers',

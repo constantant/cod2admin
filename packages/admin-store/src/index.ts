@@ -9,5 +9,6 @@ export type {
   ClaimOwnerResult,
   RecordAuditLogInput,
   ServerConfig,
+  TelegramUser,
   UpsertServerInput,
 } from './lib/types.js';

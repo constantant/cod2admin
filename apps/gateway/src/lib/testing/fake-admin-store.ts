@@ -12,6 +12,7 @@ export interface FakeAdminStore extends AdminStore {
   removeAdmin: Mock<AdminStore['removeAdmin']>;
   setRole: Mock<AdminStore['setRole']>;
   listAdmins: Mock<AdminStore['listAdmins']>;
+  saveTelegramUser: Mock<AdminStore['saveTelegramUser']>;
   upsertServer: Mock<AdminStore['upsertServer']>;
   getServer: Mock<AdminStore['getServer']>;
   listServers: Mock<AdminStore['listServers']>;
@@ -31,7 +32,7 @@ export interface FakeAdminStore extends AdminStore {
 
 /** Convenience for tests that just need to simulate "this actor is already an admin". */
 export function sampleAdmin(overrides: Partial<Admin> = {}): Admin {
-  return { telegramId: 1, role: 'owner', addedBy: null, addedAt: new Date(), ...overrides };
+  return { telegramId: 1, role: 'owner', addedBy: null, addedAt: new Date(), username: null, firstName: null, ...overrides };
 }
 
 export function createFakeAdminStore(overrides: Partial<{ admins: Admin[] }> = {}): FakeAdminStore {
@@ -43,6 +44,7 @@ export function createFakeAdminStore(overrides: Partial<{ admins: Admin[] }> = {
     removeAdmin: vi.fn().mockResolvedValue(undefined),
     setRole: vi.fn().mockResolvedValue(undefined),
     listAdmins: vi.fn().mockResolvedValue(admins),
+    saveTelegramUser: vi.fn().mockResolvedValue(undefined),
     upsertServer: vi.fn().mockResolvedValue(undefined),
     getServer: vi.fn().mockResolvedValue(undefined),
     listServers: vi.fn().mockResolvedValue([]),

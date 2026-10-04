@@ -1,9 +1,10 @@
 import type { Admin } from '@cod2admin/admin-store';
 import type { BotContext } from '../bot-context.js';
 import type { GatewayDeps } from '../deps.js';
+import { formatTelegramUser } from '../telegram-user.js';
 
 function formatAdminLine(admin: Admin): string {
-  return `${admin.telegramId} — ${admin.role}`;
+  return `${formatTelegramUser(admin.telegramId, admin.username, admin.firstName)} — ${admin.role}`;
 }
 
 export function formatAdminsMessage(admins: Admin[]): string {

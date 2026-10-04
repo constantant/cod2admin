@@ -155,7 +155,7 @@ describe('enrichReport', () => {
 
   it('passes through history rows from both stores unchanged', async () => {
     const auditLog: AuditLogEntry[] = [
-      { id: 1, actorTelegramId: 1, action: 'kick', target: 'Cheatr123', serverAlias: 'default', reason: null, source: 'telegram_command', detailJson: null, createdAt: new Date() },
+      { id: 1, actorTelegramId: 1, action: 'kick', target: 'Cheatr123', serverAlias: 'default', reason: null, source: 'telegram_command', detailJson: null, createdAt: new Date(), actorUsername: null, actorFirstName: null },
     ];
     const bans: Ban[] = [
       { id: 1, serverAlias: 'default', guid: null, name: 'Cheatr123', reason: 'past offense', bannedBy: 1, bannedAt: new Date(), expiresAt: null, unbannedAt: null },

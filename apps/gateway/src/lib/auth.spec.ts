@@ -17,6 +17,29 @@ describe('requireRole', () => {
     expect(ctx.reply).not.toHaveBeenCalled();
   });
 
+  it("saves the admin's Telegram name when it changed and attaches it to ctx.admin", async () => {
+    const adminStore = createFakeAdminStore({ admins: [sampleAdmin({ telegramId: 42, role: 'admin', username: 'old' })] });
+    const middleware = requireRole('admin', adminStore);
+    const ctx = createFakeCtx({ from: { id: 42, username: 'new', first_name: 'Kostya' } });
+
+    await middleware(ctx, vi.fn().mockResolvedValue(undefined));
+
+    expect(adminStore.saveTelegramUser).toHaveBeenCalledWith({ telegramId: 42, username: 'new', firstName: 'Kostya' });
+    expect(ctx.admin).toEqual({ telegramId: 42, role: 'admin', username: 'new', firstName: 'Kostya' });
+  });
+
+  it("doesn't rewrite the admin's Telegram name when it's unchanged", async () => {
+    const adminStore = createFakeAdminStore({
+      admins: [sampleAdmin({ telegramId: 42, role: 'admin', username: 'nick', firstName: 'Kostya' })],
+    });
+    const middleware = requireRole('admin', adminStore);
+    const ctx = createFakeCtx({ from: { id: 42, username: 'nick', first_name: 'Kostya' } });
+
+    await middleware(ctx, vi.fn().mockResolvedValue(undefined));
+
+    expect(adminStore.saveTelegramUser).not.toHaveBeenCalled();
+  });
+
   it('allows a higher-ranked role through a lower-rank gate', async () => {
     const adminStore = createFakeAdminStore({ admins: [sampleAdmin({ telegramId: 1, role: 'owner' })] });
     const middleware = requireRole('moderator', adminStore);

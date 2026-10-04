@@ -5,6 +5,16 @@ export interface Admin {
   role: AdminRole;
   addedBy: number | null;
   addedAt: Date;
+  /** Last-seen Telegram @username (without the @) — null until they use the bot, or if they have none. */
+  username: string | null;
+  firstName: string | null;
+}
+
+/** Telegram profile fields remembered via `saveTelegramUser` — see `telegramUsers` in schema.ts. */
+export interface TelegramUser {
+  telegramId: number;
+  username: string | null;
+  firstName: string | null;
 }
 
 export interface ServerConfig {
@@ -39,6 +49,9 @@ export interface AuditLogEntry {
   source: AuditSource;
   detailJson: unknown;
   createdAt: Date;
+  /** The actor's last-seen @username/first name, if known — see `Admin.username`. */
+  actorUsername: string | null;
+  actorFirstName: string | null;
 }
 
 export interface RecordAuditLogInput {
@@ -67,6 +80,8 @@ export interface AdminStore {
   removeAdmin(telegramId: number): Promise<void>;
   setRole(telegramId: number, role: AdminRole): Promise<void>;
   listAdmins(): Promise<Admin[]>;
+  /** Upserts a user's last-seen @username/first name (shown instead of bare IDs). */
+  saveTelegramUser(user: TelegramUser): Promise<void>;
 
   upsertServer(input: UpsertServerInput): Promise<void>;
   getServer(alias: string): Promise<ServerConfig | undefined>;

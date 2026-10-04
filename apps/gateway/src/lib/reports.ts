@@ -18,6 +18,7 @@ import {
 import type { RconClient } from '@cod2admin/rcon-client';
 import { Bot, InlineKeyboard } from 'grammy';
 import { executeModerationAction, ModerationActionError } from './moderation-actions.js';
+import { formatTelegramUser } from './telegram-user.js';
 
 const CALLBACK_PREFIX = 'report:';
 const ROLE_RANK: Record<AdminRole, number> = { moderator: 1, admin: 2, owner: 3 };
@@ -188,7 +189,7 @@ export async function handleReportTrigger(trigger: ReportTrigger, options: Handl
 /** Structural subset of grammy's callback-query `Context` (mirrors `BotContext`'s own approach). */
 export interface ReportCallbackContext {
   from?: { id: number };
-  admin?: { telegramId: number; role: AdminRole };
+  admin?: { telegramId: number; role: AdminRole; username?: string; firstName?: string };
   callbackData: string;
   editMessageText(text: string, other?: unknown): Promise<unknown>;
   answerCallbackQuery(other?: { text?: string; show_alert?: boolean }): Promise<unknown>;
@@ -251,7 +252,7 @@ export async function reportActionCallback(ctx: ReportCallbackContext, deps: Rep
   }
 
   if (decoded.action.kind === 'ignore') {
-    await ctx.editMessageText(`${entry.trigger.targetName}'s report was ignored by admin ${admin.telegramId}.`);
+    await ctx.editMessageText(`${entry.trigger.targetName}'s report was ignored by admin ${formatTelegramUser(admin.telegramId, admin.username, admin.firstName)}.`);
     deps.antiSpam.resolve(entry.trigger.chat.num, entry.trigger.targetName);
     deps.registry.delete(decoded.reportId);
     await ctx.answerCallbackQuery();
@@ -304,7 +305,7 @@ export async function reportActionCallback(ctx: ReportCallbackContext, deps: Rep
       },
     );
     await ctx.editMessageText(
-      `${result.label} ${context.targetName} — action taken by admin ${admin.telegramId} at ${new Date().toISOString()}.`,
+      `${result.label} ${context.targetName} — action taken by admin ${formatTelegramUser(admin.telegramId, admin.username, admin.firstName)} at ${new Date().toISOString()}.`,
     );
     deps.antiSpam.resolve(entry.trigger.chat.num, entry.trigger.targetName);
     deps.registry.delete(decoded.reportId);

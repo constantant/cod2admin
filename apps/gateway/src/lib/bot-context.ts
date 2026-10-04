@@ -7,7 +7,7 @@ import type { AdminRole } from '@cod2admin/admin-store';
  * object satisfying this interface is simpler still) instead of a real bot/API instance.
  */
 export interface BotContext {
-  from?: { id: number; username?: string };
+  from?: { id: number; username?: string; first_name?: string };
   /** `type` is "private" | "group" | "supergroup" | "channel" on real updates. */
   chat?: { id: number; type?: string };
   /** Text following the command name, e.g. "12 griefing" for "/kick 12 griefing". */
@@ -15,7 +15,7 @@ export interface BotContext {
   /** The Telegram ID of whoever's message this command replied to, if any (e.g. /addadmin). */
   replyToUserId?: number;
   /** Set by `requireRole` (auth.ts) once the actor is looked up — undefined before that runs. */
-  admin?: { telegramId: number; role: AdminRole };
+  admin?: { telegramId: number; role: AdminRole; username?: string; firstName?: string };
   reply(text: string, other?: unknown): Promise<unknown>;
   /** Deletes the message that triggered this update — grammy's `ctx.deleteMessage()`. */
   deleteMessage?(): Promise<unknown>;

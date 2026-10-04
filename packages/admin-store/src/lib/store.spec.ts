@@ -24,7 +24,7 @@ describe('DrizzleAdminStore', () => {
   });
 
   beforeEach(async () => {
-    await pool.query('TRUNCATE admins, admin_servers, servers, audit_log, settings RESTART IDENTITY CASCADE');
+    await pool.query('TRUNCATE admins, admin_servers, servers, audit_log, settings, telegram_users RESTART IDENTITY CASCADE');
   });
 
   describe('claimOwner', () => {
@@ -137,6 +137,36 @@ describe('DrizzleAdminStore', () => {
       await expect(store.getServer('a')).resolves.toBeUndefined();
       await expect(pool.query('SELECT * FROM admin_servers')).resolves.toMatchObject({ rowCount: 0 });
       await expect(store.removeServer('a')).resolves.toBe(false);
+    });
+  });
+
+  describe('telegram users', () => {
+    it("joins an admin's saved name onto getAdmin/listAdmins, null until saved", async () => {
+      await store.claimOwner(1);
+      await expect(store.getAdmin(1)).resolves.toMatchObject({ username: null, firstName: null });
+
+      await store.saveTelegramUser({ telegramId: 1, username: 'old_nick', firstName: 'Kostya' });
+      await store.saveTelegramUser({ telegramId: 1, username: 'new_nick', firstName: 'Kostya' });
+
+      await expect(store.getAdmin(1)).resolves.toMatchObject({ telegramId: 1, role: 'owner', username: 'new_nick', firstName: 'Kostya' });
+      await expect(store.listAdmins()).resolves.toEqual([expect.objectContaining({ telegramId: 1, username: 'new_nick' })]);
+    });
+
+    it('names the actor of audit log entries, even after the admin was removed', async () => {
+      await store.addAdmin(2, 'moderator', 1);
+      await store.saveTelegramUser({ telegramId: 2, username: null, firstName: 'Vasya' });
+      await store.recordAuditLog({ actorTelegramId: 2, action: 'kick', target: 'Cheatr123', serverAlias: 'default', source: 'telegram_command' });
+      await store.recordAuditLog({ actorTelegramId: 3, action: 'kick', target: 'Cheatr123', serverAlias: 'default', source: 'telegram_command' });
+      await store.removeAdmin(2);
+
+      await expect(store.listAuditLog(10)).resolves.toEqual([
+        expect.objectContaining({ actorTelegramId: 3, actorUsername: null, actorFirstName: null }),
+        expect.objectContaining({ actorTelegramId: 2, actorUsername: null, actorFirstName: 'Vasya' }),
+      ]);
+      await expect(store.listAuditLogForTarget('default', 'Cheatr123', 10)).resolves.toEqual([
+        expect.objectContaining({ actorTelegramId: 3, actorFirstName: null }),
+        expect.objectContaining({ actorTelegramId: 2, actorFirstName: 'Vasya' }),
+      ]);
     });
   });
 
