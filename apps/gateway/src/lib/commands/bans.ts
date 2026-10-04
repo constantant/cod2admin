@@ -1,7 +1,6 @@
 import type { Ban, BanIp } from '@cod2admin/ban-store';
-import { matchText, type BotContext } from '../bot-context.js';
+import type { BotContext } from '../bot-context.js';
 import type { GatewayDeps } from '../deps.js';
-import { extractServerFlag, resolveServer } from '../resolve-server.js';
 
 function formatExpiry(expiresAt: Date | null): string {
   return expiresAt ? `expires ${expiresAt.toISOString()}` : 'permanent';
@@ -9,12 +8,12 @@ function formatExpiry(expiresAt: Date | null): string {
 
 function formatGuidBan(ban: Ban): string {
   const reason = ban.reason ? ` (${ban.reason})` : '';
-  return `${ban.guid ?? 'unknown guid'} — ${ban.name}${reason} — ${formatExpiry(ban.expiresAt)}`;
+  return `${ban.guid ?? 'unknown guid'} — ${ban.name}${reason} — ${formatExpiry(ban.expiresAt)} — banned on ${ban.serverAlias}`;
 }
 
 function formatIpBan(ban: BanIp): string {
   const reason = ban.reason ? ` (${ban.reason})` : '';
-  return `${ban.ip}${reason} — ${formatExpiry(ban.expiresAt)}`;
+  return `${ban.ip}${reason} — ${formatExpiry(ban.expiresAt)} — banned on ${ban.serverAlias}`;
 }
 
 export function formatBansMessage(guidBans: Ban[], ipBans: BanIp[]): string {
@@ -22,7 +21,7 @@ export function formatBansMessage(guidBans: Ban[], ipBans: BanIp[]): string {
     return 'No active bans.';
   }
 
-  const sections: string[] = [];
+  const sections: string[] = ['Active bans (they apply on all servers):'];
   if (guidBans.length > 0) {
     sections.push(['GUID bans:', ...guidBans.map((ban) => formatGuidBan(ban))].join('\n'));
   }
@@ -33,23 +32,14 @@ export function formatBansMessage(guidBans: Ban[], ipBans: BanIp[]): string {
 }
 
 /**
- * `/bans [--server <alias>]` — lists currently active bans (both GUID-path `bans` and
- * IP-path `ban_ips`, docs/PLAN.md §7) so `/unban <guid-or-ip>` has something to target. A row
- * leaves this list once its `expiresAt` passes (poller-driven) or `/unban` stamps its
- * `unbannedAt` — the row itself stays around as ban *history* for `listBansByGuid`/etc.
- * (docs/PLAN.md §5 step 3), only `listActiveBans`/`listActiveIpBans` filter it out.
+ * `/bans` — lists currently active bans (both GUID-path `bans` and IP-path `ban_ips`,
+ * docs/PLAN.md §7) so `/unban <guid-or-ip>` has something to target. Bans are global, so this
+ * lists every server's, each with the server it was issued on; a `--server` flag is ignored.
+ * A row leaves this list once its `expiresAt` passes (poller-driven) or `/unban` stamps its
+ * `unbannedAt` — the row itself stays around as ban *history* (docs/PLAN.md §5 step 3).
  */
 export async function bansCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
-  const { alias: serverAlias } = extractServerFlag(matchText(ctx));
-  const server = await resolveServer(ctx, deps, serverAlias);
-  if (!server) {
-    return;
-  }
-
-  const [guidBans, ipBans] = await Promise.all([
-    deps.banStore.listActiveBans(server.alias),
-    deps.banStore.listActiveIpBans(server.alias),
-  ]);
+  const [guidBans, ipBans] = await Promise.all([deps.banStore.listActiveBans(), deps.banStore.listActiveIpBans()]);
 
   await ctx.reply(formatBansMessage(guidBans, ipBans));
 }

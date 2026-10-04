@@ -1,5 +1,6 @@
 export interface Ban {
   id: number;
+  /** The server the ban was issued on. The ban itself applies to every server (see `BanStore`). */
   serverAlias: string;
   guid: string | null;
   name: string;
@@ -24,6 +25,7 @@ export interface RecordBanInput {
 
 export interface BanIp {
   id: number;
+  /** The server the ban was issued on. The ban itself applies to every server (see `BanStore`). */
   serverAlias: string;
   ip: string;
   reason: string | null;
@@ -44,19 +46,25 @@ export interface RecordIpBanInput {
 }
 
 /**
- * Thin repository over Postgres (docs/PLAN.md §3.1/§7). `bans` is GUID-based/permanent-only in
- * Phase 2 (see `schema.ts`); `ban_ips` is what `/tempban` actually uses, enforced by `poller.ts`.
+ * Thin repository over Postgres (docs/PLAN.md §3.1/§7). `bans` is the GUID path, `ban_ips` the IP
+ * path (GUID-0 players and every `/tempban`), both enforced by `poller.ts`.
+ *
+ * Bans are global: every read and unban below covers all servers. A row's `serverAlias` only
+ * records where the ban was issued (and so which server's `ban.txt` holds a GUID ban).
  */
 export interface BanStore {
   recordBan(input: RecordBanInput): Promise<void>;
 
   recordIpBan(input: RecordIpBanInput): Promise<void>;
   /** Rows with `expiresAt` null or in the future, and not yet unbanned — what the poller should currently enforce. */
-  listActiveIpBans(serverAlias: string): Promise<BanIp[]>;
-  listExpiredIpBans(serverAlias: string, now: Date): Promise<BanIp[]>;
+  listActiveIpBans(): Promise<BanIp[]>;
+  listExpiredIpBans(now: Date): Promise<BanIp[]>;
   expireIpBan(id: number): Promise<void>;
-  /** `/unban <ip>` (docs/PLAN.md §6): stamps `unbannedAt` on matching active `ban_ips` rows — never written to ban.txt, so no rcon call is needed. */
-  unbanIp(serverAlias: string, ip: string): Promise<void>;
+  /**
+   * `/unban <ip>` (docs/PLAN.md §6): stamps `unbannedAt` on matching active `ban_ips` rows — never
+   * written to ban.txt, so no rcon call is needed. Returns how many active bans were lifted.
+   */
+  unbanIp(ip: string): Promise<number>;
 
   /**
    * GUID-path temp bans whose `expiresAt` has passed (docs/PLAN.md §5 step 7's poller job (b)) —
@@ -64,22 +72,26 @@ export interface BanStore {
    * rcon call (`unbanUser(guid)`, to remove the ban.txt entry) before the row is dropped — that's
    * why this returns full `Ban` rows (for their `guid`), not just IDs.
    */
-  listExpiredBans(serverAlias: string, now: Date): Promise<Ban[]>;
+  listExpiredBans(now: Date): Promise<Ban[]>;
   expireBan(id: number): Promise<void>;
-  /** Rows with `expiresAt` null or in the future, and not yet unbanned — the `bans`-table equivalent of `listActiveIpBans`, for `/bans`. */
-  listActiveBans(serverAlias: string): Promise<Ban[]>;
-  /** `/unban <guid>` (docs/PLAN.md §6): stamps `unbannedAt` on matching active `bans` rows so `/bans` stops listing them, alongside the caller's own `unbanUser(guid)` rcon call. */
-  unbanByGuid(serverAlias: string, guid: string): Promise<void>;
+  /** Rows with `expiresAt` null or in the future, and not yet unbanned — the `bans`-table equivalent of `listActiveIpBans`, for `/bans` and the poller. */
+  listActiveBans(): Promise<Ban[]>;
+  /**
+   * `/unban <guid>` (docs/PLAN.md §6): stamps `unbannedAt` on matching active `bans` rows so
+   * they stop being enforced, alongside the caller's own `unbanUser(guid)` rcon calls. Returns
+   * how many active bans were lifted.
+   */
+  unbanByGuid(guid: string): Promise<number>;
 
   /**
-   * Prior GUID-path bans against a specific GUID (docs/PLAN.md §5 step 3's report enrichment),
-   * newest first.
+   * Prior GUID-path bans against a specific GUID, on any server (docs/PLAN.md §5 step 3's report
+   * enrichment), newest first.
    */
-  listBansByGuid(serverAlias: string, guid: string, limit: number): Promise<Ban[]>;
+  listBansByGuid(guid: string, limit: number): Promise<Ban[]>;
   /** Fallback for the common GUID-0 case (§2.4), or today, the only case that ever matches. */
-  listBansByName(serverAlias: string, name: string, limit: number): Promise<Ban[]>;
+  listBansByName(name: string, limit: number): Promise<Ban[]>;
   /** IP-ban history — `bans` has no IP column, so IP-based history only ever comes from here. */
-  listIpBansByIp(serverAlias: string, ip: string, limit: number): Promise<BanIp[]>;
+  listIpBansByIp(ip: string, limit: number): Promise<BanIp[]>;
 
   close(): Promise<void>;
 }

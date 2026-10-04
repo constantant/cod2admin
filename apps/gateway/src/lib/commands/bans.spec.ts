@@ -20,15 +20,25 @@ describe('bansCommand', () => {
       },
     ]);
     banStore.listActiveIpBans.mockResolvedValue([
-      { id: 2, serverAlias: 'default', ip: '1.2.3.4', reason: null, bannedBy: 1, bannedAt: new Date(), expiresAt: null, unbannedAt: null },
+      { id: 2, serverAlias: 'other', ip: '1.2.3.4', reason: null, bannedBy: 1, bannedAt: new Date(), expiresAt: null, unbannedAt: null },
     ]);
     const ctx = createFakeCtx({ match: '', admin: { telegramId: 1, role: 'admin' } });
 
     await bansCommand(ctx, deps);
 
-    expect(banStore.listActiveBans).toHaveBeenCalledWith('default');
-    expect(banStore.listActiveIpBans).toHaveBeenCalledWith('default');
-    expect(ctx.reply).toHaveBeenCalledWith('GUID bans:\nGUID123 — Cheater (aimbot) — permanent\n\nIP bans:\n1.2.3.4 — permanent');
+    expect(banStore.listActiveBans).toHaveBeenCalledWith();
+    expect(banStore.listActiveIpBans).toHaveBeenCalledWith();
+    expect(ctx.reply).toHaveBeenCalledWith(
+      [
+        'Active bans (they apply on all servers):',
+        '',
+        'GUID bans:',
+        'GUID123 — Cheater (aimbot) — permanent — banned on default',
+        '',
+        'IP bans:',
+        '1.2.3.4 — permanent — banned on other',
+      ].join('\n'),
+    );
   });
 
   it('reports no active bans', async () => {

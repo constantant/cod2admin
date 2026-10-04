@@ -667,6 +667,21 @@ Roles, stored in `admin-store`:
   poll-and-kick — even though expiry enforcement is now shared logic; querying "what does the
   poller need to check right now" should be a plain scan of one table, not a filtered scan of
   the general ban history.
+- **Bans are global (2026-10-04).** A ban made on one server applies to every server the bot
+  manages, and to servers added later. Both tables keep `server_alias`, but only to record
+  where a ban was issued. Active-ban queries, `/bans`, `/unban` and the ban history on report
+  cards all cover every server. Existing rows became global too, with no schema change.
+  - **Enforcement:** the poller (`runBanEnforcementSweep`) checks `rcon status` on each server
+    and kicks a player whose IP matches `ban_ips` or whose GUID matches `bans`. GUID 0 never
+    matches, because it isn't a real identity.
+  - **`ban.txt`:** a GUID ban still goes into the issuing server's `ban.txt`. The poll-and-kick
+    sweep is what enforces it on every other server.
+  - **Expiry:** an expired GUID ban is `unbanUser`ed on the issuing server only, and the row is
+    kept until that succeeds. `/unban <guid>` asks *every* server to `unbanUser` it.
+  - **Load:** nothing is polled while there are no active bans. Each server is handled on its
+    own, so one that doesn't answer doesn't stop the others. Ticks don't overlap, since a
+    status call can take ~10s on a rate-limited server.
+  - On the real server, 30 of 33 players had GUID 0, so in practice most bans are IP bans.
 - `reports(id, server_alias, reporter_name, reporter_guid, target_name, target_guid,
   target_ip, reason, raw_chat_line, created_at, resolved_action, resolved_by, resolved_at)`
 - `audit_log(id, actor_telegram_id, action, target, server_alias, reason, source, detail_json,

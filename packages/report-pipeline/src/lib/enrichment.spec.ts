@@ -97,7 +97,7 @@ describe('enrichReport', () => {
 
     await enrichReport(resolution, trigger(), deps);
 
-    expect(deps.banStore.listBansByGuid).toHaveBeenCalledWith('default', 'realguid', 10);
+    expect(deps.banStore.listBansByGuid).toHaveBeenCalledWith('realguid', 10);
     expect(deps.banStore.listBansByName).not.toHaveBeenCalled();
   });
 
@@ -107,7 +107,7 @@ describe('enrichReport', () => {
 
     await enrichReport(resolution, trigger(), deps);
 
-    expect(deps.banStore.listBansByName).toHaveBeenCalledWith('default', 'Cheatr123', 10);
+    expect(deps.banStore.listBansByName).toHaveBeenCalledWith('Cheatr123', 10);
     expect(deps.banStore.listBansByGuid).not.toHaveBeenCalled();
   });
 
@@ -117,7 +117,7 @@ describe('enrichReport', () => {
 
     await enrichReport(resolution, trigger(), deps);
 
-    expect(deps.banStore.listBansByName).toHaveBeenCalledWith('default', 'Cheatr123', 10);
+    expect(deps.banStore.listBansByName).toHaveBeenCalledWith('Cheatr123', 10);
   });
 
   it('only queries IP-ban history when an IP is known (never for a disconnected target)', async () => {
@@ -126,7 +126,7 @@ describe('enrichReport', () => {
 
     const liveDeps = fakeDeps();
     await enrichReport(live, trigger(), liveDeps);
-    expect(liveDeps.banStore.listIpBansByIp).toHaveBeenCalledWith('default', '9.9.9.9', 10);
+    expect(liveDeps.banStore.listIpBansByIp).toHaveBeenCalledWith('9.9.9.9', 10);
 
     const disconnectedDeps = fakeDeps();
     await enrichReport(disconnected, trigger(), disconnectedDeps);
@@ -140,7 +140,7 @@ describe('enrichReport', () => {
     await enrichReport(resolution, trigger(), { ...deps, historyLimit: 3 });
 
     expect(deps.adminStore.listAuditLogForTarget).toHaveBeenCalledWith('default', 'Cheatr123', 3);
-    expect(deps.banStore.listBansByGuid).toHaveBeenCalledWith('default', 'realguid', 3);
+    expect(deps.banStore.listBansByGuid).toHaveBeenCalledWith('realguid', 3);
   });
 
   it('passes through history rows from both stores unchanged', async () => {

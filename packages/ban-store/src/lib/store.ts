@@ -34,91 +34,70 @@ export class DrizzleBanStore implements BanStore {
     });
   }
 
-  async listActiveIpBans(serverAlias: string): Promise<BanIp[]> {
+  async listActiveIpBans(): Promise<BanIp[]> {
     return this.db
       .select()
       .from(banIps)
-      .where(
-        and(
-          eq(banIps.serverAlias, serverAlias),
-          isNull(banIps.unbannedAt),
-          or(isNull(banIps.expiresAt), gt(banIps.expiresAt, new Date())),
-        ),
-      );
+      .where(and(isNull(banIps.unbannedAt), or(isNull(banIps.expiresAt), gt(banIps.expiresAt, new Date()))));
   }
 
-  async listExpiredIpBans(serverAlias: string, now: Date): Promise<BanIp[]> {
+  async listExpiredIpBans(now: Date): Promise<BanIp[]> {
     return this.db
       .select()
       .from(banIps)
-      .where(
-        and(eq(banIps.serverAlias, serverAlias), isNull(banIps.unbannedAt), isNotNull(banIps.expiresAt), lte(banIps.expiresAt, now)),
-      );
+      .where(and(isNull(banIps.unbannedAt), isNotNull(banIps.expiresAt), lte(banIps.expiresAt, now)));
   }
 
   async expireIpBan(id: number): Promise<void> {
     await this.db.delete(banIps).where(eq(banIps.id, id));
   }
 
-  async unbanIp(serverAlias: string, ip: string): Promise<void> {
-    await this.db
+  async unbanIp(ip: string): Promise<number> {
+    const lifted = await this.db
       .update(banIps)
       .set({ unbannedAt: new Date() })
-      .where(and(eq(banIps.serverAlias, serverAlias), eq(banIps.ip, ip), isNull(banIps.unbannedAt)));
+      .where(and(eq(banIps.ip, ip), isNull(banIps.unbannedAt)))
+      .returning({ id: banIps.id });
+    return lifted.length;
   }
 
-  async listExpiredBans(serverAlias: string, now: Date): Promise<Ban[]> {
+  async listExpiredBans(now: Date): Promise<Ban[]> {
     return this.db
       .select()
       .from(bans)
-      .where(and(eq(bans.serverAlias, serverAlias), isNull(bans.unbannedAt), isNotNull(bans.expiresAt), lte(bans.expiresAt, now)));
+      .where(and(isNull(bans.unbannedAt), isNotNull(bans.expiresAt), lte(bans.expiresAt, now)));
   }
 
   async expireBan(id: number): Promise<void> {
     await this.db.delete(bans).where(eq(bans.id, id));
   }
 
-  async listActiveBans(serverAlias: string): Promise<Ban[]> {
+  async listActiveBans(): Promise<Ban[]> {
     return this.db
       .select()
       .from(bans)
-      .where(
-        and(eq(bans.serverAlias, serverAlias), isNull(bans.unbannedAt), or(isNull(bans.expiresAt), gt(bans.expiresAt, new Date()))),
-      );
+      .where(and(isNull(bans.unbannedAt), or(isNull(bans.expiresAt), gt(bans.expiresAt, new Date()))));
   }
 
-  async unbanByGuid(serverAlias: string, guid: string): Promise<void> {
-    await this.db
+  async unbanByGuid(guid: string): Promise<number> {
+    const lifted = await this.db
       .update(bans)
       .set({ unbannedAt: new Date() })
-      .where(and(eq(bans.serverAlias, serverAlias), eq(bans.guid, guid), isNull(bans.unbannedAt)));
+      .where(and(eq(bans.guid, guid), isNull(bans.unbannedAt)))
+      .returning({ id: bans.id });
+    return lifted.length;
   }
 
-  async listBansByGuid(serverAlias: string, guid: string, limit: number): Promise<Ban[]> {
-    return this.db
-      .select()
-      .from(bans)
-      .where(and(eq(bans.serverAlias, serverAlias), eq(bans.guid, guid)))
-      .orderBy(desc(bans.bannedAt))
-      .limit(limit);
+  async listBansByGuid(guid: string, limit: number): Promise<Ban[]> {
+    return this.db.select().from(bans).where(eq(bans.guid, guid)).orderBy(desc(bans.bannedAt)).limit(limit);
   }
 
-  async listBansByName(serverAlias: string, name: string, limit: number): Promise<Ban[]> {
-    return this.db
-      .select()
-      .from(bans)
-      .where(and(eq(bans.serverAlias, serverAlias), ilike(bans.name, name)))
-      .orderBy(desc(bans.bannedAt))
-      .limit(limit);
+  async listBansByName(name: string, limit: number): Promise<Ban[]> {
+    return this.db.select().from(bans).where(ilike(bans.name, name)).orderBy(desc(bans.bannedAt)).limit(limit);
   }
 
-  async listIpBansByIp(serverAlias: string, ip: string, limit: number): Promise<BanIp[]> {
-    return this.db
-      .select()
-      .from(banIps)
-      .where(and(eq(banIps.serverAlias, serverAlias), eq(banIps.ip, ip)))
-      .orderBy(desc(banIps.bannedAt))
-      .limit(limit);
+  async listIpBansByIp(ip: string, limit: number): Promise<BanIp[]> {
+    return this.db.select().from(banIps).where(eq(banIps.ip, ip)).orderBy(desc(banIps.bannedAt)).limit(limit);
   }
 
   async close(): Promise<void> {

@@ -1,6 +1,6 @@
 import type { ServerStatus } from '@cod2admin/rcon-client';
-import { describe, expect, it } from 'vitest';
-import { runBanExpirySweep, runIpBanSweep } from './poller.js';
+import { describe, expect, it, vi } from 'vitest';
+import { runBanEnforcementSweep, runBanExpirySweep } from './poller.js';
 import { asBanStore, asRconClient, createFakeBanStore, createFakeRcon } from './testing/fakes.js';
 import type { Ban, BanIp } from './types.js';
 
@@ -33,59 +33,44 @@ function sampleGuidBan(overrides: Partial<Ban> = {}): Ban {
   };
 }
 
-describe('runIpBanSweep', () => {
+function rconWithPlayers(players: ServerStatus['players']) {
+  const rcon = createFakeRcon();
+  rcon.status.mockResolvedValue({ raw: '', players });
+  return rcon;
+}
+
+describe('runBanEnforcementSweep', () => {
   it('kicks a connected player whose IP matches an active ban_ips row', async () => {
     const banStoreFake = createFakeBanStore({ active: [sampleBan({ ip: '1.2.3.4' })] });
-    const rconFake = createFakeRcon();
-    rconFake.status.mockResolvedValue({
-      raw: '',
-      players: [{ num: 3, score: 0, ping: 0, name: 'Cheater', ip: '1.2.3.4' }],
-    } satisfies ServerStatus);
+    const rconFake = rconWithPlayers([{ num: 3, score: 0, ping: 0, name: 'Cheater', ip: '1.2.3.4' }]);
 
-    await runIpBanSweep(asBanStore(banStoreFake), new Map([['default', asRconClient(rconFake)]]));
+    await runBanEnforcementSweep(asBanStore(banStoreFake), new Map([['default', asRconClient(rconFake)]]));
 
     expect(rconFake.kick).toHaveBeenCalledWith('Cheater');
   });
 
   it('does not kick a connected player whose IP is not banned', async () => {
     const banStoreFake = createFakeBanStore({ active: [sampleBan({ ip: '1.2.3.4' })] });
-    const rconFake = createFakeRcon();
-    rconFake.status.mockResolvedValue({
-      raw: '',
-      players: [{ num: 3, score: 0, ping: 0, name: 'Innocent', ip: '9.9.9.9' }],
-    } satisfies ServerStatus);
+    const rconFake = rconWithPlayers([{ num: 3, score: 0, ping: 0, name: 'Innocent', ip: '9.9.9.9' }]);
 
-    await runIpBanSweep(asBanStore(banStoreFake), new Map([['default', asRconClient(rconFake)]]));
+    await runBanEnforcementSweep(asBanStore(banStoreFake), new Map([['default', asRconClient(rconFake)]]));
 
     expect(rconFake.kick).not.toHaveBeenCalled();
   });
 
-  it('skips the status() call entirely when there are no active bans', async () => {
-    const banStoreFake = createFakeBanStore({ active: [] });
-    const rconFake = createFakeRcon();
+  it('enforces a ban on every server, not just the one it was issued on', async () => {
+    const banStoreFake = createFakeBanStore({
+      active: [sampleBan({ serverAlias: 'server-a', ip: '1.2.3.4' })],
+      activeBans: [sampleGuidBan({ serverAlias: 'server-a', guid: 'guid-x' })],
+    });
+    const rconA = rconWithPlayers([]);
+    const rconB = rconWithPlayers([
+      { num: 1, score: 0, ping: 0, name: 'ByIp', ip: '1.2.3.4', guid: '0' },
+      { num: 2, score: 0, ping: 0, name: 'ByGuid', ip: '5.5.5.5', guid: 'guid-x' },
+      { num: 3, score: 0, ping: 0, name: 'Innocent', ip: '9.9.9.9', guid: 'guid-y' },
+    ]);
 
-    await runIpBanSweep(asBanStore(banStoreFake), new Map([['default', asRconClient(rconFake)]]));
-
-    expect(rconFake.status).not.toHaveBeenCalled();
-  });
-
-  it('expires rows whose expiry has passed, with no rcon call needed', async () => {
-    const banStoreFake = createFakeBanStore({ active: [], expired: [sampleBan({ id: 42 })] });
-    const rconFake = createFakeRcon();
-
-    await runIpBanSweep(asBanStore(banStoreFake), new Map([['default', asRconClient(rconFake)]]));
-
-    expect(banStoreFake.expireIpBan).toHaveBeenCalledWith(42);
-  });
-
-  it('sweeps every configured server independently', async () => {
-    const banStoreFake = createFakeBanStore({ active: [sampleBan({ ip: '1.2.3.4' })] });
-    const rconA = createFakeRcon();
-    const rconB = createFakeRcon();
-    rconA.status.mockResolvedValue({ raw: '', players: [{ num: 1, score: 0, ping: 0, name: 'A', ip: '1.2.3.4' }] });
-    rconB.status.mockResolvedValue({ raw: '', players: [{ num: 2, score: 0, ping: 0, name: 'B', ip: '1.2.3.4' }] });
-
-    await runIpBanSweep(
+    await runBanEnforcementSweep(
       asBanStore(banStoreFake),
       new Map([
         ['server-a', asRconClient(rconA)],
@@ -93,19 +78,76 @@ describe('runIpBanSweep', () => {
       ]),
     );
 
-    expect(rconA.kick).toHaveBeenCalledWith('A');
-    expect(rconB.kick).toHaveBeenCalledWith('B');
+    expect(rconB.kick.mock.calls).toEqual([['ByIp'], ['ByGuid']]);
+  });
+
+  it('never matches GUID 0, which many unrelated players share', async () => {
+    const banStoreFake = createFakeBanStore({ activeBans: [sampleGuidBan({ guid: '0' })] });
+    const rconFake = rconWithPlayers([{ num: 1, score: 0, ping: 0, name: 'Someone', guid: '0' }]);
+
+    await runBanEnforcementSweep(asBanStore(banStoreFake), new Map([['default', asRconClient(rconFake)]]));
+
+    expect(rconFake.status).not.toHaveBeenCalled();
+    expect(rconFake.kick).not.toHaveBeenCalled();
+  });
+
+  it('skips the status() call entirely when there are no active bans', async () => {
+    const banStoreFake = createFakeBanStore({ active: [], activeBans: [] });
+    const rconFake = createFakeRcon();
+
+    await runBanEnforcementSweep(asBanStore(banStoreFake), new Map([['default', asRconClient(rconFake)]]));
+
+    expect(rconFake.status).not.toHaveBeenCalled();
+  });
+
+  it('keeps sweeping the other servers when one fails, and reports the failure', async () => {
+    const banStoreFake = createFakeBanStore({ active: [sampleBan({ ip: '1.2.3.4' })] });
+    const failing = createFakeRcon();
+    const failure = new Error('timed out');
+    failing.status.mockRejectedValue(failure);
+    const healthy = rconWithPlayers([{ num: 1, score: 0, ping: 0, name: 'Cheater', ip: '1.2.3.4' }]);
+    const onError = vi.fn();
+
+    await runBanEnforcementSweep(
+      asBanStore(banStoreFake),
+      new Map([
+        ['down', asRconClient(failing)],
+        ['up', asRconClient(healthy)],
+      ]),
+      onError,
+    );
+
+    expect(onError).toHaveBeenCalledWith('down', failure);
+    expect(healthy.kick).toHaveBeenCalledWith('Cheater');
+  });
+
+  it('expires rows whose expiry has passed, with no rcon call needed', async () => {
+    const banStoreFake = createFakeBanStore({ active: [], expired: [sampleBan({ id: 42 })] });
+    const rconFake = createFakeRcon();
+
+    await runBanEnforcementSweep(asBanStore(banStoreFake), new Map([['default', asRconClient(rconFake)]]));
+
+    expect(banStoreFake.expireIpBan).toHaveBeenCalledWith(42);
+    expect(rconFake.status).not.toHaveBeenCalled();
   });
 });
 
 describe('runBanExpirySweep', () => {
-  it('unbans (rcon) and expires (store) a GUID-path temp ban whose expiry has passed', async () => {
-    const banStoreFake = createFakeBanStore({ expiredBans: [sampleGuidBan({ id: 7, guid: 'realguid' })] });
-    const rconFake = createFakeRcon();
+  it('unbans (rcon) on the issuing server and expires (store) a GUID-path temp ban whose expiry has passed', async () => {
+    const banStoreFake = createFakeBanStore({ expiredBans: [sampleGuidBan({ id: 7, serverAlias: 'server-b', guid: 'realguid' })] });
+    const rconA = createFakeRcon();
+    const rconB = createFakeRcon();
 
-    await runBanExpirySweep(asBanStore(banStoreFake), new Map([['default', asRconClient(rconFake)]]));
+    await runBanExpirySweep(
+      asBanStore(banStoreFake),
+      new Map([
+        ['server-a', asRconClient(rconA)],
+        ['server-b', asRconClient(rconB)],
+      ]),
+    );
 
-    expect(rconFake.unbanUser).toHaveBeenCalledWith('realguid');
+    expect(rconB.unbanUser).toHaveBeenCalledWith('realguid');
+    expect(rconA.unbanUser).not.toHaveBeenCalled();
     expect(banStoreFake.expireBan).toHaveBeenCalledWith(7);
   });
 
@@ -119,6 +161,28 @@ describe('runBanExpirySweep', () => {
     expect(banStoreFake.expireBan).toHaveBeenCalledWith(8);
   });
 
+  it('just expires the row when the issuing server is no longer managed', async () => {
+    const banStoreFake = createFakeBanStore({ expiredBans: [sampleGuidBan({ id: 9, serverAlias: 'removed' })] });
+    const rconFake = createFakeRcon();
+
+    await runBanExpirySweep(asBanStore(banStoreFake), new Map([['default', asRconClient(rconFake)]]));
+
+    expect(rconFake.unbanUser).not.toHaveBeenCalled();
+    expect(banStoreFake.expireBan).toHaveBeenCalledWith(9);
+  });
+
+  it('keeps the row for the next tick when the issuing server does not answer', async () => {
+    const banStoreFake = createFakeBanStore({ expiredBans: [sampleGuidBan({ id: 10 })] });
+    const rconFake = createFakeRcon();
+    rconFake.unbanUser.mockRejectedValue(new Error('timed out'));
+    const onError = vi.fn();
+
+    await runBanExpirySweep(asBanStore(banStoreFake), new Map([['default', asRconClient(rconFake)]]), onError);
+
+    expect(onError).toHaveBeenCalledWith('default', expect.any(Error));
+    expect(banStoreFake.expireBan).not.toHaveBeenCalled();
+  });
+
   it('does nothing when there are no expired GUID bans', async () => {
     const banStoreFake = createFakeBanStore({ expiredBans: [] });
     const rconFake = createFakeRcon();
@@ -127,22 +191,5 @@ describe('runBanExpirySweep', () => {
 
     expect(rconFake.unbanUser).not.toHaveBeenCalled();
     expect(banStoreFake.expireBan).not.toHaveBeenCalled();
-  });
-
-  it('sweeps every configured server independently', async () => {
-    const banStoreFake = createFakeBanStore({ expiredBans: [sampleGuidBan({ id: 1, guid: 'guid-x' })] });
-    const rconA = createFakeRcon();
-    const rconB = createFakeRcon();
-
-    await runBanExpirySweep(
-      asBanStore(banStoreFake),
-      new Map([
-        ['server-a', asRconClient(rconA)],
-        ['server-b', asRconClient(rconB)],
-      ]),
-    );
-
-    expect(rconA.unbanUser).toHaveBeenCalledWith('guid-x');
-    expect(rconB.unbanUser).toHaveBeenCalledWith('guid-x');
   });
 });

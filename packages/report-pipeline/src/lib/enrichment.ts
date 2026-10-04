@@ -108,9 +108,10 @@ export async function enrichReport(
   const [auditLog, bans, ipBans] = await Promise.all([
     deps.adminStore.listAuditLogForTarget(deps.serverAlias, target.name, limit),
     isUsableGuid(target.guid)
-      ? deps.banStore.listBansByGuid(deps.serverAlias, target.guid, limit)
-      : deps.banStore.listBansByName(deps.serverAlias, target.name, limit),
-    target.ip ? deps.banStore.listIpBansByIp(deps.serverAlias, target.ip, limit) : Promise.resolve([]),
+      ? deps.banStore.listBansByGuid(target.guid, limit)
+      : deps.banStore.listBansByName(target.name, limit),
+    // Ban history covers every server, like the bans themselves (docs/PLAN.md §7).
+    target.ip ? deps.banStore.listIpBansByIp(target.ip, limit) : Promise.resolve([]),
   ]);
 
   return {

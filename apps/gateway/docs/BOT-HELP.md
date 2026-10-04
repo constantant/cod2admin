@@ -33,8 +33,10 @@ defaults to 30 minutes if omitted. IP-based.
 *Admin commands*
 
 `/ban <client id> [reason] [--server <alias>]` — permanent
-`/unban <guid-or-ip> [--server <alias>]`
-`/bans [--server <alias>]` — list currently active GUID/IP bans
+`/unban <guid-or-ip>` — lifts the ban on all servers
+`/bans` — list currently active GUID/IP bans, with the server each was issued on
+Bans (including `/tempban`) apply on *all* servers this bot manages, not just the one the
+player was banned on — `--server` only picks which server to find the player on.
 `/map <name> [--server <alias>]`
 `/maps [--server <alias>]` — tap-to-switch buttons for the maps in `sv_mapRotation`, if typing an
 exact map name for `/map` is inconvenient
