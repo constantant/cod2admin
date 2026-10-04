@@ -1,3 +1,14 @@
+## [1.2.1](https://github.com/constantant/cod2admin/releases/tag/v1.2.1) (2026-10-04)
+
+### 🩹 Fixes
+
+- **rcon-client:** quote say text so Cyrillic isn't dropped ([ddf1d94](https://github.com/constantant/cod2admin/commit/ddf1d94))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5 (1M context)
+- kk
+
 ## [1.2.0](https://github.com/constantant/cod2admin/releases/tag/v1.2.0) (2026-10-04)
 
 ### 🚀 Features
