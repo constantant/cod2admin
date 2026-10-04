@@ -1,3 +1,14 @@
+## [1.2.0](https://github.com/constantant/cod2admin/releases/tag/v1.2.0) (2026-10-04)
+
+### 🚀 Features
+
+- **gateway:** add /addserver, /removeserver and /setdefault ([bd8594e](https://github.com/constantant/cod2admin/commit/bd8594e))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5 (1M context)
+- kk
+
 ## [1.1.2](https://github.com/constantant/cod2admin/releases/tag/v1.1.2) (2026-10-03)
 
 ### 🩹 Fixes
