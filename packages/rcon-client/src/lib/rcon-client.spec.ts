@@ -89,7 +89,8 @@ describe('RconClient', () => {
     ['banClient', (client: RconClient) => client.banClient(2), 'rcon secret banClient 2'],
     ['banUser', (client: RconClient) => client.banUser(2), 'rcon secret banUser 2'],
     ['unbanUser', (client: RconClient) => client.unbanUser('GUID123'), 'rcon secret unbanUser GUID123'],
-    ['say', (client: RconClient) => client.say('hello'), 'rcon secret say hello'],
+    ['say', (client: RconClient) => client.say('hello'), 'rcon secret say "hello"'],
+    ['say (quotes stripped)', (client: RconClient) => client.say('a "b" c'), 'rcon secret say "a b c"'],
     ['map', (client: RconClient) => client.map('mp_toujane'), 'rcon secret map mp_toujane'],
   ])('%s sends the expected raw rcon command', async (_name, action, expectedCommand) => {
     let received: string | undefined;
@@ -237,7 +238,11 @@ describe('RconClient', () => {
 
     await expect(client.say('всем привет')).resolves.toBe('Димон');
     expect(receivedBytes).toEqual(
-      Buffer.concat([Buffer.from('rcon pw say ', 'latin1'), Buffer.from('e2f1e5ec20eff0e8e2e5f2', 'hex')]),
+      Buffer.concat([
+        Buffer.from('rcon pw say "', 'latin1'),
+        Buffer.from('e2f1e5ec20eff0e8e2e5f2', 'hex'),
+        Buffer.from('"', 'latin1'),
+      ]),
     );
   });
 

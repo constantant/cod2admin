@@ -193,6 +193,14 @@ dedicated servers:
   `kick`. Verified on the real server: a cvar set to `всем привет Ёё` was stored as the correct
   CP1251 bytes, and live players' names decoded as `Димон` and `Ира`.
 
+  The right bytes weren't enough on their own. Players still saw only `!` for
+  `/say Вика вас всех забанит!`. The server's command parser (the classic Quake 3 tokenizer)
+  treats every byte above 0x7F as whitespace **outside quotes**, so all the Cyrillic letters
+  disappeared. Inside quotes, bytes are copied as-is. A hidden cvar confirmed it on the real
+  server: `set x Вика вас всех забанит!` stored `!`, while the quoted form stored the full
+  sentence. That's why `RconClient#say` always quotes its text now. It's also why Cyrillic
+  names only kick when quoted (see the `kick` note above).
+
 ### 2.5 Conclusion
 
 No existing open-source tool does "CoD2 RCON + Telegram + automated in-game report intake"

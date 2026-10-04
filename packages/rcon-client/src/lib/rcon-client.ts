@@ -114,8 +114,14 @@ export class RconClient {
     return this.rcon(`unbanUser ${guid}`);
   }
 
+  /**
+   * Always quoted: the server's command parser treats every byte above 0x7F as whitespace outside
+   * quotes, so unquoted Cyrillic (CP1251) text was dropped and `say Вика вас всех забанит!` showed
+   * players only "!" (docs/PLAN.md §2.4, "Text encoding"). A `"` in the message would end the
+   * quoted string early, so it's removed.
+   */
   async say(message: string): Promise<string> {
-    return this.rcon(`say ${message}`);
+    return this.rcon(`say "${message.replace(/"/g, '')}"`);
   }
 
   async map(mapName: string): Promise<string> {
