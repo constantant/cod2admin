@@ -130,6 +130,33 @@ describe('parseRconStatusTable', () => {
     ]);
   });
 
+  it('parses names longer than their column, and names with spaces (a real busy server)', () => {
+    // Rows from a real public server (2026-10-04), IPs replaced with documentation addresses.
+    // Every name here overflows the 15-character name column, pushing the rest of its row right;
+    // the old parser read e.g. "0" or "50" as these players' IP.
+    const table = [
+      'map: mp_decoy',
+      'num score ping guid   name            lastmsg address               qport rate',
+      '--- ----- ---- ------ --------------- ------- --------------------- ----- -----',
+      '  2    12   91      0 ^^20Persian^^51Gulf^7       0 198.51.100.2:22633    1264 25000',
+      '  8    30  101      0 Pro100Nik#^2791^7        50 198.51.100.8:-11770    1858 25000',
+      ' 11     0   83 990164 Pro100Nik#^2235^7         0 198.51.100.11:25460    5087 25000',
+      ' 13    61   67      0 ^1=[^3JFF^1]^3jc^5Van^3Damme^7      0 198.51.100.13:28960     915 25000',
+      ' 28   116   69      0 ^26o/IoTHuK ууу^7         0 198.51.100.28:28960   4075 25000',
+      '',
+    ].join('\n');
+
+    const players = parseRconStatusTable(table).players;
+
+    expect(players.map(({ num, guid, name, lastmsg, ip, port, qport }) => ({ num, guid, name, lastmsg, ip, port, qport }))).toEqual([
+      { num: 2, guid: '0', name: '^0Persian^1Gulf', lastmsg: 0, ip: '198.51.100.2', port: 22633, qport: 1264 },
+      { num: 8, guid: '0', name: 'Pro100Nik#791', lastmsg: 50, ip: '198.51.100.8', port: 53766, qport: 1858 },
+      { num: 11, guid: '990164', name: 'Pro100Nik#235', lastmsg: 0, ip: '198.51.100.11', port: 25460, qport: 5087 },
+      { num: 13, guid: '0', name: '=[JFF]jcVanDamme', lastmsg: 0, ip: '198.51.100.13', port: 28960, qport: 915 },
+      { num: 28, guid: '0', name: '6o/IoTHuK ууу', lastmsg: 0, ip: '198.51.100.28', port: 28960, qport: 4075 },
+    ]);
+  });
+
   it('un-wraps a signed-16-bit port above 32767', () => {
     const table = buildStatusTable('mp_toujane', [
       ['0', '0', '10', 'Solo', '0', '1.2.3.4:-12605', '990', '25000'],

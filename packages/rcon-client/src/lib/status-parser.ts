@@ -156,14 +156,13 @@ export function parseRconStatusTable(raw: string): ServerStatus {
   const headerLine = lines[separatorIndex - 1];
   const columns = columnBoundsFromSeparator(lines[separatorIndex]);
   const columnNames = columns.map(({ start, end }) => headerLine.slice(start, end).trim().toLowerCase());
-  // `name` is the only column that can contain embedded whitespace (multi-word player names),
-  // so it's the last one we trust fixed-width slicing for. Columns after it (lastmsg/address/
-  // qport/rate, guid-less or not) are parsed from the *remainder* of the line, split on
-  // whitespace, and assigned positionally — some server builds' status tables are consistently
-  // one-or-more characters narrower/wider per data row than their own header/separator declares
-  // (confirmed empirically: a real server's `lastmsg` value bleeding into what fixed-width
-  // slicing would call `address`, cascading through every column after it), which fixed-width
-  // slicing alone can't recover from.
+  // Column widths can't be trusted for any data row (docs/PLAN.md §2.4, quirk (a) and the
+  // 2026-10-04 note): some builds print rows a character or more off from their own header, and a
+  // name longer than its column — common once color codes count, e.g. `^^20Persian^^51Gulf^7` —
+  // pushes everything after it to the right. But `name` is the only column that can contain
+  // whitespace; every other value is a single token. So the columns before `name` are the first
+  // tokens of the line, the columns after it are the last tokens, and the name is exactly the
+  // text between them, embedded spaces and all.
   const nameIndex = columnNames.indexOf('name');
 
   const players: StatusPlayer[] = [];
@@ -173,21 +172,30 @@ export function parseRconStatusTable(raw: string): ServerStatus {
       continue;
     }
     const fields: Record<string, string> = {};
-    const fixedWidthCount = nameIndex === -1 ? columns.length : nameIndex + 1;
-    columns.slice(0, fixedWidthCount).forEach(({ start, end }, idx) => {
-      const isLastColumn = idx === columns.length - 1;
-      const value = isLastColumn ? line.slice(start) : line.slice(start, end);
-      fields[columnNames[idx]] = value.trim();
-    });
-    if (nameIndex !== -1 && nameIndex + 1 < columnNames.length) {
-      const remainder = line.slice(columns[nameIndex].end).trim();
-      const tokens = remainder.length > 0 ? remainder.split(/\s+/) : [];
-      columnNames.slice(nameIndex + 1).forEach((columnName, tokenIdx) => {
-        const token = tokens[tokenIdx];
-        if (token !== undefined) {
-          fields[columnName] = token;
-        }
+    if (nameIndex === -1) {
+      // No name column to anchor on: fall back to the header's fixed widths.
+      columns.forEach(({ start, end }, idx) => {
+        const isLastColumn = idx === columns.length - 1;
+        fields[columnNames[idx]] = (isLastColumn ? line.slice(start) : line.slice(start, end)).trim();
       });
+    } else {
+      const tokens = [...line.matchAll(/\S+/g)];
+      const before = columnNames.slice(0, nameIndex);
+      const after = columnNames.slice(nameIndex + 1);
+      if (tokens.length < before.length + after.length) {
+        continue; // not a player row (truncated or malformed)
+      }
+      before.forEach((columnName, idx) => {
+        fields[columnName] = tokens[idx][0];
+      });
+      const afterTokens = tokens.slice(tokens.length - after.length);
+      after.forEach((columnName, idx) => {
+        fields[columnName] = afterTokens[idx][0];
+      });
+      const lastBefore = tokens[before.length - 1];
+      const nameStart = lastBefore ? lastBefore.index + lastBefore[0].length : 0;
+      const nameEnd = afterTokens.length > 0 ? afterTokens[0].index : line.length;
+      fields['name'] = line.slice(nameStart, nameEnd).trim();
     }
     const player = fieldsToPlayer(fields);
     if (player) {
