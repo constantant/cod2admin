@@ -1,3 +1,14 @@
+## [1.6.0](https://github.com/constantant/cod2admin/releases/tag/v1.6.0) (2026-10-04)
+
+### 🚀 Features
+
+- **gateway:** show admins' Telegram names instead of IDs ([#1](https://github.com/constantant/cod2admin/issues/1))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5
+- kk
+
 ## [1.5.0](https://github.com/constantant/cod2admin/releases/tag/v1.5.0) (2026-10-04)
 
 ### 🚀 Features
