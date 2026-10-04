@@ -1,3 +1,18 @@
+## [1.4.0](https://github.com/constantant/cod2admin/releases/tag/v1.4.0) (2026-10-04)
+
+### 🚀 Features
+
+- **gateway:** show the country of player IPs ([372b166](https://github.com/constantant/cod2admin/commit/372b166))
+
+### 🩹 Fixes
+
+- **rcon-client:** parse status rows whose name overflows its column ([ff40788](https://github.com/constantant/cod2admin/commit/ff40788))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5
+- kk
+
 ## [1.3.0](https://github.com/constantant/cod2admin/releases/tag/v1.3.0) (2026-10-04)
 
 ### 🚀 Features
