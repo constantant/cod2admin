@@ -1,6 +1,6 @@
 # CoD2 Admin — Telegram Mini App Server Manager
 
-Status: draft plan · Owner: kk · Last updated: 2026-09-08
+Status: draft plan, nothing built yet · Owner: kk · Last updated: 2026-10-06
 
 ## 1. Goal
 
@@ -29,7 +29,8 @@ This is a companion plan, not a replacement. Reused as-is:
   table (Mini App actions get their own `source` tag in the audit log — see §7).
 - `packages/log-tailer` — already tails `games_mp.log` for the `!report` trigger (PLAN.md §5);
   the Mini App's live chat view (§6.2) is a second consumer of the same parsed event stream,
-  not a second log-tailing implementation.
+  not a second log-tailing implementation. It only exists when the bot runs on the game host
+  with `COD2_LOG_PATH` set; an RCON-only install (PLAN.md §3) has no chat feed to show.
 - `apps/gateway` — per the hosting-placement decision below (§3.1), the Mini App's backend is
   a module *inside* this same process, not a new deployable.
 
@@ -45,11 +46,21 @@ RCON talks to the game server (still local/UDP, still not internet-facing).
 software (`docs/PLAN.md` §12–§13's `install.sh`/self-update model) — there is no single
 "production" box kk controls or deploys to. Any real deployment is a third-party CoD2 server
 owner running the installer on *their own* rented game-hosting box, which kk typically has no
-access to (e.g. `185.158.113.146` is one such prospective adopter's server, used here only as a
-concrete example, not a target kk deploys to). The user's own QNAP NAS is a permanent test/dev
-rig for this project and is never itself a real deployment — its home-NAT networking is *not*
-representative of what a typical adopter's box looks like, and shouldn't be optimized for as if it
-were.
+access to (e.g. `185.158.113.146` is one such adopter's server, used here only as a concrete
+example). The user's own QNAP NAS started as the test/dev rig for this project. Its home-NAT
+networking is *not* representative of what a typical adopter's box looks like, and shouldn't be
+optimized for as if it were.
+
+**Update (2026-10-06):** two things above no longer hold everywhere.
+- `185.158.113.146` (CTF RUSSIA) is now a live deployment, but its bot doesn't run on that
+  box: it runs on kk's NAS and manages the server over RCON only (`PLAN.md` §3). So for that
+  server, the Mini App would be served from the NAS, the NAT'd case in the table below, not
+  the public-IP case.
+- The NAS now hosts that real bot, so it isn't purely a test rig any more.
+
+Both are worth settling before Phase M1's hosting work. A Russian-hosted box also brings
+`PLAN-russia-access.md`'s problem: admins there need a VPN to open Telegram, and so the Mini App,
+at all.
 
 ## 3. Hosting & HTTPS — feasibility and options
 
@@ -70,8 +81,7 @@ generic installer step, not a one-off choice made once.** The good news: `docs/P
 already requires gateway to be co-located with the game server it manages, and a CoD2 dedicated
 server is only useful to players if its host has a **public IP** — that's the normal case for
 any rented/self-hosted game server. RCON and game traffic share a single UDP port (`28960`,
-PLAN.md §11.1), so on a real deployment (unlike PLAN.md §11.1's dev setup, which binds it to
-`127.0.0.1` only) that port is necessarily reachable from the internet the moment players can
+PLAN.md §11.1), so on a real deployment that port is necessarily reachable from the internet the moment players can
 connect — the same source-IP firewalling PLAN.md §2.4/§8 recommends for RCON specifically doesn't
 change the fact that the *host itself* already has a public IP. So the typical adopter is in the
 *easy* case for Mini App hosting: their box is already publicly reachable, no NAT/port-forwarding
@@ -197,8 +207,9 @@ other, and both write to the same audit log (tagged by `source`, §8).
 
 - **Server dashboard**: current map, uptime, player-count history — needs a lightweight
   snapshot table (a new small table, e.g. `server_snapshots(server_id, ts, player_count, map)`,
-  populated by the existing self-poll interval PLAN.md §3/§5.7 already runs for IP-ban expiry —
-  same poll, one more thing recorded).
+  populated by the self-poll PLAN.md §3/§5.7 already runs for ban enforcement. That poll skips
+  `status` while there are no active bans, so it would need to run unconditionally, at least
+  for snapshots).
 - **Report queue view**: the `!report` cards report-pipeline already assembles (PLAN.md §5) are
   currently Telegram-message-only, and — checked against the real schema — **nothing persists
   them today**: PLAN.md §7 only sketches a `reports` table, and no `packages/*/src/lib/schema.ts`

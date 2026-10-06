@@ -45,6 +45,19 @@ running* somewhere reachable from this machine. It never touches that server's f
 That's it — the bot is now running as a background service and will restart automatically if it
 crashes or the machine reboots (on hosts with systemd or OpenRC; see "Limitations" below).
 
+## Updating
+
+The bot messages its owner on Telegram when a new release comes out. Send `/update` to install
+it: the bot downloads it, checks its checksum, and restarts on the new version. If the new
+version doesn't start, it rolls back to the previous one by itself and tells you.
+
+## More than one server
+
+One bot can manage several CoD2 servers. The owner adds them from Telegram with
+`/addserver <alias> <host:port> <rcon password>`, sent in a private chat with the bot. Bans
+apply on every server the bot manages. Servers added this way are reached over RCON only, so
+`!report` works only for the server whose `games_mp.log` path you gave the installer.
+
 ## Re-running the installer
 
 Running `sudo ./install.sh` again on a machine that already has cod2admin installed lets you

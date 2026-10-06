@@ -18,7 +18,7 @@ Example: `!report Cheatr123 aimbot`
 - This posts a report card here in this chat for an admin to act on. Spamming the same report
   repeatedly is rate-limited.
 
-*Commands anyone here can use*
+*Commands for every role (moderator and up)*
 
 `/status` — server name, map, player count
 `/players` — detailed player list with IP addresses
@@ -28,7 +28,8 @@ Example: `!report Cheatr123 aimbot`
 
 `/kick <client id or name> [--server <alias>]`
 `/tempban <client id> [duration] [reason] [--server <alias>]` — duration like `30m`, `2h`, `7d`;
-defaults to 30 minutes if omitted. IP-based.
+defaults to 30 minutes if omitted. Bans the player's GUID if the server reports one, otherwise
+their IP.
 
 *Admin commands*
 
@@ -58,6 +59,8 @@ one you added before). Send it in a private chat with the bot, never in a group:
 deletes the message because it contains the password, then checks the server answers before
 saving anything
 `/removeserver <alias>` — stops managing a server added with `/addserver`
+`/update` — installs the newest release of this bot after you confirm; the bot also messages
+the owner when one comes out
 `/relays` — how the bot reaches Telegram: directly, or through relays where Telegram is blocked
 (e.g. servers in Russia). `/relays test` checks every route; `add <url>`, `remove <n>`,
 `direct on|off` and `reset` change the list, effective immediately

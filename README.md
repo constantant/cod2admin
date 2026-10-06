@@ -9,7 +9,10 @@ receive `!report` cards from players in-game, manage other admins, and more.
 - **Using the bot on your server?** See [`installer/README.md`](./installer/README.md).
 - **Contributing code?** See [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 - **Project design/roadmap:** see [`docs/PLAN.md`](./docs/PLAN.md) (condensed Russian summary:
-  [`docs/PLAN-ru.md`](./docs/PLAN-ru.md)).
+  [`docs/PLAN-ru.md`](./docs/PLAN-ru.md)). Companion plans:
+  [`docs/PLAN-russia-access.md`](./docs/PLAN-russia-access.md) (running where Telegram is
+  blocked; partly built) and [`docs/PLAN-miniapp.md`](./docs/PLAN-miniapp.md) (a Telegram Mini
+  App; not started).
 
 ## Attribution
 
@@ -29,6 +32,8 @@ This is a pnpm/Nx workspace:
   (Drizzle)
 - `packages/log-tailer`, `packages/report-pipeline` — live `games_mp.log` tailing and the
   `!report` pipeline
+- `packages/telegram-relay` — a small Bot API relay for hosts where Telegram is blocked,
+  deployed separately (see its README)
 - `installer/` — the standalone installer bundle shipped to CoD2 server admins
   (see `scripts/build-installer-bundle.sh` and `scripts/release.sh`)
 

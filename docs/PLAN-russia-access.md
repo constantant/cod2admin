@@ -55,6 +55,10 @@ also worked through each one.
 **Still open (B):** admins' own Telegram apps in Russia need a VPN or MTProto proxy. Relays only
 carry the bot's traffic. Free public MTProxy lists exist, but they're unreliable.
 
+**Also still open:** `installer/apply-update.sh` sends its "update failed and was rolled back"
+alert straight to `api.telegram.org`, not through the relays. On a blocked host the rollback
+still works, but that alert never arrives (`PLAN.md` §13.4).
+
 ## 1. Problem
 
 Roskomnadzor started slowing down Telegram in February 2026. Since mid-March 2026 the block is

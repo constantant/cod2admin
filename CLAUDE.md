@@ -89,19 +89,23 @@ Deploying the Deno relay must happen from a folder *outside* this repo: the Deno
 nearby `package.json` from `pnpm-workspace.yaml`. Admins' own Telegram access (part B) is still
 open. `docs/PLAN-russia-access-ru.md` is its Russian summary — keep it in sync the same way.
 
-Current status: Phases 0–2 are done and verified live against a real dev CoD2 server + Telegram
-group (not just unit tests). Phase 0 is `packages/rcon-client`. Phase 1 is `apps/gateway`
-(grammy bot). Phase 2 added `packages/admin-store`/`packages/ban-store` (Postgres via Drizzle),
-roles (owner/admin/moderator), `/claim`, `/addadmin`/`/removeadmin`/`/setrole`/`/listadmins`,
-`/auditlog`, multi-server (`/servers`/`/bindserver`), `/tempban` (IP-only — see docs/PLAN.md §9's
-Phase 2 plan for why), `/rcon`, `/say`, and the IP-ban expiry poller. All pass
-`test`/`build`/`typecheck`, including integration tests against a real Postgres.
+Current status (2026-10-06): Phases 0–3 and self-update are done, released (v1.6.0, see
+`CHANGELOG.md`) and verified live — against the dev CoD2 server and Telegram group, and in
+production managing a real ~40-player public server over RCON only (no `!report` there, since
+the bot doesn't run on that host). `docs/PLAN.md` §9 has a per-phase summary.
+- Packages: `rcon-client` (Phase 0), `admin-store`/`ban-store` (Postgres via Drizzle, Phase 2),
+  `log-tailer`/`report-pipeline` (Phase 3, `!report` cards), `telegram-relay` (deployed
+  separately, see above). The bot itself is `apps/gateway` (grammy).
+- Since Phase 3: self-update via `/update` (§13), servers managed from Telegram
+  (`/addserver`/`/removeserver`/`/setdefault`), bans that apply on every server, IP country
+  labels, CP1251 text, and Telegram relays.
 
-Real-server testing (2026-09-05/06) found and fixed two `rcon-client` bugs beyond Phase 2's own
-scope — a `status`-table column-parsing bug and a `kick`-argument quirk (numeric slot vs. name,
-inconsistent quoting) — see docs/PLAN.md §2.4 for details before touching `status-parser.ts` or
-`RconClient#kick`. The same goes for `banClient`/`unbanUser` and anything that writes `ban.txt`:
-`unbanUser` matches by player name, not GUID (§2.4 "`ban.txt`", 2026-10-06). No `log-tailer`/`report-pipeline` yet (Phase 3). Before starting Phase 3, check
-`docs/PLAN.md` §9 for what it covers and whether its GUID-related notes in §2.4 still apply (a
-`guid` column on `status()` was confirmed present on this dev server, which may change Phase 3's
-approach — see the "Correction (2026-09-06)" note in §2.4).
+Before touching `rcon-client`, read the server quirks in `docs/PLAN.md` §2.4 — they were all
+found on real servers and are easy to reintroduce:
+- `status` table parsing (`status-parser.ts`): column widths lie, and long names overflow.
+- `kick` takes a name, not a slot, with quoting that differs for ASCII and Cyrillic names.
+- Text is CP1251 and must be quoted, or the server drops every non-ASCII byte.
+- `banClient`/`unbanUser` and anything that writes `ban.txt`: `unbanUser` matches by player
+  name, not GUID (§2.4 "`ban.txt`", 2026-10-06).
+- Most real players have GUID 0, so most bans are IP bans. §2.4 "Getting a real GUID" covers
+  why, and what CoD2x would change.

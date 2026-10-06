@@ -1,6 +1,7 @@
 # CoD2 Admin — Telegram RCON Bot with Report Automation
 
-Status: draft plan · Owner: kk · Last updated: 2026-09-07
+Status: Phases 0–3 and self-update (§13) are implemented and running in production — see §9 for
+what's left · Owner: kk · Last updated: 2026-10-06
 
 ## 1. Goal
 
@@ -115,7 +116,9 @@ dedicated servers:
     the opposite quoting fails each case differently. `RconClient#kick` now resolves numeric
     input by looking up the name via `status()` first, and automatically retries with quotes if
     the first attempt's response looks like either failure shape, rather than guessing from the
-    name's content.
+    name's content. (The numeric-slot lookup lives in the gateway's `/kick`,
+    `apps/gateway/src/lib/commands/kick.ts`; `RconClient#kick` itself only does the quoting
+    retry.)
   - **Bug found during the 2026-09-06 GUID re-check, fixed same day:** `status()`'s parsed
     `port` field went negative for high port numbers (e.g. a real `address` of
     `172.18.0.1:52931` came back as `ip: "172.18.0.1", port: -12605` — `65536 - 12605 = 52931`).
@@ -161,8 +164,8 @@ dedicated servers:
     connect.
 - **Getting a real GUID (researched 2026-10-06).** GUID 0 is not a bug we can work around.
   - **Stock server:** the GUID comes from Activision's CD-key server. Players with a pirated or
-    shared key, or a second player behind the same IP, get 0, and a cracked server gives everyone
-    0. CTF RUSSIA's public `getstatus` reports `shortversion 1.0`, `protocol 115`, so it is a
+    shared key, or a second player behind the same IP, get GUID 0, and a cracked server gives it
+    to everyone. CTF RUSSIA's public `getstatus` reports `shortversion 1.0`, `protocol 115`, so it is a
     stock 1.0 server, which fits 30 of 33 players having GUID 0.
   - **CoD2x** (1.4.6.8, `src/shared/server.cpp`) fixes this. It only accepts 1.3 clients
     running CoD2x, and requires each to send a 32-character `cl_hwid2` built from BIOS,
@@ -186,8 +189,9 @@ dedicated servers:
     **empty** on a player's first couple of chat lines right after connecting, before their name
     had propagated into the log stream — `log-tailer` callers must not assume `name` is
     populated. Connect/quit lines follow the same `guid;num;name` shape (`J;...`/`Q;...`); kill/
-    death lines (`K;`/`D;`) carry attacker and victim blocks back to back — parsed by
-    `log-tailer`'s `chat-parser.ts` so far, connect/quit/kill parsing not yet implemented.
+    death lines (`K;`/`D;`) carry attacker and victim blocks back to back. `log-tailer` parses chat
+    (`chat-parser.ts`) and connect/quit (`session-event-parser.ts`); kill/death lines aren't
+    parsed, since nothing uses them yet.
   - **Dev-environment gap found 2026-09-06, fixed same day:** §11.1 previously documented
     `games_mp.log` as landing at `docker/cod2server/main/games_mp.log` on the host via a bind
     mount, but that was stale on two counts, discovered while capturing the fixture above: (a)
@@ -284,15 +288,22 @@ from.
                                               (admin chat, inline buttons)
 
                                               ↻ (not shown above: the gateway also self-polls
-                                                 `status` on a fixed interval — bans/ban_ips
-                                                 expiry enforcement only, see §5.7)
+                                                 `status` on a fixed interval to enforce bans,
+                                                 see §5.7 and §7)
 ```
 
 The gateway has three ways it starts doing something: an inbound log-tail event (chat/connect/
-disconnect), an inbound Telegram command/button, and — the one non-event-driven path — a
-fixed-interval self-poll of `status` used only to enforce IP bans against GUID-0 players (§5.7).
+disconnect), an inbound Telegram command/button, and timers. The main timer is a 10-second
+self-poll of `status` that kicks banned players by IP or GUID on every server (§5.7, §7). The
+others are slower housekeeping: the release check (§13.2), the monthly IP-country download (§6),
+and the 30-minute check for a better Telegram route (`docs/PLAN-russia-access.md`).
 
-### 3.1 Components (proposed Nx layout under `packages/`)
+- **RCON-only deployments work too (2026-10-03).** The bot doesn't have to run on the game host.
+  Without `COD2_LOG_PATH` it has no log to tail, so `!report` cards are off, but every command,
+  ban and the enforcement sweep work over RCON alone. The CTF RUSSIA server (~40 players) is
+  managed this way, from a bot running on another machine.
+
+### 3.1 Components (Nx layout under `packages/` and `apps/`)
 
 - `packages/rcon-client` — lib. Pure TS implementation of the Quake3/CoD OOB UDP RCON
   protocol (`getstatus`, `getinfo`, `rcon <pw> <cmd>`). No game-specific knowledge beyond
@@ -304,7 +315,10 @@ fixed-interval self-poll of `status` used only to enforce IP bans against GUID-0
   matches the reported name against the live player list (pulled via `rcon-client` status),
   assembles the report card (see §5), applies per-reporter cooldown/anti-spam.
 - `packages/ban-store` + `packages/admin-store` — lib. Persistence (see §7): bans, tempban
-  expiries, admin roles, audit log. Thin repository layer over SQLite/Postgres.
+  expiries, admin roles, audit log. Thin repository layer over Postgres (Drizzle).
+- `packages/telegram-relay` — a tiny Bot API relay for hosts that can't reach Telegram
+  (`docs/PLAN-russia-access.md` §0). Deployed separately to free edge platforms, not part of
+  the gateway bundle.
 - `apps/gateway` — the single long-running service for now: owns the RCON connections to
   every configured game server, runs the log tailer(s), runs the report pipeline, and hosts
   the Telegram bot (grammy long-polling — see §3.2) as an internal module (command router +
@@ -476,7 +490,7 @@ Roles, stored in `admin-store`:
      it can ever match on) and `BanStore`'s `listBansByGuid`/`listBansByName`/`listIpBansByIp`
      (GUID unless `0`, else name — same §2.4 rule as target resolution; IP always queried
      separately against `ban_ips`, since `bans` has no IP column at all).
-   - **Follow-up gap, not fixed here**: `listBansByGuid` will return nothing in practice today —
+   - **Follow-up gap (fixed 2026-09-06, see §5 step 7's "Implemented" note)**: `listBansByGuid` returned nothing in practice —
      `ban-store`'s `recordBan`/`schema.ts` still always insert `guid: null` (a Phase 2-era
      limitation, from before §2.4 found some servers *do* expose GUID via `status()`). Fixing
      that means updating `/ban`'s command handler (`apps/gateway`) to pass `player?.guid`
@@ -516,7 +530,7 @@ Roles, stored in `admin-store`:
      with full status dump / chat history).
 
    **Implemented (2026-09-06)**, `packages/report-pipeline` — the card content and the
-   send/update decision, deliberately **not yet wired into the running gateway** (see below):
+   send/update decision (wired into the running gateway the same day, see "Wired" under step 6):
    - `report-card.ts` builds all four cards this pipeline can produce — the resolved/disconnected
      one above (disconnected gets `Ignore` only, per step 2), the ambiguous `Select:` one (§5
      step 2), and a **`not-found` card** the plan doesn't explicitly spec (a typo'd or
@@ -620,8 +634,8 @@ Roles, stored in `admin-store`:
    binary can't ban by IP natively, and (§2.4) `tempBanClient` degrades to a bare kick for
    GUID 0 with no enforced duration on its own. Routing temp bans through `ban_ips` too, rather
    than only `Ban`, is what actually gives GUID-0 temp bans a duration. Enforcement is a
-   gateway-owned poller, generalized to do two jobs on the same fixed interval (start at 10s,
-   configurable): (a) run `status` against every configured server and kick any connected
+   gateway-owned poller, generalized to do two jobs on the same fixed interval (10s, fixed in
+   `apps/gateway/src/lib/expiry-poller.ts`; not a setting): (a) run `status` against every configured server and kick any connected
    player whose IP matches an active `ban_ips` row (`expires_at` null or in the future) — the
    GUID-0 case; and (b) scan `bans` for rows whose `expires_at` has just passed and call
    `unbanUser`/remove them from `ban.txt` — the GUID-based temp-ban expiry from step 6 above.
@@ -664,8 +678,8 @@ Roles, stored in `admin-store`:
 - `/kick <player>`, `/ban <player> [reason]`, `/tempban <player> [duration]`,
   `/unban <guid-or-ip>` — direct commands taking a player name/slot or ban target, for when an
   admin doesn't want to open `/players` first. Same permission checks, same RCON/DB mechanism,
-  and same audit logging as the button-driven paths (§5.6) — `/tempban` in particular goes
-  through the `banClient`+`expires_at`+expiry-poller flow, not native `tempBanClient`. These
+  and same audit logging as the button-driven paths (§5.6) — `/tempban` in particular records
+  an `expires_at` and is enforced by the poller, never native `tempBanClient` (§5 step 6). These
   give Moderators (§4, kick/tempban only, no `/ban`) a way to act proactively instead of only
   reacting to an in-game `!report`.
   - **`/bans [--server <alias>]`, implemented (2026-09-07)**: lists currently active bans —
@@ -692,9 +706,12 @@ Roles, stored in `admin-store`:
     `/unban` again retries a server that didn't answer. It says when `ban.txt` had no entry for
     a ban it just lifted. It no longer clears a GUID that was banned in-game outside the bot,
     since the bot doesn't know that player's name.
-- `/players [server]` — live player list with per-player inline `Kick`/`Temp Ban (30m)`/`Ban`
-  shortcuts (same action path as the report card, just triggered manually).
-- `/map <name>`, `/maprotate`, `/restart`, `/fastrestart` — map control, admin-role-gated.
+- `/players [server]` — live player list (slot, name, ping, IP and country). The per-player
+  inline `Kick`/`Temp Ban (30m)`/`Ban` shortcuts first planned here aren't built; admins use the
+  slot number with `/kick`/`/tempban`/`/ban`.
+- `/map <name>` and `/maps` (tap-to-switch buttons for the maps in `sv_mapRotation`, 2026-09-08)
+  — map control, admin-role-gated. `/maprotate`, `/restart` and `/fastrestart` aren't built;
+  `/rcon` covers them for the owner.
 - `/say <message>` — broadcast to the game via `rcon say`.
 - **Moderation broadcasts** *(decided)*: every kick/ban/tempban (whether triggered via a
   report card or a manual `/kick`/`/ban` command) also sends an `rcon say` announcement to
@@ -704,7 +721,10 @@ Roles, stored in `admin-store`:
   log verbatim (necessary power-user backdoor, but must be tightly scoped and logged given
   it bypasses all higher-level guardrails).
 - **Connectivity model** *(decided)*: the gateway runs on the same host as the CoD2 server,
-  and the target server(s) run **CoD2x**. This means:
+  and the target server(s) run **CoD2x**. In practice (2026-10) neither always holds. The live
+  CTF RUSSIA server is a stock 1.0 server managed over RCON from another machine (§3), so it has
+  no `!report`. See §2.4 "Getting a real GUID" for what CoD2x would change. The original
+  reasoning:
   - `log-tailer` reads `games_mp.log` straight off the local filesystem — no SSH/SFTP agent
     needed, and it's the sole report-intake path (no GSC push adapter — see §2.4).
   - RCON calls hit `127.0.0.1`/localhost, so packet spoofing from off-box attackers is a
@@ -728,7 +748,12 @@ Roles, stored in `admin-store`:
 - `admins(telegram_id, role, added_by, added_at)`
 - `admin_servers(telegram_id, server_alias)`
 - `servers(alias, rcon_host, rcon_port, rcon_password_encrypted, log_source_config,
-  bound_telegram_chat_id)`
+  bound_telegram_chat_id, is_default)` — `is_default` is `/setdefault`'s target (§4).
+- `telegram_users(telegram_id, username, first_name, updated_at)` — last-seen Telegram names, so
+  `/auditlog` and `/listadmins` show names instead of IDs (2026-10-04). Kept apart from `admins`
+  so a removed admin is still named in the audit log.
+- `settings(key, value, updated_at)` — settings the owner changes from Telegram, e.g. `/relays`
+  routes (2026-10-04).
 - `bans(id, server_alias, guid, name, reason, banned_by, banned_at, expires_at)` — GUID-based
   bans (and temp bans, via `expires_at`). The initial block is enforced natively by the game
   binary via `banClient` (GUID written to `ban.txt`; permanent bans only since 2026-10-06, §2.4
@@ -763,15 +788,17 @@ Roles, stored in `admin-store`:
     status call can take ~10s on a rate-limited server.
   - On the real server, 30 of 33 players had GUID 0, so in practice most bans are IP bans.
 - `reports(id, server_alias, reporter_name, reporter_guid, target_name, target_guid,
-  target_ip, reason, raw_chat_line, created_at, resolved_action, resolved_by, resolved_at)`
+  target_ip, reason, raw_chat_line, created_at, resolved_action, resolved_by, resolved_at)` —
+  **not built.** Report cards live only in Telegram and in memory (`ReportRegistry`), so a
+  restart forgets open cards, and cards can't show past reports against a player.
 - `audit_log(id, actor_telegram_id, action, target, server_alias, reason, source, detail_json,
   created_at)` — `reason` and `source` (`telegram_button` / `telegram_command` / `auto`, per
   §4) are explicit columns rather than buried in `detail_json`, since `/auditlog` (§4) needs to
   filter/display them directly; `detail_json` holds any action-specific extra data (e.g. the
   raw command text for `/rcon`, §6).
 
-`rcon_password` and any other secrets stored **encrypted at rest** (e.g. libsodium secretbox
-with a key from env), not plaintext in the DB — the gateway is the only thing that ever needs
+`rcon_password` and any other secrets stored **encrypted at rest** (implemented as AES-256-GCM
+in `admin-store`'s `secrets.ts`, keyed by `SECRETS_ENCRYPTION_KEY` from env), not plaintext in the DB — the gateway is the only thing that ever needs
 the decrypted value. Note the limits of this: the decryption key lives in env on the same host
 as the database, so this protects against a leaked DB dump/backup, not against full compromise
 of the host itself (which gets the key too). Postgres runs on the same host (§3.2); back it up
@@ -806,31 +833,38 @@ failure, and this DB now holds durable ban/audit history, not just cache-able st
 
 ## 9. Phased delivery plan
 
-- **Phase 0 — foundations**: `rcon-client` lib with `status`/`kick`/`banClient`/`banUser`/
-  `unban`/`say`/`map`, unit-tested against a mock UDP peer. Single hardcoded server via env
+**Status (2026-10-06):** Phases 0–3 and the self-update track are done and verified live. From
+Phase 4, only the IP country label is built (§6). Work done since Phase 3 that wasn't in the
+original phases: managing servers from Telegram (`/addserver`, `/removeserver`, `/setdefault`,
+§4), bans that apply on every server (§7), Telegram relays for hosts in Russia
+(`docs/PLAN-russia-access.md`), and CP1251 text for Russian names and chat (§2.4). Releases and
+what each one changed are in `CHANGELOG.md`.
+
+- **Phase 0 — foundations** *(done)*: `rcon-client` lib with `status`/`kick`/`banClient`/`banUser`/
+  `unban`/`say`/`map` (`banUser` was later removed, §2.4 "`ban.txt`"), unit-tested against a mock UDP peer. Single hardcoded server via env
   vars, no DB yet.
-- **Phase 1 — Telegram MVP**: `apps/gateway` wraps Phase 0 lib; grammy bot exposes
+- **Phase 1 — Telegram MVP** *(done)*: `apps/gateway` wraps Phase 0 lib; grammy bot exposes
   `/status`, `/players`, `/kick`, `/ban`, `/unban`, `/map`. Owner-only, single admin (env
   var), no roles yet. **No `audit_log` yet either** (it lands with `admin-store` in Phase 2) —
   Phase 1 moderation actions are unaudited by design; acceptable for a single-owner MVP with no
   role delegation, since the owner is the only actor who could act anyway.
-- **Phase 2 — admin & data layer**: `admin-store`/`ban-store` on Postgres via Drizzle;
+- **Phase 2 — admin & data layer** *(done)*: `admin-store`/`ban-store` on Postgres via Drizzle;
   `/addadmin`/`/removeadmin`/`/setrole`, audit log, multi-server support (`servers` table,
   per-group binding). Also where `/tempban` and the `Temp Ban` shortcuts (§6) become usable —
   they need `ban-store`'s expiry-enforcement poller (§5.6/§5.7), which needs Postgres. This is
   also the first phase where the Moderator role (§4) has any real capability, since roles
   (and therefore Moderators) don't exist before it.
-- **Phase 3 — report automation**: `log-tailer` + `report-pipeline`; `!report <name>` chat
+- **Phase 3 — report automation** *(done 2026-09-06)*: `log-tailer` + `report-pipeline`; `!report <name>` chat
   trigger → enriched Telegram card → inline-button actions → anti-spam cooldown → GUID-0
   IP-fallback ban path. **Confirmed (§2.4)**: GUID 0 is the common case on the target server,
   not a rare fallback — build the GUID-vs-IP correlation logic (§5.3, §7) with that as the
   default path from the start, not as an edge case bolted on later.
-- **Phase 4 — nice-to-haves** (borrow from RCM): GeoIP-enriched player info on report cards,
+- **Phase 4 — nice-to-haves** (borrow from RCM) *(only the country label is done)*: GeoIP-enriched player info on report cards,
   proxy/VPN auto-kick list, bad-nickname auto-kicker, `!getss`-style screenshot capture if an
   anticheat hook is available, periodic stats digest posted to the Telegram group, and
   investigate a GSC-hook-based chat **mute** for Moderators (§4) if CoD2x exposes one — dropped
   from v1 since vanilla RCON has no native per-player mute.
-- **Ops: self-updating from Telegram** — see §13. Operational tooling around the installer
+- **Ops: self-updating from Telegram** *(done 2026-09-07)* — see §13. Operational tooling around the installer
   (§12), not a bot feature — independent of the phases above; doesn't block, and isn't blocked
   by, Phase 3/4.
 
@@ -839,15 +873,16 @@ failure, and this DB now holds durable ban/audit history, not just cache-able st
 - ~~Hosting topology~~ — **resolved**: gateway runs on the same host as the CoD2 server(s).
 - ~~CoD2x acceptable?~~ — **resolved**: yes, target server(s) run CoD2x — used for its UDP
   rate limiter (§8); the HTTP/WS push adapter idea was considered and **dropped** (§2.4) since
-  same-host removes its only advantage over log-tailing.
+  same-host removes its only advantage over log-tailing. **Reopened (2026-10-06):** the live
+  CTF RUSSIA server runs stock 1.0, not CoD2x. Whether to move it to CoD2x, mainly for real
+  per-player IDs, is the server owner's decision (§2.4 "Getting a real GUID").
 - ~~SQLite vs Postgres~~ — **resolved**: Postgres from the start (§3.2, §7).
 - ~~In-game ban feedback~~ — **resolved**: every kick/ban/tempban broadcasts via `rcon say`
   (§5 step 6, §6), not silent.
 - ~~Webhook vs long-polling~~ — **resolved**: long-polling (§3.2) — no public HTTPS endpoint
   needed on the game server host.
 
-All open questions are resolved — plan is ready to move into Phase 0 implementation whenever
-you want to start. One item was flagged rather than open — whether GUID 0 is the common case on
+All open questions were resolved before Phase 0, apart from the CoD2x question reopened above. One item was flagged rather than open — whether GUID 0 is the common case on
 the actual target server (§2.4) — and has since been **confirmed empirically** (2026-09-05,
 real client connecting over LAN got GUID 0 on the first attempt): treat it as the default case
 for the GUID-vs-IP correlation logic (§5.3, §7) when Phase 3 is built, not an edge case.
@@ -877,9 +912,10 @@ Decided ahead of Phase 0 so every phase lands with tests from the start, not bol
     in dev the gateway process (run natively via `nx serve`, not containerized) points
     `log-tailer` at that host path (`COD2_LOG_PATH` in `.env`) — same code path as prod, just a
     bind mount standing in for "same host."
-  - RCON and game traffic share one UDP port (`28960`, per the Quake3-derived protocol, §2.4);
-    the compose file binds it (and the game's TCP/UDP `20500`/`20510` ports) to `127.0.0.1`
-    only, matching the same-host/localhost connectivity model from §6.
+  - RCON and game traffic share one UDP port (`28960`, per the Quake3-derived protocol, §2.4).
+    The compose file binds it (and the game's UDP `20500`/`20510` ports) to **all interfaces**,
+    so other devices on the LAN can join the dev server. That also exposes RCON to the LAN,
+    which is acceptable for a home dev box only (see the comment in `docker-compose.yml`).
   - `server_mp.cfg`'s `rcon_password` is set by the game engine from that file, not from
     `.env` — the two must be kept in sync by hand (documented in
     `docker/cod2server/README.md`); nothing automates that today.
@@ -962,8 +998,10 @@ actually looks like against this server config).
 
 ### 11.4 CI wiring
 
-`nx affected -t lint test` on every PR runs §11.2's unit/fixture/mock-based tests plus the
-Postgres-service-container store tests — fast, no Docker CoD2 image or real Telegram token
+`.github/workflows/ci.yml` runs on every PR and every push to `main`: commitlint (PRs only),
+`nx format:check`, then `nx run-many -t lint test build typecheck e2e`, distributed through Nx
+Cloud. That covers §11.2's unit/fixture/mock-based tests plus the Postgres-service-container
+store tests — fast, no Docker CoD2 image or real Telegram token
 required, so it never depends on secrets that would need to live in CI. The §11.3 manual e2e
 checklist is a pre-release gate run locally, not a CI job.
 
@@ -1132,7 +1170,9 @@ Deliberately small and dumb, since it's the trusted-root part (`installer/apply-
    from a successful one, so a lingering marker would make it falsely claim success). Then
    repoints the symlink back to the previous release, restarts again, and sends the Telegram
    failure alert itself via a direct `curl` call to `api.telegram.org` using the captured chat
-   id — it's the only thing that can see the failure. Degrades to log-only (no Telegram call) if
+   id — it's the only thing that can see the failure. **Known gap (2026-10):** this call doesn't
+   use the gateway's relays (`docs/PLAN-russia-access.md`), so on a host where Telegram is
+   blocked the rollback still happens but the alert never arrives. Degrades to log-only (no Telegram call) if
    no marker was ever found or there's no bot token — which also makes the script independently
    usable by an admin running it by hand, without `/update` involved at all.
 7. **On success**: prunes old release directories (keeps the current one + 1 previous) and sends
@@ -1212,7 +1252,10 @@ that user. **Not verified in this pass**: the full interactive `install.sh` wiza
 (needs a real Telegram token + reachable RCON + Postgres), `visudo -cf` on a real Linux host (no
 `visudo` on the dev machine that implemented this), and real systemd/OpenRC unit restarts
 (container test only exercised the fallback path) — needs a manual check on a real box before
-this ships in a release, per §12's own past verification approach.
+this ships in a release, per §12's own past verification approach. **Since then:** real installs
+on the author's NAS (in containers, on the no-supervisor fallback path) have run
+`install.sh --config` and been updated release by release through `/update`, and the generated
+sudoers file passed `visudo -cf` on Debian. A real systemd or OpenRC host is still unverified.
 
 ### 13.6 Safety notes
 
