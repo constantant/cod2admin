@@ -6,14 +6,12 @@ import type { Ban, BanIp, BanStore } from '../types.js';
 export interface FakeRcon {
   status: Mock<() => Promise<ServerStatus>>;
   kick: Mock<(clientIdOrName: string | number) => Promise<string>>;
-  unbanUser: Mock<(guid: string) => Promise<string>>;
 }
 
 export function createFakeRcon(): FakeRcon {
   return {
     status: vi.fn().mockResolvedValue({ raw: '', players: [] } satisfies ServerStatus),
     kick: vi.fn().mockResolvedValue(''),
-    unbanUser: vi.fn().mockResolvedValue(''),
   };
 }
 
@@ -51,7 +49,7 @@ export function createFakeBanStore(
     listExpiredBans: vi.fn().mockResolvedValue(overrides.expiredBans ?? []),
     expireBan: vi.fn().mockResolvedValue(undefined),
     listActiveBans: vi.fn().mockResolvedValue(overrides.activeBans ?? []),
-    unbanByGuid: vi.fn().mockResolvedValue(0),
+    unbanByGuid: vi.fn().mockResolvedValue([]),
     listBansByGuid: vi.fn().mockResolvedValue([]),
     listBansByName: vi.fn().mockResolvedValue([]),
     listIpBansByIp: vi.fn().mockResolvedValue([]),

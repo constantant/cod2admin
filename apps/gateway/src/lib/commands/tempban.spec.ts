@@ -25,7 +25,7 @@ describe('tempbanCommand', () => {
 
     await tempbanCommand(ctx, deps);
 
-    expect(rcon.banUser).not.toHaveBeenCalled();
+    expect(rcon.banClient).not.toHaveBeenCalled();
     expect(rcon.kick).toHaveBeenCalledWith('Griefer');
     expect(banStore.recordIpBan).toHaveBeenCalledWith({
       serverAlias: 'default',
@@ -39,15 +39,15 @@ describe('tempbanCommand', () => {
     expect(ctx.reply).toHaveBeenCalledWith("IP temp-banned (GUID unavailable) Griefer for 30m.");
   });
 
-  it('temp-bans via the GUID path when status() reports one', async () => {
+  it('temp-bans via the GUID path when status() reports one: kicks, and leaves ban.txt to permanent bans', async () => {
     const { deps, rcon, banStore } = createFakeDeps();
     rcon.status.mockResolvedValue({ raw: '', players: [{ num: 3, score: 0, ping: 0, name: 'Griefer', guid: 'realguid', ip: '1.2.3.4' }] });
     const ctx = createFakeCtx({ match: '3', admin: { telegramId: 1, role: 'admin' } });
 
     await tempbanCommand(ctx, deps);
 
-    expect(rcon.banUser).toHaveBeenCalledWith(3);
-    expect(rcon.kick).not.toHaveBeenCalled();
+    expect(rcon.banClient).not.toHaveBeenCalled();
+    expect(rcon.kick).toHaveBeenCalledWith('Griefer');
     expect(banStore.recordBan).toHaveBeenCalledWith(expect.objectContaining({ guid: 'realguid', name: 'Griefer' }));
     expect(ctx.reply).toHaveBeenCalledWith('Temp-banned Griefer for 30m.');
   });

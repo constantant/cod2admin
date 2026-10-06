@@ -68,9 +68,8 @@ export interface BanStore {
 
   /**
    * GUID-path temp bans whose `expiresAt` has passed (docs/PLAN.md §5 step 7's poller job (b)) —
-   * the `bans`-table equivalent of `listExpiredIpBans`. Unlike an IP ban, reversing this needs an
-   * rcon call (`unbanUser(guid)`, to remove the ban.txt entry) before the row is dropped — that's
-   * why this returns full `Ban` rows (for their `guid`), not just IDs.
+   * the `bans`-table equivalent of `listExpiredIpBans`. Temp bans are never in `ban.txt`, so
+   * dropping the row is all it takes to lift one.
    */
   listExpiredBans(now: Date): Promise<Ban[]>;
   expireBan(id: number): Promise<void>;
@@ -78,10 +77,11 @@ export interface BanStore {
   listActiveBans(): Promise<Ban[]>;
   /**
    * `/unban <guid>` (docs/PLAN.md §6): stamps `unbannedAt` on matching active `bans` rows so
-   * they stop being enforced, alongside the caller's own `unbanUser(guid)` rcon calls. Returns
-   * how many active bans were lifted.
+   * they stop being enforced, and returns the rows it lifted. The caller needs their `name` and
+   * `serverAlias` to remove a permanent ban from that server's `ban.txt` too: `unbanUser` matches
+   * by name, not GUID (§2.4 "ban.txt").
    */
-  unbanByGuid(guid: string): Promise<number>;
+  unbanByGuid(guid: string): Promise<Ban[]>;
 
   /**
    * Prior GUID-path bans against a specific GUID, on any server (docs/PLAN.md §5 step 3's report

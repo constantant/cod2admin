@@ -1,4 +1,5 @@
 export * from './lib/rcon-client.js';
+export { cleanBanFileName, isBanFileSafeName } from './lib/ban-file.js';
 export * from './lib/types.js';
 export {
   parseCvarBlock,

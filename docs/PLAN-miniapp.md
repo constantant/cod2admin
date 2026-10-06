@@ -180,7 +180,7 @@ other, and both write to the same audit log (tagged by `source`, §8).
   handle a chat line with no name yet, same as the report pipeline does.
 - Posting: admin types a message in the Mini App → gateway sends it via the existing `say()`
   wrapper (broadcast) for public messages. Per-player whisper (`tell`) has no dedicated wrapper
-  in `rcon-client` today (only `getInfo/getStatus/status/kick/banClient/banUser/unbanUser/say/
+  in `rcon-client` today (only `getInfo/getStatus/status/kick/banClient/unbanUser/say/
   map/getMapRotation` are implemented) — it would go through the raw `rcon()` passthrough, or a
   small `tell()` wrapper added alongside it. No new *game-side* integration needed either way,
   just a small `rcon-client` addition.

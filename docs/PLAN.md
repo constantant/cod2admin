@@ -68,6 +68,9 @@ dedicated servers:
   `tempBanClient` only kicks. Our ban flow must detect GUID `0`/empty and fall back to an
   **IP-based ban** (kick + add IP to a firewall/deny list or a `ban.txt` IP-based workaround)
   rather than silently failing.
+  - **Correction (2026-10-06):** only `banClient <slot>` bans a connected player by slot.
+    `banUser` takes a player name, like `kick`, and `unbanUser` removes entries by name, not
+    GUID. See the "`ban.txt`" bullet below.
   - Separately: `tempBanClient`'s own ban *duration* is controlled by a server-wide cvar
     rather than a per-call argument, and (unverified, but consistent with how this family of
     Q3-derived RCON servers behaves) the block is likely in-memory and doesn't survive a
@@ -131,6 +134,48 @@ dedicated servers:
     the fact that `name` is the only column that can contain spaces. The columns before it
     are the first tokens of the row, the columns after it are the last tokens, and the name
     is the text between them. On the same server, all 34 rows then parsed with real IPs.
+- **`ban.txt` (checked live against the dev server, 2026-10-06).** Each line is
+  `<guid> <name>\r\n`. The commands that touch it behave like this:
+  - `banClient <slot>` writes the line and drops the player. It refuses a GUID-0 player
+    (`Can't ban user, GUID is 0`), an already-banned GUID, and an empty slot
+    (`Client N is not active`). In those cases the player stays connected.
+  - `banUser` takes a **name**, not a slot: `banUser 0` replies `Player 0 is not on the server`.
+    `rcon-client` used to send `banUser <slot>`, so `/ban` never wrote anything to `ban.txt`.
+    It went unnoticed because almost every player has GUID 0. `banUser` is now gone from
+    `rcon-client`, and `/ban` uses `banClient`.
+  - `unbanUser` removes lines by **name**, case-insensitively, and replies
+    `unbanned N user(s) named X` or `no banned user has name X`. `unbanUser <guid>` never matches
+    anything, but the expiry sweep and `/unban` used to send it, and treated any reply as
+    success. So an expired GUID temp ban stayed in `ban.txt` and became permanent.
+  - Names are cleaned before they're written, and so is `unbanUser`'s argument: color codes and
+    every non-ASCII byte are stripped. Quoted names work, including names with spaces and color
+    codes. An all-Cyrillic name is written as an **empty** name. That line can't be removed, and
+    it stops `unbanUser` from matching any line after it.
+  - **Decision:** only a permanent GUID ban goes into `ban.txt`, and only when the player's
+    cleaned name is non-empty with no leading or trailing spaces (`isBanFileSafeName` in
+    `rcon-client`). Temp bans and other names are kicked, and the enforcement sweep keeps them
+    out, the same way it already enforces bans on every other server. Expiry just drops the row.
+    `/unban <guid>` sends `unbanUser <name>` to the server that issued each permanent ban.
+  - **Known limitation:** `unbanUser` removes every line with that name, including another
+    GUID's. That other ban is still enforced by the sweep, so it only loses the instant block on
+    connect.
+- **Getting a real GUID (researched 2026-10-06).** GUID 0 is not a bug we can work around.
+  - **Stock server:** the GUID comes from Activision's CD-key server. Players with a pirated or
+    shared key, or a second player behind the same IP, get 0, and a cracked server gives everyone
+    0. CTF RUSSIA's public `getstatus` reports `shortversion 1.0`, `protocol 115`, so it is a
+    stock 1.0 server, which fits 30 of 33 players having GUID 0.
+  - **CoD2x** (1.4.6.8, `src/shared/server.cpp`) fixes this. It only accepts 1.3 clients
+    running CoD2x, and requires each to send a 32-character `cl_hwid2` built from BIOS,
+    motherboard and disk serials. It hashes that into a non-zero 32-bit HWID and stores it
+    **in the GUID slot** at connect time. So `status`, `games_mp.log`, `banClient` and
+    `ban.txt` should all carry the HWID, and banned HWIDs are refused on connect.
+  - On CoD2x the bot's existing GUID path should work unchanged. The HWID is printed signed and
+    can be negative; the log parsers already accept `-?\d+`. It is reported by the client, so a
+    modified client can fake it. It still stops ordinary ban evasion through a new IP or name.
+  - **Not yet verified live:** that `status` shows the HWID on a CoD2x server. The dev server
+    is a cracked 1.3 build, not CoD2x. Moving CTF RUSSIA to CoD2x would force all its players
+    onto 1.3 + CoD2x, so that's the owner's decision. Until then, IP bans stay its main
+    mechanism.
 - Game events (connect/disconnect/chat/kills) are written to
   `$fs_homepath/main/games_mp.log`. This is the standard integration point for detecting the
   `!report <name>` chat trigger when running vanilla CoD2.
@@ -515,6 +560,10 @@ Roles, stored in `admin-store`:
    `unbanUser`/removes the `ban.txt` entry once `expires_at` passes. This makes `bans` and
    `ban_ips` symmetric — both gateway-timed — and `tempBanClient`'s own duration semantics are
    never relied on.
+   - **Changed (2026-10-06):** a temp ban no longer writes to `ban.txt` at all. `unbanUser`
+     can't reliably remove an entry (§2.4 "`ban.txt`"), so a temp ban there became permanent.
+     A GUID temp ban now kicks the player, and the enforcement sweep keeps them out until
+     `expires_at`. A permanent `Ban` uses `banClient <slot>`, not `banUser`.
 
    **Implemented (2026-09-06)**: `apps/gateway`'s `executeModerationAction()`
    (`lib/moderation-actions.ts`) is the one place implementing kick/ban/tempban plus the §5 step
@@ -602,6 +651,9 @@ Roles, stored in `admin-store`:
    `guid: null, expiresAt: null` — see step 6's note on the `/ban`/`/tempban` bugs this
    uncovered) and two new store methods, `listExpiredBans`/`expireBan`, mirroring the existing
    `ban_ips` pair.
+   - **Changed (2026-10-06):** `runBanExpirySweep` no longer calls `unbanUser`. Temp bans are
+     never in `ban.txt` now, and `unbanUser <guid>` never removed anything anyway (§2.4
+     "`ban.txt`"). It just drops expired rows.
 
 ## 6. Server status & management
 
@@ -633,6 +685,13 @@ Roles, stored in `admin-store`:
     *history* (§5 step 3) still shows an unbanned entry — only `listActiveBans`/`listActiveIpBans`
     (and, incidentally, `listExpiredBans`/`listExpiredIpBans`, so the expiry poller doesn't
     reprocess an already-unbanned row) filter on it being `null`.
+  - **`/unban <guid>` fixed again (2026-10-06):** `unbanUser` matches names, not GUIDs (§2.4
+    "`ban.txt`"). `/unban` now sends `unbanUser <name>` to the server that issued each permanent
+    ban, using the name stored with the ban. It skips temp bans and names that were never
+    written to `ban.txt`. The list of bans comes from the GUID's whole history, so running
+    `/unban` again retries a server that didn't answer. It says when `ban.txt` had no entry for
+    a ban it just lifted. It no longer clears a GUID that was banned in-game outside the bot,
+    since the bot doesn't know that player's name.
 - `/players [server]` — live player list with per-player inline `Kick`/`Temp Ban (30m)`/`Ban`
   shortcuts (same action path as the report card, just triggered manually).
 - `/map <name>`, `/maprotate`, `/restart`, `/fastrestart` — map control, admin-role-gated.
@@ -672,7 +731,8 @@ Roles, stored in `admin-store`:
   bound_telegram_chat_id)`
 - `bans(id, server_alias, guid, name, reason, banned_by, banned_at, expires_at)` — GUID-based
   bans (and temp bans, via `expires_at`). The initial block is enforced natively by the game
-  binary via `banUser`/`banClient` (GUID written to `ban.txt`); **expiry is gateway-enforced**
+  binary via `banClient` (GUID written to `ban.txt`; permanent bans only since 2026-10-06, §2.4
+  "`ban.txt`"); **expiry is gateway-enforced**
   (§5.6/§5.7), not via `tempBanClient`'s own duration semantics — see the caveat in §2.4/§5.6.
   `tempBanClient` itself is not called anywhere in our ban flow; it's referenced in §2.4 purely
   as prior-art protocol knowledge (its GUID-0 behavior).
@@ -692,10 +752,12 @@ Roles, stored in `admin-store`:
   - **Enforcement:** the poller (`runBanEnforcementSweep`) checks `rcon status` on each server
     and kicks a player whose IP matches `ban_ips` or whose GUID matches `bans`. GUID 0 never
     matches, because it isn't a real identity.
-  - **`ban.txt`:** a GUID ban still goes into the issuing server's `ban.txt`. The poll-and-kick
-    sweep is what enforces it on every other server.
-  - **Expiry:** an expired GUID ban is `unbanUser`ed on the issuing server only, and the row is
-    kept until that succeeds. `/unban <guid>` asks *every* server to `unbanUser` it.
+  - **`ban.txt`:** a permanent GUID ban goes into the issuing server's `ban.txt` when the name
+    allows it (§2.4 "`ban.txt`", 2026-10-06). The poll-and-kick sweep enforces it on every
+    other server, and enforces every temp ban and every other name everywhere.
+  - **Expiry:** an expired GUID ban's row is just dropped, since temp bans are never in
+    `ban.txt`. `/unban <guid>` asks the issuing server to `unbanUser` the name each permanent
+    ban was recorded under.
   - **Load:** nothing is polled while there are no active bans. Each server is handled on its
     own, so one that doesn't answer doesn't stop the others. Ticks don't overlap, since a
     status call can take ~10s on a rate-limited server.

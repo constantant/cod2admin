@@ -23,7 +23,7 @@ export function startExpiryPoller(deps: GatewayDeps, intervalMs = DEFAULT_INTERV
       runBanEnforcementSweep(deps.banStore, deps.rconClients).catch((error: unknown) => {
         console.error('Ban enforcement sweep failed:', error);
       }),
-      runBanExpirySweep(deps.banStore, deps.rconClients).catch((error: unknown) => {
+      runBanExpirySweep(deps.banStore).catch((error: unknown) => {
         console.error('GUID ban expiry sweep failed:', error);
       }),
     ]).finally(() => {

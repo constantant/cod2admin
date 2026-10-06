@@ -100,7 +100,8 @@ Phase 2 plan for why), `/rcon`, `/say`, and the IP-ban expiry poller. All pass
 Real-server testing (2026-09-05/06) found and fixed two `rcon-client` bugs beyond Phase 2's own
 scope — a `status`-table column-parsing bug and a `kick`-argument quirk (numeric slot vs. name,
 inconsistent quoting) — see docs/PLAN.md §2.4 for details before touching `status-parser.ts` or
-`RconClient#kick`. No `log-tailer`/`report-pipeline` yet (Phase 3). Before starting Phase 3, check
+`RconClient#kick`. The same goes for `banClient`/`unbanUser` and anything that writes `ban.txt`:
+`unbanUser` matches by player name, not GUID (§2.4 "`ban.txt`", 2026-10-06). No `log-tailer`/`report-pipeline` yet (Phase 3). Before starting Phase 3, check
 `docs/PLAN.md` §9 for what it covers and whether its GUID-related notes in §2.4 still apply (a
 `guid` column on `status()` was confirmed present on this dev server, which may change Phase 3's
 approach — see the "Correction (2026-09-06)" note in §2.4).

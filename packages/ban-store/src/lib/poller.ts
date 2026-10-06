@@ -18,9 +18,9 @@ function isUsableGuid(guid: string | null | undefined): guid is string {
  * "Bans are global"):
  *
  * - (a) Kicks any connected player, on any server, whose IP matches an active `ban_ips` row or
- *   whose GUID matches an active `bans` row. GUID bans are also in the issuing server's
- *   `ban.txt` (the game enforces those itself), but no other server's, so this sweep is what
- *   enforces them everywhere else.
+ *   whose GUID matches an active `bans` row. Some permanent GUID bans are also in the issuing
+ *   server's `ban.txt` (the game enforces those itself), but no other server's, and temp bans
+ *   never are (§2.4 "ban.txt"), so this sweep is what enforces them everywhere else.
  * - (b) Drops `ban_ips` rows whose `expiresAt` has passed. No rcon call is needed, since IP bans
  *   were never written to ban.txt.
  *
@@ -68,29 +68,14 @@ export async function runBanEnforcementSweep(
 }
 
 /**
- * The GUID-path half of the poller's expiry job (docs/PLAN.md §5 step 7's job (b)). A GUID ban
- * was written to `ban.txt` on the server it was issued on (`Ban.serverAlias`), so reversing it
- * needs `unbanUser(guid)` *there* before the row is dropped. If that server doesn't answer, the
- * row is kept and retried on the next tick. If that server is no longer managed
- * (`/removeserver`), there's nothing left to undo, so the row is just dropped. A `null` guid
- * can't have been banned this way (§2.4's GUID-0 case goes through `ban_ips`) and is only dropped.
+ * The GUID-path half of the poller's expiry job (docs/PLAN.md §5 step 7's job (b)): drops `bans`
+ * rows whose `expiresAt` has passed. No rcon call is needed. A temp ban is never written to
+ * `ban.txt`, only enforced by `runBanEnforcementSweep`, because `unbanUser` removes entries by
+ * player name, not GUID, and can't reliably take one back out (§2.4 "ban.txt").
  */
-export async function runBanExpirySweep(
-  banStore: BanStore,
-  rconClients: Map<string, RconClient>,
-  onError: SweepErrorHandler = logSweepError,
-): Promise<void> {
+export async function runBanExpirySweep(banStore: BanStore): Promise<void> {
   const expiredBans = await banStore.listExpiredBans(new Date());
   for (const ban of expiredBans) {
-    const origin = rconClients.get(ban.serverAlias);
-    if (ban.guid && origin) {
-      try {
-        await origin.unbanUser(ban.guid);
-      } catch (error) {
-        onError(ban.serverAlias, error);
-        continue;
-      }
-    }
     await banStore.expireBan(ban.id);
   }
 }

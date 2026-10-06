@@ -45,20 +45,43 @@ describe('executeModerationAction', () => {
     const result = await executeModerationAction('ban', target({ guid: 'realguid' }), options);
 
     expect(result).toEqual({ label: 'Banned', ipFallback: false, durationMs: undefined });
-    expect(rcon.banUser).toHaveBeenCalledWith(2);
+    expect(rcon.banClient).toHaveBeenCalledWith(2);
+    expect(rcon.kick).not.toHaveBeenCalled();
     expect(banStore.recordBan).toHaveBeenCalledWith(
       expect.objectContaining({ serverAlias: 'default', name: 'Cheatr123', guid: 'realguid', expiresAt: null }),
     );
     expect(rcon.say).toHaveBeenCalledWith('Cheatr123 was banned by an admin');
   });
 
-  it('temp-bans via the GUID path with expiresAt set, using the given duration', async () => {
-    const { banStore, options } = baseOptions();
+  it('also kicks when banClient replies, since then it may not have dropped the player', async () => {
+    const { rcon, banStore, options } = baseOptions();
+    rcon.banClient.mockResolvedValue('This GUID (123) is already banned\n');
+
+    await executeModerationAction('ban', target({ guid: '123' }), options);
+
+    expect(rcon.kick).toHaveBeenCalledWith('Cheatr123');
+    expect(banStore.recordBan).toHaveBeenCalledWith(expect.objectContaining({ guid: '123' }));
+  });
+
+  it('keeps a GUID ban out of ban.txt when unbanUser could never remove it again (docs/PLAN.md §2.4)', async () => {
+    const { rcon, banStore, options } = baseOptions();
+
+    await executeModerationAction('ban', target({ name: 'Вика', guid: 'realguid' }), options);
+
+    expect(rcon.banClient).not.toHaveBeenCalled();
+    expect(rcon.kick).toHaveBeenCalledWith('Вика');
+    expect(banStore.recordBan).toHaveBeenCalledWith(expect.objectContaining({ guid: 'realguid', expiresAt: null }));
+  });
+
+  it('temp-bans via the GUID path with expiresAt set, kicking rather than writing ban.txt', async () => {
+    const { rcon, banStore, options } = baseOptions();
 
     const result = await executeModerationAction('tempban', target({ guid: 'realguid' }), { ...options, durationMs: 60_000 });
 
     expect(result.label).toBe('Temp-banned');
     expect(result.durationMs).toBe(60_000);
+    expect(rcon.banClient).not.toHaveBeenCalled();
+    expect(rcon.kick).toHaveBeenCalledWith('Cheatr123');
     const call = banStore.recordBan.mock.calls[0][0];
     expect(call.expiresAt).toBeInstanceOf(Date);
     expect((call.expiresAt as Date).getTime()).toBeGreaterThan(Date.now());
@@ -70,7 +93,7 @@ describe('executeModerationAction', () => {
     const result = await executeModerationAction('ban', target({ guid: '0', ip: '1.2.3.4' }), options);
 
     expect(result).toEqual({ label: 'IP-banned (GUID unavailable)', ipFallback: true, durationMs: undefined });
-    expect(rcon.banUser).not.toHaveBeenCalled();
+    expect(rcon.banClient).not.toHaveBeenCalled();
     expect(rcon.kick).toHaveBeenCalledWith('Cheatr123');
     expect(banStore.recordIpBan).toHaveBeenCalledWith(
       expect.objectContaining({ serverAlias: 'default', ip: '1.2.3.4', expiresAt: null }),

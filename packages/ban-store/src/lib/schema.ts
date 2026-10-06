@@ -7,7 +7,7 @@ import { bigint, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
  * to `ban_ips` instead (§5 step 7's fallback). `expiresAt` is set by the report card's
  * `Temp Ban` button (§5 step 6 — it deliberately doesn't use native `tempBanClient`, see that
  * section) and left `null` by a permanent `/ban`/`Ban` button; `poller.ts`'s `runBanExpirySweep`
- * (added alongside `Temp Ban`) calls `unbanUser(guid)` once a temp entry's `expiresAt` passes.
+ * drops a temp entry once its `expiresAt` passes.
  */
 export const bans = pgTable('bans', {
   id: serial('id').primaryKey(),

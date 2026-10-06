@@ -97,21 +97,33 @@ export class RconClient {
   }
 
   /**
-   * Bans a currently-connected client's GUID (written to ban.txt by the game binary).
-   * GUID-0 clients are not actually banned by this — see docs/PLAN.md §2.4/§5.7 for the
-   * IP-fallback path callers must apply in that case.
+   * Bans the client in slot `clientId` by GUID: the game writes `<guid> <name>` to `ban.txt` and
+   * drops the client. When it can't, it replies with why and the client stays connected:
+   * `Client N is not active`, `This GUID (N) is already banned`, or for a GUID-0 client
+   * `Can't ban user, GUID is 0` — see docs/PLAN.md §2.4/§5.7 for the IP fallback callers apply
+   * then. There's deliberately no `banUser`: it takes a player *name*, like `kick`, and a slot
+   * number sent to it fails with "Player N is not on the server" (confirmed live, §2.4 "ban.txt").
    */
   async banClient(clientId: number): Promise<string> {
     return this.rcon(`banClient ${clientId}`);
   }
 
-  /** Bans by GUID, same ban.txt mechanism as banClient — see docs/PLAN.md §2.4 for caveats. */
-  async banUser(clientId: number): Promise<string> {
-    return this.rcon(`banUser ${clientId}`);
-  }
-
-  async unbanUser(guid: string): Promise<string> {
-    return this.rcon(`unbanUser ${guid}`);
+  /**
+   * Removes every `ban.txt` line for a player **name** and returns how many were removed. The game
+   * matches on the name, not the GUID: `unbanUser <guid>` replies "no banned user has name <guid>"
+   * (confirmed live, docs/PLAN.md §2.4 "ban.txt"). Always quoted, which works for plain, spaced
+   * and color-coded names. Throws on any other reply rather than guess it succeeded.
+   */
+  async unbanUser(name: string): Promise<number> {
+    const result = await this.rcon(`unbanUser "${name.replace(/"/g, '')}"`);
+    const removed = /unbanned (\d+) user/i.exec(result);
+    if (removed) {
+      return Number(removed[1]);
+    }
+    if (/no banned user has name/i.test(result)) {
+      return 0;
+    }
+    throw new Error(`Unexpected unbanUser reply: "${result.trim()}"`);
   }
 
   /**

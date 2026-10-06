@@ -79,13 +79,12 @@ export class DrizzleBanStore implements BanStore {
       .where(and(isNull(bans.unbannedAt), or(isNull(bans.expiresAt), gt(bans.expiresAt, new Date()))));
   }
 
-  async unbanByGuid(guid: string): Promise<number> {
-    const lifted = await this.db
+  async unbanByGuid(guid: string): Promise<Ban[]> {
+    return this.db
       .update(bans)
       .set({ unbannedAt: new Date() })
       .where(and(eq(bans.guid, guid), isNull(bans.unbannedAt)))
-      .returning({ id: bans.id });
-    return lifted.length;
+      .returning();
   }
 
   async listBansByGuid(guid: string, limit: number): Promise<Ban[]> {

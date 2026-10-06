@@ -31,10 +31,25 @@ export function createFakeBanStore(
     listExpiredBans: vi.fn().mockResolvedValue(overrides.expiredBans ?? []),
     expireBan: vi.fn().mockResolvedValue(undefined),
     listActiveBans: vi.fn().mockResolvedValue(overrides.activeBans ?? []),
-    unbanByGuid: vi.fn().mockResolvedValue(1),
+    unbanByGuid: vi.fn().mockResolvedValue([]),
     listBansByGuid: vi.fn().mockResolvedValue([]),
     listBansByName: vi.fn().mockResolvedValue([]),
     listIpBansByIp: vi.fn().mockResolvedValue([]),
     close: vi.fn().mockResolvedValue(undefined),
+  };
+}
+
+export function sampleGuidBan(overrides: Partial<Ban> = {}): Ban {
+  return {
+    id: 1,
+    serverAlias: 'default',
+    guid: 'GUID123',
+    name: 'Cheater',
+    reason: null,
+    bannedBy: 1,
+    bannedAt: new Date('2026-01-01T00:00:00.000Z'),
+    expiresAt: null,
+    unbannedAt: null,
+    ...overrides,
   };
 }

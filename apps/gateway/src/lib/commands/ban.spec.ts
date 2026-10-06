@@ -11,7 +11,8 @@ describe('banCommand', () => {
 
     await banCommand(ctx, deps);
 
-    expect(rcon.banUser).toHaveBeenCalledWith(2);
+    expect(rcon.banClient).toHaveBeenCalledWith(2);
+    expect(rcon.kick).not.toHaveBeenCalled();
     expect(banStore.recordBan).toHaveBeenCalledWith(
       expect.objectContaining({ serverAlias: 'default', name: 'Cheater', guid: 'realguid', reason: null }),
     );
@@ -27,7 +28,7 @@ describe('banCommand', () => {
 
     await banCommand(ctx, deps);
 
-    expect(rcon.banUser).not.toHaveBeenCalled();
+    expect(rcon.banClient).not.toHaveBeenCalled();
     expect(rcon.kick).toHaveBeenCalledWith('Cheater');
     expect(banStore.recordIpBan).toHaveBeenCalledWith(expect.objectContaining({ ip: '1.2.3.4' }));
     expect(ctx.reply).toHaveBeenCalledWith('IP-banned (GUID unavailable) Cheater.');
@@ -52,7 +53,7 @@ describe('banCommand', () => {
 
     await banCommand(ctx, deps);
 
-    expect(rcon.banUser).not.toHaveBeenCalled();
+    expect(rcon.banClient).not.toHaveBeenCalled();
     expect(banStore.recordBan).not.toHaveBeenCalled();
     expect(ctx.reply).toHaveBeenCalledWith('Client 2 is not currently connected — cannot ban.');
   });
@@ -63,7 +64,7 @@ describe('banCommand', () => {
 
     await banCommand(ctx, deps);
 
-    expect(rcon.banUser).not.toHaveBeenCalled();
+    expect(rcon.banClient).not.toHaveBeenCalled();
     expect(ctx.reply).toHaveBeenCalledWith('Usage: /ban <client id> [reason] [--server <alias>]');
   });
 });

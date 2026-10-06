@@ -1,6 +1,6 @@
 import type { AdminStore, AuditSource } from '@cod2admin/admin-store';
 import type { BanStore } from '@cod2admin/ban-store';
-import type { RconClient } from '@cod2admin/rcon-client';
+import { isBanFileSafeName, type RconClient } from '@cod2admin/rcon-client';
 import { broadcastModerationAction } from './broadcast.js';
 import { sanitizeRconArg } from './sanitize.js';
 
@@ -79,7 +79,16 @@ export async function executeModerationAction(
   const expiresAt = kind === 'tempban' ? new Date(Date.now() + durationMs) : null;
 
   if (hasUsableGuid(target.guid)) {
-    await options.rcon.banUser(target.num);
+    // Only a permanent ban goes into ban.txt, and only when `unbanUser` can take it back out
+    // again later (docs/PLAN.md §2.4 "ban.txt"). Everything else is just kicked here and kept
+    // out by the poller's GUID sweep, the same way bans are already enforced on other servers.
+    // Any reply from `banClient` means it may not have dropped the player (e.g. "already banned"),
+    // so they're kicked too; a kick for a player who's already gone does no harm.
+    const bannedNatively =
+      kind === 'ban' && isBanFileSafeName(target.name) && !(await options.rcon.banClient(target.num)).trim();
+    if (!bannedNatively) {
+      await options.rcon.kick(target.name);
+    }
     await options.banStore.recordBan({
       serverAlias: options.serverAlias,
       name: target.name,

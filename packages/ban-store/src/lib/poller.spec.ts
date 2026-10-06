@@ -133,63 +133,22 @@ describe('runBanEnforcementSweep', () => {
 });
 
 describe('runBanExpirySweep', () => {
-  it('unbans (rcon) on the issuing server and expires (store) a GUID-path temp ban whose expiry has passed', async () => {
-    const banStoreFake = createFakeBanStore({ expiredBans: [sampleGuidBan({ id: 7, serverAlias: 'server-b', guid: 'realguid' })] });
-    const rconA = createFakeRcon();
-    const rconB = createFakeRcon();
+  it('expires (store) a GUID-path temp ban whose expiry has passed, with no rcon call (temp bans are never in ban.txt)', async () => {
+    const banStoreFake = createFakeBanStore({
+      expiredBans: [sampleGuidBan({ id: 7, guid: 'realguid' }), sampleGuidBan({ id: 8, guid: null })],
+    });
 
-    await runBanExpirySweep(
-      asBanStore(banStoreFake),
-      new Map([
-        ['server-a', asRconClient(rconA)],
-        ['server-b', asRconClient(rconB)],
-      ]),
-    );
+    await runBanExpirySweep(asBanStore(banStoreFake));
 
-    expect(rconB.unbanUser).toHaveBeenCalledWith('realguid');
-    expect(rconA.unbanUser).not.toHaveBeenCalled();
     expect(banStoreFake.expireBan).toHaveBeenCalledWith(7);
-  });
-
-  it('skips the rcon unban call for a row with no guid, but still expires it', async () => {
-    const banStoreFake = createFakeBanStore({ expiredBans: [sampleGuidBan({ id: 8, guid: null })] });
-    const rconFake = createFakeRcon();
-
-    await runBanExpirySweep(asBanStore(banStoreFake), new Map([['default', asRconClient(rconFake)]]));
-
-    expect(rconFake.unbanUser).not.toHaveBeenCalled();
     expect(banStoreFake.expireBan).toHaveBeenCalledWith(8);
-  });
-
-  it('just expires the row when the issuing server is no longer managed', async () => {
-    const banStoreFake = createFakeBanStore({ expiredBans: [sampleGuidBan({ id: 9, serverAlias: 'removed' })] });
-    const rconFake = createFakeRcon();
-
-    await runBanExpirySweep(asBanStore(banStoreFake), new Map([['default', asRconClient(rconFake)]]));
-
-    expect(rconFake.unbanUser).not.toHaveBeenCalled();
-    expect(banStoreFake.expireBan).toHaveBeenCalledWith(9);
-  });
-
-  it('keeps the row for the next tick when the issuing server does not answer', async () => {
-    const banStoreFake = createFakeBanStore({ expiredBans: [sampleGuidBan({ id: 10 })] });
-    const rconFake = createFakeRcon();
-    rconFake.unbanUser.mockRejectedValue(new Error('timed out'));
-    const onError = vi.fn();
-
-    await runBanExpirySweep(asBanStore(banStoreFake), new Map([['default', asRconClient(rconFake)]]), onError);
-
-    expect(onError).toHaveBeenCalledWith('default', expect.any(Error));
-    expect(banStoreFake.expireBan).not.toHaveBeenCalled();
   });
 
   it('does nothing when there are no expired GUID bans', async () => {
     const banStoreFake = createFakeBanStore({ expiredBans: [] });
-    const rconFake = createFakeRcon();
 
-    await runBanExpirySweep(asBanStore(banStoreFake), new Map([['default', asRconClient(rconFake)]]));
+    await runBanExpirySweep(asBanStore(banStoreFake));
 
-    expect(rconFake.unbanUser).not.toHaveBeenCalled();
     expect(banStoreFake.expireBan).not.toHaveBeenCalled();
   });
 });

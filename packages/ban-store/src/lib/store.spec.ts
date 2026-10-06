@@ -128,7 +128,9 @@ describe('DrizzleBanStore', () => {
     it('unbanByGuid stamps unbannedAt on the matching active bans row, removing it from listActiveBans', async () => {
       await store.recordBan({ serverAlias: 'default', name: 'Cheater', guid: 'guid-a', bannedBy: 1 });
 
-      await expect(store.unbanByGuid('guid-a')).resolves.toBe(1);
+      await expect(store.unbanByGuid('guid-a')).resolves.toEqual([
+        expect.objectContaining({ name: 'Cheater', serverAlias: 'default', guid: 'guid-a' }),
+      ]);
 
       await expect(store.listActiveBans()).resolves.toEqual([]);
       const [row] = await store.listBansByGuid('guid-a', 10);
@@ -140,10 +142,10 @@ describe('DrizzleBanStore', () => {
       await store.recordBan({ serverAlias: 'other', name: 'Elsewhere', guid: 'guid-a', bannedBy: 1 });
       await store.recordBan({ serverAlias: 'default', name: 'Other', guid: 'guid-b', bannedBy: 1 });
 
-      await expect(store.unbanByGuid('guid-a')).resolves.toBe(2);
+      await expect(store.unbanByGuid('guid-a')).resolves.toHaveLength(2);
 
       await expect(store.listActiveBans()).resolves.toEqual([expect.objectContaining({ guid: 'guid-b' })]);
-      await expect(store.unbanByGuid('guid-a')).resolves.toBe(0);
+      await expect(store.unbanByGuid('guid-a')).resolves.toEqual([]);
     });
 
     it('unbanIp stamps unbannedAt on the matching active ban_ips row, removing it from listActiveIpBans', async () => {

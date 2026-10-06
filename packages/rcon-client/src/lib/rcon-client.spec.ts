@@ -87,8 +87,6 @@ describe('RconClient', () => {
 
   it.each([
     ['banClient', (client: RconClient) => client.banClient(2), 'rcon secret banClient 2'],
-    ['banUser', (client: RconClient) => client.banUser(2), 'rcon secret banUser 2'],
-    ['unbanUser', (client: RconClient) => client.unbanUser('GUID123'), 'rcon secret unbanUser GUID123'],
     ['say', (client: RconClient) => client.say('hello'), 'rcon secret say "hello"'],
     ['say (quotes stripped)', (client: RconClient) => client.say('a "b" c'), 'rcon secret say "a b c"'],
     ['map', (client: RconClient) => client.map('mp_toujane'), 'rcon secret map mp_toujane'],
@@ -103,6 +101,29 @@ describe('RconClient', () => {
     await action(client);
 
     expect(received).toBe(expectedCommand);
+  });
+
+  it.each([
+    ['unbanned 1 user(s) named Cheater\n', 1],
+    ['unbanned 2 user(s) named Cheater\n', 2],
+    ['no banned user has name Cheater\n', 0],
+  ])('unbanUser sends the quoted name and reads "%s" as %i removed', async (reply, expected) => {
+    let received: string | undefined;
+    peer = await createMockPeer((payload, respond) => {
+      received = payload;
+      respond(`print\n${reply}`);
+    });
+    const client = new RconClient({ host: '127.0.0.1', port: peer.port, password: 'secret' });
+
+    await expect(client.unbanUser('^1Che"ater')).resolves.toBe(expected);
+    expect(received).toBe('rcon secret unbanUser "^1Cheater"');
+  });
+
+  it('unbanUser throws on a reply it does not recognize, instead of assuming success', async () => {
+    peer = await createMockPeer((_payload, respond) => respond('print\nBad rconpassword.\n'));
+    const client = new RconClient({ host: '127.0.0.1', port: peer.port, password: 'secret' });
+
+    await expect(client.unbanUser('Cheater')).rejects.toThrow('Unexpected unbanUser reply');
   });
 
   it('parses the rcon status player table including IPs', async () => {
