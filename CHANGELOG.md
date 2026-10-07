@@ -1,3 +1,17 @@
+## [1.6.1](https://github.com/constantant/cod2admin/releases/tag/v1.6.1) (2026-10-07)
+
+### 🩹 Fixes
+
+- **gateway:** make GUID bans and unbans actually reach ban.txt ([1e4e0d4](https://github.com/constantant/cod2admin/commit/1e4e0d4))
+- **gateway:** only switch Telegram routes when the route is really down ([e15a2ee](https://github.com/constantant/cod2admin/commit/e15a2ee))
+- **release:** publish each release's full changelog section as its notes ([9628684](https://github.com/constantant/cod2admin/commit/9628684))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5
+- Claude Opus 5.5 (1M context)
+- kk
+
 ## [1.6.0](https://github.com/constantant/cod2admin/releases/tag/v1.6.0) (2026-10-04)
 
 ### 🚀 Features
