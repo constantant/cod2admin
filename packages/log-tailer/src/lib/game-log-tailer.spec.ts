@@ -88,4 +88,33 @@ describe('GameLogTailer', () => {
 
     expect(connects[0].name).toBe('NewGuy');
   });
+
+  describe('readRecentChat (Mini App chat backfill)', () => {
+    it('returns the last chat lines already in the log, oldest first, skipping other events', async () => {
+      await writeFile(path, '1:00 J;0;0;A\r\n1:01 say;0;0;A;one\r\n1:02 sayteam;0;0;A;two\r\n1:03 say;0;0;A;three\r\n');
+      tailer = new GameLogTailer({ logPath: path });
+
+      const chat = await tailer.readRecentChat(2);
+
+      expect(chat.map((line) => [line.channel, line.message])).toEqual([
+        ['sayteam', 'two'],
+        ['say', 'three'],
+      ]);
+    });
+
+    it('drops the partial first line when it only reads the end of a big file', async () => {
+      await writeFile(path, '1:01 say;0;0;A;first line\n1:02 say;0;0;B;second\n');
+      tailer = new GameLogTailer({ logPath: path });
+
+      const chat = await tailer.readRecentChat(10, 30);
+
+      expect(chat.map((line) => line.message)).toEqual(['second']);
+    });
+
+    it('reads as no chat when the log does not exist yet', async () => {
+      tailer = new GameLogTailer({ logPath: join(dir, 'missing.log') });
+
+      await expect(tailer.readRecentChat(10)).resolves.toEqual([]);
+    });
+  });
 });
