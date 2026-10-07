@@ -19,6 +19,7 @@ import type {
   ApiError,
   BanKind,
   BansResponse,
+  ChangeMapRequest,
   ChatResponse,
   ConsoleResponse,
   MapsResponse,
@@ -49,6 +50,8 @@ declare module 'fastify' {
 }
 
 export const BANS_PAGE_SIZE = 50;
+/** The mode the Maps page picks first when the server has it (asked for by the CTF RUSSIA owner). */
+export const DEFAULT_GAMETYPE = 'ctf';
 const MAX_TEMPBAN_MINUTES = 365 * 24 * 60;
 const MAX_UNBAN_TARGETS = 50;
 const MAX_CHAT_MESSAGE = 128;
@@ -114,6 +117,35 @@ function durationMs(minutes: unknown): number | undefined {
     );
   }
   return minutes * 60_000;
+}
+
+/**
+ * A game mode from the client, checked before it goes into an RCON command: one of the server's
+ * own modes (matched case-insensitively), or — if the server can't list them — any plain name.
+ */
+function resolveGametype(
+  typed: unknown,
+  gametypes: string[],
+  alias: string,
+): string {
+  const name = typeof typed === 'string' ? typed.trim() : '';
+  if (!/^[A-Za-z0-9_-]{1,32}$/.test(name)) {
+    throw new ApiProblem(400, 'bad_request', 'Pick a game mode.');
+  }
+  if (gametypes.length === 0) {
+    return name;
+  }
+  const known = gametypes.find(
+    (gametype) => gametype.toLowerCase() === name.toLowerCase(),
+  );
+  if (!known) {
+    throw new ApiProblem(
+      404,
+      'unknown_gametype',
+      `${alias} has no game mode "${name}".`,
+    );
+  }
+  return known;
 }
 
 async function adminNames(deps: GatewayDeps): Promise<AdminNames> {
@@ -274,21 +306,35 @@ export function registerRoutes(
     { config: { minRole: 'admin' } },
     async (request: Params<{ server: string }>): Promise<MapsResponse> => {
       const rcon = serverParam(state, request.params.server);
-      const [status, rotation, installed] = await Promise.all([
-        rcon.status(),
-        rcon.getMapRotation(),
-        rcon.getInstalledMaps().catch((error: unknown) => {
-          console.error('Mini App: listing installed maps failed:', error);
-          return [] as string[];
-        }),
+      const listOrNothing = (what: string) => (error: unknown) => {
+        console.error(`Mini App: listing ${what} failed:`, error);
+        return [] as string[];
+      };
+      const [info, rotation, installed, gametypes] = await Promise.all([
+        rcon.getInfo(),
+        rcon.getMapRotationEntries(),
+        rcon.getInstalledMaps().catch(listOrNothing('installed maps')),
+        rcon.getGametypes().catch(listOrNothing('game modes')),
       ]);
-      const inRotation = new Set(rotation);
+      const currentGametype = info['gametype'] ?? null;
+      const inRotation = new Set(rotation.map((entry) => entry.map));
+      const names =
+        installed.length > 0
+          ? installed
+          : [...inRotation].sort((a, b) => a.localeCompare(b));
       return {
-        current: status.mapName ?? null,
+        current: info['mapname'] ?? null,
+        currentGametype,
+        gametypes,
+        defaultGametype: gametypes.includes(DEFAULT_GAMETYPE)
+          ? DEFAULT_GAMETYPE
+          : currentGametype,
         rotation,
-        others: installed
-          .filter((name) => !inRotation.has(name))
-          .map((name) => ({ name, stock: STOCK_MAPS.has(name) })),
+        maps: names.map((name) => ({
+          name,
+          stock: STOCK_MAPS.has(name),
+          inRotation: inRotation.has(name),
+        })),
       };
     },
   );
@@ -299,15 +345,19 @@ export function registerRoutes(
     async (
       request: FastifyRequest<{
         Params: { server: string };
-        Body: { map?: string };
+        Body: ChangeMapRequest;
       }>,
     ): Promise<ActionResponse> => {
       const alias = request.params.server;
       const rcon = serverParam(state, alias);
       const typed = requiredText(request.body?.map, 'A map name');
-      const installed = await rcon
-        .getInstalledMaps()
-        .catch(() => [] as string[]);
+      const typedGametype = request.body?.gametype;
+      const [installed, gametypes] = await Promise.all([
+        rcon.getInstalledMaps().catch(() => [] as string[]),
+        typedGametype === undefined
+          ? Promise.resolve([] as string[])
+          : rcon.getGametypes().catch(() => [] as string[]),
+      ]);
       const mapName =
         installed.length > 0
           ? installed.find((name) => name.toLowerCase() === typed.toLowerCase())
@@ -319,13 +369,20 @@ export function registerRoutes(
           `There's no map "${typed}" on ${alias}.`,
         );
       }
-      await rcon.map(mapName);
+      const gametype =
+        typedGametype === undefined
+          ? undefined
+          : resolveGametype(typedGametype, gametypes, alias);
+      await rcon.map(mapName, gametype);
       await audit(request, {
         action: 'map',
-        target: mapName,
+        target: gametype ? `${mapName} (${gametype})` : mapName,
         serverAlias: alias,
+        detailJson: gametype ? { map: mapName, gametype } : undefined,
       });
-      return { message: `Changing map to ${mapName}…` };
+      return {
+        message: `Changing map to ${mapName}${gametype ? ` (${gametype.toUpperCase()})` : ''}…`,
+      };
     },
   );
 

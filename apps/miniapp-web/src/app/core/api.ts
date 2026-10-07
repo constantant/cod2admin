@@ -9,6 +9,7 @@ import type {
   AddBanRequest,
   BanKind,
   BansResponse,
+  ChangeMapRequest,
   ChatResponse,
   ConsoleResponse,
   MapsResponse,
@@ -113,9 +114,10 @@ export class ApiService {
     return this.call<MapsResponse>(this.http.get(`${server(alias)}/maps`));
   }
 
-  changeMap(alias: string, map: string) {
+  changeMap(alias: string, map: string, gametype?: string) {
+    const body: ChangeMapRequest = gametype ? { map, gametype } : { map };
     return this.call<ActionResponse>(
-      this.http.post(`${server(alias)}/map`, { map }),
+      this.http.post(`${server(alias)}/map`, body),
     );
   }
 

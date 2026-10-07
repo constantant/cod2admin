@@ -63,9 +63,22 @@ export interface ActionResponse {
 
 export interface MapsResponse {
   current: string | null;
-  rotation: string[];
-  /** Every installed map that isn't in the rotation. Empty if the server can't list them. */
-  others: { name: string; stock: boolean }[];
+  /** The game mode now, e.g. `ctf`. */
+  currentGametype: string | null;
+  /** Every mode the server has (stock: ctf, dm, hq, sd, tdm, plus a mod's own). Empty if it can't list them. */
+  gametypes: string[];
+  /** The mode the app suggests first: `ctf` when the server has it, else the current one. */
+  defaultGametype: string | null;
+  /** `sv_mapRotation` as map + mode pairs; a map can be there under more than one mode. */
+  rotation: { map: string; gametype: string | null }[];
+  /** Every installed map (the rotation's maps if the server can't list them). */
+  maps: { name: string; stock: boolean; inRotation: boolean }[];
+}
+
+export interface ChangeMapRequest {
+  map: string;
+  /** Switch the game mode too. Omitted: the map loads in the current mode. */
+  gametype?: string;
 }
 
 export interface ConsoleResponse {

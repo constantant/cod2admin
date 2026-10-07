@@ -46,3 +46,28 @@ h2 {
   font: var(--mat-sys-body-small);
   margin-top: 12px;
 }
+
+.mode-badge,
+.mode-tag {
+  display: inline-block;
+  vertical-align: middle;
+  border-radius: 8px;
+  background: var(--mat-sys-tertiary-container);
+  color: var(--mat-sys-on-tertiary-container);
+}
+
+.mode-badge {
+  font: var(--mat-sys-label-large);
+  padding: 2px 10px;
+  margin-left: 6px;
+}
+
+.mode-tag {
+  font: var(--mat-sys-label-small);
+  padding: 0 6px;
+  margin-left: auto;
+}
+
+mat-chip-listbox {
+  display: block;
+}

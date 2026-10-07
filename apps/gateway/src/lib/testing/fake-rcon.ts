@@ -23,7 +23,12 @@ export interface FakeRcon {
   unbanUser: Mock<(name: string) => Promise<number>>;
   say: Mock<(message: string) => Promise<string>>;
   tell: Mock<(clientId: number, message: string) => Promise<string>>;
-  map: Mock<(mapName: string) => Promise<string>>;
+  map: Mock<(mapName: string, gametype?: string) => Promise<string>>;
+  getGametype: Mock<() => Promise<string | null>>;
+  getGametypes: Mock<() => Promise<string[]>>;
+  getMapRotationEntries: Mock<
+    () => Promise<{ map: string; gametype: string | null }[]>
+  >;
   getMapRotation: Mock<() => Promise<string[]>>;
   getInstalledMaps: Mock<() => Promise<string[]>>;
 }
@@ -42,6 +47,9 @@ export function createFakeRcon(): FakeRcon {
     say: vi.fn().mockResolvedValue(''),
     tell: vi.fn().mockResolvedValue(''),
     map: vi.fn().mockResolvedValue(''),
+    getGametype: vi.fn().mockResolvedValue(null),
+    getGametypes: vi.fn().mockResolvedValue([]),
+    getMapRotationEntries: vi.fn().mockResolvedValue([]),
     getMapRotation: vi.fn().mockResolvedValue([]),
     getInstalledMaps: vi.fn().mockResolvedValue([]),
   };
