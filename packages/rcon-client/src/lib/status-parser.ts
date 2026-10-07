@@ -1,4 +1,9 @@
-import type { CvarMap, OobStatusPlayer, ServerStatus, StatusPlayer } from './types.js';
+import type {
+  CvarMap,
+  OobStatusPlayer,
+  ServerStatus,
+  StatusPlayer,
+} from './types.js';
 
 /** Strips Quake/CoD `^`-digit color codes (e.g. `^1Player^7One` -> `PlayerOne`). */
 export function stripColorCodes(value: string): string {
@@ -52,6 +57,57 @@ export function parseMapRotation(raw: string): string[] {
     }
   }
   return maps;
+}
+
+const ROTATION_TOKEN = /\b(gametype|map)\s+(\S+)/gi;
+
+/** One `sv_mapRotation` entry: a map and the game mode it's played in. */
+export interface RotationEntry {
+  map: string;
+  /** The `gametype` set before it in the rotation, or null if none was (the server's `g_gametype` then applies). */
+  gametype: string | null;
+}
+
+/**
+ * The `sv_mapRotation` entries in order, each with its game mode — a `gametype X` token applies
+ * to every `map` after it until the next one. Unlike `parseMapRotation`, a map listed again under
+ * another mode stays: CTF RUSSIA's rotation has `mp_toujane` as both `ctf` and `hq` (2026-10-07).
+ */
+export function parseMapRotationEntries(raw: string): RotationEntry[] {
+  const value = stripColorCodes(MAP_ROTATION_VALUE.exec(raw)?.[1] ?? '');
+  const entries: RotationEntry[] = [];
+  let gametype: string | null = null;
+  for (const [, kind, name] of value.matchAll(ROTATION_TOKEN)) {
+    if (kind.toLowerCase() === 'gametype') {
+      gametype = name;
+    } else if (
+      !entries.some(
+        (entry) => entry.map === name && entry.gametype === gametype,
+      )
+    ) {
+      entries.push({ map: name, gametype });
+    }
+  }
+  return entries;
+}
+
+const GAMETYPE_LINE = /^([A-Za-z0-9-][A-Za-z0-9_-]*)\.gsc$/;
+
+/**
+ * Game modes from a `rcon dir maps/mp/gametypes gsc` response: each mode is a script there
+ * (`ctf.gsc`), next to shared helpers whose names start with `_` (`_teams.gsc`), which are left
+ * out. Read from the server, so a mod's own modes are included. Stock CoD2 1.3 has dm, tdm, sd,
+ * hq and ctf (the dev server and CTF RUSSIA, 2026-10-07). Sorted, de-duplicated.
+ */
+export function parseGametypes(raw: string): string[] {
+  const gametypes = new Set<string>();
+  for (const line of raw.replace(/\r\n/g, '\n').split('\n')) {
+    const match = GAMETYPE_LINE.exec(line.trim());
+    if (match) {
+      gametypes.add(match[1]);
+    }
+  }
+  return [...gametypes].sort((a, b) => a.localeCompare(b));
 }
 
 const INSTALLED_MAP_LINE = /^([A-Za-z0-9_-]+)\.d3dbsp$/;
@@ -123,8 +179,12 @@ function fieldsToPlayer(fields: Record<string, string>): StatusPlayer | null {
   }
   const address = fields['address'] ?? '';
   const lastColon = address.lastIndexOf(':');
-  const ip = lastColon > -1 ? address.slice(0, lastColon) : address || undefined;
-  const port = lastColon > -1 ? unwrapSignedPort(toInt(address.slice(lastColon + 1))) : undefined;
+  const ip =
+    lastColon > -1 ? address.slice(0, lastColon) : address || undefined;
+  const port =
+    lastColon > -1
+      ? unwrapSignedPort(toInt(address.slice(lastColon + 1)))
+      : undefined;
 
   return {
     num,
@@ -173,7 +233,9 @@ export function parseRconStatusTable(raw: string): ServerStatus {
 
   const headerLine = lines[separatorIndex - 1];
   const columns = columnBoundsFromSeparator(lines[separatorIndex]);
-  const columnNames = columns.map(({ start, end }) => headerLine.slice(start, end).trim().toLowerCase());
+  const columnNames = columns.map(({ start, end }) =>
+    headerLine.slice(start, end).trim().toLowerCase(),
+  );
   // Column widths can't be trusted for any data row (docs/PLAN.md §2.4, quirk (a) and the
   // 2026-10-04 note): some builds print rows a character or more off from their own header, and a
   // name longer than its column — common once color codes count, e.g. `^^20Persian^^51Gulf^7` —
@@ -194,7 +256,9 @@ export function parseRconStatusTable(raw: string): ServerStatus {
       // No name column to anchor on: fall back to the header's fixed widths.
       columns.forEach(({ start, end }, idx) => {
         const isLastColumn = idx === columns.length - 1;
-        fields[columnNames[idx]] = (isLastColumn ? line.slice(start) : line.slice(start, end)).trim();
+        fields[columnNames[idx]] = (
+          isLastColumn ? line.slice(start) : line.slice(start, end)
+        ).trim();
       });
     } else {
       const tokens = [...line.matchAll(/\S+/g)];
@@ -211,8 +275,11 @@ export function parseRconStatusTable(raw: string): ServerStatus {
         fields[columnName] = afterTokens[idx][0];
       });
       const lastBefore = tokens[before.length - 1];
-      const nameStart = lastBefore ? lastBefore.index + lastBefore[0].length : 0;
-      const nameEnd = afterTokens.length > 0 ? afterTokens[0].index : line.length;
+      const nameStart = lastBefore
+        ? lastBefore.index + lastBefore[0].length
+        : 0;
+      const nameEnd =
+        afterTokens.length > 0 ? afterTokens[0].index : line.length;
       fields['name'] = line.slice(nameStart, nameEnd).trim();
     }
     const player = fieldsToPlayer(fields);

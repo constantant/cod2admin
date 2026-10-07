@@ -1,10 +1,13 @@
 import { RateLimiter } from './rate-limiter.js';
 import {
   parseCvarBlock,
+  parseGametypes,
   parseInstalledMaps,
   parseMapRotation,
+  parseMapRotationEntries,
   parseOobPlayerLine,
   parseRconStatusTable,
+  type RotationEntry,
 } from './status-parser.js';
 import type { TextEncoding } from './text-encoding.js';
 import type {
@@ -177,8 +180,14 @@ export class RconClient {
    * in a timeout). So a missing reply is checked instead: `getinfo` (retried as usual, which also
    * waits out the load) says whether the server is on the requested map now. Only if it isn't does
    * this throw the original timeout.
+   *
+   * With `gametype`, the mode is set first (`g_gametype`, an ordinary cvar set — safe to retry);
+   * the server applies it when the map loads, and the `getinfo` check then covers it too.
    */
-  async map(mapName: string): Promise<string> {
+  async map(mapName: string, gametype?: string): Promise<string> {
+    if (gametype !== undefined) {
+      await this.rcon(`g_gametype ${gametype}`);
+    }
     try {
       const { header, body } = await this.query(
         `rcon ${this.password} map ${mapName}`,
@@ -195,16 +204,35 @@ export class RconClient {
         throw error;
       }
       const info = await this.getInfo();
-      if (info['mapname']?.toLowerCase() === mapName.toLowerCase()) {
+      const onMap = info['mapname']?.toLowerCase() === mapName.toLowerCase();
+      const inMode =
+        gametype === undefined ||
+        info['gametype']?.toLowerCase() === gametype.toLowerCase();
+      if (onMap && inMode) {
         return '';
       }
       throw error;
     }
   }
 
+  /** The game mode the server is running (`getinfo`'s `gametype`, e.g. `ctf`), or null if it doesn't say. */
+  async getGametype(): Promise<string | null> {
+    return (await this.getInfo())['gametype'] ?? null;
+  }
+
+  /** The game modes the server has scripts for (stock: ctf, dm, hq, sd, tdm) — see `parseGametypes`. */
+  async getGametypes(): Promise<string[]> {
+    return parseGametypes(await this.rcon('dir maps/mp/gametypes gsc'));
+  }
+
   /** Map names configured in `sv_mapRotation`, in rotation order — see `parseMapRotation` for why. */
   async getMapRotation(): Promise<string[]> {
     return parseMapRotation(await this.rcon('sv_mapRotation'));
+  }
+
+  /** `sv_mapRotation` as map + mode pairs, in order — see `parseMapRotationEntries`. */
+  async getMapRotationEntries(): Promise<RotationEntry[]> {
+    return parseMapRotationEntries(await this.rcon('sv_mapRotation'));
   }
 
   /** Every map the server can load (stock and custom), sorted — see `parseInstalledMaps`. */

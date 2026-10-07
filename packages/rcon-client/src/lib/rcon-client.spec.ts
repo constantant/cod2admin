@@ -455,7 +455,9 @@ describe('RconClient', () => {
       const received: string[] = [];
       peer = await createMockPeer((payload, respond) => {
         received.push(payload);
-        if (payload === 'getinfo') {
+        if (payload.startsWith('rcon ') && !payload.includes(' map ')) {
+          respond('print\n');
+        } else if (payload === 'getinfo') {
           respond(`infoResponse\n\\sv_hostname\\Dev\\mapname\\${mapAfter}`);
         }
       });
@@ -480,6 +482,27 @@ describe('RconClient', () => {
       expect(received.filter((payload) => payload.includes(' map '))).toEqual([
         'rcon secret map mp_harbor',
       ]);
+    });
+
+    it('sets the mode first, then confirms map and mode through getinfo', async () => {
+      const { client, received } = await silentMapServer(
+        'mp_toujane\\gametype\\ctf',
+      );
+
+      await expect(client.map('mp_toujane', 'ctf')).resolves.toBe('');
+
+      expect(received.filter((payload) => payload.startsWith('rcon'))).toEqual([
+        'rcon secret g_gametype ctf',
+        'rcon secret map mp_toujane',
+      ]);
+    });
+
+    it('throws the timeout when the map loaded in another mode', async () => {
+      const { client } = await silentMapServer('mp_toujane\\gametype\\hq');
+
+      await expect(client.map('mp_toujane', 'ctf')).rejects.toBeInstanceOf(
+        UdpQueryTimeoutError,
+      );
     });
 
     it('throws the timeout when the server is still on another map', async () => {

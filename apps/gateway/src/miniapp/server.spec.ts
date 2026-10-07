@@ -362,14 +362,29 @@ describe('Mini App server', () => {
   });
 
   describe('maps and console (§6.1)', () => {
-    it('lists the rotation and the other installed maps, flagging stock ones', async () => {
+    it('lists modes (CTF first), rotation map+mode pairs and every installed map', async () => {
       const fake = setup();
-      fake.rcon.getMapRotation.mockResolvedValue(['mp_toujane', 'mp_carentan']);
+      fake.rcon.getInfo.mockResolvedValue({
+        mapname: 'mp_toujane',
+        gametype: 'hq',
+      });
+      fake.rcon.getMapRotationEntries.mockResolvedValue([
+        { map: 'mp_toujane', gametype: 'ctf' },
+        { map: 'mp_toujane', gametype: 'hq' },
+        { map: 'mp_carentan', gametype: 'ctf' },
+      ]);
       fake.rcon.getInstalledMaps.mockResolvedValue([
         'mp_carentan',
+        'mp_custom',
         'mp_harbor',
         'mp_toujane',
-        'mp_custom',
+      ]);
+      fake.rcon.getGametypes.mockResolvedValue([
+        'ctf',
+        'dm',
+        'hq',
+        'sd',
+        'tdm',
       ]);
       const server = await start(fake);
 
@@ -381,12 +396,52 @@ describe('Mini App server', () => {
 
       expect(response.json()).toEqual({
         current: 'mp_toujane',
-        rotation: ['mp_toujane', 'mp_carentan'],
-        others: [
-          { name: 'mp_harbor', stock: true },
-          { name: 'mp_custom', stock: false },
+        currentGametype: 'hq',
+        gametypes: ['ctf', 'dm', 'hq', 'sd', 'tdm'],
+        defaultGametype: 'ctf',
+        rotation: [
+          { map: 'mp_toujane', gametype: 'ctf' },
+          { map: 'mp_toujane', gametype: 'hq' },
+          { map: 'mp_carentan', gametype: 'ctf' },
+        ],
+        maps: [
+          { name: 'mp_carentan', stock: true, inRotation: true },
+          { name: 'mp_custom', stock: false, inRotation: false },
+          { name: 'mp_harbor', stock: true, inRotation: false },
+          { name: 'mp_toujane', stock: true, inRotation: true },
         ],
       });
+    });
+
+    it('suggests the current mode on a server without CTF, and falls back to the rotation maps', async () => {
+      const fake = setup();
+      fake.rcon.getInfo.mockResolvedValue({
+        mapname: 'mp_harbor',
+        gametype: 'tdm',
+      });
+      fake.rcon.getMapRotationEntries.mockResolvedValue([
+        { map: 'mp_harbor', gametype: 'tdm' },
+      ]);
+      fake.rcon.getInstalledMaps.mockRejectedValue(new Error('no dir'));
+      fake.rcon.getGametypes.mockResolvedValue(['dm', 'tdm']);
+      const error = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined);
+      const server = await start(fake);
+
+      const body = (
+        await server.inject({
+          method: 'GET',
+          url: '/api/servers/default/maps',
+          headers: { authorization: authHeader(2) },
+        })
+      ).json();
+
+      expect(body.defaultGametype).toBe('tdm');
+      expect(body.maps).toEqual([
+        { name: 'mp_harbor', stock: true, inRotation: true },
+      ]);
+      error.mockRestore();
     });
 
     it("changes the map using the server's spelling, and refuses one that isn't installed", async () => {
@@ -409,7 +464,7 @@ describe('Mini App server', () => {
       });
 
       expect(ok.json()).toEqual({ message: 'Changing map to mp_Harbor…' });
-      expect(fake.rcon.map).toHaveBeenCalledWith('mp_Harbor');
+      expect(fake.rcon.map).toHaveBeenCalledWith('mp_Harbor', undefined);
       expect(missing.statusCode).toBe(404);
       expect(fake.adminStore.recordAuditLog).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -418,6 +473,49 @@ describe('Mini App server', () => {
           source: 'miniapp',
         }),
       );
+    });
+
+    it('switches map and mode together, refusing a mode the server lacks', async () => {
+      const fake = setup();
+      fake.rcon.getInstalledMaps.mockResolvedValue(['mp_toujane']);
+      fake.rcon.getGametypes.mockResolvedValue(['ctf', 'hq']);
+      const server = await start(fake);
+      const headers = { authorization: authHeader(2) };
+
+      const ok = await server.inject({
+        method: 'POST',
+        url: '/api/servers/default/map',
+        headers,
+        payload: { map: 'mp_toujane', gametype: 'CTF' },
+      });
+      const unknown = await server.inject({
+        method: 'POST',
+        url: '/api/servers/default/map',
+        headers,
+        payload: { map: 'mp_toujane', gametype: 'zombies' },
+      });
+      const injected = await server.inject({
+        method: 'POST',
+        url: '/api/servers/default/map',
+        headers,
+        payload: { map: 'mp_toujane', gametype: 'ctf;quit' },
+      });
+
+      expect(ok.json()).toEqual({
+        message: 'Changing map to mp_toujane (CTF)…',
+      });
+      expect(fake.rcon.map).toHaveBeenCalledTimes(1);
+      expect(fake.rcon.map).toHaveBeenCalledWith('mp_toujane', 'ctf');
+      expect(fake.adminStore.recordAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'map',
+          target: 'mp_toujane (ctf)',
+          source: 'miniapp',
+        }),
+      );
+      expect(unknown.statusCode).toBe(404);
+      expect(unknown.json().error).toBe('unknown_gametype');
+      expect(injected.statusCode).toBe(400);
     });
 
     it('runs a raw console command for the owner, on one line', async () => {
