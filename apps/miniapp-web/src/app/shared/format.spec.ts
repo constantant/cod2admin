@@ -27,6 +27,8 @@ describe('formatAgo', () => {
   });
 
   it('is a date for anything older than a week', () => {
-    expect(formatAgo('2026-09-01T12:00:00Z', now)).toBe(new Date('2026-09-01T12:00:00Z').toLocaleDateString());
+    expect(formatAgo('2026-09-01T12:00:00Z', now)).toBe(
+      new Date('2026-09-01T12:00:00Z').toLocaleDateString(),
+    );
   });
 });

@@ -39,6 +39,7 @@ HTTPS URL — see "Not verified yet" below).
   containers; the certificate itself can only be tested on a public host.
 
 **Decided while building:**
+
 - Fastify, for its `inject()`/`injectWS()` test harness — `server.spec.ts` drives every route with
   real `initData` signatures.
 - One status poll per server, shared by every open app and only while one is open
@@ -66,7 +67,7 @@ audit log viewer, role management, watchlist, quick-action presets.
 
 A Telegram **Mini App** (the in-Telegram web surface, opened via a button/menu item, not a
 separate bot) that gives admins a classic, full-screen "server manager" UI instead of chat
-commands — built with **Angular** + **Angular Material 3**. It sits *alongside* the existing
+commands — built with **Angular** + **Angular Material 3**. It sits _alongside_ the existing
 chat-command bot from `docs/PLAN.md`, not instead of it: both talk to the same `apps/gateway`
 process and the same Postgres data (`admin-store`, `ban-store`), so an action taken from either
 surface is consistent and shows up in the same audit log.
@@ -92,7 +93,7 @@ This is a companion plan, not a replacement. Reused as-is:
   not a second log-tailing implementation. It only exists when the bot runs on the game host
   with `COD2_LOG_PATH` set; an RCON-only install (PLAN.md §3) has no chat feed to show.
 - `apps/gateway` — per the hosting-placement decision below (§3.1), the Mini App's backend is
-  a module *inside* this same process, not a new deployable.
+  a module _inside_ this same process, not a new deployable.
 
 One deliberate deviation from `docs/PLAN.md` §10: that plan resolved "no public HTTPS endpoint
 needed" specifically because the chat bot uses Telegram long-polling. A Mini App **cannot** work
@@ -105,13 +106,14 @@ RCON talks to the game server (still local/UDP, still not internet-facing).
 **Important framing for §3**: like the rest of `apps/gateway`, this is distributed, installed
 software (`docs/PLAN.md` §12–§13's `install.sh`/self-update model) — there is no single
 "production" box kk controls or deploys to. Any real deployment is a third-party CoD2 server
-owner running the installer on *their own* rented game-hosting box, which kk typically has no
+owner running the installer on _their own_ rented game-hosting box, which kk typically has no
 access to (e.g. `185.158.113.146` is one such adopter's server, used here only as a concrete
 example). The user's own QNAP NAS started as the test/dev rig for this project. Its home-NAT
-networking is *not* representative of what a typical adopter's box looks like, and shouldn't be
+networking is _not_ representative of what a typical adopter's box looks like, and shouldn't be
 optimized for as if it were.
 
 **Update (2026-10-06):** two things above no longer hold everywhere.
+
 - `185.158.113.146` (CTF RUSSIA) is now a live deployment, but its bot doesn't run on that
   box: it runs on kk's NAS and manages the server over RCON only (`PLAN.md` §3). So for that
   server, the Mini App would be served from the NAS, the NAT'd case in the table below, not
@@ -143,18 +145,18 @@ server is only useful to players if its host has a **public IP** — that's the 
 any rented/self-hosted game server. RCON and game traffic share a single UDP port (`28960`,
 PLAN.md §11.1), so on a real deployment that port is necessarily reachable from the internet the moment players can
 connect — the same source-IP firewalling PLAN.md §2.4/§8 recommends for RCON specifically doesn't
-change the fact that the *host itself* already has a public IP. So the typical adopter is in the
-*easy* case for Mini App hosting: their box is already publicly reachable, no NAT/port-forwarding
+change the fact that the _host itself_ already has a public IP. So the typical adopter is in the
+_easy_ case for Mini App hosting: their box is already publicly reachable, no NAT/port-forwarding
 problem to solve.
 The NAS's home-NAT situation is the atypical case — true for kk's personal test rig, not for a
 real adopter's rented box.
 
-| Adopter's situation | Option | How it works | Pros | Cons |
-|---|---|---|---|---|
-| **Typical: box has a public IP** (the normal case, e.g. an adopter like the one at `185.158.113.146`) | **Direct HTTPS via Caddy** (or nginx+certbot), installer-managed | `install.sh` runs Caddy (or configures the adopter's existing reverse proxy) with automatic Let's Encrypt, reverse-proxying to the gateway's `miniapp/` HTTP port. Needs a hostname — either a domain the adopter already owns, or a **free wildcard DNS** service (e.g. `nip.io`/`sslip.io`, which resolves `185-158-113-146.nip.io` straight to that IP with zero setup) so no domain purchase is required. | Simplest path, no third-party tunnel account, matches the project's existing "no config-file editing" self-service philosophy (PLAN.md §1) — this can be a fully automated installer step. | The origin IP is directly exposed on port 443 too (already true for the game/RCON ports on every real deployment). |
-| Same, optional hardening | **Cloudflare DNS, proxied ("orange cloud")** | Same as above, but the adopter's domain is proxied through Cloudflare instead of pointing at the IP directly. | Free; hides the origin IP for the *web* surface, adds WAF/DDoS absorption for HTTP(S)/WS traffic. | Requires the adopter to have a domain in a Cloudflare account (not compatible with the zero-domain nip.io fallback); doesn't protect the game/RCON UDP ports either way. |
-| **Atypical: box has no public IP** (home NAT — e.g. kk's own NAS test rig, or an adopter self-hosting the same way) | **Cloudflare Tunnel** (`cloudflared`) — **manual/doc-only, decided (§10)** | Sidecar process/container, outbound-only connection to Cloudflare's edge — no inbound port ever opens on the router. Documented as a manual setup path (e.g. in `installer/README.md`), not automated by `install.sh` itself. | No port-forwarding/DDNS; free; automatic cert; proxies WebSocket cleanly (§6.2). This is how kk's own NAS rig should get HTTPS for dev/testing (§11), since it *is* NAT'd. | Extra third-party dependency; minority case, so `install.sh` doesn't build a guided flow for it — the adopter follows the doc themselves. |
-| Either case, dev-only | **ngrok / Cloudflare quick tunnel** | Temporary public URL for testing against a real Telegram client. | Zero setup. | URL rotates on free tier — not viable as the stable URL registered with BotFather. Fine for §11's dev loop only. |
+| Adopter's situation                                                                                                 | Option                                                                     | How it works                                                                                                                                                                                                                                                                                                                                                                                                  | Pros                                                                                                                                                                                       | Cons                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Typical: box has a public IP** (the normal case, e.g. an adopter like the one at `185.158.113.146`)               | **Direct HTTPS via Caddy** (or nginx+certbot), installer-managed           | `install.sh` runs Caddy (or configures the adopter's existing reverse proxy) with automatic Let's Encrypt, reverse-proxying to the gateway's `miniapp/` HTTP port. Needs a hostname — either a domain the adopter already owns, or a **free wildcard DNS** service (e.g. `nip.io`/`sslip.io`, which resolves `185-158-113-146.nip.io` straight to that IP with zero setup) so no domain purchase is required. | Simplest path, no third-party tunnel account, matches the project's existing "no config-file editing" self-service philosophy (PLAN.md §1) — this can be a fully automated installer step. | The origin IP is directly exposed on port 443 too (already true for the game/RCON ports on every real deployment).                                                       |
+| Same, optional hardening                                                                                            | **Cloudflare DNS, proxied ("orange cloud")**                               | Same as above, but the adopter's domain is proxied through Cloudflare instead of pointing at the IP directly.                                                                                                                                                                                                                                                                                                 | Free; hides the origin IP for the _web_ surface, adds WAF/DDoS absorption for HTTP(S)/WS traffic.                                                                                          | Requires the adopter to have a domain in a Cloudflare account (not compatible with the zero-domain nip.io fallback); doesn't protect the game/RCON UDP ports either way. |
+| **Atypical: box has no public IP** (home NAT — e.g. kk's own NAS test rig, or an adopter self-hosting the same way) | **Cloudflare Tunnel** (`cloudflared`) — **manual/doc-only, decided (§10)** | Sidecar process/container, outbound-only connection to Cloudflare's edge — no inbound port ever opens on the router. Documented as a manual setup path (e.g. in `installer/README.md`), not automated by `install.sh` itself.                                                                                                                                                                                 | No port-forwarding/DDNS; free; automatic cert; proxies WebSocket cleanly (§6.2). This is how kk's own NAS rig should get HTTPS for dev/testing (§11), since it _is_ NAT'd.                 | Extra third-party dependency; minority case, so `install.sh` doesn't build a guided flow for it — the adopter follows the doc themselves.                                |
+| Either case, dev-only                                                                                               | **ngrok / Cloudflare quick tunnel**                                        | Temporary public URL for testing against a real Telegram client.                                                                                                                                                                                                                                                                                                                                              | Zero setup.                                                                                                                                                                                | URL rotates on free tier — not viable as the stable URL registered with BotFather. Fine for §11's dev loop only.                                                         |
 
 **Decided (§10):** the installer defaults to direct HTTPS via Caddy, using the adopter's own
 domain if they supply one and falling back automatically to a free wildcard-DNS hostname
@@ -251,8 +253,8 @@ other, and both write to the same audit log (tagged by `source`, §8).
 - Posting: admin types a message in the Mini App → gateway sends it via the existing `say()`
   wrapper (broadcast) for public messages. Per-player whisper (`tell`) has no dedicated wrapper
   in `rcon-client` today (only `getInfo/getStatus/status/kick/banClient/unbanUser/say/
-  map/getMapRotation` are implemented) — it would go through the raw `rcon()` passthrough, or a
-  small `tell()` wrapper added alongside it. No new *game-side* integration needed either way,
+map/getMapRotation` are implemented) — it would go through the raw `rcon()` passthrough, or a
+  small `tell()` wrapper added alongside it. No new _game-side_ integration needed either way,
   just a small `rcon-client` addition.
 
 ### 6.3 Ban data management
@@ -307,7 +309,7 @@ sketched in PLAN.md §7), and a `player_notes`/watchlist table. None are needed 
 
 ## 8. Security notes
 
-- **Auth boundary**: `initData` HMAC validation (§5) is the *only* gate — no separate
+- **Auth boundary**: `initData` HMAC validation (§5) is the _only_ gate — no separate
   username/password, no long-lived tokens to leak. Reject any request with a missing/invalid/
   stale (`auth_date` too old) signature before it reaches any handler.
 - **Authorization**: same roles as the chat bot (`admin-store` — owner/admin/moderator,

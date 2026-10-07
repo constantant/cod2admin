@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -18,7 +26,14 @@ import { Notify } from '../../shared/notify';
 @Component({
   selector: 'c2a-maps-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatProgressBarModule, Icon],
+  imports: [
+    FormsModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatProgressBarModule,
+    Icon,
+  ],
   templateUrl: './maps.html',
   styleUrl: './maps.scss',
 })
@@ -33,10 +48,14 @@ export class MapsPage {
   protected readonly switching = signal<string | null>(null);
   protected readonly filter = signal('');
   /** The live status knows a map change sooner than this page's last load. */
-  protected readonly current = computed(() => this.live.status()?.mapName ?? this.maps()?.current ?? null);
+  protected readonly current = computed(
+    () => this.live.status()?.mapName ?? this.maps()?.current ?? null,
+  );
   protected readonly others = computed(() => {
     const needle = this.filter().trim().toLowerCase();
-    return (this.maps()?.others ?? []).filter((map) => !needle || map.name.toLowerCase().includes(needle));
+    return (this.maps()?.others ?? []).filter(
+      (map) => !needle || map.name.toLowerCase().includes(needle),
+    );
   });
 
   constructor() {
@@ -75,7 +94,9 @@ export class MapsPage {
     }
     this.switching.set(name);
     try {
-      this.notify.success((await this.api.changeMap(this.session.server(), name)).message);
+      this.notify.success(
+        (await this.api.changeMap(this.session.server(), name)).message,
+      );
     } catch (error) {
       this.notify.error(error);
     } finally {

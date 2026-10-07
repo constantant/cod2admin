@@ -7,7 +7,12 @@ import {
   parseRconStatusTable,
 } from './status-parser.js';
 import type { TextEncoding } from './text-encoding.js';
-import type { CvarMap, OobStatusPlayer, RconClientOptions, ServerStatus } from './types.js';
+import type {
+  CvarMap,
+  OobStatusPlayer,
+  RconClientOptions,
+  ServerStatus,
+} from './types.js';
 import { sendOobQuery } from './udp-transport.js';
 
 // Short attempts, many retries — a real busy server drops ~50% of queries in bursts of up to ~5s
@@ -42,9 +47,12 @@ export class RconClient {
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.retries = options.retries ?? DEFAULT_RETRIES;
     this.retryDelayMs = options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
-    this.multiPacketWaitMs = options.multiPacketWaitMs ?? DEFAULT_MULTI_PACKET_WAIT_MS;
+    this.multiPacketWaitMs =
+      options.multiPacketWaitMs ?? DEFAULT_MULTI_PACKET_WAIT_MS;
     this.encoding = options.encoding ?? 'latin1';
-    this.rateLimiter = new RateLimiter(options.minSendIntervalMs ?? DEFAULT_MIN_SEND_INTERVAL_MS);
+    this.rateLimiter = new RateLimiter(
+      options.minSendIntervalMs ?? DEFAULT_MIN_SEND_INTERVAL_MS,
+    );
   }
 
   /** Public OOB query — cvars only, no password required, no player IPs. */
@@ -73,9 +81,13 @@ export class RconClient {
 
   /** Sends a raw rcon command and returns the server's raw `print` response text. */
   async rcon(command: string): Promise<string> {
-    const { header, body } = await this.query(`rcon ${this.password} ${command}`);
+    const { header, body } = await this.query(
+      `rcon ${this.password} ${command}`,
+    );
     if (header !== 'print') {
-      throw new Error(`Unexpected response header for rcon "${command}": "${header}"`);
+      throw new Error(
+        `Unexpected response header for rcon "${command}": "${header}"`,
+      );
     }
     return body;
   }
@@ -96,7 +108,10 @@ export class RconClient {
    */
   async kick(clientIdOrName: string | number): Promise<string> {
     const result = await this.rcon(`kick ${clientIdOrName}`);
-    if (typeof clientIdOrName === 'string' && KICK_FAILURE_PATTERN.test(result)) {
+    if (
+      typeof clientIdOrName === 'string' &&
+      KICK_FAILURE_PATTERN.test(result)
+    ) {
       return this.rcon(`kick "${clientIdOrName}"`);
     }
     return result;

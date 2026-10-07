@@ -134,7 +134,9 @@ export async function readFileTail(
     if (lines.at(-1) === '') {
       lines.pop();
     }
-    return lines.map((line) => (line.endsWith('\r') ? line.slice(0, -1) : line));
+    return lines.map((line) =>
+      line.endsWith('\r') ? line.slice(0, -1) : line,
+    );
   } finally {
     await handle.close();
   }

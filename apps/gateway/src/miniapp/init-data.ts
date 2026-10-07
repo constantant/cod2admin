@@ -39,14 +39,20 @@ export function validateInitData(
     .sort()
     .join('\n');
   const secret = createHmac('sha256', 'WebAppData').update(botToken).digest();
-  const expected = createHmac('sha256', secret).update(dataCheckString).digest();
+  const expected = createHmac('sha256', secret)
+    .update(dataCheckString)
+    .digest();
   if (!timingSafeEqual(expected, Buffer.from(hash, 'hex'))) {
     return { ok: false, reason: 'bad_signature' };
   }
 
   const authDate = Number(params.get('auth_date'));
   const nowSeconds = (options.now ?? new Date()).getTime() / 1000;
-  if (!Number.isFinite(authDate) || nowSeconds - authDate > (options.maxAgeSeconds ?? DEFAULT_INIT_DATA_MAX_AGE_SECONDS)) {
+  if (
+    !Number.isFinite(authDate) ||
+    nowSeconds - authDate >
+      (options.maxAgeSeconds ?? DEFAULT_INIT_DATA_MAX_AGE_SECONDS)
+  ) {
     return { ok: false, reason: 'expired' };
   }
 
@@ -62,7 +68,11 @@ function parseUser(json: string | null): InitDataUser | undefined {
     return undefined;
   }
   try {
-    const user = JSON.parse(json) as { id?: unknown; username?: unknown; first_name?: unknown };
+    const user = JSON.parse(json) as {
+      id?: unknown;
+      username?: unknown;
+      first_name?: unknown;
+    };
     if (typeof user.id !== 'number') {
       return undefined;
     }
@@ -77,13 +87,19 @@ function parseUser(json: string | null): InitDataUser | undefined {
 }
 
 /** Builds a validly signed `initData` — for tests and the local dev loop, never sent by Telegram. */
-export function signInitData(fields: Record<string, string>, botToken: string): string {
+export function signInitData(
+  fields: Record<string, string>,
+  botToken: string,
+): string {
   const params = new URLSearchParams(fields);
   const dataCheckString = [...params]
     .map(([key, value]) => `${key}=${value}`)
     .sort()
     .join('\n');
   const secret = createHmac('sha256', 'WebAppData').update(botToken).digest();
-  params.set('hash', createHmac('sha256', secret).update(dataCheckString).digest('hex'));
+  params.set(
+    'hash',
+    createHmac('sha256', secret).update(dataCheckString).digest('hex'),
+  );
   return params.toString();
 }

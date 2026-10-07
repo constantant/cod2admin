@@ -1,4 +1,9 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  input,
+} from '@angular/core';
 
 export interface NameSegment {
   text: string;
@@ -42,20 +47,45 @@ export function plainName(raw: string): string {
 @Component({
   selector: 'c2a-game-name',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `@for (segment of segments(); track $index) {<span [class]="segment.color ? 'c' + segment.color : null">{{ segment.text }}</span>}@empty {<span class="none">(no name yet)</span>}`,
+  template: `@for (segment of segments(); track $index) {
+      <span [class]="segment.color ? 'c' + segment.color : null">{{
+        segment.text
+      }}</span>
+    } @empty {
+      <span class="none">(no name yet)</span>
+    }`,
   styles: `
     :host {
       overflow-wrap: anywhere;
     }
-    .c1 { color: #e53935; }
-    .c2 { color: #43a047; }
-    .c3 { color: #f9a825; }
-    .c4 { color: #1e88e5; }
-    .c5 { color: #00acc1; }
-    .c6 { color: #d81b60; }
-    .c8 { color: #fb8c00; }
-    .c9 { color: #8e8e8e; }
-    .none { color: var(--mat-sys-on-surface-variant); font-style: italic; }
+    .c1 {
+      color: #e53935;
+    }
+    .c2 {
+      color: #43a047;
+    }
+    .c3 {
+      color: #f9a825;
+    }
+    .c4 {
+      color: #1e88e5;
+    }
+    .c5 {
+      color: #00acc1;
+    }
+    .c6 {
+      color: #d81b60;
+    }
+    .c8 {
+      color: #fb8c00;
+    }
+    .c9 {
+      color: #8e8e8e;
+    }
+    .none {
+      color: var(--mat-sys-on-surface-variant);
+      font-style: italic;
+    }
   `,
 })
 export class GameName {

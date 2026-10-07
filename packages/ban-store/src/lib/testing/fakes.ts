@@ -10,7 +10,9 @@ export interface FakeRcon {
 
 export function createFakeRcon(): FakeRcon {
   return {
-    status: vi.fn().mockResolvedValue({ raw: '', players: [] } satisfies ServerStatus),
+    status: vi
+      .fn()
+      .mockResolvedValue({ raw: '', players: [] } satisfies ServerStatus),
     kick: vi.fn().mockResolvedValue(''),
   };
 }
@@ -43,7 +45,12 @@ export interface FakeBanStore {
 }
 
 export function createFakeBanStore(
-  overrides: Partial<{ active: BanIp[]; expired: BanIp[]; expiredBans: Ban[]; activeBans: Ban[] }> = {},
+  overrides: Partial<{
+    active: BanIp[];
+    expired: BanIp[];
+    expiredBans: Ban[];
+    activeBans: Ban[];
+  }> = {},
 ): FakeBanStore {
   return {
     recordBan: vi.fn().mockResolvedValue(undefined),

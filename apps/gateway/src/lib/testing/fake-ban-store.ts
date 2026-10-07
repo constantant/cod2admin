@@ -25,7 +25,11 @@ export interface FakeBanStore extends BanStore {
 }
 
 export function createFakeBanStore(
-  overrides: Partial<{ active: BanIp[]; expiredBans: Ban[]; activeBans: Ban[] }> = {},
+  overrides: Partial<{
+    active: BanIp[];
+    expiredBans: Ban[];
+    activeBans: Ban[];
+  }> = {},
 ): FakeBanStore {
   return {
     recordBan: vi.fn().mockResolvedValue(undefined),

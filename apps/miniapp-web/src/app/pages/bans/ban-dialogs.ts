@@ -1,12 +1,26 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatChipsModule } from '@angular/material/chips';
-import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import {
+  MAT_DIALOG_DATA,
+  MatDialogModule,
+  MatDialogRef,
+} from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import type { AddBanRequest, BanDto, UpdateBanRequest } from '@cod2admin/miniapp-api';
+import type {
+  AddBanRequest,
+  BanDto,
+  UpdateBanRequest,
+} from '@cod2admin/miniapp-api';
 import { ApiService } from '../../core/api';
 import { DURATION_CHOICES, formatSpan } from '../../shared/format';
 import { Notify } from '../../shared/notify';
@@ -18,12 +32,24 @@ type ExpiryChoice = 'keep' | 'permanent' | number;
 @Component({
   selector: 'c2a-edit-ban-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, MatDialogModule, MatButtonModule, MatChipsModule, MatFormFieldModule, MatInputModule],
+  imports: [
+    FormsModule,
+    MatDialogModule,
+    MatButtonModule,
+    MatChipsModule,
+    MatFormFieldModule,
+    MatInputModule,
+  ],
   template: `
     <h2 mat-dialog-title>Edit ban</h2>
     <mat-dialog-content>
       <p class="muted">
-        {{ ban.kind === 'ip' ? 'IP ' + ban.ip : ban.name + ' (GUID ' + ban.guid + ')' }} ·
+        {{
+          ban.kind === 'ip'
+            ? 'IP ' + ban.ip
+            : ban.name + ' (GUID ' + ban.guid + ')'
+        }}
+        ·
         {{ ban.expiresAt ? 'expires in ' + remaining : 'permanent' }}
       </p>
       <mat-form-field class="full-width">
@@ -31,11 +57,17 @@ type ExpiryChoice = 'keep' | 'permanent' | number;
         <input matInput [(ngModel)]="reason" maxlength="200" />
       </mat-form-field>
       <div class="label">Expiry</div>
-      <mat-chip-listbox aria-label="Expiry" [value]="expiry()" (change)="expiry.set($event.value ?? 'keep')">
+      <mat-chip-listbox
+        aria-label="Expiry"
+        [value]="expiry()"
+        (change)="expiry.set($event.value ?? 'keep')"
+      >
         <mat-chip-option value="keep">Keep</mat-chip-option>
         <mat-chip-option value="permanent">Permanent</mat-chip-option>
         @for (choice of durations; track choice.minutes) {
-          <mat-chip-option [value]="choice.minutes">{{ choice.label }} from now</mat-chip-option>
+          <mat-chip-option [value]="choice.minutes"
+            >{{ choice.label }} from now</mat-chip-option
+          >
         }
       </mat-chip-listbox>
     </mat-dialog-content>
@@ -61,7 +93,9 @@ export class EditBanDialog {
   protected readonly reason = signal(this.ban.reason ?? '');
   protected readonly expiry = signal<ExpiryChoice>('keep');
   protected readonly busy = signal(false);
-  protected readonly remaining = this.ban.expiresAt ? formatSpan(new Date(this.ban.expiresAt).getTime() - Date.now()) : '';
+  protected readonly remaining = this.ban.expiresAt
+    ? formatSpan(new Date(this.ban.expiresAt).getTime() - Date.now())
+    : '';
 
   protected async save(): Promise<void> {
     const body: UpdateBanRequest = {};
@@ -102,18 +136,37 @@ export class EditBanDialog {
 @Component({
   selector: 'c2a-add-ban-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, MatDialogModule, MatButtonModule, MatButtonToggleModule, MatChipsModule, MatFormFieldModule, MatInputModule],
+  imports: [
+    FormsModule,
+    MatDialogModule,
+    MatButtonModule,
+    MatButtonToggleModule,
+    MatChipsModule,
+    MatFormFieldModule,
+    MatInputModule,
+  ],
   template: `
     <h2 mat-dialog-title>Add a ban</h2>
     <mat-dialog-content>
-      <mat-button-toggle-group class="full-width kind" hideSingleSelectionIndicator [value]="kind()" (change)="kind.set($event.value)">
+      <mat-button-toggle-group
+        class="full-width kind"
+        hideSingleSelectionIndicator
+        [value]="kind()"
+        (change)="kind.set($event.value)"
+      >
         <mat-button-toggle value="ip">By IP</mat-button-toggle>
         <mat-button-toggle value="guid">By GUID</mat-button-toggle>
       </mat-button-toggle-group>
       @if (kind() === 'ip') {
         <mat-form-field class="full-width">
           <mat-label>IP address</mat-label>
-          <input matInput [(ngModel)]="ip" placeholder="203.0.113.7" inputmode="decimal" autocomplete="off" />
+          <input
+            matInput
+            [(ngModel)]="ip"
+            placeholder="203.0.113.7"
+            inputmode="decimal"
+            autocomplete="off"
+          />
         </mat-form-field>
       } @else {
         <mat-form-field class="full-width">
@@ -129,17 +182,27 @@ export class EditBanDialog {
         <mat-label>Reason (optional)</mat-label>
         <input matInput [(ngModel)]="reason" maxlength="200" />
       </mat-form-field>
-      <mat-chip-listbox aria-label="Length" [value]="minutes()" (change)="minutes.set($event.value ?? null)">
+      <mat-chip-listbox
+        aria-label="Length"
+        [value]="minutes()"
+        (change)="minutes.set($event.value ?? null)"
+      >
         <mat-chip-option [value]="null">Permanent</mat-chip-option>
         @for (choice of durations; track choice.minutes) {
-          <mat-chip-option [value]="choice.minutes">{{ choice.label }}</mat-chip-option>
+          <mat-chip-option [value]="choice.minutes">{{
+            choice.label
+          }}</mat-chip-option>
         }
       </mat-chip-listbox>
-      <p class="muted small">Applies on every server. Someone online now is kicked within seconds.</p>
+      <p class="muted small">
+        Applies on every server. Someone online now is kicked within seconds.
+      </p>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close>Cancel</button>
-      <button mat-flat-button [disabled]="busy() || !valid()" (click)="save()">Ban</button>
+      <button mat-flat-button [disabled]="busy() || !valid()" (click)="save()">
+        Ban
+      </button>
     </mat-dialog-actions>
   `,
   styles: `
@@ -171,15 +234,26 @@ export class AddBanDialog {
   protected readonly valid = computed(() =>
     this.kind() === 'ip'
       ? /^\d{1,3}(\.\d{1,3}){3}$/.test(this.ip().trim())
-      : /^[0-9A-Za-z]{1,32}$/.test(this.guid().trim()) && this.guid().trim() !== '0' && this.name().trim().length > 0,
+      : /^[0-9A-Za-z]{1,32}$/.test(this.guid().trim()) &&
+        this.guid().trim() !== '0' &&
+        this.name().trim().length > 0,
   );
 
   protected async save(): Promise<void> {
-    const common = { server: this.server, reason: this.reason().trim() || undefined, durationMinutes: this.minutes() };
+    const common = {
+      server: this.server,
+      reason: this.reason().trim() || undefined,
+      durationMinutes: this.minutes(),
+    };
     const body: AddBanRequest =
       this.kind() === 'ip'
         ? { ...common, kind: 'ip', ip: this.ip().trim() }
-        : { ...common, kind: 'guid', guid: this.guid().trim(), name: this.name().trim() };
+        : {
+            ...common,
+            kind: 'guid',
+            guid: this.guid().trim(),
+            name: this.name().trim(),
+          };
     this.busy.set(true);
     try {
       this.notify.success((await this.api.addBan(body)).message);

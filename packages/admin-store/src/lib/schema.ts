@@ -12,8 +12,17 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
-export const adminRoleEnum = pgEnum('admin_role', ['owner', 'admin', 'moderator']);
-export const auditSourceEnum = pgEnum('audit_source', ['telegram_button', 'telegram_command', 'auto', 'miniapp']);
+export const adminRoleEnum = pgEnum('admin_role', [
+  'owner',
+  'admin',
+  'moderator',
+]);
+export const auditSourceEnum = pgEnum('audit_source', [
+  'telegram_button',
+  'telegram_command',
+  'auto',
+  'miniapp',
+]);
 
 /** docs/PLAN.md §4/§7 — one row per Telegram admin. At most one `owner` row, ever. */
 export const admins = pgTable(
@@ -22,12 +31,16 @@ export const admins = pgTable(
     telegramId: bigint('telegram_id', { mode: 'number' }).primaryKey(),
     role: adminRoleEnum('role').notNull(),
     addedBy: bigint('added_by', { mode: 'number' }),
-    addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
+    addedAt: timestamp('added_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
     // Race-safe "at most one owner" per §4 — a DB-level partial unique index, not just an
     // application check-then-insert, so two people racing /claim can't both succeed.
-    uniqueIndex('admins_one_owner_idx').on(table.role).where(sql`${table.role} = 'owner'`),
+    uniqueIndex('admins_one_owner_idx')
+      .on(table.role)
+      .where(sql`${table.role} = 'owner'`),
   ],
 );
 
@@ -40,7 +53,9 @@ export const telegramUsers = pgTable('telegram_users', {
   telegramId: bigint('telegram_id', { mode: 'number' }).primaryKey(),
   username: text('username'),
   firstName: text('first_name'),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 /** docs/PLAN.md §4 — per-server access scoping. No rows for an admin ⇒ access to all servers. */
@@ -68,7 +83,9 @@ export const servers = pgTable(
   },
   (table) => [
     // At most one default server, enforced by the DB like admins_one_owner_idx.
-    uniqueIndex('servers_one_default_idx').on(table.isDefault).where(sql`${table.isDefault}`),
+    uniqueIndex('servers_one_default_idx')
+      .on(table.isDefault)
+      .where(sql`${table.isDefault}`),
   ],
 );
 
@@ -79,7 +96,9 @@ export const servers = pgTable(
 export const settings = pgTable('settings', {
   key: text('key').primaryKey(),
   value: jsonb('value').notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 /** docs/PLAN.md §4/§7 — every privileged action, reviewable via `/auditlog`. */
@@ -92,5 +111,7 @@ export const auditLog = pgTable('audit_log', {
   reason: text('reason'),
   source: auditSourceEnum('source').notNull(),
   detailJson: jsonb('detail_json'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });

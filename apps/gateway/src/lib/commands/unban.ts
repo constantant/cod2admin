@@ -10,7 +10,10 @@ import { liftBan } from '../unban-actions.js';
  * including taking a permanent GUID ban back out of `ban.txt` — is `liftBan` (unban-actions.ts),
  * shared with the Mini App.
  */
-export async function unbanCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
+export async function unbanCommand(
+  ctx: BotContext,
+  deps: GatewayDeps,
+): Promise<void> {
   const { rest } = extractServerFlag(matchText(ctx));
   const target = sanitizeRconArg(rest);
   if (!target) {
@@ -18,10 +21,17 @@ export async function unbanCommand(ctx: BotContext, deps: GatewayDeps): Promise<
     return;
   }
 
-  const result = await liftBan(target, deps, { telegramId: ctx.admin!.telegramId, source: 'telegram_command' });
+  const result = await liftBan(target, deps, {
+    telegramId: ctx.admin!.telegramId,
+    source: 'telegram_command',
+  });
 
   const what = result.ip ? `IP ${target}` : `GUID ${target}`;
-  const lines = [result.lifted > 0 ? `Unbanned ${what} on all servers.` : `No active ban for ${what} was recorded by the bot.`];
+  const lines = [
+    result.lifted > 0
+      ? `Unbanned ${what} on all servers.`
+      : `No active ban for ${what} was recorded by the bot.`,
+  ];
   if (result.unanswered.length > 0) {
     lines.push(
       `${result.unanswered.join(', ')} didn't answer, so its ban.txt may still block this player — run /unban ${target} again later.`,

@@ -1,4 +1,9 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -19,17 +24,44 @@ interface Entry {
 @Component({
   selector: 'c2a-console-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, Icon],
+  imports: [
+    FormsModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    Icon,
+  ],
   template: `
     <div class="page">
       <form class="prompt" (ngSubmit)="run()">
-        <mat-form-field class="input" subscriptSizing="dynamic" appearance="outline">
+        <mat-form-field
+          class="input"
+          subscriptSizing="dynamic"
+          appearance="outline"
+        >
           <mat-label>RCON command on {{ session.server() }}</mat-label>
-          <input matInput name="command" class="mono" [(ngModel)]="command" autocomplete="off" autocapitalize="off" spellcheck="false" />
+          <input
+            matInput
+            name="command"
+            class="mono"
+            [(ngModel)]="command"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+          />
         </mat-form-field>
-        <button mat-flat-button type="submit" [disabled]="running() || !command().trim()">Run</button>
+        <button
+          mat-flat-button
+          type="submit"
+          [disabled]="running() || !command().trim()"
+        >
+          Run
+        </button>
       </form>
-      <p class="muted small">Sent as typed, like /rcon in the chat. Every command goes into the audit log.</p>
+      <p class="muted small">
+        Sent as typed, like /rcon in the chat. Every command goes into the audit
+        log.
+      </p>
 
       @for (entry of entries(); track entry.id) {
         <section class="entry">
@@ -37,7 +69,13 @@ interface Entry {
             <span class="mono command">&gt; {{ entry.command }}</span>
             <span class="spacer"></span>
             <span class="muted small">{{ entry.server }}</span>
-            <button mat-icon-button aria-label="Run again" (click)="command.set(entry.command)"><c2a-icon name="edit" /></button>
+            <button
+              mat-icon-button
+              aria-label="Run again"
+              (click)="command.set(entry.command)"
+            >
+              <c2a-icon name="edit" />
+            </button>
           </div>
           <pre class="mono">{{ entry.output || '(no output)' }}</pre>
         </section>
@@ -94,7 +132,12 @@ export class ConsolePage {
     this.running.set(true);
     try {
       const { output } = await this.api.console(server, command);
-      this.entries.update((entries) => [{ id: this.nextId++, server, command, output }, ...entries].slice(0, 30));
+      this.entries.update((entries) =>
+        [{ id: this.nextId++, server, command, output }, ...entries].slice(
+          0,
+          30,
+        ),
+      );
       this.command.set('');
     } catch (error) {
       this.notify.error(error);

@@ -17,7 +17,11 @@ function cleanMessage(message: string): string {
   return message.replace(/[\x00-\x1f]/g, '').trim();
 }
 
-function fromChatEvent(chat: ChatEvent, id: number, at: Date | null): ChatLineDto {
+function fromChatEvent(
+  chat: ChatEvent,
+  id: number,
+  at: Date | null,
+): ChatLineDto {
   return {
     id,
     at: at?.toISOString() ?? null,
@@ -57,7 +61,10 @@ export class ChatFeed {
     private readonly now: () => Date = () => new Date(),
   ) {
     source.on('chat', (chat) => {
-      this.add({ line: fromChatEvent(chat, this.nextId++, this.now()), raw: chat.raw });
+      this.add({
+        line: fromChatEvent(chat, this.nextId++, this.now()),
+        raw: chat.raw,
+      });
     });
   }
 
@@ -70,7 +77,14 @@ export class ChatFeed {
 
   /** Records a line sent from the bot (`say`/`tell`) and pushes it to subscribers. */
   addAdminLine(line: Omit<ChatLineDto, 'id' | 'at' | 'source'>): void {
-    this.add({ line: { ...line, id: this.nextId++, at: this.now().toISOString(), source: 'admin' } });
+    this.add({
+      line: {
+        ...line,
+        id: this.nextId++,
+        at: this.now().toISOString(),
+        source: 'admin',
+      },
+    });
   }
 
   /** Calls `listener` with every new line until the returned function is called. */
@@ -82,10 +96,15 @@ export class ChatFeed {
   }
 
   private async readBackfill(): Promise<void> {
-    const recent = await this.source.readRecentChat(CHAT_HISTORY_SIZE).catch((error: unknown) => {
-      console.error('Mini App: reading recent chat from the game log failed:', error);
-      return [];
-    });
+    const recent = await this.source
+      .readRecentChat(CHAT_HISTORY_SIZE)
+      .catch((error: unknown) => {
+        console.error(
+          'Mini App: reading recent chat from the game log failed:',
+          error,
+        );
+        return [];
+      });
     const seenLive = new Set(this.stored.map(({ raw }) => raw).filter(Boolean));
     const older = recent.filter((chat) => !seenLive.has(chat.raw));
     const backfilled = older.map((chat, index) => ({

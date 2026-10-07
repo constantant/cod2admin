@@ -2,7 +2,11 @@ import { computed, inject, Injectable, signal } from '@angular/core';
 import type { MeResponse, MiniAppRole } from '@cod2admin/miniapp-api';
 import { ApiService, toApiFailure, type ApiFailure } from './api';
 
-const ROLE_RANK: Record<MiniAppRole, number> = { moderator: 1, admin: 2, owner: 3 };
+const ROLE_RANK: Record<MiniAppRole, number> = {
+  moderator: 1,
+  admin: 2,
+  owner: 3,
+};
 const SERVER_KEY = 'cod2admin.server';
 
 function readStoredServer(): string | null {
@@ -33,7 +37,12 @@ export class SessionService {
   readonly failure = signal<ApiFailure | null>(null);
   readonly server = signal<string>('');
   readonly role = computed(() => this.me()?.role ?? null);
-  readonly serverInfo = computed(() => this.me()?.servers.find((candidate) => candidate.alias === this.server()) ?? null);
+  readonly serverInfo = computed(
+    () =>
+      this.me()?.servers.find(
+        (candidate) => candidate.alias === this.server(),
+      ) ?? null,
+  );
 
   async load(): Promise<void> {
     this.failure.set(null);
@@ -41,7 +50,11 @@ export class SessionService {
       const me = await this.api.me();
       this.me.set(me);
       const stored = readStoredServer();
-      this.server.set(me.servers.some((candidate) => candidate.alias === stored) ? stored! : me.defaultServer);
+      this.server.set(
+        me.servers.some((candidate) => candidate.alias === stored)
+          ? stored!
+          : me.defaultServer,
+      );
     } catch (error) {
       this.failure.set(toApiFailure(error));
     } finally {

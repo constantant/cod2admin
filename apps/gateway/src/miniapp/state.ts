@@ -14,7 +14,10 @@ export const ACTION_LIMIT = { max: 20, windowMs: 10_000 };
  * commands.
  */
 export class ActionLimiter {
-  private readonly windows = new Map<number, { start: number; count: number }>();
+  private readonly windows = new Map<
+    number,
+    { start: number; count: number }
+  >();
 
   constructor(
     private readonly limit = ACTION_LIMIT,

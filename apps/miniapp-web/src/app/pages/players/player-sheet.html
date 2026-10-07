@@ -1,65 +1,90 @@
 <div class="head">
   <div class="name"><c2a-game-name [name]="player.name" /></div>
-  <div class="muted">#{{ player.num }} · score {{ player.score }} · ping {{ player.ping }}</div>
+  <div class="muted">
+    #{{ player.num }} · score {{ player.score }} · ping {{ player.ping }}
+  </div>
 </div>
 
 <dl class="facts">
   <dt>IP</dt>
   <dd class="mono">{{ player.ip ?? 'unknown' }}</dd>
   @if (player.location) {
-    <dt>Location</dt>
-    <dd>{{ flag }} {{ player.location }}</dd>
-  }
-  @if (player.provider) {
-    <dt>Provider</dt>
-    <dd>{{ player.provider }}</dd>
-  }
-  @if (player.vpn) {
-    <dt>Flag</dt>
-    <dd class="vpn">{{ player.vpn }}</dd>
+  <dt>Location</dt>
+  <dd>{{ flag }} {{ player.location }}</dd>
+  } @if (player.provider) {
+  <dt>Provider</dt>
+  <dd>{{ player.provider }}</dd>
+  } @if (player.vpn) {
+  <dt>Flag</dt>
+  <dd class="vpn">{{ player.vpn }}</dd>
   }
   <dt>GUID</dt>
   <dd class="mono">{{ player.guid ?? '0 (none — bans use the IP)' }}</dd>
 </dl>
 
-@switch (mode()) {
-  @case ('menu') {
-    <div class="actions">
-      <button mat-stroked-button (click)="open('kick')"><c2a-icon name="kick" /> Kick</button>
-      <button mat-stroked-button (click)="open('tempban')"><c2a-icon name="timer" /> Temp ban</button>
-      @if (session.can('admin')) {
-        <button mat-stroked-button class="danger" (click)="open('ban')"><c2a-icon name="block" /> Ban</button>
-        <button mat-stroked-button (click)="open('tell')"><c2a-icon name="whisper" /> Message</button>
-      }
-    </div>
+@switch (mode()) { @case ('menu') {
+<div class="actions">
+  <button mat-stroked-button (click)="open('kick')">
+    <c2a-icon name="kick" /> Kick
+  </button>
+  <button mat-stroked-button (click)="open('tempban')">
+    <c2a-icon name="timer" /> Temp ban
+  </button>
+  @if (session.can('admin')) {
+  <button mat-stroked-button class="danger" (click)="open('ban')">
+    <c2a-icon name="block" /> Ban
+  </button>
+  <button mat-stroked-button (click)="open('tell')">
+    <c2a-icon name="whisper" /> Message
+  </button>
   }
-  @case ('tell') {
-    <mat-form-field class="full-width" subscriptSizing="dynamic">
-      <mat-label>Private message</mat-label>
-      <input matInput [(ngModel)]="message" maxlength="120" (keyup.enter)="tell()" cdkFocusInitial />
-    </mat-form-field>
-    <div class="buttons">
-      <button mat-button (click)="open('menu')">Back</button>
-      <button mat-flat-button [disabled]="busy() || !message().trim()" (click)="tell()">Send</button>
-    </div>
+</div>
+} @case ('tell') {
+<mat-form-field class="full-width" subscriptSizing="dynamic">
+  <mat-label>Private message</mat-label>
+  <input
+    matInput
+    [(ngModel)]="message"
+    maxlength="120"
+    (keyup.enter)="tell()"
+    cdkFocusInitial
+  />
+</mat-form-field>
+<div class="buttons">
+  <button mat-button (click)="open('menu')">Back</button>
+  <button
+    mat-flat-button
+    [disabled]="busy() || !message().trim()"
+    (click)="tell()"
+  >
+    Send
+  </button>
+</div>
+} @default { @if (mode() === 'tempban') {
+<mat-chip-listbox
+  aria-label="Duration"
+  [value]="duration()"
+  (change)="duration.set($event.value)"
+  required
+>
+  @for (choice of durations; track choice.minutes) {
+  <mat-chip-option [value]="choice.minutes">{{ choice.label }}</mat-chip-option>
   }
-  @default {
-    @if (mode() === 'tempban') {
-      <mat-chip-listbox aria-label="Duration" [value]="duration()" (change)="duration.set($event.value)" required>
-        @for (choice of durations; track choice.minutes) {
-          <mat-chip-option [value]="choice.minutes">{{ choice.label }}</mat-chip-option>
-        }
-      </mat-chip-listbox>
-    }
-    <mat-form-field class="full-width" subscriptSizing="dynamic">
-      <mat-label>Reason (optional)</mat-label>
-      <input matInput [(ngModel)]="reason" maxlength="100" />
-    </mat-form-field>
-    <div class="buttons">
-      <button mat-button (click)="open('menu')">Back</button>
-      <button mat-flat-button [class.danger-fill]="mode() === 'ban'" [disabled]="busy()" (click)="moderate($any(mode()))">
-        {{ mode() === 'kick' ? 'Kick' : mode() === 'ban' ? 'Ban…' : 'Temp ban' }}
-      </button>
-    </div>
-  }
+</mat-chip-listbox>
 }
+<mat-form-field class="full-width" subscriptSizing="dynamic">
+  <mat-label>Reason (optional)</mat-label>
+  <input matInput [(ngModel)]="reason" maxlength="100" />
+</mat-form-field>
+<div class="buttons">
+  <button mat-button (click)="open('menu')">Back</button>
+  <button
+    mat-flat-button
+    [class.danger-fill]="mode() === 'ban'"
+    [disabled]="busy()"
+    (click)="moderate($any(mode()))"
+  >
+    {{ mode() === 'kick' ? 'Kick' : mode() === 'ban' ? 'Ban…' : 'Temp ban' }}
+  </button>
+</div>
+} }

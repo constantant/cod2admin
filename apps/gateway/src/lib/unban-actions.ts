@@ -8,7 +8,10 @@ const IPV4_PATTERN = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
 const BAN_HISTORY_LIMIT = 50;
 
 export function isIpv4(value: string): boolean {
-  return IPV4_PATTERN.test(value) && value.split('.').every((octet) => Number(octet) <= 255);
+  return (
+    IPV4_PATTERN.test(value) &&
+    value.split('.').every((octet) => Number(octet) <= 255)
+  );
 }
 
 export interface LiftBanResult {
@@ -46,27 +49,43 @@ export async function liftBan(
   if (ip) {
     lifted = await deps.banStore.unbanIp(target);
   } else {
-    const history = await deps.banStore.listBansByGuid(target, BAN_HISTORY_LIMIT);
+    const history = await deps.banStore.listBansByGuid(
+      target,
+      BAN_HISTORY_LIMIT,
+    );
     const liftedBans = await deps.banStore.unbanByGuid(target);
     lifted = liftedBans.length;
     const liftedIds = new Set(liftedBans.map((ban) => ban.id));
 
     // One `unbanUser` per server and name — only permanent bans issued under a name that was
     // safe to write to ban.txt can be in there (see moderation-actions.ts).
-    const entries = new Map<string, { serverAlias: string; name: string; liftedNow: boolean }>();
+    const entries = new Map<
+      string,
+      { serverAlias: string; name: string; liftedNow: boolean }
+    >();
     for (const ban of history) {
-      if (ban.expiresAt !== null || !isBanFileSafeName(ban.name) || !deps.rconClients.has(ban.serverAlias)) {
+      if (
+        ban.expiresAt !== null ||
+        !isBanFileSafeName(ban.name) ||
+        !deps.rconClients.has(ban.serverAlias)
+      ) {
         continue;
       }
       const key = `${ban.serverAlias}\n${ban.name}`;
-      const entry = entries.get(key) ?? { serverAlias: ban.serverAlias, name: ban.name, liftedNow: false };
+      const entry = entries.get(key) ?? {
+        serverAlias: ban.serverAlias,
+        name: ban.name,
+        liftedNow: false,
+      };
       entry.liftedNow ||= liftedIds.has(ban.id);
       entries.set(key, entry);
     }
 
     const pending = [...entries.values()];
     const results = await Promise.allSettled(
-      pending.map(({ serverAlias, name }) => deps.rconClients.get(serverAlias)!.unbanUser(name)),
+      pending.map(({ serverAlias, name }) =>
+        deps.rconClients.get(serverAlias)!.unbanUser(name),
+      ),
     );
     results.forEach((result, i) => {
       const { serverAlias, name, liftedNow } = pending[i];

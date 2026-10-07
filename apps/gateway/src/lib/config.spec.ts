@@ -22,10 +22,21 @@ describe('loadConfig', () => {
       logPath: undefined,
       updateStagingDir: undefined,
       textEncoding: 'cp1251',
-      geoip: { enabled: true, city: false, dbPath: undefined, asnDbPath: undefined },
+      geoip: {
+        enabled: true,
+        city: false,
+        dbPath: undefined,
+        asnDbPath: undefined,
+      },
       vpnFlag: { enabled: true },
       telegram: { direct: true, relays: undefined },
-      miniapp: { port: undefined, host: '127.0.0.1', url: undefined, staticDir: undefined, devTelegramId: undefined },
+      miniapp: {
+        port: undefined,
+        host: '127.0.0.1',
+        url: undefined,
+        staticDir: undefined,
+        devTelegramId: undefined,
+      },
     });
   });
 
@@ -39,61 +50,107 @@ describe('loadConfig', () => {
         MINIAPP_STATIC_DIR: '/srv/miniapp',
         MINIAPP_DEV_TELEGRAM_ID: '42',
       }).miniapp,
-    ).toEqual({ port: 8090, host: '0.0.0.0', url: 'https://1-2-3-4.sslip.io', staticDir: '/srv/miniapp', devTelegramId: 42 });
-    expect(() => loadConfig({ ...VALID_ENV, MINIAPP_URL: 'http://plain.example' })).toThrow(/MINIAPP_URL/);
-    expect(() => loadConfig({ ...VALID_ENV, MINIAPP_PORT: 'eighty' })).toThrow(/MINIAPP_PORT/);
+    ).toEqual({
+      port: 8090,
+      host: '0.0.0.0',
+      url: 'https://1-2-3-4.sslip.io',
+      staticDir: '/srv/miniapp',
+      devTelegramId: 42,
+    });
+    expect(() =>
+      loadConfig({ ...VALID_ENV, MINIAPP_URL: 'http://plain.example' }),
+    ).toThrow(/MINIAPP_URL/);
+    expect(() => loadConfig({ ...VALID_ENV, MINIAPP_PORT: 'eighty' })).toThrow(
+      /MINIAPP_PORT/,
+    );
   });
 
   it('parses TELEGRAM_RELAYS and TELEGRAM_DIRECT', () => {
     expect(
-      loadConfig({ ...VALID_ENV, TELEGRAM_DIRECT: 'false', TELEGRAM_RELAYS: 'https://a.deno.dev/, https://b.workers.dev' })
-        .telegram,
-    ).toEqual({ direct: false, relays: ['https://a.deno.dev', 'https://b.workers.dev'] });
-    expect(() => loadConfig({ ...VALID_ENV, TELEGRAM_RELAYS: 'http://plain.example' })).toThrow(/TELEGRAM_RELAYS/);
-    expect(() => loadConfig({ ...VALID_ENV, TELEGRAM_DIRECT: 'false' })).toThrow(/TELEGRAM_DIRECT=false/);
+      loadConfig({
+        ...VALID_ENV,
+        TELEGRAM_DIRECT: 'false',
+        TELEGRAM_RELAYS: 'https://a.deno.dev/, https://b.workers.dev',
+      }).telegram,
+    ).toEqual({
+      direct: false,
+      relays: ['https://a.deno.dev', 'https://b.workers.dev'],
+    });
+    expect(() =>
+      loadConfig({ ...VALID_ENV, TELEGRAM_RELAYS: 'http://plain.example' }),
+    ).toThrow(/TELEGRAM_RELAYS/);
+    expect(() =>
+      loadConfig({ ...VALID_ENV, TELEGRAM_DIRECT: 'false' }),
+    ).toThrow(/TELEGRAM_DIRECT=false/);
   });
 
   it('parses GEOIP_ENABLED, GEOIP_DB_PATH and GEOIP_ASN_DB_PATH', () => {
-    expect(loadConfig({ ...VALID_ENV, GEOIP_ENABLED: 'FALSE' }).geoip.enabled).toBe(false);
-    expect(loadConfig({ ...VALID_ENV, GEOIP_DB_PATH: '/data/country.mmdb' }).geoip).toEqual({
+    expect(
+      loadConfig({ ...VALID_ENV, GEOIP_ENABLED: 'FALSE' }).geoip.enabled,
+    ).toBe(false);
+    expect(
+      loadConfig({ ...VALID_ENV, GEOIP_DB_PATH: '/data/country.mmdb' }).geoip,
+    ).toEqual({
       enabled: true,
       city: false,
       dbPath: '/data/country.mmdb',
       asnDbPath: undefined,
     });
-    expect(loadConfig({ ...VALID_ENV, GEOIP_ASN_DB_PATH: ' /data/asn.mmdb ' }).geoip.asnDbPath).toBe('/data/asn.mmdb');
+    expect(
+      loadConfig({ ...VALID_ENV, GEOIP_ASN_DB_PATH: ' /data/asn.mmdb ' }).geoip
+        .asnDbPath,
+    ).toBe('/data/asn.mmdb');
   });
 
   it('parses GEOIP_CITY_ENABLED, off unless exactly "true"', () => {
-    expect(loadConfig({ ...VALID_ENV, GEOIP_CITY_ENABLED: 'TRUE' }).geoip.city).toBe(true);
-    expect(loadConfig({ ...VALID_ENV, GEOIP_CITY_ENABLED: 'yes' }).geoip.city).toBe(false);
+    expect(
+      loadConfig({ ...VALID_ENV, GEOIP_CITY_ENABLED: 'TRUE' }).geoip.city,
+    ).toBe(true);
+    expect(
+      loadConfig({ ...VALID_ENV, GEOIP_CITY_ENABLED: 'yes' }).geoip.city,
+    ).toBe(false);
     expect(loadConfig(VALID_ENV).geoip.city).toBe(false);
   });
 
   it('parses VPN_FLAG_ENABLED', () => {
-    expect(loadConfig({ ...VALID_ENV, VPN_FLAG_ENABLED: 'False' }).vpnFlag.enabled).toBe(false);
-    expect(loadConfig({ ...VALID_ENV, VPN_FLAG_ENABLED: 'true' }).vpnFlag.enabled).toBe(true);
+    expect(
+      loadConfig({ ...VALID_ENV, VPN_FLAG_ENABLED: 'False' }).vpnFlag.enabled,
+    ).toBe(false);
+    expect(
+      loadConfig({ ...VALID_ENV, VPN_FLAG_ENABLED: 'true' }).vpnFlag.enabled,
+    ).toBe(true);
   });
 
   it('parses COD2_TEXT_ENCODING case-insensitively and rejects unknown encodings', () => {
-    expect(loadConfig({ ...VALID_ENV, COD2_TEXT_ENCODING: 'Latin1' }).textEncoding).toBe('latin1');
-    expect(() => loadConfig({ ...VALID_ENV, COD2_TEXT_ENCODING: 'utf8' })).toThrow(/COD2_TEXT_ENCODING/);
+    expect(
+      loadConfig({ ...VALID_ENV, COD2_TEXT_ENCODING: 'Latin1' }).textEncoding,
+    ).toBe('latin1');
+    expect(() =>
+      loadConfig({ ...VALID_ENV, COD2_TEXT_ENCODING: 'utf8' }),
+    ).toThrow(/COD2_TEXT_ENCODING/);
   });
 
   it('parses COD2_LOG_PATH when given, and leaves it undefined otherwise', () => {
     expect(loadConfig(VALID_ENV).logPath).toBeUndefined();
-    expect(loadConfig({ ...VALID_ENV, COD2_LOG_PATH: './games_mp.log' }).logPath).toBe('./games_mp.log');
+    expect(
+      loadConfig({ ...VALID_ENV, COD2_LOG_PATH: './games_mp.log' }).logPath,
+    ).toBe('./games_mp.log');
   });
 
   it('parses UPDATE_STAGING_DIR when given, and leaves it undefined otherwise', () => {
     expect(loadConfig(VALID_ENV).updateStagingDir).toBeUndefined();
-    expect(loadConfig({ ...VALID_ENV, UPDATE_STAGING_DIR: '/opt/cod2admin/staging' }).updateStagingDir).toBe(
-      '/opt/cod2admin/staging',
-    );
+    expect(
+      loadConfig({ ...VALID_ENV, UPDATE_STAGING_DIR: '/opt/cod2admin/staging' })
+        .updateStagingDir,
+    ).toBe('/opt/cod2admin/staging');
   });
 
   it('parses OWNER_TELEGRAM_ID and COD2_SERVER_ALIAS when given', () => {
-    const config = loadConfig({ ...VALID_ENV, OWNER_TELEGRAM_ID: '12345', COD2_SERVER_ALIAS: 'my-server' });
+    const config = loadConfig({
+      ...VALID_ENV,
+      OWNER_TELEGRAM_ID: '12345',
+      COD2_SERVER_ALIAS: 'my-server',
+    });
     expect(config.ownerTelegramId).toBe(12345);
     expect(config.serverAlias).toBe('my-server');
   });
@@ -104,10 +161,14 @@ describe('loadConfig', () => {
   });
 
   it('throws when OWNER_TELEGRAM_ID is given but not an integer', () => {
-    expect(() => loadConfig({ ...VALID_ENV, OWNER_TELEGRAM_ID: 'not-a-number' })).toThrow(/OWNER_TELEGRAM_ID/);
+    expect(() =>
+      loadConfig({ ...VALID_ENV, OWNER_TELEGRAM_ID: 'not-a-number' }),
+    ).toThrow(/OWNER_TELEGRAM_ID/);
   });
 
   it('throws when COD2_RCON_PORT is not an integer', () => {
-    expect(() => loadConfig({ ...VALID_ENV, COD2_RCON_PORT: 'not-a-number' })).toThrow(/COD2_RCON_PORT/);
+    expect(() =>
+      loadConfig({ ...VALID_ENV, COD2_RCON_PORT: 'not-a-number' }),
+    ).toThrow(/COD2_RCON_PORT/);
   });
 });

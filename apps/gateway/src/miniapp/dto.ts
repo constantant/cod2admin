@@ -9,7 +9,10 @@ import type { BanDto, PlayerDto } from './api-types.js';
 type IpLookups = Pick<GatewayDeps, 'geoip' | 'provider' | 'vpn'>;
 
 /** What the bot knows about an IP: country/city, provider and VPN flag — each only when known. */
-function describeIp(ip: string | undefined, lookups: IpLookups): Pick<PlayerDto, 'countryCode' | 'location' | 'provider' | 'vpn'> {
+function describeIp(
+  ip: string | undefined,
+  lookups: IpLookups,
+): Pick<PlayerDto, 'countryCode' | 'location' | 'provider' | 'vpn'> {
   if (!ip) {
     return {};
   }
@@ -17,13 +20,21 @@ function describeIp(ip: string | undefined, lookups: IpLookups): Pick<PlayerDto,
   const provider = describeProviderLong(lookups.provider, ip);
   const vpn = describeVpnShort(lookups.vpn, ip);
   return {
-    ...(country ? { countryCode: country.code, location: formatCountryLong(country).replace(/^\S+\s/, '') } : {}),
+    ...(country
+      ? {
+          countryCode: country.code,
+          location: formatCountryLong(country).replace(/^\S+\s/, ''),
+        }
+      : {}),
     ...(provider ? { provider } : {}),
     ...(vpn ? { vpn } : {}),
   };
 }
 
-export function toPlayerDto(player: StatusPlayer, lookups: IpLookups): PlayerDto {
+export function toPlayerDto(
+  player: StatusPlayer,
+  lookups: IpLookups,
+): PlayerDto {
   return {
     num: player.num,
     name: player.name,
@@ -36,7 +47,10 @@ export function toPlayerDto(player: StatusPlayer, lookups: IpLookups): PlayerDto
 }
 
 /** `@nick`/first name of whoever issued a ban, by Telegram ID — see `formatTelegramUser`. */
-export type AdminNames = Map<number, { username: string | null; firstName: string | null }>;
+export type AdminNames = Map<
+  number,
+  { username: string | null; firstName: string | null }
+>;
 
 function bannedBy(telegramId: number, names: AdminNames): string {
   const known = names.get(telegramId);
@@ -59,7 +73,11 @@ export function toGuidBanDto(ban: Ban, names: AdminNames): BanDto {
   };
 }
 
-export function toIpBanDto(ban: BanIp, names: AdminNames, lookups: IpLookups): BanDto {
+export function toIpBanDto(
+  ban: BanIp,
+  names: AdminNames,
+  lookups: IpLookups,
+): BanDto {
   const { countryCode, location } = describeIp(ban.ip, lookups);
   return {
     kind: 'ip',

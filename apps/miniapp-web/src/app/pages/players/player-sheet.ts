@@ -1,6 +1,15 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MAT_BOTTOM_SHEET_DATA, MatBottomSheet, MatBottomSheetRef } from '@angular/material/bottom-sheet';
+import {
+  MAT_BOTTOM_SHEET_DATA,
+  MatBottomSheet,
+  MatBottomSheetRef,
+} from '@angular/material/bottom-sheet';
 import { MatButtonModule } from '@angular/material/button';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -28,7 +37,15 @@ type Mode = 'menu' | ModerationKind | 'tell';
 @Component({
   selector: 'c2a-player-sheet',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, MatButtonModule, MatChipsModule, MatFormFieldModule, MatInputModule, GameName, Icon],
+  imports: [
+    FormsModule,
+    MatButtonModule,
+    MatChipsModule,
+    MatFormFieldModule,
+    MatInputModule,
+    GameName,
+    Icon,
+  ],
   templateUrl: './player-sheet.html',
   styleUrl: './player-sheet.scss',
 })
@@ -81,7 +98,13 @@ export class PlayerSheet {
     if (!message) {
       return;
     }
-    await this.run(() => this.api.tell(this.data.server, { num: this.player.num, name: this.player.name, message }));
+    await this.run(() =>
+      this.api.tell(this.data.server, {
+        num: this.player.num,
+        name: this.player.name,
+        message,
+      }),
+    );
   }
 
   private async run(action: () => Promise<{ message: string }>): Promise<void> {
@@ -100,5 +123,8 @@ export class PlayerSheet {
 
 /** Opens the sheet; resolves `true` when an action went through. */
 export function openPlayerSheet(sheet: MatBottomSheet, data: PlayerSheetData) {
-  return sheet.open<PlayerSheet, PlayerSheetData, boolean>(PlayerSheet, { data, autoFocus: false });
+  return sheet.open<PlayerSheet, PlayerSheetData, boolean>(PlayerSheet, {
+    data,
+    autoFocus: false,
+  });
 }

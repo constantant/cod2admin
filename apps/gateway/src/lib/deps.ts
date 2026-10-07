@@ -5,7 +5,11 @@ import type { RconClient } from '@cod2admin/rcon-client';
 import type { ReportAntiSpam, SessionLookup } from '@cod2admin/report-pipeline';
 import type { CountryLookup, ProviderLookup } from './geoip.js';
 import type { GithubReleaseClient } from './github-releases.js';
-import type { RouteProbeResult, TelegramRouter, TelegramRouteSettings } from './telegram-routes.js';
+import type {
+  RouteProbeResult,
+  TelegramRouter,
+  TelegramRouteSettings,
+} from './telegram-routes.js';
 import type { ReportRegistry } from './reports.js';
 import type { UpdateRegistry } from './update-registry.js';
 import type { VpnKicker } from './vpn-kick.js';
@@ -31,7 +35,11 @@ export interface GatewayDeps {
   /** Every managed server by alias. `/addserver`/`/removeserver` change it while the bot runs. */
   rconClients: Map<string, RconClient>;
   /** Builds an `RconClient` with the gateway's settings (e.g. text encoding) — used by `/addserver`. */
-  createRconClient(server: { host: string; port: number; password: string }): RconClient;
+  createRconClient(server: {
+    host: string;
+    port: number;
+    password: string;
+  }): RconClient;
   /**
    * The server `main.ts` saves from `.env` (`COD2_SERVER_ALIAS`) on every start. `/addserver` and
    * `/removeserver` refuse to touch it, since the next restart would undo the change.

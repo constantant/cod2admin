@@ -3,7 +3,9 @@ export function flagEmoji(code: string | undefined): string {
   if (!code || !/^[A-Z]{2}$/.test(code)) {
     return '';
   }
-  return String.fromCodePoint(...[...code].map((char) => 0x1f1e6 + char.charCodeAt(0) - 65));
+  return String.fromCodePoint(
+    ...[...code].map((char) => 0x1f1e6 + char.charCodeAt(0) - 65),
+  );
 }
 
 /** `45m`, `2h 30m`, `3d 4h` — the two largest units. */
@@ -35,7 +37,11 @@ export function formatAgo(iso: string, now: Date = new Date()): string {
 
 /** `14:05` in the viewer's time zone. */
 export function formatClock(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  return new Date(iso).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  });
 }
 
 export interface DurationChoice {

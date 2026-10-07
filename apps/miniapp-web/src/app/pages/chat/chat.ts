@@ -43,7 +43,16 @@ const STICK_TO_BOTTOM_PX = 80;
 @Component({
   selector: 'c2a-chat-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatProgressBarModule, MatSelectModule, GameName, Icon],
+  imports: [
+    FormsModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatProgressBarModule,
+    MatSelectModule,
+    GameName,
+    Icon,
+  ],
   templateUrl: './chat.html',
   styleUrl: './chat.scss',
 })
@@ -65,7 +74,9 @@ export class ChatPage {
   /** `EVERYONE`, else the slot to whisper to. */
   protected readonly to = signal<number>(EVERYONE);
   protected readonly everyone = EVERYONE;
-  protected readonly players = computed(() => this.live.status()?.players ?? []);
+  protected readonly players = computed(
+    () => this.live.status()?.players ?? [],
+  );
 
   constructor() {
     // Reload on server switch and after every reconnect, to fill what the socket missed.
@@ -74,7 +85,9 @@ export class ChatPage {
       this.live.generation();
       untracked(() => void this.load(alias));
     });
-    const subscription = this.live.chat.subscribe((line) => this.append([line]));
+    const subscription = this.live.chat.subscribe((line) =>
+      this.append([line]),
+    );
     inject(DestroyRef).onDestroy(() => subscription.unsubscribe());
   }
 
@@ -106,7 +119,10 @@ export class ChatPage {
   /** Adds lines by id — a live line may also come back in a reload. */
   private append(incoming: ChatLineDto[], forceScroll = false): void {
     const element = this.scroller()?.nativeElement;
-    const atBottom = !element || element.scrollHeight - element.scrollTop - element.clientHeight < STICK_TO_BOTTOM_PX;
+    const atBottom =
+      !element ||
+      element.scrollHeight - element.scrollTop - element.clientHeight <
+        STICK_TO_BOTTOM_PX;
     this.lines.update((lines) => {
       const byId = new Map(lines.map((line) => [line.id, line]));
       for (const line of incoming) {
@@ -129,7 +145,9 @@ export class ChatPage {
   protected openPlayer(line: ChatLineDto): void {
     // `status` and the log don't agree on colour codes, so compare names as players read them.
     const player = this.players().find(
-      (candidate) => candidate.num === line.num && plainName(candidate.name) === plainName(line.name),
+      (candidate) =>
+        candidate.num === line.num &&
+        plainName(candidate.name) === plainName(line.name),
     );
     if (line.source !== 'game' || !player) {
       return;
@@ -146,14 +164,21 @@ export class ChatPage {
     this.sending.set(true);
     try {
       const to = this.to();
-      const player = to === EVERYONE ? undefined : this.players().find((candidate) => candidate.num === to);
+      const player =
+        to === EVERYONE
+          ? undefined
+          : this.players().find((candidate) => candidate.num === to);
       if (to !== EVERYONE && !player) {
         this.notify.info('That player has left — pick someone else.');
         this.to.set(EVERYONE);
         return;
       }
       if (player) {
-        await this.api.tell(this.session.server(), { num: player.num, name: player.name, message });
+        await this.api.tell(this.session.server(), {
+          num: player.num,
+          name: player.name,
+          message,
+        });
       } else {
         await this.api.say(this.session.server(), message);
       }
