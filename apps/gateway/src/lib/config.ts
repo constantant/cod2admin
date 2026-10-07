@@ -46,6 +46,8 @@ export interface GatewayConfig {
    * off the automatic monthly download.
    */
   geoip: { enabled: boolean; dbPath: string | undefined };
+  /** VPN/proxy/Tor flags (vpn-ranges.ts). `VPN_FLAG_ENABLED=false` turns them and their downloads off. */
+  vpnFlag: { enabled: boolean };
   /**
    * Default routes to the Telegram Bot API (telegram-routes.ts, docs/PLAN-russia-access.md):
    * `TELEGRAM_DIRECT=false` skips api.telegram.org itself, `TELEGRAM_RELAYS` (comma-separated)
@@ -135,5 +137,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
       enabled: env['GEOIP_ENABLED']?.trim().toLowerCase() !== 'false',
       dbPath: env['GEOIP_DB_PATH']?.trim() || undefined,
     },
+    vpnFlag: { enabled: env['VPN_FLAG_ENABLED']?.trim().toLowerCase() !== 'false' },
   };
 }

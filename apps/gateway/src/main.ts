@@ -28,6 +28,7 @@ import { startReportTailers } from './lib/report-tailers.js';
 import { ReportRegistry } from './lib/reports.js';
 import { checkPendingUpdateOnBoot } from './lib/update-boot-check.js';
 import { UpdateRegistry } from './lib/update-registry.js';
+import { NO_VPN_LOOKUP, VpnListUpdater, VpnRangeDatabase } from './lib/vpn-ranges.js';
 import { startVersionCheckPoller } from './lib/version-check-poller.js';
 
 const config = loadConfig();
@@ -92,6 +93,17 @@ if (config.geoip.enabled) {
   void geoipUpdater.start();
 }
 
+// VPN/proxy/Tor flags (lib/vpn-ranges.ts) — public lists, kept next to the country database.
+const vpnDatabase = new VpnRangeDatabase();
+if (config.vpnFlag.enabled) {
+  const vpnUpdater = new VpnListUpdater({
+    database: vpnDatabase,
+    dir: path.join(config.updateStagingDir ?? tmpdir(), 'vpn-lists'),
+  });
+  // Not awaited, same as the country database.
+  void vpnUpdater.start();
+}
+
 // How the bot reaches Telegram (lib/telegram-routes.ts, docs/PLAN-russia-access.md): a /relays
 // change stored in the database wins over .env, which wins over direct + the built-in relays.
 const telegramDefaults: TelegramRouteSettings = {
@@ -123,6 +135,7 @@ const deps: GatewayDeps = {
   createRconClient,
   bootstrapServerAlias: config.serverAlias,
   geoip: config.geoip.enabled ? geoipDatabase : NO_COUNTRY_LOOKUP,
+  vpn: config.vpnFlag.enabled ? vpnDatabase : NO_VPN_LOOKUP,
   telegramRoutes: { router: telegramRouter, defaults: telegramDefaults, probe: probeTelegramRoute },
   reportRegistry: new ReportRegistry(),
   reportAntiSpam: new ReportAntiSpam<string>(),

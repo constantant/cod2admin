@@ -32,6 +32,7 @@ import { updateActionCallback, updateCommand, type UpdateCallbackContext } from 
 import type { GatewayConfig } from './config.js';
 import type { GatewayDeps } from './deps.js';
 import { describeIpLong } from './geoip.js';
+import { describeVpnLong, joinIpLabels } from './vpn-ranges.js';
 import { failoverTransformer, probeRoute } from './telegram-routes.js';
 
 /**
@@ -162,7 +163,7 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
       adminStore: deps.adminStore,
       banStore: deps.banStore,
       sessionsByServer: deps.sessionsByServer,
-      describeIp: (ip) => describeIpLong(deps.geoip, ip),
+      describeIp: (ip) => joinIpLabels(describeIpLong(deps.geoip, ip), describeVpnLong(deps.vpn, ip)),
     }),
   );
 

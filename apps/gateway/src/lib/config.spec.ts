@@ -23,6 +23,7 @@ describe('loadConfig', () => {
       updateStagingDir: undefined,
       textEncoding: 'cp1251',
       geoip: { enabled: true, dbPath: undefined },
+      vpnFlag: { enabled: true },
       telegram: { direct: true, relays: undefined },
     });
   });
@@ -42,6 +43,11 @@ describe('loadConfig', () => {
       enabled: true,
       dbPath: '/data/country.mmdb',
     });
+  });
+
+  it('parses VPN_FLAG_ENABLED', () => {
+    expect(loadConfig({ ...VALID_ENV, VPN_FLAG_ENABLED: 'False' }).vpnFlag.enabled).toBe(false);
+    expect(loadConfig({ ...VALID_ENV, VPN_FLAG_ENABLED: 'true' }).vpnFlag.enabled).toBe(true);
   });
 
   it('parses COD2_TEXT_ENCODING case-insensitively and rejects unknown encodings', () => {

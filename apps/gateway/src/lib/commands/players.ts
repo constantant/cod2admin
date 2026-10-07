@@ -3,19 +3,27 @@ import { matchText, type BotContext } from '../bot-context.js';
 import type { GatewayDeps } from '../deps.js';
 import { describeIpShort, NO_COUNTRY_LOOKUP, type CountryLookup } from '../geoip.js';
 import { extractServerFlag, resolveServer } from '../resolve-server.js';
+import { describeVpnShort, joinIpLabels, NO_VPN_LOOKUP, type VpnLookup } from '../vpn-ranges.js';
 
-function formatPlayerLine(player: StatusPlayer, geoip: CountryLookup): string {
+function formatPlayerLine(player: StatusPlayer, geoip: CountryLookup, vpn: VpnLookup): string {
   const ip = player.ip ?? 'unknown';
-  const country = describeIpShort(geoip, player.ip);
-  return `#${player.num} ${player.name} — score ${player.score}, ping ${player.ping}, ip ${ip}${country ? ` ${country}` : ''}`;
+  const labels = joinIpLabels(describeIpShort(geoip, player.ip), describeVpnShort(vpn, player.ip));
+  return `#${player.num} ${player.name} — score ${player.score}, ping ${player.ping}, ip ${ip}${labels ? ` ${labels}` : ''}`;
 }
 
-/** Formats the `/players` list — detailed `rcon status` table, includes IPs and their country (docs/PLAN.md §6). */
-export function formatPlayersMessage(players: StatusPlayer[], geoip: CountryLookup = NO_COUNTRY_LOOKUP): string {
+/**
+ * Formats the `/players` list — detailed `rcon status` table, includes IPs, their country and a
+ * VPN/proxy/Tor flag (docs/PLAN.md §6).
+ */
+export function formatPlayersMessage(
+  players: StatusPlayer[],
+  geoip: CountryLookup = NO_COUNTRY_LOOKUP,
+  vpn: VpnLookup = NO_VPN_LOOKUP,
+): string {
   if (players.length === 0) {
     return 'No players connected.';
   }
-  return players.map((player) => formatPlayerLine(player, geoip)).join('\n');
+  return players.map((player) => formatPlayerLine(player, geoip, vpn)).join('\n');
 }
 
 /** `/players [--server <alias>]` (docs/PLAN.md §6). */
@@ -26,5 +34,5 @@ export async function playersCommand(ctx: BotContext, deps: GatewayDeps): Promis
     return;
   }
   const { players } = await server.rcon.status();
-  await ctx.reply(formatPlayersMessage(players, deps.geoip));
+  await ctx.reply(formatPlayersMessage(players, deps.geoip, deps.vpn));
 }

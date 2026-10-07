@@ -5,6 +5,7 @@ import type { Bot } from 'grammy';
 import { DEFAULT_TEXT_ENCODING } from './config.js';
 import type { GatewayDeps } from './deps.js';
 import { describeIpLong } from './geoip.js';
+import { describeVpnLong, joinIpLabels } from './vpn-ranges.js';
 import { handleReportTrigger } from './reports.js';
 
 /**
@@ -58,7 +59,7 @@ export function startReportTailers(
         sessions: tailer,
         adminStore: deps.adminStore,
         banStore: deps.banStore,
-        describeIp: (ip) => describeIpLong(deps.geoip, ip),
+        describeIp: (ip) => joinIpLabels(describeIpLong(deps.geoip, ip), describeVpnLong(deps.vpn, ip)),
       }).catch((error: unknown) => {
         console.error(`Failed to handle a !report trigger for server "${server.alias}":`, error);
       });

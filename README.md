@@ -22,6 +22,11 @@ IP country labels (`/players`, report cards, `/bans`) use the
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The bot downloads it itself and
 refreshes it monthly; it isn't part of this repository or its releases.
 
+VPN flags (`/players`, report cards) use the data-centre and VPN range lists from
+[X4BNet/lists_vpn](https://github.com/X4BNet/lists_vpn) and the Tor Project's
+[exit list](https://check.torproject.org/torbulkexitlist). The bot downloads them itself and
+refreshes them weekly; they aren't part of this repository or its releases either.
+
 ## Layout
 
 This is a pnpm/Nx workspace:

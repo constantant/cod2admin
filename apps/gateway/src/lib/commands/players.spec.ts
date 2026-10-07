@@ -19,6 +19,17 @@ describe('formatPlayersMessage', () => {
     );
   });
 
+  it('adds the VPN flag after the country when the IP is flagged', () => {
+    const geoip = { lookup: () => ({ code: 'NL', name: 'Netherlands' }) };
+    const vpn = { lookup: (ip: string) => (ip === '123.45.67.89' ? ('vpn' as const) : undefined) };
+
+    expect(formatPlayersMessage([PLAYER, { ...PLAYER, num: 4, ip: '9.9.9.9' }], geoip, vpn)).toBe(
+      ['#3 PlayerOne — score 5, ping 42, ip 123.45.67.89 🇳🇱 NL 🛡 VPN', '#4 PlayerOne — score 5, ping 42, ip 9.9.9.9 🇳🇱 NL'].join(
+        '\n',
+      ),
+    );
+  });
+
   it('reports no players connected when the list is empty', () => {
     expect(formatPlayersMessage([])).toBe('No players connected.');
   });

@@ -767,6 +767,22 @@ Roles, stored in `admin-store`:
   - **Settings:** `GEOIP_ENABLED=false` turns it off, and `GEOIP_DB_PATH` points at a file the
     admin supplies, with no download. With no database, the bot just shows no countries.
   - **Checked live** against 34 real players: every IP resolved to a country.
+- **VPN flag (implemented 2026-10-07).** `/players` adds `🛡 VPN`, `🛡 hosting` or `🛡 Tor` after the
+  country, and report cards add `🛡 VPN`, `🛡 hosting IP (likely VPN/proxy)` or `🛡 Tor exit`
+  (`apps/gateway/src/lib/vpn-ranges.ts`). `/bans` doesn't show it.
+  - **A flag only.** Nothing kicks or bans on it: a VPN exit IP is shared by strangers, and VPNs
+    are common among ordinary players in Russia, where Telegram and YouTube are blocked. The
+    point is to collect data first and decide on kicks later.
+  - **Sources, offline like the country lookup:** X4BNet's `lists_vpn` data-centre and VPN
+    IPv4 ranges and the Tor Project's exit list, downloaded by the gateway into
+    `<staging>/vpn-lists/` and refreshed weekly (a failed refresh keeps the old copy; a
+    download under 100 entries is rejected as an error page). X4BNet's repo has no license
+    file; the bot only downloads it at run time and never ships it.
+  - **Limits:** it only catches VPNs on data-centre servers, not ones routed through home
+    connections. `hosting` also covers any other server-hosted client.
+  - **Baseline (2026-10-07):** a one-off offline check of the 12 players then on CTF RUSSIA
+    flagged none; all were on home or mobile ISPs.
+  - **Settings:** `VPN_FLAG_ENABLED=false` turns the flag and its downloads off.
 
 ## 7. Data model (sketch)
 
@@ -859,7 +875,7 @@ failure, and this DB now holds durable ban/audit history, not just cache-able st
 ## 9. Phased delivery plan
 
 **Status (2026-10-06):** Phases 0–3 and the self-update track are done and verified live. From
-Phase 4, only the IP country label is built (§6). Work done since Phase 3 that wasn't in the
+Phase 4, only the IP country label and a VPN flag are built (§6). Work done since Phase 3 that wasn't in the
 original phases: managing servers from Telegram (`/addserver`, `/removeserver`, `/setdefault`,
 §4), bans that apply on every server (§7), Telegram relays for hosts in Russia
 (`docs/PLAN-russia-access.md`), and CP1251 text for Russian names and chat (§2.4). Releases and
