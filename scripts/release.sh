@@ -153,9 +153,11 @@ else
   const start = text.search(heading);
   if (start === -1) throw new Error("No CHANGELOG.md section found for " + version);
   const rest = text.slice(start);
-  // Search for the next release heading only past this one's own heading line. Searching from
-  // offset 1 (as this once did) matched this same heading again for "## " ones ("# [x.y.z]" at
-  // offset 1), truncating every H2 release's notes to a lone "#" from v1.0.1 through v1.6.0.
+  // Search for the next release heading only past the heading line of this section. Searching
+  // from offset 1 (as this once did) matched this same heading again for "## " ones ("# [x.y.z]"
+  // at offset 1), truncating the notes of every H2 release to a lone "#" from v1.0.1 through
+  // v1.6.0. No apostrophes in this block: it sits inside a single-quoted shell string, and one
+  // here ended that string early and broke publishing v1.6.1.
   const bodyStart = rest.indexOf("\n") + 1;
   const nextHeadingOffset = rest.slice(bodyStart).search(/^#{1,2} /m);
   const section = nextHeadingOffset === -1 ? rest : rest.slice(0, bodyStart + nextHeadingOffset);
