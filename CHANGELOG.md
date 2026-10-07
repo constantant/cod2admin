@@ -1,3 +1,14 @@
+## [1.10.0](https://github.com/constantant/cod2admin/releases/tag/v1.10.0) (2026-10-07)
+
+### 🚀 Features
+
+- **gateway:** short role-based /help with the full guide attached ([417ece2](https://github.com/constantant/cod2admin/commit/417ece2))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5 (1M context)
+- kk
+
 ## [1.9.1](https://github.com/constantant/cod2admin/releases/tag/v1.9.1) (2026-10-07)
 
 ### 🩹 Fixes
