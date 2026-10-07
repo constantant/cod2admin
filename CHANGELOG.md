@@ -1,3 +1,14 @@
+## [1.11.0](https://github.com/constantant/cod2admin/releases/tag/v1.11.0) (2026-10-07)
+
+### 🚀 Features
+
+- **gateway:** optionally kick VPN players on sight with /vpnkick ([d4e7016](https://github.com/constantant/cod2admin/commit/d4e7016))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5 (1M context)
+- kk
+
 ## [1.10.0](https://github.com/constantant/cod2admin/releases/tag/v1.10.0) (2026-10-07)
 
 ### 🚀 Features
