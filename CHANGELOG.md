@@ -1,3 +1,14 @@
+## [1.14.0](https://github.com/constantant/cod2admin/releases/tag/v1.14.0) (2026-10-07)
+
+### 🚀 Features
+
+- switch the game mode together with the map ([5d7a8ba](https://github.com/constantant/cod2admin/commit/5d7a8ba))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5 (1M context)
+- kk
+
 ## [1.13.1](https://github.com/constantant/cod2admin/releases/tag/v1.13.1) (2026-10-07)
 
 ### 🩹 Fixes
