@@ -33,6 +33,12 @@ export interface FakeBanStore {
   listBansByGuid: Mock<BanStore['listBansByGuid']>;
   listBansByName: Mock<BanStore['listBansByName']>;
   listIpBansByIp: Mock<BanStore['listIpBansByIp']>;
+  searchBans: Mock<BanStore['searchBans']>;
+  searchIpBans: Mock<BanStore['searchIpBans']>;
+  getBan: Mock<BanStore['getBan']>;
+  getIpBan: Mock<BanStore['getIpBan']>;
+  updateBan: Mock<BanStore['updateBan']>;
+  updateIpBan: Mock<BanStore['updateIpBan']>;
   close: Mock<BanStore['close']>;
 }
 
@@ -53,6 +59,12 @@ export function createFakeBanStore(
     listBansByGuid: vi.fn().mockResolvedValue([]),
     listBansByName: vi.fn().mockResolvedValue([]),
     listIpBansByIp: vi.fn().mockResolvedValue([]),
+    searchBans: vi.fn().mockResolvedValue([]),
+    searchIpBans: vi.fn().mockResolvedValue([]),
+    getBan: vi.fn().mockResolvedValue(undefined),
+    getIpBan: vi.fn().mockResolvedValue(undefined),
+    updateBan: vi.fn().mockResolvedValue(undefined),
+    updateIpBan: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),
   };
 }

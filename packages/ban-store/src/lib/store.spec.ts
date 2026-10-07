@@ -201,4 +201,78 @@ describe('DrizzleBanStore', () => {
       ]);
     });
   });
+
+  describe('Mini App ban browser (docs/PLAN-miniapp.md §6.3)', () => {
+    it('searchBans matches name or GUID case-insensitively, newest first, and hides lifted bans unless asked', async () => {
+      await store.recordBan({ serverAlias: 'default', name: 'Cheater', guid: 'ABC123', bannedBy: 1 });
+      await store.recordBan({ serverAlias: 'default', name: 'Other', guid: 'xyz999', bannedBy: 1 });
+      await store.recordBan({ serverAlias: 'default', name: 'Lifted', guid: 'abc777', bannedBy: 1 });
+      await store.unbanByGuid('abc777');
+
+      await expect(store.searchBans({ query: 'abc', limit: 10 })).resolves.toEqual([
+        expect.objectContaining({ name: 'Cheater' }),
+      ]);
+      await expect(store.searchBans({ query: 'ABC', includeLifted: true, limit: 10 })).resolves.toEqual([
+        expect.objectContaining({ name: 'Lifted' }),
+        expect.objectContaining({ name: 'Cheater' }),
+      ]);
+      await expect(store.searchBans({ query: 'other', limit: 10 })).resolves.toEqual([
+        expect.objectContaining({ guid: 'xyz999' }),
+      ]);
+      await expect(store.searchBans({ limit: 1, offset: 1 })).resolves.toEqual([
+        expect.objectContaining({ name: 'Cheater' }),
+      ]);
+    });
+
+    it('searchBans takes % and _ literally', async () => {
+      await store.recordBan({ serverAlias: 'default', name: 'a_b', bannedBy: 1 });
+      await store.recordBan({ serverAlias: 'default', name: 'axb', bannedBy: 1 });
+
+      await expect(store.searchBans({ query: '_', limit: 10 })).resolves.toEqual([
+        expect.objectContaining({ name: 'a_b' }),
+      ]);
+      await expect(store.searchBans({ query: '%', limit: 10 })).resolves.toEqual([]);
+    });
+
+    it('searchIpBans matches the IP or the reason', async () => {
+      await store.recordIpBan({ serverAlias: 'default', ip: '10.0.0.5', reason: 'wallhack', bannedBy: 1, expiresAt: null });
+      await store.recordIpBan({ serverAlias: 'default', ip: '192.168.1.1', reason: null, bannedBy: 1, expiresAt: null });
+
+      await expect(store.searchIpBans({ query: '10.0', limit: 10 })).resolves.toEqual([
+        expect.objectContaining({ ip: '10.0.0.5' }),
+      ]);
+      await expect(store.searchIpBans({ query: 'WALL', limit: 10 })).resolves.toEqual([
+        expect.objectContaining({ ip: '10.0.0.5' }),
+      ]);
+      await expect(store.searchIpBans({ limit: 10 })).resolves.toHaveLength(2);
+    });
+
+    it('getBan/getIpBan return one row by id, or undefined', async () => {
+      await store.recordBan({ serverAlias: 'default', name: 'One', guid: 'g1', bannedBy: 1 });
+      await store.recordIpBan({ serverAlias: 'default', ip: '1.1.1.1', bannedBy: 1, expiresAt: null });
+
+      await expect(store.getBan(1)).resolves.toEqual(expect.objectContaining({ name: 'One' }));
+      await expect(store.getIpBan(1)).resolves.toEqual(expect.objectContaining({ ip: '1.1.1.1' }));
+      await expect(store.getBan(99)).resolves.toBeUndefined();
+      await expect(store.getIpBan(99)).resolves.toBeUndefined();
+    });
+
+    it('updateBan/updateIpBan change only the fields given', async () => {
+      const expiresAt = new Date(Date.now() + 3_600_000);
+      await store.recordBan({ serverAlias: 'default', name: 'One', guid: 'g1', reason: 'old', bannedBy: 1 });
+      await store.recordIpBan({ serverAlias: 'default', ip: '1.1.1.1', reason: 'old', bannedBy: 1, expiresAt });
+
+      await expect(store.updateBan(1, { expiresAt })).resolves.toEqual(
+        expect.objectContaining({ reason: 'old', expiresAt }),
+      );
+      await expect(store.updateBan(1, { reason: 'new' })).resolves.toEqual(
+        expect.objectContaining({ reason: 'new', expiresAt }),
+      );
+      await expect(store.updateIpBan(1, { expiresAt: null, reason: null })).resolves.toEqual(
+        expect.objectContaining({ reason: null, expiresAt: null }),
+      );
+      await expect(store.updateIpBan(1, {})).resolves.toEqual(expect.objectContaining({ ip: '1.1.1.1' }));
+      await expect(store.updateBan(99, { reason: 'x' })).resolves.toBeUndefined();
+    });
+  });
 });
