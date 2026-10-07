@@ -1,6 +1,66 @@
 # CoD2 Admin — Telegram Mini App Server Manager
 
-Status: draft plan, nothing built yet · Owner: kk · Last updated: 2026-10-06
+Status: Phases M1–M4 and the installer HTTPS step implemented (2026-10-07, see §0); M5 open ·
+Owner: kk · Last updated: 2026-10-07
+
+## 0. Implementation status (2026-10-07)
+
+Built and tested locally; **not yet opened from a real Telegram client** (that needs a public
+HTTPS URL — see "Not verified yet" below).
+
+- **M1 — foundations.** `apps/miniapp-web` (Angular 22, standalone + zoneless, Angular Material 3
+  via `mat.theme()`; Telegram's `--tg-theme-*` colours mapped onto the M3 system tokens) and
+  `apps/gateway/src/miniapp/` (Fastify + `@fastify/websocket` + `@fastify/static`).
+  `initData` HMAC validation (`init-data.ts`, 24h max age) → `admin-store` role (`auth.ts`); a
+  Telegram user without a role gets a 403 naming their ID, never a read-only session.
+  Off unless `MINIAPP_PORT` is set; `MINIAPP_URL` makes the bot set its menu button to the app;
+  `/app` sends the button in a private chat. The gateway serves the built app itself (shipped
+  in the release tarball as `miniapp/`), so the app and its API are one origin — no CORS.
+- **M2 — RCON management.** Live player table (country/city, provider, VPN flag, GUID), per-player
+  sheet with kick / temp ban (duration chips) / ban / private message, all through
+  `executeModerationAction` with audit `source: 'miniapp'` (new enum value, migration
+  `0004_audit_source_miniapp`). Actions name the player the admin saw: if the slot changed hands,
+  the gateway answers 409 instead of acting on someone else. Map page (rotation + other installed
+  maps, custom-map confirmation), owner-only raw console.
+- **M3 — live chat.** `ChatFeed` subscribes to the `GameLogTailer` that `!report` uses (now
+  started for every server with a log path, not only ones with a bound chat), backfills from the
+  log's tail (`GameLogTailer.readRecentChat`), and records admin-sent lines (the game doesn't log
+  console `say`). Pushed over `/api/ws`; `say` and a new `RconClient.tell()` for whispers.
+- **M4 — ban management.** `ban-store` gained `searchBans`/`searchIpBans` (name/GUID or IP/reason,
+  lifted bans optional, paged), `getBan`/`getIpBan`, `updateBan`/`updateIpBan`. UI: browse,
+  search, edit reason/expiry, bulk unban (through `liftBan`, extracted from `/unban` so both run
+  the same `ban.txt` logic), add an IP or GUID ban for someone offline. Making a permanent GUID
+  ban temporary also removes it from the issuing server's `ban.txt` (it would never expire there).
+- **Ops — installer HTTPS step** (`installer/lib/miniapp.sh`): own domain or `<ip>.sslip.io`,
+  Caddy from the distro package (Debian 12+/Ubuntu 22.04+/Alpine), site in its own
+  `/etc/caddy/cod2admin.caddy` imported from the `Caddyfile` (an admin's own sites are kept).
+  Steps aside when 80/443 are taken (prints an nginx rule) or the host is behind NAT (points at
+  the Cloudflare Tunnel section of `installer/README.md`). Tested in Debian 12 and Alpine
+  containers; the certificate itself can only be tested on a public host.
+
+**Decided while building:**
+- Fastify, for its `inject()`/`injectWS()` test harness — `server.spec.ts` drives every route with
+  real `initData` signatures.
+- One status poll per server, shared by every open app and only while one is open
+  (`StatusWatcher`, 5s), plus a per-user action limit (20 per 10s) on top of rcon-client's own.
+- The Telegram SDK is bundled (`@twa-dev/sdk`, which wraps the official script) instead of
+  loaded from `telegram.org` — blocked in Russia even when the Telegram app itself works through
+  a proxy. Icons are inline SVG and fonts the system's, so the app loads from the bot alone.
+- The API takes the server alias in every path, so the M5 server switcher came for free: the top
+  bar shows one when the bot manages more than one server. Bans are global, as in chat.
+- The API contract (`apps/gateway/src/miniapp/api-types.ts`) is one file both apps compile
+  (tsconfig path in `miniapp-web`). `miniapp-web` sits outside the TS project-reference graph —
+  Angular doesn't support it — and has its own `tsc --noEmit` typecheck target.
+- Default port 18090 (8090 collided with a desktop app on kk's machine).
+
+**Not verified yet:** opening it from a real Telegram client (needs a public HTTPS URL: an
+adopter's box, or a tunnel to the NAS — §10's open question), and `tell` against a real CoD2
+server (the console command exists in CoD2 1.3, but its quoting was only tested against a fake).
+Local verification used a harness running the Mini App server with real Postgres stores, a real
+`GameLogTailer` and `RconClient` against a fake UDP RCON server, driven in a mobile-sized browser.
+
+**Still open (M5):** dashboard history (`server_snapshots`), report queue (`reports` table),
+audit log viewer, role management, watchlist, quick-action presets.
 
 ## 1. Goal
 
