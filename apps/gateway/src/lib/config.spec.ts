@@ -25,7 +25,23 @@ describe('loadConfig', () => {
       geoip: { enabled: true, city: false, dbPath: undefined, asnDbPath: undefined },
       vpnFlag: { enabled: true },
       telegram: { direct: true, relays: undefined },
+      miniapp: { port: undefined, host: '127.0.0.1', url: undefined, staticDir: undefined, devTelegramId: undefined },
     });
+  });
+
+  it('parses the Mini App settings and only accepts an https MINIAPP_URL', () => {
+    expect(
+      loadConfig({
+        ...VALID_ENV,
+        MINIAPP_PORT: '8090',
+        MINIAPP_HOST: '0.0.0.0',
+        MINIAPP_URL: 'https://1-2-3-4.sslip.io',
+        MINIAPP_STATIC_DIR: '/srv/miniapp',
+        MINIAPP_DEV_TELEGRAM_ID: '42',
+      }).miniapp,
+    ).toEqual({ port: 8090, host: '0.0.0.0', url: 'https://1-2-3-4.sslip.io', staticDir: '/srv/miniapp', devTelegramId: 42 });
+    expect(() => loadConfig({ ...VALID_ENV, MINIAPP_URL: 'http://plain.example' })).toThrow(/MINIAPP_URL/);
+    expect(() => loadConfig({ ...VALID_ENV, MINIAPP_PORT: 'eighty' })).toThrow(/MINIAPP_PORT/);
   });
 
   it('parses TELEGRAM_RELAYS and TELEGRAM_DIRECT', () => {

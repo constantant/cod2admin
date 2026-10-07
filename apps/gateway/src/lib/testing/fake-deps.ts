@@ -54,6 +54,7 @@ export function createFakeDeps(): FakeDeps {
       reportRegistry: new ReportRegistry(),
       reportAntiSpam: new ReportAntiSpam<string>(),
       sessionsByServer: new Map<string, SessionLookup>(),
+      logTailers: new Map(),
       updateConfig: { stagingDir: '/opt/cod2admin/staging', applyUpdateScriptPath: '/opt/cod2admin/bin/apply-update.sh' },
       githubReleaseClient,
       updateRegistry: new UpdateRegistry(),

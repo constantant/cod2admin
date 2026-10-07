@@ -78,14 +78,18 @@ describe('startReportTailers', () => {
     warn.mockRestore();
   });
 
-  it('skips a server with no bound Telegram chat', () => {
-    const { deps } = createFakeDeps();
+  it('still tails a server with no bound Telegram chat (for the Mini App chat), but sends no report cards', async () => {
+    const { deps, rcon } = createFakeDeps();
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     const tailers = startReportTailers([serverConfig({ boundTelegramChatId: null })], deps, {} as never);
 
-    expect(tailers).toHaveLength(0);
+    expect(tailers).toHaveLength(1);
+    expect(deps.logTailers.get('default')).toBe(fakeTailerInstances[0]);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('no bound Telegram chat'));
+    fakeTailerInstances[0].listeners['reportTrigger'][0]({ chat: {}, targetName: 'X' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(rcon.status).not.toHaveBeenCalled();
     warn.mockRestore();
   });
 

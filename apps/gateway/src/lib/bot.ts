@@ -4,6 +4,7 @@ import { Bot, type Context } from 'grammy';
 import { requireRole } from './auth.js';
 import type { BotContext } from './bot-context.js';
 import { addAdminCommand } from './commands/addadmin.js';
+import { appCommand } from './commands/app.js';
 import { addServerCommand } from './commands/addserver.js';
 import { auditLogCommand } from './commands/auditlog.js';
 import { banCommand } from './commands/ban.js';
@@ -127,6 +128,7 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
   bot.command('help', (ctx) => helpCommand(ctx, deps));
   bot.command('help_ru', (ctx) => helpRuCommand(ctx, deps));
 
+  bot.command('app', requireAny, (ctx) => appCommand(ctx, config.miniapp.url, bot.botInfo.username));
   bot.command('status', requireAny, (ctx) => statusCommand(ctx, deps));
   bot.command('players', requireAny, (ctx) => playersCommand(ctx, deps));
   bot.command('kick', requireAny, (ctx) => kickCommand(ctx, deps));

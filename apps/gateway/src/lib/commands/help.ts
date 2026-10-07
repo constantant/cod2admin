@@ -32,6 +32,7 @@ interface HelpLine {
 
 /** The most-used commands, cheapest role first. Everything else is in the attached guide. */
 const SHORT_HELP_LINES: readonly HelpLine[] = [
+  { minRole: 'moderator', en: '/app — the server manager app', ru: '/app — приложение для управления сервером' },
   { minRole: 'moderator', en: '/status — server, map, player count', ru: '/status — сервер, карта, число игроков' },
   {
     minRole: 'moderator',
