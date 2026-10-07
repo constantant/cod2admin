@@ -37,7 +37,8 @@ export interface UpsertServerInput {
   logSourceConfig?: string | null;
 }
 
-export type AuditSource = 'telegram_button' | 'telegram_command' | 'auto';
+/** `miniapp`: an action taken from the Telegram Mini App (docs/PLAN-miniapp.md §7). */
+export type AuditSource = 'telegram_button' | 'telegram_command' | 'auto' | 'miniapp';
 
 export interface AuditLogEntry {
   id: number;

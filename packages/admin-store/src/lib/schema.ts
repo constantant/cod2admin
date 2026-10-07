@@ -13,7 +13,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 export const adminRoleEnum = pgEnum('admin_role', ['owner', 'admin', 'moderator']);
-export const auditSourceEnum = pgEnum('audit_source', ['telegram_button', 'telegram_command', 'auto']);
+export const auditSourceEnum = pgEnum('audit_source', ['telegram_button', 'telegram_command', 'auto', 'miniapp']);
 
 /** docs/PLAN.md §4/§7 — one row per Telegram admin. At most one `owner` row, ever. */
 export const admins = pgTable(

@@ -1,0 +1,1 @@
+ALTER TYPE "public"."audit_source" ADD VALUE 'miniapp';
