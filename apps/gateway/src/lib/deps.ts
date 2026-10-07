@@ -1,4 +1,5 @@
 import type { AdminStore } from '@cod2admin/admin-store';
+import type { GameLogTailer } from '@cod2admin/log-tailer';
 import type { BanStore } from '@cod2admin/ban-store';
 import type { RconClient } from '@cod2admin/rcon-client';
 import type { ReportAntiSpam, SessionLookup } from '@cod2admin/report-pipeline';
@@ -61,6 +62,8 @@ export interface GatewayDeps {
   reportAntiSpam: ReportAntiSpam<string>;
   /** Per-server session lookup (a `GameLogTailer` instance) for the `select` button's re-enrichment — keyed like `rconClients`. */
   sessionsByServer: Map<string, SessionLookup>;
+  /** The `games_mp.log` tailer of every server with a log path — the Mini App's live chat source. */
+  logTailers: Map<string, GameLogTailer>;
   updateConfig: UpdateFeatureConfig | undefined;
   githubReleaseClient: GithubReleaseClient;
   /** Pending `/update` confirm/cancel cards (docs/PLAN.md §13.3) — same shape/lifetime caveats as `reportRegistry`. */

@@ -56,6 +56,21 @@ export interface GatewayConfig {
    * replaces the built-in shared relays. `/relays` changes both at runtime and takes precedence.
    */
   telegram: { direct: boolean; relays: string[] | undefined };
+  /**
+   * The Telegram Mini App (docs/PLAN-miniapp.md). Off unless `MINIAPP_PORT` is set. `host` is what
+   * the HTTP server binds to — loopback by default, since an HTTPS proxy (Caddy, a tunnel) sits in
+   * front (§3). `url` is the public HTTPS address: when set, the bot's menu button opens it.
+   * `staticDir` overrides where the built web app is served from. `devTelegramId` is the local dev
+   * loop's stand-in user (§11) — it lets requests without Telegram's signature through as that
+   * user, so it must never be set on a real install.
+   */
+  miniapp: {
+    port: number | undefined;
+    host: string;
+    url: string | undefined;
+    staticDir: string | undefined;
+    devTelegramId: number | undefined;
+  };
 }
 
 class ConfigError extends Error {}
@@ -119,6 +134,20 @@ function telegramRoutesEnv(env: NodeJS.ProcessEnv): GatewayConfig['telegram'] {
   return { direct, relays };
 }
 
+function miniAppEnv(env: NodeJS.ProcessEnv): GatewayConfig['miniapp'] {
+  const url = env['MINIAPP_URL']?.trim() || undefined;
+  if (url && !/^https:\/\/[^\s/]+/.test(url)) {
+    throw new ConfigError(`MINIAPP_URL must be an https URL (Telegram only opens Mini Apps over HTTPS), got "${url}"`);
+  }
+  return {
+    port: optionalIntEnv(env, 'MINIAPP_PORT'),
+    host: env['MINIAPP_HOST']?.trim() || '127.0.0.1',
+    url,
+    staticDir: env['MINIAPP_STATIC_DIR']?.trim() || undefined,
+    devTelegramId: optionalIntEnv(env, 'MINIAPP_DEV_TELEGRAM_ID'),
+  };
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig {
   return {
     telegramBotToken: requireEnv(env, 'TELEGRAM_BOT_TOKEN'),
@@ -142,5 +171,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
       asnDbPath: env['GEOIP_ASN_DB_PATH']?.trim() || undefined,
     },
     vpnFlag: { enabled: env['VPN_FLAG_ENABLED']?.trim().toLowerCase() !== 'false' },
+    miniapp: miniAppEnv(env),
   };
 }

@@ -23,6 +23,8 @@ Example: `!report Cheatr123 aimbot`
 - `/players` — detailed player list with IP addresses, their country and provider (🛡 marks a VPN,
   proxy or Tor IP)
 - `/servers` — list of servers this bot manages
+- `/app` — opens the server manager app inside Telegram (players, chat, maps, bans), when the
+  bot's owner turned it on. In a private chat with the bot, the menu button opens it too.
 
 ## Moderator commands
 

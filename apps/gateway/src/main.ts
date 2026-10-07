@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createAdminStore, migrate as migrateAdminStore } from '@cod2admin/admin-store';
 import { createBanStore, migrate as migrateBanStore } from '@cod2admin/ban-store';
 import { RconClient } from '@cod2admin/rcon-client';
@@ -47,6 +48,8 @@ import {
   VpnRangeDatabase,
 } from './lib/vpn-ranges.js';
 import { startVersionCheckPoller } from './lib/version-check-poller.js';
+import { APP_BUTTON_TEXT } from './lib/commands/app.js';
+import { startMiniAppServer } from './miniapp/server.js';
 
 const config = loadConfig();
 
@@ -185,6 +188,7 @@ const deps: GatewayDeps = {
   reportRegistry: new ReportRegistry(),
   reportAntiSpam: new ReportAntiSpam<string>(),
   sessionsByServer: new Map<string, SessionLookup>(),
+  logTailers: new Map(),
   updateConfig,
   githubReleaseClient: createGithubReleaseClient(),
   updateRegistry: new UpdateRegistry(),
@@ -200,6 +204,40 @@ await checkPendingUpdateOnBoot(deps, bot);
 startVersionCheckPoller(deps, bot);
 
 startReportTailers(servers, deps, bot, config.textEncoding);
+
+// The Telegram Mini App (docs/PLAN-miniapp.md) — off unless MINIAPP_PORT is set. Its failing to
+// start (e.g. the port is taken) is logged, never fatal: the chat bot works without it.
+if (config.miniapp.port !== undefined) {
+  if (config.miniapp.devTelegramId !== undefined) {
+    console.warn(
+      `Mini App: MINIAPP_DEV_TELEGRAM_ID is set — requests without Telegram's signature act as user ${config.miniapp.devTelegramId}. ` +
+        'Only for local development: remove it from any install other people can reach.',
+    );
+  }
+  const { host, port } = config.miniapp;
+  try {
+    await startMiniAppServer(deps, {
+      host,
+      port,
+      botToken: config.telegramBotToken,
+      // The built web app ships next to dist/ (scripts/build-installer-bundle.sh).
+      staticDir: config.miniapp.staticDir ?? fileURLToPath(new URL('../miniapp', import.meta.url)),
+      devTelegramId: config.miniapp.devTelegramId,
+    });
+    console.log(`Mini App: listening on http://${host}:${port}${config.miniapp.url ? `, public at ${config.miniapp.url}` : ''}`);
+  } catch (error) {
+    console.error(`Mini App: could not start on ${host}:${port}:`, error);
+  }
+}
+// The menu button next to the chat's text box opens the Mini App, in every private chat with the
+// bot. Only set when MINIAPP_URL is: otherwise a button set by hand in @BotFather stays as it was.
+if (config.miniapp.url) {
+  void bot.api
+    .setChatMenuButton({ menu_button: { type: 'web_app', text: APP_BUTTON_TEXT, web_app: { url: config.miniapp.url } } })
+    .catch((error: unknown) => {
+      console.error('Mini App: setting the bot menu button failed:', error);
+    });
+}
 
 void bot.start({
   // Small batches keep each relay response well under 16 KB (see the Cloudflare note in bot.ts).
