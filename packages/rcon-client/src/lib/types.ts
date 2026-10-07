@@ -19,6 +19,8 @@ export interface RconClientOptions {
   encoding?: TextEncoding;
   /** Minimum delay enforced between outgoing packets, in ms — see §8 of docs/PLAN.md. Default 100. */
   minSendIntervalMs?: number;
+  /** How long `map()`'s single attempt waits for a reply before checking `getinfo`, in ms. Default 3000. */
+  mapReplyTimeoutMs?: number;
 }
 
 export type CvarMap = Record<string, string>;

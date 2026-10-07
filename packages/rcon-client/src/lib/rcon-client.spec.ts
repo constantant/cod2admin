@@ -1,6 +1,7 @@
 import dgram from 'node:dgram';
 import { afterEach, describe, expect, it } from 'vitest';
 import { RconClient } from './rcon-client.js';
+import { UdpQueryTimeoutError } from './udp-transport.js';
 
 const OOB_PREFIX = Buffer.from([0xff, 0xff, 0xff, 0xff]);
 
@@ -445,6 +446,52 @@ describe('RconClient', () => {
       await client.kick(3);
 
       expect(received).toEqual(['rcon secret kick 3']);
+    });
+  });
+
+  describe('map (sent once - the server loads the level instead of replying)', () => {
+    /** A server that runs `map` without replying, as the dev server did (2026-10-07). */
+    async function silentMapServer(mapAfter: string) {
+      const received: string[] = [];
+      peer = await createMockPeer((payload, respond) => {
+        received.push(payload);
+        if (payload === 'getinfo') {
+          respond(`infoResponse\n\\sv_hostname\\Dev\\mapname\\${mapAfter}`);
+        }
+      });
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'secret',
+        timeoutMs: 50,
+        retries: 2,
+        retryDelayMs: 0,
+        mapReplyTimeoutMs: 50,
+        minSendIntervalMs: 0,
+      });
+      return { client, received };
+    }
+
+    it('never resends map, and succeeds when getinfo shows the new map', async () => {
+      const { client, received } = await silentMapServer('MP_Harbor');
+
+      await expect(client.map('mp_harbor')).resolves.toBe('');
+
+      expect(received.filter((payload) => payload.includes(' map '))).toEqual([
+        'rcon secret map mp_harbor',
+      ]);
+    });
+
+    it('throws the timeout when the server is still on another map', async () => {
+      const { client, received } = await silentMapServer('mp_toujane');
+
+      await expect(client.map('mp_harbor')).rejects.toBeInstanceOf(
+        UdpQueryTimeoutError,
+      );
+
+      expect(
+        received.filter((payload) => payload.includes(' map ')),
+      ).toHaveLength(1);
     });
   });
 });
