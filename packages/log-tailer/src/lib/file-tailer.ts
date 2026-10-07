@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { open, stat } from 'node:fs/promises';
 
 const DEFAULT_POLL_INTERVAL_MS = 1000;
 
@@ -104,5 +104,38 @@ export class FileTailer {
       stream.on('end', () => resolve(this.decode(Buffer.concat(chunks))));
       stream.on('error', reject);
     });
+  }
+}
+
+/**
+ * The complete lines in the last `maxBytes` of a file, oldest first — for showing recent history
+ * before `FileTailer` takes over (the Mini App's chat backfill, docs/PLAN-miniapp.md §6.2). A
+ * missing file reads as no lines. When the read starts mid-file, the first (partial) line is
+ * dropped.
+ */
+export async function readFileTail(
+  path: string,
+  maxBytes: number,
+  decode: (bytes: Buffer) => string = (bytes) => bytes.toString('utf8'),
+): Promise<string[]> {
+  const handle = await open(path, 'r').catch(() => undefined);
+  if (!handle) {
+    return [];
+  }
+  try {
+    const { size } = await handle.stat();
+    const start = Math.max(0, size - maxBytes);
+    const buffer = Buffer.alloc(size - start);
+    await handle.read(buffer, 0, buffer.length, start);
+    const lines = decode(buffer).split('\n');
+    if (start > 0) {
+      lines.shift();
+    }
+    if (lines.at(-1) === '') {
+      lines.pop();
+    }
+    return lines.map((line) => (line.endsWith('\r') ? line.slice(0, -1) : line));
+  } finally {
+    await handle.close();
   }
 }

@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { detectReportTrigger, parseChatLine } from './chat-parser.js';
-import { FileTailer } from './file-tailer.js';
+import { FileTailer, readFileTail } from './file-tailer.js';
 import { parseSessionEventLine } from './session-event-parser.js';
 import { SessionTracker, type SessionTrackerOptions } from './session-tracker.js';
 import type { ChatEvent, PlayerSession, ReportTrigger } from './types.js';
@@ -24,9 +24,13 @@ export interface GameLogTailerOptions {
 export class GameLogTailer extends EventEmitter {
   private readonly fileTailer: FileTailer;
   private readonly sessions: SessionTracker;
+  private readonly logPath: string;
+  private readonly decode: ((bytes: Buffer) => string) | undefined;
 
   constructor(options: GameLogTailerOptions) {
     super();
+    this.logPath = options.logPath;
+    this.decode = options.decode;
     this.sessions = new SessionTracker({ chatHistorySize: options.chatHistorySize, now: options.now });
     this.fileTailer = new FileTailer({
       path: options.logPath,
@@ -43,6 +47,19 @@ export class GameLogTailer extends EventEmitter {
 
   stop(): void {
     this.fileTailer.stop();
+  }
+
+  /**
+   * The last `limit` chat lines already in the log, oldest first — read straight from the file's
+   * tail (at most `maxBytes`), so it works for chat from before this process started too. Doesn't
+   * touch session state; live lines keep arriving as `chat` events.
+   */
+  async readRecentChat(limit: number, maxBytes = 256 * 1024): Promise<ChatEvent[]> {
+    const lines = await readFileTail(this.logPath, maxBytes, this.decode);
+    return lines
+      .map(parseChatLine)
+      .filter((chat): chat is ChatEvent => chat !== null)
+      .slice(-limit);
   }
 
   getSession(num: number): PlayerSession | undefined {
