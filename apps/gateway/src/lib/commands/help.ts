@@ -20,7 +20,10 @@ const TELEGRAM_MESSAGE_LIMIT = 4096;
  * in the source .md files exceeds the limit on its own; keep sections reasonably short.
  */
 export function splitForTelegram(text: string, maxLength = TELEGRAM_MESSAGE_LIMIT): string[] {
-  const paragraphs = text.split('\n\n');
+  // A Windows checkout gives the .md files CRLF line endings — and the release bundle is built
+  // from one — so without this no paragraph break matched and the whole file went out as one
+  // over-long message (found 2026-10-07, v1.9.0: /help had stopped working).
+  const paragraphs = text.replace(/\r\n/g, '\n').split('\n\n');
   const chunks: string[] = [];
   let current = '';
   for (const paragraph of paragraphs) {

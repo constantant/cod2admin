@@ -95,5 +95,5 @@ server — see `/servers` for the list of aliases. Without it, a command goes to
 to this chat (`/bindserver`), otherwise to the default server (`/setdefault`). The server from
 the bot's config file can't be changed or removed from Telegram.
 
-_IP location and provider data by [DB-IP.com](https://db-ip.com) (CC BY 4.0). VPN ranges by
-[X4BNet](https://github.com/X4BNet/lists_vpn), Tor exits by the Tor Project._
+IP location and provider data by [DB-IP.com](https://db-ip.com) (CC BY 4.0). VPN ranges by
+X4BNet (github.com/X4BNet), Tor exits by the Tor Project.

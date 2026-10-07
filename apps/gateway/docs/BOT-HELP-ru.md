@@ -96,5 +96,5 @@ IP игрока с VPN из `/players`); `/vpnnets remove <ASN>` снимает 
 на сервер, привязанный к этому чату (`/bindserver`), иначе — на сервер по умолчанию
 (`/setdefault`). Сервер из конфига бота нельзя изменить или удалить из Telegram.
 
-_Данные о местоположении и провайдерах IP: [DB-IP.com](https://db-ip.com) (CC BY 4.0). Диапазоны VPN:
-[X4BNet](https://github.com/X4BNet/lists_vpn), выходные узлы Tor: Tor Project._
+Данные о местоположении и провайдерах IP: [DB-IP.com](https://db-ip.com) (CC BY 4.0). Диапазоны
+VPN: X4BNet (github.com/X4BNet), выходные узлы Tor: Tor Project.
