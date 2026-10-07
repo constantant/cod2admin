@@ -779,6 +779,12 @@ Roles, stored in `admin-store`:
   which server, when and which bot version, and the data credits. Telegram shows `.md` as a
   plain document, not rendered — readable as text, chosen over `.html` on purpose. Moderators
   get the file too, same as `/players` today. Report cards and `/help` are unchanged.
+  - **`/help` follows the same idea (v1.10.0):** a short plain-text message with only the
+    caller's most-used commands — players see just `!report`, each role adds its own (looked up
+    with `getAdmin`, `/help` itself stays open to everyone) — with the full guide
+    (`docs/BOT-HELP*.md`, now standard Markdown) as the attached file. Before, the guide went out
+    as chat messages and had broken twice: an `_` inside a link ended Telegram's legacy-Markdown
+    italics (v1.7.0-v1.9.0), and the CRLF files never split under the 4096 limit (fixed in v1.9.1).
   - Found while building it: some players write colour codes doubled (`^^11Mahdi`), which
     `stripColorCodes` turned into `^1Mahdi`; `/players` now strips both forms for display
     (`rcon-client` itself is unchanged, since kicks match the raw name).

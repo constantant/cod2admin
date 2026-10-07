@@ -123,8 +123,8 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
   const requireAny = requireRole('moderator', deps.adminStore);
 
   bot.command('claim', (ctx) => claimCommand(ctx, deps, claimSecret));
-  bot.command('help', (ctx) => helpCommand(ctx));
-  bot.command('help_ru', (ctx) => helpRuCommand(ctx));
+  bot.command('help', (ctx) => helpCommand(ctx, deps));
+  bot.command('help_ru', (ctx) => helpRuCommand(ctx, deps));
 
   bot.command('status', requireAny, (ctx) => statusCommand(ctx, deps));
   bot.command('players', requireAny, (ctx) => playersCommand(ctx, deps));
