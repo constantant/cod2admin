@@ -13,7 +13,7 @@ import type {
   RconClientOptions,
   ServerStatus,
 } from './types.js';
-import { sendOobQuery } from './udp-transport.js';
+import { sendOobQuery, UdpQueryTimeoutError } from './udp-transport.js';
 
 // Short attempts, many retries — a real busy server drops ~50% of queries in bursts of up to ~5s
 // while replying in ~50ms otherwise (docs/PLAN.md §2.4, "Rate limiting"), so a long per-attempt
@@ -23,6 +23,8 @@ const DEFAULT_RETRIES = 7;
 const DEFAULT_RETRY_DELAY_MS = 300;
 const DEFAULT_MULTI_PACKET_WAIT_MS = 150;
 const DEFAULT_MIN_SEND_INTERVAL_MS = 100;
+// `map` gets one longer attempt instead of retries - see `map()`.
+const DEFAULT_MAP_REPLY_TIMEOUT_MS = 3000;
 const KICK_FAILURE_PATTERN = /^Usage:|is not on the server/i;
 
 /**
@@ -39,6 +41,7 @@ export class RconClient {
   private readonly multiPacketWaitMs: number;
   private readonly encoding: TextEncoding;
   private readonly rateLimiter: RateLimiter;
+  private readonly mapReplyTimeoutMs: number;
 
   constructor(options: RconClientOptions) {
     this.host = options.host;
@@ -53,6 +56,8 @@ export class RconClient {
     this.rateLimiter = new RateLimiter(
       options.minSendIntervalMs ?? DEFAULT_MIN_SEND_INTERVAL_MS,
     );
+    this.mapReplyTimeoutMs =
+      options.mapReplyTimeoutMs ?? DEFAULT_MAP_REPLY_TIMEOUT_MS;
   }
 
   /** Public OOB query — cvars only, no password required, no player IPs. */
@@ -165,8 +170,36 @@ export class RconClient {
     return this.rcon(`tell ${clientId} "${message.replace(/"/g, '')}"`);
   }
 
+  /**
+   * Sent **once**, never retried. The server runs `map` and then loads the level before it gets to
+   * its reply, which often doesn't come at all — a retry then starts the load over (seen live on
+   * the dev server 2026-10-07: one Mini App map switch reloaded the map three times and still ended
+   * in a timeout). So a missing reply is checked instead: `getinfo` (retried as usual, which also
+   * waits out the load) says whether the server is on the requested map now. Only if it isn't does
+   * this throw the original timeout.
+   */
   async map(mapName: string): Promise<string> {
-    return this.rcon(`map ${mapName}`);
+    try {
+      const { header, body } = await this.query(
+        `rcon ${this.password} map ${mapName}`,
+        { retries: 0, timeoutMs: this.mapReplyTimeoutMs },
+      );
+      if (header !== 'print') {
+        throw new Error(
+          `Unexpected response header for rcon "map ${mapName}": "${header}"`,
+        );
+      }
+      return body;
+    } catch (error) {
+      if (!(error instanceof UdpQueryTimeoutError)) {
+        throw error;
+      }
+      const info = await this.getInfo();
+      if (info['mapname']?.toLowerCase() === mapName.toLowerCase()) {
+        return '';
+      }
+      throw error;
+    }
   }
 
   /** Map names configured in `sv_mapRotation`, in rotation order — see `parseMapRotation` for why. */
@@ -179,12 +212,15 @@ export class RconClient {
     return parseInstalledMaps(await this.rcon('dir maps/mp d3dbsp'));
   }
 
-  private async query(payload: string) {
+  private async query(
+    payload: string,
+    overrides: { retries?: number; timeoutMs?: number } = {},
+  ) {
     return sendOobQuery(payload, {
       host: this.host,
       port: this.port,
-      timeoutMs: this.timeoutMs,
-      retries: this.retries,
+      timeoutMs: overrides.timeoutMs ?? this.timeoutMs,
+      retries: overrides.retries ?? this.retries,
       retryDelayMs: this.retryDelayMs,
       multiPacketWaitMs: this.multiPacketWaitMs,
       beforeAttempt: () => this.rateLimiter.wait(),
