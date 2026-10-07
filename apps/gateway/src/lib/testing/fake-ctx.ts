@@ -8,6 +8,7 @@ export function createFakeCtx(overrides: Partial<BotContext> = {}): BotContext {
     chat: { id: 100 },
     match: '',
     reply: vi.fn().mockResolvedValue(undefined),
+    replyWithDocument: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }

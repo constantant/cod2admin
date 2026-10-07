@@ -767,6 +767,21 @@ Roles, stored in `admin-store`:
   - **Settings:** `GEOIP_ENABLED=false` turns it off, and `GEOIP_DB_PATH` points at a file the
     admin supplies, with no download. With no database, the bot just shows no countries.
   - **Checked live** against 34 real players: every IP resolved to a country.
+- **Long replies as summary + attached report (implemented 2026-10-07).** With country, city,
+  provider and VPN labels a `/players` line averages ~100 characters (measured on 17 real CTF
+  RUSSIA players), so a full 40-player server lands at Telegram's 4096-character limit and can
+  be rejected outright. `apps/gateway/src/lib/long-reply.ts` now sends `/players`, `/bans`,
+  `/auditlog` and `/rcon` as before when short (up to 12 lines and 1500 characters), and
+  otherwise as a short summary plus the full report as a `.md` file: players per country, VPN
+  count and one short line per player; ban counts and the newest five; the newest five audit
+  entries; the first 20 rcon lines. The file is a Markdown table with everything the bot knows
+  (for `/players`: GUID, IP, location with region, provider with ASN, VPN), a header saying
+  which server, when and which bot version, and the data credits. Telegram shows `.md` as a
+  plain document, not rendered — readable as text, chosen over `.html` on purpose. Moderators
+  get the file too, same as `/players` today. Report cards and `/help` are unchanged.
+  - Found while building it: some players write colour codes doubled (`^^11Mahdi`), which
+    `stripColorCodes` turned into `^1Mahdi`; `/players` now strips both forms for display
+    (`rcon-client` itself is unchanged, since kicks match the raw name).
 - **IP city (implemented 2026-10-07, issue #2, opt-in).** Admins recognise regulars playing under
   a new name by their city. `GEOIP_CITY_ENABLED=true` swaps the country database for DB-IP's free
   "IP to City Lite" (same vendor and license, it includes the country). `/players` and `/bans`

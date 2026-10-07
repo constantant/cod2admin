@@ -82,6 +82,12 @@ this group) with:
 
 Everyone else needs an existing admin to run `/addadmin` for them.
 
+*Long lists*
+
+When `/players`, `/bans`, `/auditlog` or `/rcon` would be a long message, the bot sends a short
+summary and attaches the full list as a `.md` file (a plain-text table: IP, city, provider,
+GUID, reasons…). Open it with any text viewer.
+
 *Multi-server note*
 
 Most commands take an optional `--server <alias>` at the end if this bot manages more than one

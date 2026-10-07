@@ -14,6 +14,7 @@ import {
   describeProviderLong,
   describeProviderShort,
   flagEmoji,
+  formatCountryLong,
   GeoIpDatabase,
   GeoIpUpdater,
   joinCountryAndProvider,
@@ -103,6 +104,12 @@ describe('city database', () => {
 
     expect(describeIpShort(database, '5.167.234.1')).toBe('🇷🇺 RU, Yekaterinburg');
     expect(describeIpLong(database, '5.167.234.1')).toBe('🇷🇺 Russia, Yekaterinburg (Sverdlovsk Oblast)');
+  });
+
+  it('puts the region after a comma when the city name already has brackets', () => {
+    expect(formatCountryLong({ code: 'PL', name: 'Poland', city: 'Warsaw (Mokotów)', region: 'Mazovia' })).toBe(
+      '🇵🇱 Poland, Warsaw (Mokotów), Mazovia',
+    );
   });
 
   it('skips a region that repeats the city, and falls back to the region with no city', () => {

@@ -79,7 +79,9 @@ export function formatCountryLong(country: IpCountry): string {
     return 'LAN';
   }
   const { city, region } = country;
-  const place = city && region && city !== region ? `${city} (${region})` : (city ?? region);
+  // Some city names already end in brackets ("Warsaw (Mokotów)") — then the region goes after a comma.
+  const withRegion = city?.includes('(') ? `${city}, ${region}` : `${city} (${region})`;
+  const place = city && region && city !== region ? withRegion : (city ?? region);
   return `${flagEmoji(country.code)} ${country.name}${place ? `, ${place}` : ''}`;
 }
 

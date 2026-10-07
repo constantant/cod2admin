@@ -1,8 +1,16 @@
 import type { StatusPlayer } from '@cod2admin/rcon-client';
-import { describe, expect, it } from 'vitest';
+import type { InputFile } from 'grammy';
+import { describe, expect, it, vi } from 'vitest';
 import { createFakeCtx } from '../testing/fake-ctx.js';
 import { createFakeDeps } from '../testing/fake-deps.js';
-import { formatPlayersMessage, playersCommand } from './players.js';
+import {
+  displayName,
+  formatPlayersMessage,
+  formatPlayersReport,
+  formatPlayersSummary,
+  playersCommand,
+  type PlayerIpLookups,
+} from './players.js';
 
 const PLAYER: StatusPlayer = { num: 3, score: 5, ping: 42, name: 'PlayerOne', ip: '123.45.67.89' };
 
@@ -67,5 +75,98 @@ describe('playersCommand', () => {
     await playersCommand(ctx, deps);
 
     expect(ctx.reply).toHaveBeenCalledWith(formatPlayersMessage([PLAYER]));
+    expect(ctx.replyWithDocument).not.toHaveBeenCalled();
+  });
+
+  it('sends a full server as a summary plus an attached report, never over the message limit', async () => {
+    const { deps, rcon } = createFakeDeps();
+    const players: StatusPlayer[] = Array.from({ length: 40 }, (_, i) => ({
+      num: i,
+      score: 30,
+      ping: 120,
+      guid: i % 3 === 0 ? String(700000 + i) : '0',
+      name: `^1Very^7LongPlayerName${i}^3!`,
+      ip: `188.19.${i}.200`,
+    }));
+    rcon.status.mockResolvedValue({ raw: '', players, mapName: 'mp_toujane' });
+    deps.geoip = { lookup: () => ({ code: 'RU', name: 'Russia', city: 'Khanty-Mansiysk', region: 'Khanty-Mansia' }) };
+    deps.provider = { lookup: () => 'SOCIETE NATIONALE DES TELECOMMUNICATIONS (Tunisie Telecom)', asn: () => 12389 };
+    const ctx = createFakeCtx();
+
+    await playersCommand(ctx, deps);
+
+    // The old one-message format would be far over Telegram's limit here.
+    expect(formatPlayersMessage(players, deps).length).toBeGreaterThan(4096);
+    const sentTexts = vi.mocked(ctx.reply).mock.calls.map(([text]) => text);
+    const [file, other] = vi.mocked(ctx.replyWithDocument!).mock.calls[0]!;
+    for (const text of [...sentTexts, (other as { caption?: string } | undefined)?.caption ?? '']) {
+      expect(text.length).toBeLessThanOrEqual(4096);
+    }
+    expect((file as InputFile).filename).toMatch(/^players-default-\d{4}-\d{2}-\d{2}-\d{4}\.md$/);
+  });
+});
+
+describe('players summary and report', () => {
+  const CONTEXT = { serverAlias: 'ctfrussia', mapName: 'mp_toujane' };
+  const NOW = new Date('2026-10-07T10:23:00Z');
+  const players: StatusPlayer[] = [
+    { num: 0, score: 36, ping: 74, name: 'hutu boy^7', ip: '178.73.57.1', guid: '951247' },
+    { num: 13, score: 5, ping: 60, name: 'const', ip: '2.27.5.10', guid: '0' },
+    { num: 8, score: 1, ping: 40, name: 'XMAO|SURGUT', ip: '188.19.61.1' },
+  ];
+  const lookups: PlayerIpLookups = {
+    geoip: {
+      lookup: (ip) =>
+        ip.startsWith('188.')
+          ? { code: 'RU', name: 'Russia', city: 'Khanty-Mansiysk', region: 'Khanty-Mansia' }
+          : { code: 'PL', name: 'Poland' },
+    },
+    provider: {
+      lookup: (ip) => (ip.startsWith('2.27.') ? 'Great Flower' : 'PJSC Rostelecom'),
+      asn: (ip) => (ip.startsWith('2.27.') ? 202226 : 12389),
+    },
+    vpn: { lookup: (ip) => (ip.startsWith('2.27.') ? ('provider' as const) : undefined) },
+  };
+
+  it('summarises players by country and VPN, one short line each, without colour codes', () => {
+    expect(formatPlayersSummary(players, lookups, CONTEXT)).toBe(
+      [
+        '3 players · ctfrussia · mp_toujane',
+        '🇵🇱 2  🇷🇺 1',
+        '🛡 1 on VPN/proxy/Tor',
+        '',
+        '#0 hutu boy 🇵🇱',
+        '#13 const 🇵🇱 🛡',
+        '#8 XMAO|SURGUT 🇷🇺',
+        '',
+        'Full details (IP, city, provider, GUID) in the attached file.',
+      ].join('\n'),
+    );
+  });
+
+  it('builds a report table with everything the bot knows, escaping names', () => {
+    const report = formatPlayersReport(players, lookups, CONTEXT, NOW);
+
+    expect(report).toContain('# Players — ctfrussia');
+    expect(report).toContain('- Map: mp_toujane');
+    expect(report).toContain('| # | Name | Score | Ping | GUID | IP | Location | Provider | VPN |');
+    expect(report).toContain('| 0 | hutu boy | 36 | 74 | 951247 | 178.73.57.1 | 🇵🇱 Poland | PJSC Rostelecom (AS12389) | — |');
+    expect(report).toContain('| 13 | const | 5 | 60 | 0 | 2.27.5.10 | 🇵🇱 Poland | Great Flower (AS202226) | 🛡 VPN (provider on /vpnnets) |');
+    expect(report).toContain('| 8 | XMAO\\|SURGUT | 1 | 40 | 0 | 188.19.61.1 | 🇷🇺 Russia, Khanty-Mansiysk (Khanty-Mansia) |');
+    expect(report).toContain('DB-IP.com');
+  });
+
+  it('strips colour codes from names in the plain list too', () => {
+    expect(formatPlayersMessage([{ ...PLAYER, name: '^3Ala^5ddin^7' }])).toBe(
+      '#3 Aladdin — score 5, ping 42, ip 123.45.67.89',
+    );
+  });
+
+  it.each([
+    ['^^11Mahdi^^22EniGmA^7', 'MahdiEniGmA'],
+    ['^^00Pjoter^^99x^^11D^7', 'PjoterxD'],
+    ['^7', 'client 3'],
+  ])('strips doubled colour codes: %s → %s', (name, expected) => {
+    expect(displayName({ ...PLAYER, name })).toBe(expected);
   });
 });

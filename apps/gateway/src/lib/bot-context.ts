@@ -1,4 +1,5 @@
 import type { AdminRole } from '@cod2admin/admin-store';
+import type { InputFile } from 'grammy';
 
 /**
  * Structural subset of grammy's `Context` that command handlers actually use. Handlers accept
@@ -17,6 +18,11 @@ export interface BotContext {
   /** Set by `requireRole` (auth.ts) once the actor is looked up — undefined before that runs. */
   admin?: { telegramId: number; role: AdminRole; username?: string; firstName?: string };
   reply(text: string, other?: unknown): Promise<unknown>;
+  /**
+   * Sends a file — grammy's `ctx.replyWithDocument()`, used by long-reply.ts for reports. Optional
+   * so hand-built contexts can omit it; without it a long reply falls back to its summary.
+   */
+  replyWithDocument?(document: InputFile, other?: { caption?: string }): Promise<unknown>;
   /** Deletes the message that triggered this update — grammy's `ctx.deleteMessage()`. */
   deleteMessage?(): Promise<unknown>;
 }
