@@ -35,6 +35,7 @@ describe('formatPlayersMessage', () => {
     const provider = {
       lookup: (ip: string) =>
         ip === '123.45.67.89' ? 'PJSC Rostelecom' : 'SOCIETE NATIONALE DES TELECOMMUNICATIONS (Tunisie Telecom)',
+      asn: () => undefined,
     };
     const vpn = { lookup: (ip: string) => (ip === '9.9.9.9' ? ('hosting' as const) : undefined) };
 
@@ -47,7 +48,7 @@ describe('formatPlayersMessage', () => {
   });
 
   it('shows the provider alone when the country is unknown', () => {
-    const provider = { lookup: () => 'OBIT Ltd.' };
+    const provider = { lookup: () => 'OBIT Ltd.', asn: () => 8492 };
 
     expect(formatPlayersMessage([PLAYER], { provider })).toBe('#3 PlayerOne — score 5, ping 42, ip 123.45.67.89 OBIT Ltd.');
   });

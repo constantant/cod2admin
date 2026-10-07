@@ -36,7 +36,13 @@ import { startReportTailers } from './lib/report-tailers.js';
 import { ReportRegistry } from './lib/reports.js';
 import { checkPendingUpdateOnBoot } from './lib/update-boot-check.js';
 import { UpdateRegistry } from './lib/update-registry.js';
-import { NO_VPN_LOOKUP, VpnListUpdater, VpnRangeDatabase } from './lib/vpn-ranges.js';
+import {
+  NO_VPN_LOOKUP,
+  parseVpnNetworks,
+  VPN_NETWORKS_SETTING_KEY,
+  VpnListUpdater,
+  VpnRangeDatabase,
+} from './lib/vpn-ranges.js';
 import { startVersionCheckPoller } from './lib/version-check-poller.js';
 
 const config = loadConfig();
@@ -116,8 +122,12 @@ if (config.geoip.enabled) {
 }
 
 // VPN/proxy/Tor flags (lib/vpn-ranges.ts) — public lists, kept next to the country database.
-const vpnDatabase = new VpnRangeDatabase();
+// Also flags provider networks admins named with /vpnnets, matched through the ASN database above.
+const vpnDatabase = new VpnRangeDatabase((ip) => asnDatabase.asn(ip));
 if (config.vpnFlag.enabled) {
+  vpnDatabase.setNetworks(
+    parseVpnNetworks(await adminStore.getSetting(VPN_NETWORKS_SETTING_KEY)).map((network) => network.asn),
+  );
   const vpnUpdater = new VpnListUpdater({
     database: vpnDatabase,
     dir: path.join(config.updateStagingDir ?? tmpdir(), 'vpn-lists'),

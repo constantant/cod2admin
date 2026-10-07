@@ -7,7 +7,7 @@ import type { GithubReleaseClient } from './github-releases.js';
 import type { RouteProbeResult, TelegramRouter, TelegramRouteSettings } from './telegram-routes.js';
 import type { ReportRegistry } from './reports.js';
 import type { UpdateRegistry } from './update-registry.js';
-import type { VpnLookup } from './vpn-ranges.js';
+import type { VpnFlags } from './vpn-ranges.js';
 
 /**
  * Self-update (docs/PLAN.md §13.2/§13.3) config, derived from `GatewayConfig.updateStagingDir` in
@@ -39,8 +39,8 @@ export interface GatewayDeps {
   geoip: CountryLookup;
   /** IP → provider (ISP/hosting company) for `/players` and report cards — `NO_PROVIDER_LOOKUP` when off. */
   provider: ProviderLookup;
-  /** IP → VPN/proxy/Tor flag for `/players` and report cards — `NO_VPN_LOOKUP` when off. */
-  vpn: VpnLookup;
+  /** IP → VPN/proxy/Tor flag for `/players` and report cards — `NO_VPN_LOOKUP` when off. `/vpnnets` updates it. */
+  vpn: VpnFlags;
   /** How the bot reaches Telegram (telegram-routes.ts) — managed with `/relays`. */
   telegramRoutes: {
     router: TelegramRouter;

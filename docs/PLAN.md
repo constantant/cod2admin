@@ -790,6 +790,15 @@ Roles, stored in `admin-store`:
   - **Baseline (2026-10-07):** a one-off offline check of the 12 players then on CTF RUSSIA
     flagged none; all were on home or mobile ISPs.
   - **Settings:** `VPN_FLAG_ENABLED=false` turns the flag and its downloads off.
+  - **Provider networks (`/vpnnets`, 2026-10-07).** The lists missed a real VPN: the owner joined
+    CTF RUSSIA through one, and its IP (AS202226, "Emil Vitukhnovskii trading as Great Flower")
+    was on neither X4BNet list. FireHOL's `firehol_proxies` did list it, and none of the other 13
+    players, but at ~2.5M entries it was judged too heavy for the NAS and too prone to marking
+    infected home PCs. Instead admins mark whole provider networks (ASNs) with `/vpnnets add
+    <player IP or ASN>`; an IP is resolved through the ASN database, so this needs
+    `GEOIP_ENABLED`. Stored in the `vpn.networks` setting, applied without a restart, audited.
+    Shown as `🛡 VPN` in `/players` and `🛡 VPN (provider on /vpnnets)` on report cards; it
+    outranks the broad `hosting` list. Like the rest of the VPN flag, nothing kicks on it.
 
 ## 7. Data model (sketch)
 

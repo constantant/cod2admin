@@ -45,6 +45,9 @@ exact map name for `/map` is inconvenient
 `/say <message> [--server <alias>]` — broadcasts to the game server's chat
 `/bindserver <alias>` — makes *this* chat receive report cards for that server
 `/setdefault <alias>` — which server commands without `--server` go to
+`/vpnnets` — provider networks shown as 🛡 VPN, for VPNs the built-in lists miss.
+`/vpnnets add <player IP or ASN>` marks the whole network of that IP (e.g. a VPN player's IP
+from `/players`); `/vpnnets remove <ASN>` unmarks it. Only a mark — nobody is kicked for it
 `/addadmin <telegram-id-or-reply> <admin|moderator>` — reply to the person's message, or give
 their numeric Telegram ID; only the owner can grant `admin`, an admin can grant `moderator`
 `/removeadmin <telegram-id-or-reply>`

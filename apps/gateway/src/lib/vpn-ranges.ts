@@ -8,21 +8,60 @@ import path from 'node:path';
  *
  * Offline for the same reason as geoip.ts: the bot downloads public lists itself and refreshes
  * them, so no player IP is ever sent to a lookup service. They only catch VPNs that run on data
- * centre servers (most commercial ones), not ones that route through home connections.
+ * centre servers (most commercial ones), not ones that route through home connections — so admins
+ * can also name whole provider networks (ASNs) as VPNs with `/vpnnets`, which the lists missed
+ * (e.g. AS202226, found live on CTF RUSSIA 2026-10-07).
  */
 
-/** `tor` — a Tor exit node; `vpn` — a known VPN range; `hosting` — a data centre, likely a VPN or proxy. */
-export type VpnKind = 'tor' | 'vpn' | 'hosting';
+/**
+ * `tor` — a Tor exit node; `vpn` — a known VPN range; `provider` — a network an admin named as a
+ * VPN with `/vpnnets`; `hosting` — a data centre, likely a VPN or proxy.
+ */
+export type VpnKind = 'tor' | 'vpn' | 'provider' | 'hosting';
+
+/** The kinds that come from a downloaded list (`provider` comes from `/vpnnets` instead). */
+export type VpnListKind = Exclude<VpnKind, 'provider'>;
 
 export interface VpnLookup {
   lookup(ip: string): VpnKind | undefined;
 }
 
-/** Used when the feature is off or no list could be loaded yet — flags nothing. */
-export const NO_VPN_LOOKUP: VpnLookup = { lookup: () => undefined };
+/** What the gateway holds: a lookup whose `/vpnnets` networks can be changed while it runs. */
+export interface VpnFlags extends VpnLookup {
+  setNetworks(asns: Iterable<number>): void;
+}
 
-/** The public lists, most specific first — an IP on several gets the first one's kind. */
-export const VPN_LISTS: readonly { kind: VpnKind; url: string }[] = [
+/** Used when the feature is off — flags nothing, and ignores `/vpnnets` changes. */
+export const NO_VPN_LOOKUP: VpnFlags = { lookup: () => undefined, setNetworks: () => undefined };
+
+/** Where `/vpnnets` keeps its networks (admin-store settings). */
+export const VPN_NETWORKS_SETTING_KEY = 'vpn.networks';
+
+/** A provider network named as a VPN. `name` is the provider when it was added by IP. */
+export interface VpnNetwork {
+  asn: number;
+  name?: string;
+}
+
+/** Reads the stored `/vpnnets` setting, dropping anything malformed. */
+export function parseVpnNetworks(value: unknown): VpnNetwork[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((entry: unknown): VpnNetwork[] => {
+    if (typeof entry !== 'object' || entry === null) {
+      return [];
+    }
+    const { asn, name } = entry as { asn?: unknown; name?: unknown };
+    if (typeof asn !== 'number' || !Number.isInteger(asn) || asn <= 0) {
+      return [];
+    }
+    return [typeof name === 'string' && name ? { asn, name } : { asn }];
+  });
+}
+
+/** The downloaded lists — an IP on several gets the first one's kind (`provider` sits before `hosting`). */
+export const VPN_LISTS: readonly { kind: VpnListKind; url: string }[] = [
   { kind: 'tor', url: 'https://check.torproject.org/torbulkexitlist' },
   { kind: 'vpn', url: 'https://raw.githubusercontent.com/X4BNet/lists_vpn/main/output/vpn/ipv4.txt' },
   { kind: 'hosting', url: 'https://raw.githubusercontent.com/X4BNet/lists_vpn/main/output/datacenter/ipv4.txt' },
@@ -109,27 +148,57 @@ export class IpRangeSet {
   }
 }
 
-/** A `VpnLookup` whose lists can be swapped while the bot runs (periodic refresh). */
-export class VpnRangeDatabase implements VpnLookup {
-  private readonly sets = new Map<VpnKind, IpRangeSet>();
+/** Most specific first: a VPN network named by an admin outranks the broad "hosting" list. */
+const LOOKUP_ORDER: readonly VpnKind[] = ['tor', 'vpn', 'provider', 'hosting'];
+
+/**
+ * A `VpnLookup` whose lists (periodic refresh) and `/vpnnets` networks can be swapped while the
+ * bot runs. `asnOf` maps an IP to its provider network — the ASN database's lookup.
+ */
+export class VpnRangeDatabase implements VpnFlags {
+  private readonly sets = new Map<VpnListKind, IpRangeSet>();
+  private networks: ReadonlySet<number> = new Set();
+
+  constructor(private readonly asnOf: (ip: string) => number | undefined = () => undefined) {}
 
   get loaded(): boolean {
     return this.sets.size > 0;
   }
 
-  setList(kind: VpnKind, set: IpRangeSet): void {
+  setList(kind: VpnListKind, set: IpRangeSet): void {
     this.sets.set(kind, set);
   }
 
+  setNetworks(asns: Iterable<number>): void {
+    this.networks = new Set(asns);
+  }
+
   lookup(ip: string): VpnKind | undefined {
-    return VPN_LISTS.find(({ kind }) => this.sets.get(kind)?.has(ip))?.kind;
+    return LOOKUP_ORDER.find((kind) => this.matches(kind, ip));
+  }
+
+  private matches(kind: VpnKind, ip: string): boolean {
+    if (kind !== 'provider') {
+      return this.sets.get(kind)?.has(ip) ?? false;
+    }
+    if (this.networks.size === 0) {
+      return false;
+    }
+    const asn = this.asnOf(ip);
+    return asn !== undefined && this.networks.has(asn);
   }
 }
 
-const SHORT_LABELS: Record<VpnKind, string> = { tor: '🛡 Tor', vpn: '🛡 VPN', hosting: '🛡 hosting' };
+const SHORT_LABELS: Record<VpnKind, string> = {
+  tor: '🛡 Tor',
+  vpn: '🛡 VPN',
+  provider: '🛡 VPN',
+  hosting: '🛡 hosting',
+};
 const LONG_LABELS: Record<VpnKind, string> = {
   tor: '🛡 Tor exit',
   vpn: '🛡 VPN',
+  provider: '🛡 VPN (provider on /vpnnets)',
   hosting: '🛡 hosting IP (likely VPN/proxy)',
 };
 
@@ -210,7 +279,7 @@ export class VpnListUpdater {
     }
   }
 
-  private async checkList(kind: VpnKind, url: string): Promise<void> {
+  private async checkList(kind: VpnListKind, url: string): Promise<void> {
     const filePath = path.join(this.options.dir, `${kind}.txt`);
     const fileStat = await stat(filePath).catch(() => undefined);
     let loaded = false;

@@ -101,8 +101,14 @@ describe('AsnDatabase and provider labels', () => {
     return database;
   }
 
-  it('returns the provider name for a public IP', () => {
-    expect(asnWith({ '188.19.61.1': 'PJSC Rostelecom' }).lookup('188.19.61.1')).toBe('PJSC Rostelecom');
+  it('returns the provider name and network number for a public IP', () => {
+    const database = asnWith({ '188.19.61.1': 'PJSC Rostelecom' });
+
+    expect(database.lookup('188.19.61.1')).toBe('PJSC Rostelecom');
+    expect(database.asn('188.19.61.1')).toBe(1);
+    expect(database.asn('10.0.0.5')).toBeUndefined();
+    expect(database.asn('8.8.8.8')).toBeUndefined();
+    expect(NO_PROVIDER_LOOKUP.asn('188.19.61.1')).toBeUndefined();
   });
 
   it('returns nothing for private, unknown, invalid or blank-named IPs, or before loading', () => {

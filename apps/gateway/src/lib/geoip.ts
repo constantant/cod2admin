@@ -121,10 +121,12 @@ export function parseCountryDatabase(buffer: Buffer): CountryReader {
 /** IP → the provider (ISP or hosting company) that owns it, e.g. "PJSC Rostelecom". */
 export interface ProviderLookup {
   lookup(ip: string): string | undefined;
+  /** The provider's network number (ASN), e.g. 12389 — what `/vpnnets` matches on. */
+  asn(ip: string): number | undefined;
 }
 
 /** Used when the feature is off or no database could be loaded yet — shows nothing extra. */
-export const NO_PROVIDER_LOOKUP: ProviderLookup = { lookup: () => undefined };
+export const NO_PROVIDER_LOOKUP: ProviderLookup = { lookup: () => undefined, asn: () => undefined };
 
 /** The slice of maxmind's `Reader` this needs — lets tests use a fake instead of a real .mmdb. */
 export interface AsnReader {
@@ -144,12 +146,20 @@ export class AsnDatabase implements ProviderLookup {
   }
 
   lookup(ip: string): string | undefined {
+    return this.record(ip)?.autonomous_system_organization?.trim() || undefined;
+  }
+
+  asn(ip: string): number | undefined {
+    return this.record(ip)?.autonomous_system_number || undefined;
+  }
+
+  private record(ip: string): AsnResponse | undefined {
     // Same guards as GeoIpDatabase.lookup; a private address has no provider worth showing.
     if (!IPV4_PATTERN.test(ip) || isPrivateIpv4(ip) || !this.reader) {
       return undefined;
     }
     try {
-      return this.reader.get(ip)?.autonomous_system_organization?.trim() || undefined;
+      return this.reader.get(ip) ?? undefined;
     } catch {
       return undefined;
     }

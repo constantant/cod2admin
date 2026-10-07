@@ -8,10 +8,11 @@ import {
   IpRangeSet,
   joinIpLabels,
   NO_VPN_LOOKUP,
+  parseVpnNetworks,
   VPN_LISTS,
   VpnListUpdater,
   VpnRangeDatabase,
-  type VpnKind,
+  type VpnListKind,
 } from './vpn-ranges.js';
 
 describe('IpRangeSet', () => {
@@ -84,6 +85,36 @@ describe('VpnRangeDatabase and labels', () => {
     expect(describeVpnShort(NO_VPN_LOOKUP, '45.0.0.1')).toBeUndefined();
   });
 
+  it('flags provider networks named with /vpnnets, ahead of the hosting list', () => {
+    const asns: Record<string, number> = { '2.27.5.10': 202226, '5.9.11.1': 24940, '188.19.61.1': 12389 };
+    const db = new VpnRangeDatabase((ip) => asns[ip]);
+    db.setList('tor', IpRangeSet.parse('5.9.10.10'));
+    db.setList('hosting', IpRangeSet.parse('5.9.0.0/16'));
+    db.setNetworks([202226, 24940]);
+
+    expect(db.lookup('2.27.5.10')).toBe('provider');
+    expect(db.lookup('5.9.11.1')).toBe('provider');
+    expect(db.lookup('5.9.10.10')).toBe('tor');
+    expect(db.lookup('188.19.61.1')).toBeUndefined();
+    expect(describeVpnShort(db, '2.27.5.10')).toBe('🛡 VPN');
+    expect(describeVpnLong(db, '2.27.5.10')).toBe('🛡 VPN (provider on /vpnnets)');
+
+    db.setNetworks([]);
+    expect(db.lookup('2.27.5.10')).toBeUndefined();
+    expect(db.lookup('5.9.11.1')).toBe('hosting');
+  });
+
+  it('reads the stored /vpnnets setting, dropping malformed entries', () => {
+    expect(parseVpnNetworks([{ asn: 202226, name: 'Great Flower' }, { asn: 9009 }, { asn: 9010, name: '' }])).toEqual([
+      { asn: 202226, name: 'Great Flower' },
+      { asn: 9009 },
+      { asn: 9010 },
+    ]);
+    expect(parseVpnNetworks([{ asn: '1' }, { asn: -5 }, { asn: 1.5 }, null, 'AS1'])).toEqual([]);
+    expect(parseVpnNetworks(undefined)).toEqual([]);
+    expect(parseVpnNetworks({ asn: 1 })).toEqual([]);
+  });
+
   it('joins only the labels that are known', () => {
     expect(joinIpLabels('🇳🇱 NL', '🛡 VPN')).toBe('🇳🇱 NL 🛡 VPN');
     expect(joinIpLabels(undefined, '🛡 VPN')).toBe('🛡 VPN');
@@ -95,7 +126,7 @@ describe('VpnRangeDatabase and labels', () => {
 describe('VpnListUpdater', () => {
   const NOW = new Date('2026-10-07T12:00:00Z');
   /** A list big enough to pass the "real list" size check, with one recognisable range per kind. */
-  const LIST_TEXT: Record<VpnKind, string> = {
+  const LIST_TEXT: Record<VpnListKind, string> = {
     tor: listOf('171.25.193.20'),
     vpn: listOf('45.0.0.1'),
     hosting: listOf('5.9.0.0/16'),
