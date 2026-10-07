@@ -1,3 +1,20 @@
+## [1.13.0](https://github.com/constantant/cod2admin/releases/tag/v1.13.0) (2026-10-07)
+
+### 🚀 Features
+
+- **admin-store:** add a miniapp audit source ([244843c](https://github.com/constantant/cod2admin/commit/244843c))
+- **ban-store:** search, read and edit bans ([e090d96](https://github.com/constantant/cod2admin/commit/e090d96))
+- **gateway:** serve the Telegram Mini App API alongside the bot ([a3120da](https://github.com/constantant/cod2admin/commit/a3120da))
+- **installer:** set up HTTPS for the Mini App with Caddy ([1cc5bbe](https://github.com/constantant/cod2admin/commit/1cc5bbe))
+- **log-tailer:** read recent chat from the end of the game log ([3712bd6](https://github.com/constantant/cod2admin/commit/3712bd6))
+- **miniapp-web:** add the Telegram Mini App server manager ([ec9d255](https://github.com/constantant/cod2admin/commit/ec9d255))
+- **rcon-client:** add tell() for private messages to one player ([27578ee](https://github.com/constantant/cod2admin/commit/27578ee))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5 (1M context)
+- kk
+
 ## [1.12.0](https://github.com/constantant/cod2admin/releases/tag/v1.12.0) (2026-10-07)
 
 ### 🚀 Features
