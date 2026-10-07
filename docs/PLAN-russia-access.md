@@ -33,8 +33,13 @@ also worked through each one.
 - **Routes in the gateway** (`apps/gateway/src/lib/telegram-routes.ts`): an ordered list, with
   direct access first, then relays. At startup the gateway picks the first route that answers
   `getMe`. Every request uses the current route, via grammy's `buildUrl`.
-  - **Failover:** when a request fails with a network error, the gateway moves to the next route
-    and retries.
+  - **Failover:** when a request fails with a network error, the gateway checks the route with
+    `getMe`. Only if that fails too does it move to the next route; either way it retries once.
+    - **Changed 2026-10-07:** it used to switch on any single failed request. A bot on the NAS
+      (outside Russia, with working direct access) switched routes 116 times in 3 days on
+      network blips. It then polled through a relay until the 30-minute check moved it back, and
+      used up the shared relays' free quotas. That bot now runs direct-only (`/relays` setting
+      `{"direct":true,"relays":[]}`) until it gets this fix.
   - **Returning to direct:** every 30 minutes it checks whether an earlier route (e.g. direct)
     works again.
 - **Managed from Telegram:** `/relays` (owner-only) shows, tests, adds (only after the relay

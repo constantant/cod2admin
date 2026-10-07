@@ -134,14 +134,39 @@ export function isRouteFailure(error: unknown): boolean {
   return error instanceof GrammyError && error.error_code >= 500;
 }
 
-/** grammy API transformer: on a route failure, switch routes and retry the call once. */
-export function failoverTransformer(router: TelegramRouter): Transformer {
+/**
+ * grammy API transformer: on a route failure, check the route with `probe` and switch routes only
+ * if that fails too, then retry the call once. One failed request isn't a dead route: switching on
+ * every network blip moved bots that can reach Telegram directly onto the shared relays for up to
+ * 30 minutes at a time (until `startPreferredRouteCheck` moved them back), and used up the relays'
+ * free quotas. Requests failing together share one check.
+ */
+export function failoverTransformer(
+  router: TelegramRouter,
+  probe: (root: string) => Promise<RouteProbeResult>,
+): Transformer {
+  const checks = new Map<string, Promise<boolean>>();
+  const routeWorks = (root: string): Promise<boolean> => {
+    let check = checks.get(root);
+    if (!check) {
+      // A rejected token still means the request reached Telegram, so the route itself works.
+      check = probe(root)
+        .then((result) => result.ok || result.unauthorized === true)
+        .finally(() => checks.delete(root));
+      checks.set(root, check);
+    }
+    return check;
+  };
+
   return async (prev, method, payload, signal) => {
     const root = router.current;
     try {
       return await prev(method, payload, signal);
     } catch (error) {
-      if (signal?.aborted || !isRouteFailure(error) || !router.failover(root)) {
+      if (signal?.aborted || !isRouteFailure(error)) {
+        throw error;
+      }
+      if (!(await routeWorks(root)) && !router.failover(root)) {
         throw error;
       }
       return prev(method, payload, signal);

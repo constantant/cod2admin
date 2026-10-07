@@ -92,7 +92,11 @@ describe('TelegramRouter', () => {
 });
 
 describe('failoverTransformer', () => {
-  it('retries a network failure on the next route', async () => {
+  // Plain functions: wrapping a shared vi.fn() in vi.fn() would share its call history across tests.
+  const down = async (): Promise<RouteProbeResult> => ({ ok: false, error: 'timeout' });
+  const up = async (): Promise<RouteProbeResult> => ({ ok: true, ms: 50, username: 'b' });
+
+  it('fails over to the next route when the check confirms the route is down', async () => {
     const router = new TelegramRouter([DIRECT_TELEGRAM_ROOT, RELAY_A], quiet);
     const usedRoutes: string[] = [];
     const prev = vi.fn(async () => {
@@ -103,10 +107,56 @@ describe('failoverTransformer', () => {
       return { ok: true as const, result: true };
     });
 
-    const result = await failoverTransformer(router)(prev as never, 'getMe', {} as never);
+    const result = await failoverTransformer(router, down)(prev as never, 'getMe', {} as never);
 
     expect(result).toEqual({ ok: true, result: true });
     expect(usedRoutes).toEqual([DIRECT_TELEGRAM_ROOT, RELAY_A]);
+  });
+
+  it('stays on a route that still works after a one-off failure, and retries there', async () => {
+    const router = new TelegramRouter([DIRECT_TELEGRAM_ROOT, RELAY_A], quiet);
+    const probe = vi.fn(up);
+    const prev = vi.fn().mockRejectedValueOnce(networkError()).mockResolvedValueOnce({ ok: true, result: true });
+
+    await expect(failoverTransformer(router, probe)(prev as never, 'getUpdates', {} as never)).resolves.toEqual({ ok: true, result: true });
+
+    expect(probe).toHaveBeenCalledWith(DIRECT_TELEGRAM_ROOT);
+    expect(router.current).toBe(DIRECT_TELEGRAM_ROOT);
+    expect(prev).toHaveBeenCalledTimes(2);
+  });
+
+  it('counts a rejected token as a working route, since the request reached Telegram', async () => {
+    const router = new TelegramRouter([DIRECT_TELEGRAM_ROOT, RELAY_A], quiet);
+    const probe = vi.fn(async (): Promise<RouteProbeResult> => ({ ok: false, error: 'rejected', unauthorized: true }));
+    const prev = vi.fn().mockRejectedValueOnce(networkError()).mockResolvedValueOnce({ ok: true, result: true });
+
+    await failoverTransformer(router, probe)(prev as never, 'getMe', {} as never);
+
+    expect(router.current).toBe(DIRECT_TELEGRAM_ROOT);
+  });
+
+  it('checks a route once for requests that fail together', async () => {
+    const router = new TelegramRouter([DIRECT_TELEGRAM_ROOT, RELAY_A], quiet);
+    const probe = vi.fn(up);
+    const prev = vi
+      .fn()
+      .mockRejectedValueOnce(networkError())
+      .mockRejectedValueOnce(networkError())
+      .mockResolvedValue({ ok: true, result: true });
+    const transformer = failoverTransformer(router, probe);
+
+    await Promise.all([transformer(prev as never, 'getUpdates', {} as never), transformer(prev as never, 'sendMessage', {} as never)]);
+
+    expect(probe).toHaveBeenCalledOnce();
+  });
+
+  it('rethrows when the only route is down', async () => {
+    const router = new TelegramRouter([DIRECT_TELEGRAM_ROOT], quiet);
+    const failure = networkError();
+    const prev = vi.fn().mockRejectedValue(failure);
+
+    await expect(failoverTransformer(router, down)(prev as never, 'getMe', {} as never)).rejects.toBe(failure);
+    expect(prev).toHaveBeenCalledOnce();
   });
 
   it('treats a relay answering with non-JSON or a 5xx as a route failure', async () => {
@@ -114,7 +164,7 @@ describe('failoverTransformer', () => {
       const router = new TelegramRouter([RELAY_A, RELAY_B], quiet);
       const prev = vi.fn().mockRejectedValueOnce(error).mockResolvedValueOnce({ ok: true, result: true });
 
-      await failoverTransformer(router)(prev as never, 'getMe', {} as never);
+      await failoverTransformer(router, down)(prev as never, 'getMe', {} as never);
 
       expect(router.current).toBe(RELAY_B);
     }
@@ -124,10 +174,12 @@ describe('failoverTransformer', () => {
     const router = new TelegramRouter([DIRECT_TELEGRAM_ROOT, RELAY_A], quiet);
     const apiError = new GrammyError('x', { ok: false, error_code: 400, description: 'Bad Request: chat not found' }, 'sendMessage', {});
     const prev = vi.fn().mockRejectedValue(apiError);
+    const probe = vi.fn(down);
 
-    await expect(failoverTransformer(router)(prev as never, 'sendMessage', {} as never)).rejects.toBe(apiError);
+    await expect(failoverTransformer(router, probe)(prev as never, 'sendMessage', {} as never)).rejects.toBe(apiError);
     expect(router.current).toBe(DIRECT_TELEGRAM_ROOT);
     expect(prev).toHaveBeenCalledOnce();
+    expect(probe).not.toHaveBeenCalled();
   });
 
   it('does not fail over when the request was cancelled (e.g. the bot is stopping)', async () => {
@@ -136,7 +188,7 @@ describe('failoverTransformer', () => {
     controller.abort();
     const prev = vi.fn().mockRejectedValue(networkError());
 
-    await expect(failoverTransformer(router)(prev as never, 'getUpdates', {} as never, controller.signal as never)).rejects.toBeInstanceOf(HttpError);
+    await expect(failoverTransformer(router, down)(prev as never, 'getUpdates', {} as never, controller.signal as never)).rejects.toBeInstanceOf(HttpError);
     expect(router.current).toBe(DIRECT_TELEGRAM_ROOT);
   });
 });

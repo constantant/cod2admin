@@ -32,7 +32,7 @@ import { updateActionCallback, updateCommand, type UpdateCallbackContext } from 
 import type { GatewayConfig } from './config.js';
 import type { GatewayDeps } from './deps.js';
 import { describeIpLong } from './geoip.js';
-import { failoverTransformer } from './telegram-routes.js';
+import { failoverTransformer, probeRoute } from './telegram-routes.js';
 
 /**
  * Phase 2 Telegram bot (docs/PLAN.md §9): role-gated (owner/admin/moderator), multi-server,
@@ -114,7 +114,7 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
       baseFetchConfig: { agent: new Agent({ keepAlive: false }) },
     },
   });
-  bot.api.config.use(failoverTransformer(router));
+  bot.api.config.use(failoverTransformer(router, (root) => probeRoute(root, config.telegramBotToken)));
 
   const requireOwner = requireRole('owner', deps.adminStore);
   const requireAdmin = requireRole('admin', deps.adminStore);
