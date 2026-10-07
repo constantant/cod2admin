@@ -179,6 +179,31 @@ dedicated servers:
     is a cracked 1.3 build, not CoD2x. Moving CTF RUSSIA to CoD2x would force all its players
     onto 1.3 + CoD2x, so that's the owner's decision. Until then, IP bans stay its main
     mechanism.
+  - **`dumpuser` on a stock server (checked 2026-10-07, dev server, one CoD2x client).** RCON
+    `dumpuser` prints a player's userinfo. Facts found:
+    - It takes a **name, not a slot**: `dumpuser 0` says `Player 0 is not on the server` while
+      slot 0 is occupied.
+    - The name is matched **without color codes**: `status` shows `const^7`, and only
+      `dumpuser const` works. Callers must strip `^N` first, and names that differ only by
+      color can't be told apart.
+    - A CoD2x client sends its HWID **even to a stock server**: userinfo had `cl_hwid
+      2031228850`, `cl_hwid2 <32 hex chars>` and `protocol_cod2x 6`. The stock server ignores
+      them (`status` still shows GUID 0) but passes them through `dumpuser`. So the bot could
+      ban CoD2x players by HWID with no server patch: store the HWID with the ban and kick on a
+      match in the enforcement sweep. Same trust level as CoD2x itself (client-reported, can be
+      faked).
+    - The rest of userinfo is `cg_predictItems`, `cl_punkbuster`, `cl_voice`, `cl_wwwDownload`,
+      `rate`, `snaps` and `name`: a few mostly default values. A non-CoD2x player's userinfo is
+      too uniform to fingerprint players from.
+    - **CTF RUSSIA (checked 2026-10-07, 15 players online, 14 dumped).** Its `getstatus` says 1.0
+      (protocol 115), but it also accepts 1.3 clients: one player's userinfo had `protocol 118`,
+      another's `protocol 115`. 2 of the 14 sent `cl_hwid`/`cl_hwid2` (`protocol_cod2x` 4 and
+      6), and both had GUID 0. 4 of 15 had a real GUID. So an HWID ban via `dumpuser` would
+      cover about 1 in 7 players there, about 6 in 15 together with real GUIDs; the rest stay
+      on IP bans. Everyone else's userinfo was near-identical (`cl_anonymous 0`, `cl_voice 1`,
+      `rate 25000`, `snaps 30`, sometimes `cg_predictItems`/`cl_punkbuster`/`cl_wwwDownload`).
+      One `dumpuser` by name found no player, most likely because they left after `status`, so
+      callers must handle a miss.
 - Game events (connect/disconnect/chat/kills) are written to
   `$fs_homepath/main/games_mp.log`. This is the standard integration point for detecting the
   `!report <name>` chat trigger when running vanilla CoD2.
