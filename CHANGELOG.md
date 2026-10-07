@@ -1,3 +1,14 @@
+## [1.9.1](https://github.com/constantant/cod2admin/releases/tag/v1.9.1) (2026-10-07)
+
+### 🩹 Fixes
+
+- **gateway:** make /help and /help_ru send again ([6d2e88d](https://github.com/constantant/cod2admin/commit/6d2e88d))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5 (1M context)
+- kk
+
 ## [1.9.0](https://github.com/constantant/cod2admin/releases/tag/v1.9.0) (2026-10-07)
 
 ### 🚀 Features
