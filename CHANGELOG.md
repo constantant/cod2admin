@@ -1,3 +1,14 @@
+## [1.12.0](https://github.com/constantant/cod2admin/releases/tag/v1.12.0) (2026-10-07)
+
+### 🚀 Features
+
+- **gateway:** show every installed map in /maps and check /map names ([c967d00](https://github.com/constantant/cod2admin/commit/c967d00))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5 (1M context)
+- kk
+
 ## [1.11.0](https://github.com/constantant/cod2admin/releases/tag/v1.11.0) (2026-10-07)
 
 ### 🚀 Features
