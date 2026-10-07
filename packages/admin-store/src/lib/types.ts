@@ -38,7 +38,8 @@ export interface UpsertServerInput {
 }
 
 /** `miniapp`: an action taken from the Telegram Mini App (docs/PLAN-miniapp.md §7). */
-export type AuditSource = 'telegram_button' | 'telegram_command' | 'auto' | 'miniapp';
+export type AuditSource =
+  'telegram_button' | 'telegram_command' | 'auto' | 'miniapp';
 
 export interface AuditLogEntry {
   id: number;
@@ -109,7 +110,11 @@ export interface AdminStore {
    * structured GUID/IP, so that's the only identity this can match on regardless of the report's
    * own GUID/IP correlation rule (§2.4).
    */
-  listAuditLogForTarget(serverAlias: string, targetName: string, limit: number): Promise<AuditLogEntry[]>;
+  listAuditLogForTarget(
+    serverAlias: string,
+    targetName: string,
+    limit: number,
+  ): Promise<AuditLogEntry[]>;
 
   close(): Promise<void>;
 }

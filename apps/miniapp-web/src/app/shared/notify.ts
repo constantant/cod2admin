@@ -1,6 +1,15 @@
-import { ChangeDetectionStrategy, Component, inject, Injectable } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  Injectable,
+} from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { MAT_DIALOG_DATA, MatDialog, MatDialogModule } from '@angular/material/dialog';
+import {
+  MAT_DIALOG_DATA,
+  MatDialog,
+  MatDialogModule,
+} from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 import { toApiFailure } from '../core/api';
@@ -22,7 +31,13 @@ export interface ConfirmData {
     <mat-dialog-content>{{ data.message }}</mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button [mat-dialog-close]="false">Cancel</button>
-      <button mat-flat-button [class.danger]="data.danger" [mat-dialog-close]="true">{{ data.confirm }}</button>
+      <button
+        mat-flat-button
+        [class.danger]="data.danger"
+        [mat-dialog-close]="true"
+      >
+        {{ data.confirm }}
+      </button>
     </mat-dialog-actions>
   `,
   styles: `
@@ -59,7 +74,11 @@ export class Notify {
 
   async confirm(data: ConfirmData): Promise<boolean> {
     this.telegram.haptic('warning');
-    const ref = this.dialog.open(ConfirmDialog, { data, autoFocus: false, maxWidth: '420px' });
+    const ref = this.dialog.open(ConfirmDialog, {
+      data,
+      autoFocus: false,
+      maxWidth: '420px',
+    });
     return (await firstValueFrom(ref.afterClosed())) === true;
   }
 }

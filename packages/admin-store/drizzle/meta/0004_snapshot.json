@@ -26,10 +26,7 @@
       "compositePrimaryKeys": {
         "admin_servers_telegram_id_server_alias_pk": {
           "name": "admin_servers_telegram_id_server_alias_pk",
-          "columns": [
-            "telegram_id",
-            "server_alias"
-          ]
+          "columns": ["telegram_id", "server_alias"]
         }
       },
       "uniqueConstraints": {},
@@ -310,21 +307,12 @@
     "public.admin_role": {
       "name": "admin_role",
       "schema": "public",
-      "values": [
-        "owner",
-        "admin",
-        "moderator"
-      ]
+      "values": ["owner", "admin", "moderator"]
     },
     "public.audit_source": {
       "name": "audit_source",
       "schema": "public",
-      "values": [
-        "telegram_button",
-        "telegram_command",
-        "auto",
-        "miniapp"
-      ]
+      "values": ["telegram_button", "telegram_command", "auto", "miniapp"]
     }
   },
   "schemas": {},

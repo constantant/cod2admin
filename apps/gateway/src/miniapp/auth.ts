@@ -19,7 +19,11 @@ export interface AuthOptions {
   devTelegramId?: number;
 }
 
-const ROLE_RANK: Record<AdminRole, number> = { moderator: 1, admin: 2, owner: 3 };
+const ROLE_RANK: Record<AdminRole, number> = {
+  moderator: 1,
+  admin: 2,
+  owner: 3,
+};
 
 export function hasRole(actor: MiniAppActor, minRole: AdminRole): boolean {
   return ROLE_RANK[actor.role] >= ROLE_RANK[minRole];
@@ -27,11 +31,15 @@ export function hasRole(actor: MiniAppActor, minRole: AdminRole): boolean {
 
 /** `@nick`, else the first name, else the ID — how chat shows an admin's messages. */
 export function actorLabel(actor: MiniAppActor): string {
-  return actor.username ? `@${actor.username}` : (actor.firstName ?? String(actor.telegramId));
+  return actor.username
+    ? `@${actor.username}`
+    : (actor.firstName ?? String(actor.telegramId));
 }
 
 /** The `<initData>` from Telegram's recommended `Authorization: tma <initData>` header. */
-export function initDataFromHeader(authorization: string | undefined): string | undefined {
+export function initDataFromHeader(
+  authorization: string | undefined,
+): string | undefined {
   const match = /^tma\s+(.+)$/i.exec(authorization?.trim() ?? '');
   return match?.[1];
 }
@@ -41,9 +49,15 @@ export function initDataFromHeader(authorization: string | undefined): string | 
  * the user is, and `admin-store` says what they may do — the same roles as the chat bot. A valid
  * Telegram user with no role gets nothing, not a read-only session through another code path.
  */
-export async function authenticate(initData: string | undefined, options: AuthOptions): Promise<AuthOutcome> {
+export async function authenticate(
+  initData: string | undefined,
+  options: AuthOptions,
+): Promise<AuthOutcome> {
   let user: InitDataUser;
-  if (options.devTelegramId !== undefined && (!initData || initData === 'dev')) {
+  if (
+    options.devTelegramId !== undefined &&
+    (!initData || initData === 'dev')
+  ) {
     user = { id: options.devTelegramId, username: null, firstName: 'Dev user' };
   } else {
     const result = validateInitData(initData, options.botToken);
@@ -52,7 +66,12 @@ export async function authenticate(initData: string | undefined, options: AuthOp
         result.reason === 'expired'
           ? 'This session is too old — close the app and open it again from the bot.'
           : 'Open this app from the bot in Telegram.';
-      return { ok: false, status: 401, error: `auth_${result.reason}`, message };
+      return {
+        ok: false,
+        status: 401,
+        error: `auth_${result.reason}`,
+        message,
+      };
     }
     user = result.user;
   }
@@ -67,8 +86,15 @@ export async function authenticate(initData: string | undefined, options: AuthOp
     };
   }
   // Remember their current @username/first name, as the chat bot's requireRole does.
-  if (options.devTelegramId !== user.id && (admin.username !== user.username || admin.firstName !== user.firstName)) {
-    await options.adminStore.saveTelegramUser({ telegramId: user.id, username: user.username, firstName: user.firstName });
+  if (
+    options.devTelegramId !== user.id &&
+    (admin.username !== user.username || admin.firstName !== user.firstName)
+  ) {
+    await options.adminStore.saveTelegramUser({
+      telegramId: user.id,
+      username: user.username,
+      firstName: user.firstName,
+    });
   }
   return {
     ok: true,

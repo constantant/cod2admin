@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
@@ -87,7 +95,12 @@ export class BansPage {
       this.selected.set(new Set());
     }
     try {
-      const page = await this.api.bans(this.kind(), this.query().trim(), this.includeLifted(), append ? this.items().length : 0);
+      const page = await this.api.bans(
+        this.kind(),
+        this.query().trim(),
+        this.includeLifted(),
+        append ? this.items().length : 0,
+      );
       if (id !== this.requestId) {
         return; // a newer search started meanwhile
       }
@@ -110,7 +123,9 @@ export class BansPage {
     if (ban.liftedAt) {
       return `lifted ${formatAgo(ban.liftedAt)}`;
     }
-    return ban.expiresAt ? `${formatSpan(new Date(ban.expiresAt).getTime() - Date.now())} left` : 'permanent';
+    return ban.expiresAt
+      ? `${formatSpan(new Date(ban.expiresAt).getTime() - Date.now())} left`
+      : 'permanent';
   }
 
   protected ago(iso: string): string {
@@ -133,18 +148,32 @@ export class BansPage {
 
   protected edit(ban: BanDto): void {
     this.dialog
-      .open(EditBanDialog, { data: ban, maxWidth: '480px', width: '100%', autoFocus: false })
+      .open(EditBanDialog, {
+        data: ban,
+        maxWidth: '480px',
+        width: '100%',
+        autoFocus: false,
+      })
       .afterClosed()
       .subscribe((updated?: BanDto) => {
         if (updated) {
-          this.items.update((items) => items.map((item) => (this.key(item) === this.key(updated) ? updated : item)));
+          this.items.update((items) =>
+            items.map((item) =>
+              this.key(item) === this.key(updated) ? updated : item,
+            ),
+          );
         }
       });
   }
 
   protected add(): void {
     this.dialog
-      .open(AddBanDialog, { data: this.session.server(), maxWidth: '480px', width: '100%', autoFocus: false })
+      .open(AddBanDialog, {
+        data: this.session.server(),
+        maxWidth: '480px',
+        width: '100%',
+        autoFocus: false,
+      })
       .afterClosed()
       .subscribe((added?: boolean) => {
         if (added) {
@@ -159,7 +188,10 @@ export class BansPage {
       return;
     }
     const ok = await this.notify.confirm({
-      title: targets.length === 1 ? `Unban ${targets[0]}?` : `Unban ${targets.length} players?`,
+      title:
+        targets.length === 1
+          ? `Unban ${targets[0]}?`
+          : `Unban ${targets.length} players?`,
       message: 'Lifts every ban on these GUIDs/IPs, on all servers.',
       confirm: 'Unban',
     });
@@ -168,11 +200,17 @@ export class BansPage {
     }
     try {
       const { results } = await this.api.unban(targets);
-      const unanswered = [...new Set(results.flatMap((result) => result.unanswered))];
+      const unanswered = [
+        ...new Set(results.flatMap((result) => result.unanswered)),
+      ];
       if (unanswered.length > 0) {
-        this.notify.info(`Unbanned. ${unanswered.join(', ')} didn't answer, so its ban.txt may still block them — try again later.`);
+        this.notify.info(
+          `Unbanned. ${unanswered.join(', ')} didn't answer, so its ban.txt may still block them — try again later.`,
+        );
       } else {
-        this.notify.success(targets.length === 1 ? 'Unbanned.' : `Unbanned ${targets.length}.`);
+        this.notify.success(
+          targets.length === 1 ? 'Unbanned.' : `Unbanned ${targets.length}.`,
+        );
       }
       await this.load(false);
     } catch (error) {

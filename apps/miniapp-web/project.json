@@ -8,9 +8,7 @@
   "targets": {
     "build": {
       "executor": "@angular/build:application",
-      "outputs": [
-        "{options.outputPath}"
-      ],
+      "outputs": ["{options.outputPath}"],
       "defaultConfiguration": "production",
       "options": {
         "outputPath": "dist/apps/miniapp-web",
@@ -23,12 +21,8 @@
             "input": "apps/miniapp-web/public"
           }
         ],
-        "styles": [
-          "apps/miniapp-web/src/styles.scss"
-        ],
-        "allowedCommonJsDependencies": [
-          "@twa-dev/sdk"
-        ]
+        "styles": ["apps/miniapp-web/src/styles.scss"],
+        "allowedCommonJsDependencies": ["@twa-dev/sdk"]
       },
       "configurations": {
         "production": {

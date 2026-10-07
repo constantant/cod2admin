@@ -36,16 +36,35 @@ describe('ChatFeed', () => {
     feed.subscribe((line) => pushed.push(line));
 
     expect(await feed.history()).toEqual([
-      expect.objectContaining({ id: -2, at: null, message: 'old one', source: 'game', name: '^1Kim', num: 3 }),
+      expect.objectContaining({
+        id: -2,
+        at: null,
+        message: 'old one',
+        source: 'game',
+        name: '^1Kim',
+        num: 3,
+      }),
       expect.objectContaining({ id: -1, message: 'old two' }),
     ]);
 
     emit(chat('live', { channel: 'sayteam' }));
 
     expect(pushed).toEqual([
-      { id: 1, at: NOW.toISOString(), channel: 'sayteam', source: 'game', num: 3, name: '^1Kim', message: 'live' },
+      {
+        id: 1,
+        at: NOW.toISOString(),
+        channel: 'sayteam',
+        source: 'game',
+        num: 3,
+        name: '^1Kim',
+        message: 'live',
+      },
     ]);
-    expect((await feed.history()).map((line) => line.message)).toEqual(['old one', 'old two', 'live']);
+    expect((await feed.history()).map((line) => line.message)).toEqual([
+      'old one',
+      'old two',
+      'live',
+    ]);
   });
 
   it('keeps a line once when it arrived live before the backfill read it from the file too', async () => {
@@ -74,10 +93,25 @@ describe('ChatFeed', () => {
     const pushed: unknown[] = [];
     feed.subscribe((line) => pushed.push(line));
 
-    feed.addAdminLine({ channel: 'tell', num: 3, name: '@kim', message: 'stop', to: '^1Kim' });
+    feed.addAdminLine({
+      channel: 'tell',
+      num: 3,
+      name: '@kim',
+      message: 'stop',
+      to: '^1Kim',
+    });
 
     expect(pushed).toEqual([
-      { id: 1, at: NOW.toISOString(), channel: 'tell', source: 'admin', num: 3, name: '@kim', message: 'stop', to: '^1Kim' },
+      {
+        id: 1,
+        at: NOW.toISOString(),
+        channel: 'tell',
+        source: 'admin',
+        num: 3,
+        name: '@kim',
+        message: 'stop',
+        to: '^1Kim',
+      },
     ]);
     expect(await feed.history()).toEqual(pushed);
   });
@@ -106,7 +140,9 @@ describe('ChatFeed', () => {
   it('reads the log only once, and survives a failed read', async () => {
     const { source } = fakeSource();
     vi.mocked(source.readRecentChat).mockRejectedValueOnce(new Error('EACCES'));
-    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const error = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
     const feed = new ChatFeed(source, () => NOW);
 
     await expect(feed.history()).resolves.toEqual([]);

@@ -15,7 +15,11 @@ import { helpCommand, helpRuCommand } from './commands/help.js';
 import { kickCommand } from './commands/kick.js';
 import { listAdminsCommand } from './commands/listadmins.js';
 import { mapCommand } from './commands/map.js';
-import { mapsCommand, mapsSelectCallback, type MapsCallbackContext } from './commands/maps.js';
+import {
+  mapsCommand,
+  mapsSelectCallback,
+  type MapsCallbackContext,
+} from './commands/maps.js';
 import { playersCommand } from './commands/players.js';
 import { rconCommand } from './commands/rcon.js';
 import { removeAdminCommand } from './commands/removeadmin.js';
@@ -26,15 +30,27 @@ import { sayCommand } from './commands/say.js';
 import { serversCommand } from './commands/servers.js';
 import { setDefaultCommand } from './commands/setdefault.js';
 import { setRoleCommand } from './commands/setrole.js';
-import { STATUS_REFRESH_CALLBACK_DATA, statusCommand, statusRefreshCallback } from './commands/status.js';
+import {
+  STATUS_REFRESH_CALLBACK_DATA,
+  statusCommand,
+  statusRefreshCallback,
+} from './commands/status.js';
 import { tempbanCommand } from './commands/tempban.js';
 import { unbanCommand } from './commands/unban.js';
-import { updateActionCallback, updateCommand, type UpdateCallbackContext } from './commands/update.js';
+import {
+  updateActionCallback,
+  updateCommand,
+  type UpdateCallbackContext,
+} from './commands/update.js';
 import { vpnKickCommand } from './commands/vpnkick.js';
 import { vpnNetsCommand } from './commands/vpnnets.js';
 import type { GatewayConfig } from './config.js';
 import type { GatewayDeps } from './deps.js';
-import { describeIpLong, describeProviderLong, joinCountryAndProvider } from './geoip.js';
+import {
+  describeIpLong,
+  describeProviderLong,
+  joinCountryAndProvider,
+} from './geoip.js';
 import { describeVpnLong, joinIpLabels } from './vpn-ranges.js';
 import { failoverTransformer, probeRoute } from './telegram-routes.js';
 
@@ -57,7 +73,9 @@ function withReplyToUserId(ctx: Context): BotContext {
 }
 
 /** Adapts grammy's real `Context` to `ReportCallbackContext` — mirrors `EditableBotContext`'s approach in status.ts. */
-function toReportCallbackContext(ctx: Context & BotContext): ReportCallbackContext {
+function toReportCallbackContext(
+  ctx: Context & BotContext,
+): ReportCallbackContext {
   return {
     from: ctx.from,
     admin: ctx.admin,
@@ -78,7 +96,9 @@ function toMapsCallbackContext(ctx: Context & BotContext): MapsCallbackContext {
 }
 
 /** Same adaptation as `toReportCallbackContext`, plus `chat` — `/update`'s pending-update marker needs the chat id. */
-function toUpdateCallbackContext(ctx: Context & BotContext): UpdateCallbackContext {
+function toUpdateCallbackContext(
+  ctx: Context & BotContext,
+): UpdateCallbackContext {
   return {
     from: ctx.from,
     chat: ctx.chat,
@@ -100,13 +120,20 @@ export const SERVER_UNRESPONSIVE_MESSAGE =
  */
 async function notifyServerUnresponsive(ctx: Context): Promise<void> {
   if (ctx.callbackQuery) {
-    await ctx.answerCallbackQuery({ text: SERVER_UNRESPONSIVE_MESSAGE, show_alert: true });
+    await ctx.answerCallbackQuery({
+      text: SERVER_UNRESPONSIVE_MESSAGE,
+      show_alert: true,
+    });
   } else if (ctx.chat) {
     await ctx.reply(SERVER_UNRESPONSIVE_MESSAGE);
   }
 }
 
-export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret: string): Bot {
+export function createBot(
+  config: GatewayConfig,
+  deps: GatewayDeps,
+  claimSecret: string,
+): Bot {
   const { router } = deps.telegramRoutes;
   const bot = new Bot(config.telegramBotToken, {
     client: {
@@ -118,7 +145,11 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
       baseFetchConfig: { agent: new Agent({ keepAlive: false }) },
     },
   });
-  bot.api.config.use(failoverTransformer(router, (root) => probeRoute(root, config.telegramBotToken)));
+  bot.api.config.use(
+    failoverTransformer(router, (root) =>
+      probeRoute(root, config.telegramBotToken),
+    ),
+  );
 
   const requireOwner = requireRole('owner', deps.adminStore);
   const requireAdmin = requireRole('admin', deps.adminStore);
@@ -128,7 +159,9 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
   bot.command('help', (ctx) => helpCommand(ctx, deps));
   bot.command('help_ru', (ctx) => helpRuCommand(ctx, deps));
 
-  bot.command('app', requireAny, (ctx) => appCommand(ctx, config.miniapp.url, bot.botInfo.username));
+  bot.command('app', requireAny, (ctx) =>
+    appCommand(ctx, config.miniapp.url, bot.botInfo.username),
+  );
   bot.command('status', requireAny, (ctx) => statusCommand(ctx, deps));
   bot.command('players', requireAny, (ctx) => playersCommand(ctx, deps));
   bot.command('kick', requireAny, (ctx) => kickCommand(ctx, deps));
@@ -141,25 +174,45 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
   bot.command('map', requireAdmin, (ctx) => mapCommand(ctx, deps));
   bot.command('maps', requireAdmin, (ctx) => mapsCommand(ctx, deps));
   bot.command('say', requireAdmin, (ctx) => sayCommand(ctx, deps));
-  bot.command('bindserver', requireAdmin, (ctx) => bindServerCommand(ctx, deps));
-  bot.command('setdefault', requireAdmin, (ctx) => setDefaultCommand(ctx, deps));
-  bot.command('addadmin', requireAdmin, (ctx) => addAdminCommand(withReplyToUserId(ctx), deps));
-  bot.command('removeadmin', requireAdmin, (ctx) => removeAdminCommand(withReplyToUserId(ctx), deps));
-  bot.command('setrole', requireAdmin, (ctx) => setRoleCommand(withReplyToUserId(ctx), deps));
-  bot.command('listadmins', requireAdmin, (ctx) => listAdminsCommand(ctx, deps));
+  bot.command('bindserver', requireAdmin, (ctx) =>
+    bindServerCommand(ctx, deps),
+  );
+  bot.command('setdefault', requireAdmin, (ctx) =>
+    setDefaultCommand(ctx, deps),
+  );
+  bot.command('addadmin', requireAdmin, (ctx) =>
+    addAdminCommand(withReplyToUserId(ctx), deps),
+  );
+  bot.command('removeadmin', requireAdmin, (ctx) =>
+    removeAdminCommand(withReplyToUserId(ctx), deps),
+  );
+  bot.command('setrole', requireAdmin, (ctx) =>
+    setRoleCommand(withReplyToUserId(ctx), deps),
+  );
+  bot.command('listadmins', requireAdmin, (ctx) =>
+    listAdminsCommand(ctx, deps),
+  );
 
   bot.command('auditlog', requireOwner, (ctx) => auditLogCommand(ctx, deps));
   bot.command('rcon', requireOwner, (ctx) => rconCommand(ctx, deps));
   bot.command('update', requireOwner, (ctx) => updateCommand(ctx, deps));
   bot.command('addserver', requireOwner, (ctx) => addServerCommand(ctx, deps));
-  bot.command('removeserver', requireOwner, (ctx) => removeServerCommand(ctx, deps));
+  bot.command('removeserver', requireOwner, (ctx) =>
+    removeServerCommand(ctx, deps),
+  );
   bot.command('relays', requireOwner, (ctx) => relaysCommand(ctx, deps));
   bot.command('vpnnets', requireAdmin, (ctx) => vpnNetsCommand(ctx, deps));
   bot.command('vpnkick', requireAdmin, (ctx) => vpnKickCommand(ctx, deps));
 
-  bot.callbackQuery(STATUS_REFRESH_CALLBACK_DATA, requireAny, (ctx) => statusRefreshCallback(ctx, deps));
-  bot.callbackQuery(/^map(ask|no)?:/, requireAdmin, (ctx) => mapsSelectCallback(toMapsCallbackContext(ctx), deps));
-  bot.callbackQuery(/^update:/, requireOwner, (ctx) => updateActionCallback(toUpdateCallbackContext(ctx), deps));
+  bot.callbackQuery(STATUS_REFRESH_CALLBACK_DATA, requireAny, (ctx) =>
+    statusRefreshCallback(ctx, deps),
+  );
+  bot.callbackQuery(/^map(ask|no)?:/, requireAdmin, (ctx) =>
+    mapsSelectCallback(toMapsCallbackContext(ctx), deps),
+  );
+  bot.callbackQuery(/^update:/, requireOwner, (ctx) =>
+    updateActionCallback(toUpdateCallbackContext(ctx), deps),
+  );
   bot.callbackQuery(/^report:/, requireAny, (ctx) =>
     reportActionCallback(toReportCallbackContext(ctx), {
       bot,
@@ -171,18 +224,27 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
       sessionsByServer: deps.sessionsByServer,
       describeIp: (ip) =>
         joinIpLabels(
-          joinCountryAndProvider(describeIpLong(deps.geoip, ip), describeProviderLong(deps.provider, ip)),
+          joinCountryAndProvider(
+            describeIpLong(deps.geoip, ip),
+            describeProviderLong(deps.provider, ip),
+          ),
           describeVpnLong(deps.vpn, ip),
         ),
     }),
   );
 
   bot.catch(async ({ error, ctx }) => {
-    console.error(`Gateway bot error handling update ${ctx.update.update_id}:`, error);
+    console.error(
+      `Gateway bot error handling update ${ctx.update.update_id}:`,
+      error,
+    );
     // The one failure worth telling the user about: everything else stays log-only, as before.
     if (error instanceof UdpQueryTimeoutError) {
       await notifyServerUnresponsive(ctx).catch((notifyError: unknown) => {
-        console.error('Gateway bot failed to report an unresponsive server:', notifyError);
+        console.error(
+          'Gateway bot failed to report an unresponsive server:',
+          notifyError,
+        );
       });
     }
   });

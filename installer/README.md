@@ -3,8 +3,8 @@
 A Telegram bot for admins of a Call of Duty 2 dedicated server: ban/kick/tempban players,
 receive `!report` cards from players in-game, manage other admins, and more.
 
-This installs **only the bot** — it needs a CoD2 dedicated server that is *already installed and
-running* somewhere reachable from this machine. It never touches that server's files.
+This installs **only the bot** — it needs a CoD2 dedicated server that is _already installed and
+running_ somewhere reachable from this machine. It never touches that server's files.
 
 ## What you need before you start
 

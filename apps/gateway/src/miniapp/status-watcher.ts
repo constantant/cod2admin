@@ -2,7 +2,8 @@ import type { StatusResponse } from './api-types.js';
 
 export const STATUS_POLL_INTERVAL_MS = 5_000;
 
-export type StatusUpdate = { ok: true; status: StatusResponse } | { ok: false; message: string };
+export type StatusUpdate =
+  { ok: true; status: StatusResponse } | { ok: false; message: string };
 
 /**
  * Pushes one server's `status` to every open Mini App (docs/PLAN-miniapp.md §5, "Real-time
@@ -62,7 +63,10 @@ export class StatusWatcher {
     try {
       this.emit({ ok: true, status: await this.fetchStatus() });
     } catch (error) {
-      this.emit({ ok: false, message: error instanceof Error ? error.message : String(error) });
+      this.emit({
+        ok: false,
+        message: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       this.polling = false;
     }

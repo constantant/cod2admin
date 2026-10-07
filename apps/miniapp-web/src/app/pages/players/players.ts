@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatBottomSheet } from '@angular/material/bottom-sheet';
 import { MatButtonModule } from '@angular/material/button';
@@ -22,7 +31,16 @@ type SortKey = 'score' | 'name' | 'ping' | 'num';
 @Component({
   selector: 'c2a-players-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, MatButtonModule, MatButtonToggleModule, MatFormFieldModule, MatInputModule, MatProgressBarModule, GameName, Icon],
+  imports: [
+    FormsModule,
+    MatButtonModule,
+    MatButtonToggleModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatProgressBarModule,
+    GameName,
+    Icon,
+  ],
   templateUrl: './players.html',
   styleUrl: './players.scss',
 })
@@ -43,7 +61,10 @@ export class PlayersPage {
   protected readonly players = computed(() => {
     const needle = this.filter().trim().toLowerCase();
     const players = (this.status()?.players ?? []).filter(
-      (player) => !needle || plainName(player.name).toLowerCase().includes(needle) || player.ip?.includes(needle),
+      (player) =>
+        !needle ||
+        plainName(player.name).toLowerCase().includes(needle) ||
+        player.ip?.includes(needle),
     );
     const key = this.sort();
     return [...players].sort((a, b) => {
@@ -59,7 +80,9 @@ export class PlayersPage {
       return b.score - a.score;
     });
   });
-  protected readonly flagged = computed(() => (this.status()?.players ?? []).filter((player) => player.vpn).length);
+  protected readonly flagged = computed(
+    () => (this.status()?.players ?? []).filter((player) => player.vpn).length,
+  );
   protected readonly updated = computed(() => {
     this.tick();
     const status = this.status();

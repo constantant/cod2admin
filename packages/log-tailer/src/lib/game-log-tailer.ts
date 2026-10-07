@@ -2,7 +2,10 @@ import { EventEmitter } from 'node:events';
 import { detectReportTrigger, parseChatLine } from './chat-parser.js';
 import { FileTailer, readFileTail } from './file-tailer.js';
 import { parseSessionEventLine } from './session-event-parser.js';
-import { SessionTracker, type SessionTrackerOptions } from './session-tracker.js';
+import {
+  SessionTracker,
+  type SessionTrackerOptions,
+} from './session-tracker.js';
 import type { ChatEvent, PlayerSession, ReportTrigger } from './types.js';
 
 export interface GameLogTailerOptions {
@@ -31,7 +34,10 @@ export class GameLogTailer extends EventEmitter {
     super();
     this.logPath = options.logPath;
     this.decode = options.decode;
-    this.sessions = new SessionTracker({ chatHistorySize: options.chatHistorySize, now: options.now });
+    this.sessions = new SessionTracker({
+      chatHistorySize: options.chatHistorySize,
+      now: options.now,
+    });
     this.fileTailer = new FileTailer({
       path: options.logPath,
       pollIntervalMs: options.pollIntervalMs,
@@ -54,7 +60,10 @@ export class GameLogTailer extends EventEmitter {
    * tail (at most `maxBytes`), so it works for chat from before this process started too. Doesn't
    * touch session state; live lines keep arriving as `chat` events.
    */
-  async readRecentChat(limit: number, maxBytes = 256 * 1024): Promise<ChatEvent[]> {
+  async readRecentChat(
+    limit: number,
+    maxBytes = 256 * 1024,
+  ): Promise<ChatEvent[]> {
     const lines = await readFileTail(this.logPath, maxBytes, this.decode);
     return lines
       .map(parseChatLine)
@@ -71,8 +80,14 @@ export class GameLogTailer extends EventEmitter {
   }
 
   override on(event: 'chat', listener: (chat: ChatEvent) => void): this;
-  override on(event: 'reportTrigger', listener: (trigger: ReportTrigger) => void): this;
-  override on(event: 'connect' | 'disconnect', listener: (session: PlayerSession) => void): this;
+  override on(
+    event: 'reportTrigger',
+    listener: (trigger: ReportTrigger) => void,
+  ): this;
+  override on(
+    event: 'connect' | 'disconnect',
+    listener: (session: PlayerSession) => void,
+  ): this;
   override on(event: 'error', listener: (error: Error) => void): this;
   // `any[]` here (not `unknown[]`) to match EventEmitter's own `on` signature, or TS rejects
   // this as an incompatible implementation for the typed overloads above.
@@ -101,7 +116,10 @@ export class GameLogTailer extends EventEmitter {
 
   private emitTyped(event: 'chat', chat: ChatEvent): void;
   private emitTyped(event: 'reportTrigger', trigger: ReportTrigger): void;
-  private emitTyped(event: 'connect' | 'disconnect', session: PlayerSession): void;
+  private emitTyped(
+    event: 'connect' | 'disconnect',
+    session: PlayerSession,
+  ): void;
   private emitTyped(event: 'error', error: Error): void;
   private emitTyped(event: string, payload: unknown): void {
     this.emit(event, payload);

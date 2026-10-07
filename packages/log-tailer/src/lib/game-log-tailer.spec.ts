@@ -39,7 +39,10 @@ describe('GameLogTailer', () => {
   });
 
   it('tracks connect -> chat -> !report -> disconnect end to end from real appended log lines', async () => {
-    tailer = new GameLogTailer({ logPath: path, pollIntervalMs: POLL_INTERVAL_MS });
+    tailer = new GameLogTailer({
+      logPath: path,
+      pollIntervalMs: POLL_INTERVAL_MS,
+    });
     const connects: PlayerSession[] = [];
     const disconnects: PlayerSession[] = [];
     const triggers: ReportTrigger[] = [];
@@ -72,13 +75,19 @@ describe('GameLogTailer', () => {
     // The connect event object is the same session that keeps being updated in place.
     const session = tailer.getSession(0)!;
     expect(session.disconnectedAt).toBeDefined();
-    expect(session.chatHistory.map((c) => c.message)).toEqual(['hi all', '!report Cheatr123 aimbot']);
+    expect(session.chatHistory.map((c) => c.message)).toEqual([
+      'hi all',
+      '!report Cheatr123 aimbot',
+    ]);
     expect(tailer.listSessions()).toEqual([session]);
   });
 
   it('does not replay pre-existing log content written before start()', async () => {
     await writeFile(path, '1:00 J;0;0;Someone\n');
-    tailer = new GameLogTailer({ logPath: path, pollIntervalMs: POLL_INTERVAL_MS });
+    tailer = new GameLogTailer({
+      logPath: path,
+      pollIntervalMs: POLL_INTERVAL_MS,
+    });
     const connects: PlayerSession[] = [];
     tailer.on('connect', (session) => connects.push(session));
     await tailer.start();
@@ -91,7 +100,10 @@ describe('GameLogTailer', () => {
 
   describe('readRecentChat (Mini App chat backfill)', () => {
     it('returns the last chat lines already in the log, oldest first, skipping other events', async () => {
-      await writeFile(path, '1:00 J;0;0;A\r\n1:01 say;0;0;A;one\r\n1:02 sayteam;0;0;A;two\r\n1:03 say;0;0;A;three\r\n');
+      await writeFile(
+        path,
+        '1:00 J;0;0;A\r\n1:01 say;0;0;A;one\r\n1:02 sayteam;0;0;A;two\r\n1:03 say;0;0;A;three\r\n',
+      );
       tailer = new GameLogTailer({ logPath: path });
 
       const chat = await tailer.readRecentChat(2);
@@ -103,7 +115,10 @@ describe('GameLogTailer', () => {
     });
 
     it('drops the partial first line when it only reads the end of a big file', async () => {
-      await writeFile(path, '1:01 say;0;0;A;first line\n1:02 say;0;0;B;second\n');
+      await writeFile(
+        path,
+        '1:01 say;0;0;A;first line\n1:02 say;0;0;B;second\n',
+      );
       tailer = new GameLogTailer({ logPath: path });
 
       const chat = await tailer.readRecentChat(10, 30);

@@ -4,7 +4,9 @@ import { migrate } from './migrate.js';
 import { createBanStore } from './store.js';
 import type { BanStore } from './types.js';
 
-const DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://cod2admin:dev_password_change_me@127.0.0.1:5432/cod2admin_dev';
+const DATABASE_URL =
+  process.env.DATABASE_URL ??
+  'postgres://cod2admin:dev_password_change_me@127.0.0.1:5432/cod2admin_dev';
 
 describe('DrizzleBanStore', () => {
   let store: BanStore;
@@ -26,17 +28,35 @@ describe('DrizzleBanStore', () => {
   });
 
   it('records a permanent (GUID-path) ban with no expiry and an unknown guid', async () => {
-    await store.recordBan({ serverAlias: 'default', name: 'PlayerOne', reason: 'cheating', bannedBy: 1 });
+    await store.recordBan({
+      serverAlias: 'default',
+      name: 'PlayerOne',
+      reason: 'cheating',
+      bannedBy: 1,
+    });
 
     const { rows } = await pool.query('SELECT * FROM bans');
 
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ server_alias: 'default', guid: null, name: 'PlayerOne', reason: 'cheating', expires_at: null });
+    expect(rows[0]).toMatchObject({
+      server_alias: 'default',
+      guid: null,
+      name: 'PlayerOne',
+      reason: 'cheating',
+      expires_at: null,
+    });
   });
 
   it('records a GUID-path ban with a real guid and an expiry (the report card Temp Ban button, §5 step 6)', async () => {
     const expiresAt = new Date(Date.now() + 60_000);
-    await store.recordBan({ serverAlias: 'default', name: 'PlayerOne', guid: 'realguid', reason: 'aimbot', bannedBy: 1, expiresAt });
+    await store.recordBan({
+      serverAlias: 'default',
+      name: 'PlayerOne',
+      guid: 'realguid',
+      reason: 'aimbot',
+      bannedBy: 1,
+      expiresAt,
+    });
 
     const { rows } = await pool.query('SELECT * FROM bans');
 
@@ -46,15 +66,28 @@ describe('DrizzleBanStore', () => {
 
   it('records an IP ban with an expiry and lists it as active', async () => {
     const expiresAt = new Date(Date.now() + 60_000);
-    await store.recordIpBan({ serverAlias: 'default', ip: '1.2.3.4', reason: 'griefing', bannedBy: 1, expiresAt });
+    await store.recordIpBan({
+      serverAlias: 'default',
+      ip: '1.2.3.4',
+      reason: 'griefing',
+      bannedBy: 1,
+      expiresAt,
+    });
 
     const active = await store.listActiveIpBans();
 
-    expect(active).toEqual([expect.objectContaining({ ip: '1.2.3.4', reason: 'griefing' })]);
+    expect(active).toEqual([
+      expect.objectContaining({ ip: '1.2.3.4', reason: 'griefing' }),
+    ]);
   });
 
   it('lists a permanent IP ban (no expiry) as active', async () => {
-    await store.recordIpBan({ serverAlias: 'default', ip: '1.2.3.4', bannedBy: 1, expiresAt: null });
+    await store.recordIpBan({
+      serverAlias: 'default',
+      ip: '1.2.3.4',
+      bannedBy: 1,
+      expiresAt: null,
+    });
 
     const active = await store.listActiveIpBans();
 
@@ -63,7 +96,12 @@ describe('DrizzleBanStore', () => {
 
   it('lists an IP ban whose expiry has passed as expired, and expireIpBan removes it', async () => {
     const expiresAt = new Date(Date.now() - 1000);
-    await store.recordIpBan({ serverAlias: 'default', ip: '1.2.3.4', bannedBy: 1, expiresAt });
+    await store.recordIpBan({
+      serverAlias: 'default',
+      ip: '1.2.3.4',
+      bannedBy: 1,
+      expiresAt,
+    });
 
     const expired = await store.listExpiredIpBans(new Date());
     expect(expired).toHaveLength(1);
@@ -74,8 +112,18 @@ describe('DrizzleBanStore', () => {
   });
 
   it('lists bans from every server, keeping the server each was issued on', async () => {
-    await store.recordIpBan({ serverAlias: 'default', ip: '1.1.1.1', bannedBy: 1, expiresAt: null });
-    await store.recordIpBan({ serverAlias: 'other', ip: '9.9.9.9', bannedBy: 1, expiresAt: null });
+    await store.recordIpBan({
+      serverAlias: 'default',
+      ip: '1.1.1.1',
+      bannedBy: 1,
+      expiresAt: null,
+    });
+    await store.recordIpBan({
+      serverAlias: 'other',
+      ip: '9.9.9.9',
+      bannedBy: 1,
+      expiresAt: null,
+    });
 
     const active = await store.listActiveIpBans();
 
@@ -88,10 +136,18 @@ describe('DrizzleBanStore', () => {
   describe('GUID-path ban expiry (docs/PLAN.md §5 step 7 job (b))', () => {
     it('lists a GUID-path temp ban whose expiry has passed, and expireBan removes it', async () => {
       const expiresAt = new Date(Date.now() - 1000);
-      await store.recordBan({ serverAlias: 'default', name: 'PlayerOne', guid: 'realguid', bannedBy: 1, expiresAt });
+      await store.recordBan({
+        serverAlias: 'default',
+        name: 'PlayerOne',
+        guid: 'realguid',
+        bannedBy: 1,
+        expiresAt,
+      });
 
       const expired = await store.listExpiredBans(new Date());
-      expect(expired).toEqual([expect.objectContaining({ guid: 'realguid', serverAlias: 'default' })]);
+      expect(expired).toEqual([
+        expect.objectContaining({ guid: 'realguid', serverAlias: 'default' }),
+      ]);
 
       await store.expireBan(expired[0].id);
 
@@ -99,8 +155,19 @@ describe('DrizzleBanStore', () => {
     });
 
     it('does not list a permanent ban (no expiry) or one whose expiry is still in the future', async () => {
-      await store.recordBan({ serverAlias: 'default', name: 'Permanent', guid: 'guid-a', bannedBy: 1 });
-      await store.recordBan({ serverAlias: 'default', name: 'NotYet', guid: 'guid-b', bannedBy: 1, expiresAt: new Date(Date.now() + 60_000) });
+      await store.recordBan({
+        serverAlias: 'default',
+        name: 'Permanent',
+        guid: 'guid-a',
+        bannedBy: 1,
+      });
+      await store.recordBan({
+        serverAlias: 'default',
+        name: 'NotYet',
+        guid: 'guid-b',
+        bannedBy: 1,
+        expiresAt: new Date(Date.now() + 60_000),
+      });
 
       await expect(store.listExpiredBans(new Date())).resolves.toEqual([]);
     });
@@ -108,17 +175,43 @@ describe('DrizzleBanStore', () => {
 
   describe('listActiveBans (docs/PLAN.md §6, /bans)', () => {
     it('lists permanent and not-yet-expired GUID bans from every server as active', async () => {
-      await store.recordBan({ serverAlias: 'default', name: 'Permanent', guid: 'guid-a', bannedBy: 1 });
-      await store.recordBan({ serverAlias: 'default', name: 'NotYet', guid: 'guid-b', bannedBy: 1, expiresAt: new Date(Date.now() + 60_000) });
-      await store.recordBan({ serverAlias: 'other', name: 'Elsewhere', guid: 'guid-c', bannedBy: 1 });
+      await store.recordBan({
+        serverAlias: 'default',
+        name: 'Permanent',
+        guid: 'guid-a',
+        bannedBy: 1,
+      });
+      await store.recordBan({
+        serverAlias: 'default',
+        name: 'NotYet',
+        guid: 'guid-b',
+        bannedBy: 1,
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      await store.recordBan({
+        serverAlias: 'other',
+        name: 'Elsewhere',
+        guid: 'guid-c',
+        bannedBy: 1,
+      });
 
       const active = await store.listActiveBans();
 
-      expect(active.map((b) => b.name).sort()).toEqual(['Elsewhere', 'NotYet', 'Permanent']);
+      expect(active.map((b) => b.name).sort()).toEqual([
+        'Elsewhere',
+        'NotYet',
+        'Permanent',
+      ]);
     });
 
     it('excludes a GUID ban whose expiry has already passed', async () => {
-      await store.recordBan({ serverAlias: 'default', name: 'Expired', guid: 'guid-a', bannedBy: 1, expiresAt: new Date(Date.now() - 1000) });
+      await store.recordBan({
+        serverAlias: 'default',
+        name: 'Expired',
+        guid: 'guid-a',
+        bannedBy: 1,
+        expiresAt: new Date(Date.now() - 1000),
+      });
 
       await expect(store.listActiveBans()).resolves.toEqual([]);
     });
@@ -126,10 +219,19 @@ describe('DrizzleBanStore', () => {
 
   describe('unban (docs/PLAN.md §6, /unban <guid-or-ip>)', () => {
     it('unbanByGuid stamps unbannedAt on the matching active bans row, removing it from listActiveBans', async () => {
-      await store.recordBan({ serverAlias: 'default', name: 'Cheater', guid: 'guid-a', bannedBy: 1 });
+      await store.recordBan({
+        serverAlias: 'default',
+        name: 'Cheater',
+        guid: 'guid-a',
+        bannedBy: 1,
+      });
 
       await expect(store.unbanByGuid('guid-a')).resolves.toEqual([
-        expect.objectContaining({ name: 'Cheater', serverAlias: 'default', guid: 'guid-a' }),
+        expect.objectContaining({
+          name: 'Cheater',
+          serverAlias: 'default',
+          guid: 'guid-a',
+        }),
       ]);
 
       await expect(store.listActiveBans()).resolves.toEqual([]);
@@ -138,18 +240,40 @@ describe('DrizzleBanStore', () => {
     });
 
     it('unbanByGuid lifts that guid on every server and leaves other guids alone', async () => {
-      await store.recordBan({ serverAlias: 'default', name: 'Here', guid: 'guid-a', bannedBy: 1 });
-      await store.recordBan({ serverAlias: 'other', name: 'Elsewhere', guid: 'guid-a', bannedBy: 1 });
-      await store.recordBan({ serverAlias: 'default', name: 'Other', guid: 'guid-b', bannedBy: 1 });
+      await store.recordBan({
+        serverAlias: 'default',
+        name: 'Here',
+        guid: 'guid-a',
+        bannedBy: 1,
+      });
+      await store.recordBan({
+        serverAlias: 'other',
+        name: 'Elsewhere',
+        guid: 'guid-a',
+        bannedBy: 1,
+      });
+      await store.recordBan({
+        serverAlias: 'default',
+        name: 'Other',
+        guid: 'guid-b',
+        bannedBy: 1,
+      });
 
       await expect(store.unbanByGuid('guid-a')).resolves.toHaveLength(2);
 
-      await expect(store.listActiveBans()).resolves.toEqual([expect.objectContaining({ guid: 'guid-b' })]);
+      await expect(store.listActiveBans()).resolves.toEqual([
+        expect.objectContaining({ guid: 'guid-b' }),
+      ]);
       await expect(store.unbanByGuid('guid-a')).resolves.toEqual([]);
     });
 
     it('unbanIp stamps unbannedAt on the matching active ban_ips row, removing it from listActiveIpBans', async () => {
-      await store.recordIpBan({ serverAlias: 'default', ip: '1.2.3.4', bannedBy: 1, expiresAt: null });
+      await store.recordIpBan({
+        serverAlias: 'default',
+        ip: '1.2.3.4',
+        bannedBy: 1,
+        expiresAt: null,
+      });
 
       await expect(store.unbanIp('1.2.3.4')).resolves.toBe(1);
 
@@ -163,7 +287,7 @@ describe('DrizzleBanStore', () => {
     it('finds bans by GUID on every server, newest first, up to the limit', async () => {
       // Explicit banned_at values so "newest first" isn't left to same-statement now() ties.
       await pool.query(
-        "INSERT INTO bans (server_alias, guid, name, banned_by, banned_at) VALUES " +
+        'INSERT INTO bans (server_alias, guid, name, banned_by, banned_at) VALUES ' +
           "('default', 'abc123', 'Old Name', 1, now() - interval '2 hours')," +
           "('default', 'abc123', 'New Name', 1, now())," +
           "('other', 'abc123', 'Elsewhere', 1, now() - interval '1 hour')",
@@ -178,11 +302,18 @@ describe('DrizzleBanStore', () => {
     });
 
     it('finds bans by name case-insensitively — the only lookup that matches real recordBan data today', async () => {
-      await store.recordBan({ serverAlias: 'default', name: 'Cheatr123', reason: 'aimbot', bannedBy: 1 });
+      await store.recordBan({
+        serverAlias: 'default',
+        name: 'Cheatr123',
+        reason: 'aimbot',
+        bannedBy: 1,
+      });
 
       const found = await store.listBansByName('CHEATR123', 10);
 
-      expect(found).toEqual([expect.objectContaining({ name: 'Cheatr123', reason: 'aimbot' })]);
+      expect(found).toEqual([
+        expect.objectContaining({ name: 'Cheatr123', reason: 'aimbot' }),
+      ]);
     });
 
     it('finds IP bans by exact IP on every server, newest first', async () => {
@@ -204,63 +335,128 @@ describe('DrizzleBanStore', () => {
 
   describe('Mini App ban browser (docs/PLAN-miniapp.md §6.3)', () => {
     it('searchBans matches name or GUID case-insensitively, newest first, and hides lifted bans unless asked', async () => {
-      await store.recordBan({ serverAlias: 'default', name: 'Cheater', guid: 'ABC123', bannedBy: 1 });
-      await store.recordBan({ serverAlias: 'default', name: 'Other', guid: 'xyz999', bannedBy: 1 });
-      await store.recordBan({ serverAlias: 'default', name: 'Lifted', guid: 'abc777', bannedBy: 1 });
+      await store.recordBan({
+        serverAlias: 'default',
+        name: 'Cheater',
+        guid: 'ABC123',
+        bannedBy: 1,
+      });
+      await store.recordBan({
+        serverAlias: 'default',
+        name: 'Other',
+        guid: 'xyz999',
+        bannedBy: 1,
+      });
+      await store.recordBan({
+        serverAlias: 'default',
+        name: 'Lifted',
+        guid: 'abc777',
+        bannedBy: 1,
+      });
       await store.unbanByGuid('abc777');
 
-      await expect(store.searchBans({ query: 'abc', limit: 10 })).resolves.toEqual([
-        expect.objectContaining({ name: 'Cheater' }),
-      ]);
-      await expect(store.searchBans({ query: 'ABC', includeLifted: true, limit: 10 })).resolves.toEqual([
+      await expect(
+        store.searchBans({ query: 'abc', limit: 10 }),
+      ).resolves.toEqual([expect.objectContaining({ name: 'Cheater' })]);
+      await expect(
+        store.searchBans({ query: 'ABC', includeLifted: true, limit: 10 }),
+      ).resolves.toEqual([
         expect.objectContaining({ name: 'Lifted' }),
         expect.objectContaining({ name: 'Cheater' }),
       ]);
-      await expect(store.searchBans({ query: 'other', limit: 10 })).resolves.toEqual([
-        expect.objectContaining({ guid: 'xyz999' }),
-      ]);
+      await expect(
+        store.searchBans({ query: 'other', limit: 10 }),
+      ).resolves.toEqual([expect.objectContaining({ guid: 'xyz999' })]);
       await expect(store.searchBans({ limit: 1, offset: 1 })).resolves.toEqual([
         expect.objectContaining({ name: 'Cheater' }),
       ]);
     });
 
     it('searchBans takes % and _ literally', async () => {
-      await store.recordBan({ serverAlias: 'default', name: 'a_b', bannedBy: 1 });
-      await store.recordBan({ serverAlias: 'default', name: 'axb', bannedBy: 1 });
+      await store.recordBan({
+        serverAlias: 'default',
+        name: 'a_b',
+        bannedBy: 1,
+      });
+      await store.recordBan({
+        serverAlias: 'default',
+        name: 'axb',
+        bannedBy: 1,
+      });
 
-      await expect(store.searchBans({ query: '_', limit: 10 })).resolves.toEqual([
-        expect.objectContaining({ name: 'a_b' }),
-      ]);
-      await expect(store.searchBans({ query: '%', limit: 10 })).resolves.toEqual([]);
+      await expect(
+        store.searchBans({ query: '_', limit: 10 }),
+      ).resolves.toEqual([expect.objectContaining({ name: 'a_b' })]);
+      await expect(
+        store.searchBans({ query: '%', limit: 10 }),
+      ).resolves.toEqual([]);
     });
 
     it('searchIpBans matches the IP or the reason', async () => {
-      await store.recordIpBan({ serverAlias: 'default', ip: '10.0.0.5', reason: 'wallhack', bannedBy: 1, expiresAt: null });
-      await store.recordIpBan({ serverAlias: 'default', ip: '192.168.1.1', reason: null, bannedBy: 1, expiresAt: null });
+      await store.recordIpBan({
+        serverAlias: 'default',
+        ip: '10.0.0.5',
+        reason: 'wallhack',
+        bannedBy: 1,
+        expiresAt: null,
+      });
+      await store.recordIpBan({
+        serverAlias: 'default',
+        ip: '192.168.1.1',
+        reason: null,
+        bannedBy: 1,
+        expiresAt: null,
+      });
 
-      await expect(store.searchIpBans({ query: '10.0', limit: 10 })).resolves.toEqual([
-        expect.objectContaining({ ip: '10.0.0.5' }),
-      ]);
-      await expect(store.searchIpBans({ query: 'WALL', limit: 10 })).resolves.toEqual([
-        expect.objectContaining({ ip: '10.0.0.5' }),
-      ]);
+      await expect(
+        store.searchIpBans({ query: '10.0', limit: 10 }),
+      ).resolves.toEqual([expect.objectContaining({ ip: '10.0.0.5' })]);
+      await expect(
+        store.searchIpBans({ query: 'WALL', limit: 10 }),
+      ).resolves.toEqual([expect.objectContaining({ ip: '10.0.0.5' })]);
       await expect(store.searchIpBans({ limit: 10 })).resolves.toHaveLength(2);
     });
 
     it('getBan/getIpBan return one row by id, or undefined', async () => {
-      await store.recordBan({ serverAlias: 'default', name: 'One', guid: 'g1', bannedBy: 1 });
-      await store.recordIpBan({ serverAlias: 'default', ip: '1.1.1.1', bannedBy: 1, expiresAt: null });
+      await store.recordBan({
+        serverAlias: 'default',
+        name: 'One',
+        guid: 'g1',
+        bannedBy: 1,
+      });
+      await store.recordIpBan({
+        serverAlias: 'default',
+        ip: '1.1.1.1',
+        bannedBy: 1,
+        expiresAt: null,
+      });
 
-      await expect(store.getBan(1)).resolves.toEqual(expect.objectContaining({ name: 'One' }));
-      await expect(store.getIpBan(1)).resolves.toEqual(expect.objectContaining({ ip: '1.1.1.1' }));
+      await expect(store.getBan(1)).resolves.toEqual(
+        expect.objectContaining({ name: 'One' }),
+      );
+      await expect(store.getIpBan(1)).resolves.toEqual(
+        expect.objectContaining({ ip: '1.1.1.1' }),
+      );
       await expect(store.getBan(99)).resolves.toBeUndefined();
       await expect(store.getIpBan(99)).resolves.toBeUndefined();
     });
 
     it('updateBan/updateIpBan change only the fields given', async () => {
       const expiresAt = new Date(Date.now() + 3_600_000);
-      await store.recordBan({ serverAlias: 'default', name: 'One', guid: 'g1', reason: 'old', bannedBy: 1 });
-      await store.recordIpBan({ serverAlias: 'default', ip: '1.1.1.1', reason: 'old', bannedBy: 1, expiresAt });
+      await store.recordBan({
+        serverAlias: 'default',
+        name: 'One',
+        guid: 'g1',
+        reason: 'old',
+        bannedBy: 1,
+      });
+      await store.recordIpBan({
+        serverAlias: 'default',
+        ip: '1.1.1.1',
+        reason: 'old',
+        bannedBy: 1,
+        expiresAt,
+      });
 
       await expect(store.updateBan(1, { expiresAt })).resolves.toEqual(
         expect.objectContaining({ reason: 'old', expiresAt }),
@@ -268,11 +464,17 @@ describe('DrizzleBanStore', () => {
       await expect(store.updateBan(1, { reason: 'new' })).resolves.toEqual(
         expect.objectContaining({ reason: 'new', expiresAt }),
       );
-      await expect(store.updateIpBan(1, { expiresAt: null, reason: null })).resolves.toEqual(
+      await expect(
+        store.updateIpBan(1, { expiresAt: null, reason: null }),
+      ).resolves.toEqual(
         expect.objectContaining({ reason: null, expiresAt: null }),
       );
-      await expect(store.updateIpBan(1, {})).resolves.toEqual(expect.objectContaining({ ip: '1.1.1.1' }));
-      await expect(store.updateBan(99, { reason: 'x' })).resolves.toBeUndefined();
+      await expect(store.updateIpBan(1, {})).resolves.toEqual(
+        expect.objectContaining({ ip: '1.1.1.1' }),
+      );
+      await expect(
+        store.updateBan(99, { reason: 'x' }),
+      ).resolves.toBeUndefined();
     });
   });
 });

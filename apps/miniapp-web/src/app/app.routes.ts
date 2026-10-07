@@ -14,14 +14,30 @@ const role =
 
 export const appRoutes: Route[] = [
   { path: '', pathMatch: 'full', redirectTo: 'players' },
-  { path: 'players', loadComponent: () => import('./pages/players/players').then((m) => m.PlayersPage) },
-  { path: 'chat', loadComponent: () => import('./pages/chat/chat').then((m) => m.ChatPage) },
-  { path: 'maps', canMatch: [role('admin')], loadComponent: () => import('./pages/maps/maps').then((m) => m.MapsPage) },
-  { path: 'bans', canMatch: [role('admin')], loadComponent: () => import('./pages/bans/bans').then((m) => m.BansPage) },
+  {
+    path: 'players',
+    loadComponent: () =>
+      import('./pages/players/players').then((m) => m.PlayersPage),
+  },
+  {
+    path: 'chat',
+    loadComponent: () => import('./pages/chat/chat').then((m) => m.ChatPage),
+  },
+  {
+    path: 'maps',
+    canMatch: [role('admin')],
+    loadComponent: () => import('./pages/maps/maps').then((m) => m.MapsPage),
+  },
+  {
+    path: 'bans',
+    canMatch: [role('admin')],
+    loadComponent: () => import('./pages/bans/bans').then((m) => m.BansPage),
+  },
   {
     path: 'console',
     canMatch: [role('owner')],
-    loadComponent: () => import('./pages/console/console').then((m) => m.ConsolePage),
+    loadComponent: () =>
+      import('./pages/console/console').then((m) => m.ConsolePage),
   },
   { path: '**', redirectTo: 'players' },
 ];

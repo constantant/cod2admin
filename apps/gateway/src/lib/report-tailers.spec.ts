@@ -61,8 +61,14 @@ describe('startReportTailers', () => {
     expect(tailers).toHaveLength(1);
     expect(fakeTailerInstances[0].logPath).toBe('./games_mp.log');
     expect(fakeTailerInstances[0].start).toHaveBeenCalledOnce();
-    expect(fakeTailerInstances[0].on).toHaveBeenCalledWith('reportTrigger', expect.any(Function));
-    expect(fakeTailerInstances[0].on).toHaveBeenCalledWith('error', expect.any(Function));
+    expect(fakeTailerInstances[0].on).toHaveBeenCalledWith(
+      'reportTrigger',
+      expect.any(Function),
+    );
+    expect(fakeTailerInstances[0].on).toHaveBeenCalledWith(
+      'error',
+      expect.any(Function),
+    );
     expect(deps.sessionsByServer.get('default')).toBe(fakeTailerInstances[0]);
   });
 
@@ -70,11 +76,17 @@ describe('startReportTailers', () => {
     const { deps } = createFakeDeps();
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
-    const tailers = startReportTailers([serverConfig({ logSourceConfig: null })], deps, {} as never);
+    const tailers = startReportTailers(
+      [serverConfig({ logSourceConfig: null })],
+      deps,
+      {} as never,
+    );
 
     expect(tailers).toHaveLength(0);
     expect(fakeTailerInstances).toHaveLength(0);
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('no log path configured'));
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('no log path configured'),
+    );
     warn.mockRestore();
   });
 
@@ -82,12 +94,21 @@ describe('startReportTailers', () => {
     const { deps, rcon } = createFakeDeps();
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
-    const tailers = startReportTailers([serverConfig({ boundTelegramChatId: null })], deps, {} as never);
+    const tailers = startReportTailers(
+      [serverConfig({ boundTelegramChatId: null })],
+      deps,
+      {} as never,
+    );
 
     expect(tailers).toHaveLength(1);
     expect(deps.logTailers.get('default')).toBe(fakeTailerInstances[0]);
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('no bound Telegram chat'));
-    fakeTailerInstances[0].listeners['reportTrigger'][0]({ chat: {}, targetName: 'X' });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('no bound Telegram chat'),
+    );
+    fakeTailerInstances[0].listeners['reportTrigger'][0]({
+      chat: {},
+      targetName: 'X',
+    });
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(rcon.status).not.toHaveBeenCalled();
     warn.mockRestore();
@@ -96,7 +117,11 @@ describe('startReportTailers', () => {
   it('skips a server whose alias has no matching rconClients entry', () => {
     const { deps } = createFakeDeps();
 
-    const tailers = startReportTailers([serverConfig({ alias: 'unknown-server' })], deps, {} as never);
+    const tailers = startReportTailers(
+      [serverConfig({ alias: 'unknown-server' })],
+      deps,
+      {} as never,
+    );
 
     expect(tailers).toHaveLength(0);
   });
@@ -106,7 +131,10 @@ describe('startReportTailers', () => {
     deps.rconClients.set('second', deps.rconClients.get('default')!);
 
     const tailers = startReportTailers(
-      [serverConfig({ alias: 'default' }), serverConfig({ alias: 'second', boundTelegramChatId: 777 })],
+      [
+        serverConfig({ alias: 'default' }),
+        serverConfig({ alias: 'second', boundTelegramChatId: 777 }),
+      ],
       deps,
       {} as never,
     );
@@ -120,13 +148,24 @@ describe('startReportTailers', () => {
     const { deps, rcon } = createFakeDeps();
     rcon.status.mockResolvedValue({ raw: '', players: [] });
 
-    startReportTailers([serverConfig()], deps, { api: { sendMessage: vi.fn().mockResolvedValue({ message_id: 1 }) } } as never);
+    startReportTailers([serverConfig()], deps, {
+      api: { sendMessage: vi.fn().mockResolvedValue({ message_id: 1 }) },
+    } as never);
 
     const trigger = {
-      chat: { channel: 'say' as const, guid: '0', num: 1, name: 'Reporter', message: '!report X', timestamp: { minutes: 0, seconds: 0 }, raw: '' },
+      chat: {
+        channel: 'say' as const,
+        guid: '0',
+        num: 1,
+        name: 'Reporter',
+        message: '!report X',
+        timestamp: { minutes: 0, seconds: 0 },
+        raw: '',
+      },
       targetName: 'X',
     };
-    const reportTriggerListener = fakeTailerInstances[0].listeners['reportTrigger'][0];
+    const reportTriggerListener =
+      fakeTailerInstances[0].listeners['reportTrigger'][0];
     reportTriggerListener(trigger);
 
     // handleReportTrigger is async and fire-and-forget from the listener - give it a tick.

@@ -165,10 +165,11 @@ export interface UnbanResponse {
  * A ban for someone who isn't (necessarily) online. `server` is where it's recorded as issued; it
  * applies everywhere. No `durationMinutes` means permanent.
  */
-export type AddBanRequest = { server: string; reason?: string; durationMinutes?: number | null } & (
-  | { kind: 'ip'; ip: string }
-  | { kind: 'guid'; guid: string; name: string }
-);
+export type AddBanRequest = {
+  server: string;
+  reason?: string;
+  durationMinutes?: number | null;
+} & ({ kind: 'ip'; ip: string } | { kind: 'guid'; guid: string; name: string });
 
 export interface ApiError {
   error: string;
@@ -177,8 +178,7 @@ export interface ApiError {
 
 /** Client → server over `/api/ws`. The first message must be `auth`. */
 export type LiveClientMessage =
-  | { type: 'auth'; initData: string }
-  | { type: 'subscribe'; server: string };
+  { type: 'auth'; initData: string } | { type: 'subscribe'; server: string };
 
 /** Server → client over `/api/ws`. */
 export type LiveServerMessage =

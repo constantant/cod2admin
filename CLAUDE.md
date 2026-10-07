@@ -73,6 +73,7 @@ is a condensed Russian summary for the server owner, kept in sync with the same 
 `docs/PLAN-miniapp.md` is the companion plan for the Telegram Mini App (Angular + Material 3), a
 second, graphical admin surface alongside the chat bot. Phases M1–M4 and the installer's HTTPS
 step are implemented (2026-10-07, see its §0); M5 is open:
+
 - web app: `apps/miniapp-web` (Angular, outside the TS project-reference graph — Nx's Angular
   plugin needs `NX_IGNORE_UNSUPPORTED_TS_SETUP=true` for generators; own `tsc --noEmit` typecheck)
 - backend: `apps/gateway/src/miniapp/` (Fastify, in the gateway process, off unless
@@ -87,13 +88,14 @@ same way as the `PLAN.md`/`PLAN-ru.md` pair — update it whenever `docs/PLAN-mi
 `docs/PLAN-russia-access.md` covers game hosts in Russia, where Telegram has been blocked since
 March 2026 (`api.telegram.org` unreachable from most Russian hosting). Part A is implemented
 (2026-10-04, see its §0):
+
 - free relays on Deno Deploy and Cloudflare Workers (`packages/telegram-relay`, shared instances
   built in as `DEFAULT_TELEGRAM_RELAYS`, mirrored in `installer/install.sh`)
 - route failover in `apps/gateway/src/lib/telegram-routes.ts`
 - owner-only `/relays` to manage routes from Telegram
 - an installer that tries the same routes
 
-Deploying the Deno relay must happen from a folder *outside* this repo: the Deno CLI rewrites a
+Deploying the Deno relay must happen from a folder _outside_ this repo: the Deno CLI rewrites a
 nearby `package.json` from `pnpm-workspace.yaml`. Admins' own Telegram access (part B) is still
 open. `docs/PLAN-russia-access-ru.md` is its Russian summary — keep it in sync the same way.
 
@@ -101,6 +103,7 @@ Current status (2026-10-06): Phases 0–3 and self-update are done, released (v1
 `CHANGELOG.md`) and verified live — against the dev CoD2 server and Telegram group, and in
 production managing a real ~40-player public server over RCON only (no `!report` there, since
 the bot doesn't run on that host). `docs/PLAN.md` §9 has a per-phase summary.
+
 - Packages: `rcon-client` (Phase 0), `admin-store`/`ban-store` (Postgres via Drizzle, Phase 2),
   `log-tailer`/`report-pipeline` (Phase 3, `!report` cards), `telegram-relay` (deployed
   separately, see above). The bot itself is `apps/gateway` (grammy).
@@ -110,6 +113,7 @@ the bot doesn't run on that host). `docs/PLAN.md` §9 has a per-phase summary.
 
 Before touching `rcon-client`, read the server quirks in `docs/PLAN.md` §2.4 — they were all
 found on real servers and are easy to reintroduce:
+
 - `status` table parsing (`status-parser.ts`): column widths lie, and long names overflow.
 - `kick` takes a name, not a slot, with quoting that differs for ASCII and Cyrillic names.
 - Text is CP1251 and must be quoted, or the server drops every non-ASCII byte.

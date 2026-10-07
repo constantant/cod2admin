@@ -47,7 +47,12 @@ export interface GatewayConfig {
    * (ASN) database. `GEOIP_CITY_ENABLED=true` swaps the country database for DB-IP's city one
    * (adds the city; ~120 MB of memory, so off by default) — `GEOIP_DB_PATH` then names a city file.
    */
-  geoip: { enabled: boolean; city: boolean; dbPath: string | undefined; asnDbPath: string | undefined };
+  geoip: {
+    enabled: boolean;
+    city: boolean;
+    dbPath: string | undefined;
+    asnDbPath: string | undefined;
+  };
   /** VPN/proxy/Tor flags (vpn-ranges.ts). `VPN_FLAG_ENABLED=false` turns them and their downloads off. */
   vpnFlag: { enabled: boolean };
   /**
@@ -83,7 +88,10 @@ function requireEnv(env: NodeJS.ProcessEnv, key: string): string {
   return value;
 }
 
-function optionalIntEnv(env: NodeJS.ProcessEnv, key: string): number | undefined {
+function optionalIntEnv(
+  env: NodeJS.ProcessEnv,
+  key: string,
+): number | undefined {
   const raw = env[key];
   if (!raw) {
     return undefined;
@@ -111,7 +119,9 @@ function textEncodingEnv(env: NodeJS.ProcessEnv): TextEncoding {
   }
   const encoding = TEXT_ENCODINGS.find((candidate) => candidate === raw);
   if (!encoding) {
-    throw new ConfigError(`Env var COD2_TEXT_ENCODING must be one of ${TEXT_ENCODINGS.join(', ')}, got "${raw}"`);
+    throw new ConfigError(
+      `Env var COD2_TEXT_ENCODING must be one of ${TEXT_ENCODINGS.join(', ')}, got "${raw}"`,
+    );
   }
   return encoding;
 }
@@ -123,13 +133,17 @@ function telegramRoutesEnv(env: NodeJS.ProcessEnv): GatewayConfig['telegram'] {
     ? raw.split(',').map((entry) => {
         const url = normalizeRelayUrl(entry);
         if (!url) {
-          throw new ConfigError(`TELEGRAM_RELAYS entries must be https URLs, got "${entry.trim()}"`);
+          throw new ConfigError(
+            `TELEGRAM_RELAYS entries must be https URLs, got "${entry.trim()}"`,
+          );
         }
         return url;
       })
     : undefined;
   if (!direct && !relays?.length) {
-    throw new ConfigError('TELEGRAM_DIRECT=false needs at least one relay in TELEGRAM_RELAYS');
+    throw new ConfigError(
+      'TELEGRAM_DIRECT=false needs at least one relay in TELEGRAM_RELAYS',
+    );
   }
   return { direct, relays };
 }
@@ -137,7 +151,9 @@ function telegramRoutesEnv(env: NodeJS.ProcessEnv): GatewayConfig['telegram'] {
 function miniAppEnv(env: NodeJS.ProcessEnv): GatewayConfig['miniapp'] {
   const url = env['MINIAPP_URL']?.trim() || undefined;
   if (url && !/^https:\/\/[^\s/]+/.test(url)) {
-    throw new ConfigError(`MINIAPP_URL must be an https URL (Telegram only opens Mini Apps over HTTPS), got "${url}"`);
+    throw new ConfigError(
+      `MINIAPP_URL must be an https URL (Telegram only opens Mini Apps over HTTPS), got "${url}"`,
+    );
   }
   return {
     port: optionalIntEnv(env, 'MINIAPP_PORT'),
@@ -148,7 +164,9 @@ function miniAppEnv(env: NodeJS.ProcessEnv): GatewayConfig['miniapp'] {
   };
 }
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig {
+export function loadConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): GatewayConfig {
   return {
     telegramBotToken: requireEnv(env, 'TELEGRAM_BOT_TOKEN'),
     ownerTelegramId: optionalIntEnv(env, 'OWNER_TELEGRAM_ID'),
@@ -170,7 +188,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
       dbPath: env['GEOIP_DB_PATH']?.trim() || undefined,
       asnDbPath: env['GEOIP_ASN_DB_PATH']?.trim() || undefined,
     },
-    vpnFlag: { enabled: env['VPN_FLAG_ENABLED']?.trim().toLowerCase() !== 'false' },
+    vpnFlag: {
+      enabled: env['VPN_FLAG_ENABLED']?.trim().toLowerCase() !== 'false',
+    },
     miniapp: miniAppEnv(env),
   };
 }

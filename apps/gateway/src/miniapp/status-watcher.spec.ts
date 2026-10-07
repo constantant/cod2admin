@@ -3,7 +3,13 @@ import type { StatusResponse } from './api-types.js';
 import { StatusWatcher } from './status-watcher.js';
 
 function status(mapName: string): StatusResponse {
-  return { server: 'default', hostname: null, mapName, players: [], fetchedAt: '2026-10-07T12:00:00.000Z' };
+  return {
+    server: 'default',
+    hostname: null,
+    mapName,
+    players: [],
+    fetchedAt: '2026-10-07T12:00:00.000Z',
+  };
 }
 
 describe('StatusWatcher', () => {
@@ -25,7 +31,10 @@ describe('StatusWatcher', () => {
     const stopSecond = watcher.subscribe(second);
     await vi.advanceTimersByTimeAsync(0);
     expect(fetchStatus).toHaveBeenCalledTimes(1);
-    expect(first).toHaveBeenCalledWith({ ok: true, status: status('mp_toujane') });
+    expect(first).toHaveBeenCalledWith({
+      ok: true,
+      status: status('mp_toujane'),
+    });
     expect(second).toHaveBeenCalledTimes(1);
 
     await vi.advanceTimersByTimeAsync(1000);
@@ -46,7 +55,10 @@ describe('StatusWatcher', () => {
     const late = vi.fn();
     watcher.subscribe(late);
 
-    expect(late).toHaveBeenCalledWith({ ok: true, status: status('mp_carentan') });
+    expect(late).toHaveBeenCalledWith({
+      ok: true,
+      status: status('mp_carentan'),
+    });
   });
 
   it('reports a failed poll and does not stack polls behind a slow one', async () => {
@@ -54,7 +66,9 @@ describe('StatusWatcher', () => {
     const fetchStatus = vi
       .fn<() => Promise<StatusResponse>>()
       .mockRejectedValueOnce(new Error('no answer'))
-      .mockImplementationOnce(() => new Promise((resolve) => (resolveSlow = resolve)));
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (resolveSlow = resolve)),
+      );
     const watcher = new StatusWatcher(fetchStatus, 1000);
     const listener = vi.fn();
     watcher.subscribe(listener);
@@ -65,7 +79,10 @@ describe('StatusWatcher', () => {
     expect(fetchStatus).toHaveBeenCalledTimes(2);
     resolveSlow(status('mp_harbor'));
     await vi.advanceTimersByTimeAsync(0);
-    expect(listener).toHaveBeenLastCalledWith({ ok: true, status: status('mp_harbor') });
+    expect(listener).toHaveBeenLastCalledWith({
+      ok: true,
+      status: status('mp_harbor'),
+    });
   });
 
   it('publishes a status fetched elsewhere to watchers only', async () => {
@@ -77,7 +94,13 @@ describe('StatusWatcher', () => {
     await vi.advanceTimersByTimeAsync(0);
     watcher.publish(status('mp_rhine'));
 
-    expect(listener).toHaveBeenLastCalledWith({ ok: true, status: status('mp_rhine') });
-    expect(listener).not.toHaveBeenCalledWith({ ok: true, status: status('ignored') });
+    expect(listener).toHaveBeenLastCalledWith({
+      ok: true,
+      status: status('mp_rhine'),
+    });
+    expect(listener).not.toHaveBeenCalledWith({
+      ok: true,
+      status: status('ignored'),
+    });
   });
 });

@@ -10,9 +10,16 @@ describe('appCommand', () => {
 
     await appCommand(ctx, URL, 'my_bot');
 
-    expect(ctx.reply).toHaveBeenCalledWith('Manage the server from a full-screen app:', {
-      reply_markup: { inline_keyboard: [[{ text: 'Server manager', web_app: { url: URL } }]] },
-    });
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'Manage the server from a full-screen app:',
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: 'Server manager', web_app: { url: URL } }],
+          ],
+        },
+      },
+    );
   });
 
   it('points a group at the private chat, where Mini App buttons work', async () => {
@@ -20,9 +27,16 @@ describe('appCommand', () => {
 
     await appCommand(ctx, URL, 'my_bot');
 
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('private chat'), {
-      reply_markup: { inline_keyboard: [[{ text: 'Open the bot', url: 'https://t.me/my_bot' }]] },
-    });
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('private chat'),
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: 'Open the bot', url: 'https://t.me/my_bot' }],
+          ],
+        },
+      },
+    );
   });
 
   it('says how to turn it on when MINIAPP_URL is not set', async () => {
@@ -30,6 +44,8 @@ describe('appCommand', () => {
 
     await appCommand(ctx, undefined, 'my_bot');
 
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('MINIAPP_URL'));
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('MINIAPP_URL'),
+    );
   });
 });

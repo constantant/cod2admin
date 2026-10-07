@@ -13,7 +13,9 @@ describe('parseColoredName', () => {
   });
 
   it('drops the doubled ^^11 form, as the bot does', () => {
-    expect(parseColoredName('^^11Pro^^22')).toEqual([{ text: 'Pro', color: null }]);
+    expect(parseColoredName('^^11Pro^^22')).toEqual([
+      { text: 'Pro', color: null },
+    ]);
   });
 
   it('keeps plain and Cyrillic names whole', () => {

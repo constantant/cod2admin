@@ -1,4 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, inject, type OnInit } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  type OnInit,
+} from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
@@ -27,7 +33,15 @@ const NAV: readonly NavItem[] = [
 @Component({
   selector: 'c2a-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, MatButtonModule, MatSelectModule, MatProgressBarModule, Icon],
+  imports: [
+    RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
+    MatButtonModule,
+    MatSelectModule,
+    MatProgressBarModule,
+    Icon,
+  ],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -36,8 +50,14 @@ export class App implements OnInit {
   protected readonly live = inject(LiveService);
   private readonly telegram = inject(TelegramService);
 
-  protected readonly loading = computed(() => !this.session.me() && !this.session.failure());
-  protected readonly nav = computed(() => (this.session.me() ? NAV.filter((item) => this.session.can(item.minRole)) : []));
+  protected readonly loading = computed(
+    () => !this.session.me() && !this.session.failure(),
+  );
+  protected readonly nav = computed(() =>
+    this.session.me()
+      ? NAV.filter((item) => this.session.can(item.minRole))
+      : [],
+  );
   protected readonly inTelegram = this.telegram.inTelegram;
 
   async ngOnInit(): Promise<void> {

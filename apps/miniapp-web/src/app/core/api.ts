@@ -1,4 +1,8 @@
-import { HttpClient, HttpErrorResponse, type HttpInterceptorFn } from '@angular/common/http';
+import {
+  HttpClient,
+  HttpErrorResponse,
+  type HttpInterceptorFn,
+} from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import type {
   ActionResponse,
@@ -26,7 +30,9 @@ export const telegramAuthInterceptor: HttpInterceptorFn = (request, next) => {
     return next(request);
   }
   const initData = inject(TelegramService).initData || 'dev';
-  return next(request.clone({ setHeaders: { Authorization: `tma ${initData}` } }));
+  return next(
+    request.clone({ setHeaders: { Authorization: `tma ${initData}` } }),
+  );
 };
 
 /** An API failure, with the message the gateway wrote for people. */
@@ -50,11 +56,23 @@ export function toApiFailure(error: unknown): ApiFailure {
       return new ApiFailure(error.status, body.error ?? 'error', body.message);
     }
     if (error.status === 0) {
-      return new ApiFailure(0, 'offline', "Can't reach the bot. Check your connection and try again.");
+      return new ApiFailure(
+        0,
+        'offline',
+        "Can't reach the bot. Check your connection and try again.",
+      );
     }
-    return new ApiFailure(error.status, 'error', `The bot answered with an error (${error.status}).`);
+    return new ApiFailure(
+      error.status,
+      'error',
+      `The bot answered with an error (${error.status}).`,
+    );
   }
-  return new ApiFailure(0, 'error', error instanceof Error ? error.message : String(error));
+  return new ApiFailure(
+    0,
+    'error',
+    error instanceof Error ? error.message : String(error),
+  );
 }
 
 const server = (alias: string) => `/api/servers/${encodeURIComponent(alias)}`;
@@ -80,8 +98,15 @@ export class ApiService {
     return this.call<StatusResponse>(this.http.get(`${server(alias)}/status`));
   }
 
-  moderate(alias: string, num: number, kind: ModerationKind, body: ModerationRequest) {
-    return this.call<ActionResponse>(this.http.post(`${server(alias)}/players/${num}/${kind}`, body));
+  moderate(
+    alias: string,
+    num: number,
+    kind: ModerationKind,
+    body: ModerationRequest,
+  ) {
+    return this.call<ActionResponse>(
+      this.http.post(`${server(alias)}/players/${num}/${kind}`, body),
+    );
   }
 
   maps(alias: string) {
@@ -89,11 +114,15 @@ export class ApiService {
   }
 
   changeMap(alias: string, map: string) {
-    return this.call<ActionResponse>(this.http.post(`${server(alias)}/map`, { map }));
+    return this.call<ActionResponse>(
+      this.http.post(`${server(alias)}/map`, { map }),
+    );
   }
 
   console(alias: string, command: string) {
-    return this.call<ConsoleResponse>(this.http.post(`${server(alias)}/console`, { command }));
+    return this.call<ConsoleResponse>(
+      this.http.post(`${server(alias)}/console`, { command }),
+    );
   }
 
   chat(alias: string) {
@@ -101,11 +130,15 @@ export class ApiService {
   }
 
   say(alias: string, message: string) {
-    return this.call<ActionResponse>(this.http.post(`${server(alias)}/say`, { message }));
+    return this.call<ActionResponse>(
+      this.http.post(`${server(alias)}/say`, { message }),
+    );
   }
 
   tell(alias: string, body: TellRequest) {
-    return this.call<ActionResponse>(this.http.post(`${server(alias)}/tell`, body));
+    return this.call<ActionResponse>(
+      this.http.post(`${server(alias)}/tell`, body),
+    );
   }
 
   bans(kind: BanKind, query: string, includeLifted: boolean, offset: number) {
@@ -120,11 +153,15 @@ export class ApiService {
   }
 
   updateBan(kind: BanKind, id: number, body: UpdateBanRequest) {
-    return this.call<UpdateBanResponse>(this.http.patch(`/api/bans/${kind}/${id}`, body));
+    return this.call<UpdateBanResponse>(
+      this.http.patch(`/api/bans/${kind}/${id}`, body),
+    );
   }
 
   unban(targets: string[]) {
-    return this.call<UnbanResponse>(this.http.post('/api/bans/unban', { targets }));
+    return this.call<UnbanResponse>(
+      this.http.post('/api/bans/unban', { targets }),
+    );
   }
 
   addBan(body: AddBanRequest) {

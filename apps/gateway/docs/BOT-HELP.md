@@ -84,6 +84,7 @@ see the command lists above for exactly where each cutoff is.
 
 If you were just set up as this bot's owner via a secret code, message the bot directly (not in
 this group) with:
+
 - `/claim <secret>`
 
 Everyone else needs an existing admin to run `/addadmin` for them.

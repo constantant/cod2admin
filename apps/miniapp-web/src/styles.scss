@@ -12,8 +12,20 @@ html {
         theme-type: color-scheme,
       ),
       typography: (
-        plain-family: (system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif),
-        brand-family: (system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif),
+        plain-family: (
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif,
+        ),
+        brand-family: (
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif,
+        ),
       ),
       density: -1,
     )
@@ -33,8 +45,14 @@ html.tg {
   --mat-sys-surface-container-lowest: var(--tg-theme-secondary-bg-color);
   --mat-sys-surface-container-low: var(--tg-theme-secondary-bg-color);
   --mat-sys-surface-container: var(--tg-theme-secondary-bg-color);
-  --mat-sys-surface-container-high: var(--tg-theme-section-bg-color, var(--tg-theme-secondary-bg-color));
-  --mat-sys-surface-container-highest: var(--tg-theme-section-bg-color, var(--tg-theme-secondary-bg-color));
+  --mat-sys-surface-container-high: var(
+    --tg-theme-section-bg-color,
+    var(--tg-theme-secondary-bg-color)
+  );
+  --mat-sys-surface-container-highest: var(
+    --tg-theme-section-bg-color,
+    var(--tg-theme-secondary-bg-color)
+  );
 }
 
 html,

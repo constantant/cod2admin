@@ -1,5 +1,10 @@
 import { effect, inject, Injectable, signal } from '@angular/core';
-import type { ChatLineDto, LiveClientMessage, LiveServerMessage, StatusResponse } from '@cod2admin/miniapp-api';
+import type {
+  ChatLineDto,
+  LiveClientMessage,
+  LiveServerMessage,
+  StatusResponse,
+} from '@cod2admin/miniapp-api';
 import { Subject } from 'rxjs';
 import { SessionService } from './session';
 import { TelegramService } from './telegram';
@@ -50,7 +55,8 @@ export class LiveService {
     socket.onopen = () => {
       this.send({ type: 'auth', initData: this.telegram.initData || 'dev' });
     };
-    socket.onmessage = (event) => this.handle(JSON.parse(String(event.data)) as LiveServerMessage);
+    socket.onmessage = (event) =>
+      this.handle(JSON.parse(String(event.data)) as LiveServerMessage);
     socket.onclose = () => {
       this.socket = undefined;
       this.ready = false;
@@ -99,7 +105,8 @@ export class LiveService {
         }
         break;
       case 'error':
-        this.refused ||= message.error.startsWith('auth_') || message.error === 'not_admin';
+        this.refused ||=
+          message.error.startsWith('auth_') || message.error === 'not_admin';
         console.warn('Live feed:', message.message);
         break;
     }

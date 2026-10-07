@@ -4,17 +4,11 @@
     "composite": false,
     "noPropertyAccessFromIndexSignature": true,
     "experimentalDecorators": true,
-    "lib": [
-      "es2022",
-      "dom",
-      "dom.iterable"
-    ],
+    "lib": ["es2022", "dom", "dom.iterable"],
     "moduleResolution": "bundler",
     "module": "preserve",
     "paths": {
-      "@cod2admin/miniapp-api": [
-        "../gateway/src/miniapp/api-types.ts"
-      ]
+      "@cod2admin/miniapp-api": ["../gateway/src/miniapp/api-types.ts"]
     },
     "declaration": false,
     "declarationMap": false,

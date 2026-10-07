@@ -8,9 +8,15 @@ import { UpdateRegistry } from '../update-registry.js';
 import { VpnKicker } from '../vpn-kick.js';
 import { NO_VPN_LOOKUP } from '../vpn-ranges.js';
 import { asRconClient, createFakeRcon, type FakeRcon } from './fake-rcon.js';
-import { createFakeAdminStore, type FakeAdminStore } from './fake-admin-store.js';
+import {
+  createFakeAdminStore,
+  type FakeAdminStore,
+} from './fake-admin-store.js';
 import { createFakeBanStore, type FakeBanStore } from './fake-ban-store.js';
-import { createFakeGithubReleaseClient, type FakeGithubReleaseClient } from './fake-github-release-client.js';
+import {
+  createFakeGithubReleaseClient,
+  type FakeGithubReleaseClient,
+} from './fake-github-release-client.js';
 
 export interface FakeDeps {
   adminStore: FakeAdminStore;
@@ -49,13 +55,20 @@ export function createFakeDeps(): FakeDeps {
       telegramRoutes: {
         router: new TelegramRouter([DIRECT_TELEGRAM_ROOT], () => undefined),
         defaults: { direct: true, relays: [] },
-        probe: vi.fn(async () => ({ ok: true as const, ms: 50, username: 'test_bot' })),
+        probe: vi.fn(async () => ({
+          ok: true as const,
+          ms: 50,
+          username: 'test_bot',
+        })),
       },
       reportRegistry: new ReportRegistry(),
       reportAntiSpam: new ReportAntiSpam<string>(),
       sessionsByServer: new Map<string, SessionLookup>(),
       logTailers: new Map(),
-      updateConfig: { stagingDir: '/opt/cod2admin/staging', applyUpdateScriptPath: '/opt/cod2admin/bin/apply-update.sh' },
+      updateConfig: {
+        stagingDir: '/opt/cod2admin/staging',
+        applyUpdateScriptPath: '/opt/cod2admin/bin/apply-update.sh',
+      },
       githubReleaseClient,
       updateRegistry: new UpdateRegistry(),
     },

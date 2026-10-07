@@ -2,8 +2,14 @@ import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createAdminStore, migrate as migrateAdminStore } from '@cod2admin/admin-store';
-import { createBanStore, migrate as migrateBanStore } from '@cod2admin/ban-store';
+import {
+  createAdminStore,
+  migrate as migrateAdminStore,
+} from '@cod2admin/admin-store';
+import {
+  createBanStore,
+  migrate as migrateBanStore,
+} from '@cod2admin/ban-store';
 import { RconClient } from '@cod2admin/rcon-client';
 import { ReportAntiSpam } from '@cod2admin/report-pipeline';
 import type { SessionLookup } from '@cod2admin/report-pipeline';
@@ -11,7 +17,11 @@ import { createBot } from './lib/bot.js';
 import { loadConfig } from './lib/config.js';
 import type { GatewayDeps, UpdateFeatureConfig } from './lib/deps.js';
 import { startExpiryPoller } from './lib/expiry-poller.js';
-import { parseVpnKickSettings, VPN_KICK_SETTING_KEY, VpnKicker } from './lib/vpn-kick.js';
+import {
+  parseVpnKickSettings,
+  VPN_KICK_SETTING_KEY,
+  VpnKicker,
+} from './lib/vpn-kick.js';
 import {
   AsnDatabase,
   dbIpAsnDownloadUrl,
@@ -56,13 +66,18 @@ const config = loadConfig();
 await migrateAdminStore(config.databaseUrl);
 await migrateBanStore(config.databaseUrl);
 
-const adminStore = createAdminStore(config.databaseUrl, config.secretsEncryptionKey);
+const adminStore = createAdminStore(
+  config.databaseUrl,
+  config.secretsEncryptionKey,
+);
 const banStore = createBanStore(config.databaseUrl);
 
 if (config.ownerTelegramId !== undefined) {
   const result = await adminStore.claimOwner(config.ownerTelegramId);
   if (result === 'claimed') {
-    console.log(`Bootstrapped owner from OWNER_TELEGRAM_ID: ${config.ownerTelegramId}`);
+    console.log(
+      `Bootstrapped owner from OWNER_TELEGRAM_ID: ${config.ownerTelegramId}`,
+    );
   }
 }
 
@@ -74,19 +89,28 @@ await adminStore.upsertServer({
   logSourceConfig: config.logPath,
 });
 
-const createRconClient = (server: { host: string; port: number; password: string }) =>
-  new RconClient({ ...server, encoding: config.textEncoding });
+const createRconClient = (server: {
+  host: string;
+  port: number;
+  password: string;
+}) => new RconClient({ ...server, encoding: config.textEncoding });
 
 const servers = await adminStore.listServers();
 const rconClients = new Map(
   servers.map((server) => [
     server.alias,
-    createRconClient({ host: server.rconHost, port: server.rconPort, password: server.rconPassword }),
+    createRconClient({
+      host: server.rconHost,
+      port: server.rconPort,
+      password: server.rconPassword,
+    }),
   ]),
 );
 
 const claimSecret = randomBytes(16).toString('hex');
-console.log(`/claim secret (use this in Telegram if OWNER_TELEGRAM_ID wasn't set): ${claimSecret}`);
+console.log(
+  `/claim secret (use this in Telegram if OWNER_TELEGRAM_ID wasn't set): ${claimSecret}`,
+);
 
 // Self-update (docs/PLAN.md §13.2/§13.3) — disabled (undefined) unless install.sh wrote
 // UPDATE_STAGING_DIR (§13.5's $STAGING_DIR). applyUpdateScriptPath is derived, not a second env
@@ -94,7 +118,11 @@ console.log(`/claim secret (use this in Telegram if OWNER_TELEGRAM_ID wasn't set
 const updateConfig: UpdateFeatureConfig | undefined = config.updateStagingDir
   ? {
       stagingDir: config.updateStagingDir,
-      applyUpdateScriptPath: path.join(path.dirname(config.updateStagingDir), 'bin', 'apply-update.sh'),
+      applyUpdateScriptPath: path.join(
+        path.dirname(config.updateStagingDir),
+        'bin',
+        'apply-update.sh',
+      ),
     }
   : undefined;
 
@@ -108,10 +136,17 @@ if (config.geoip.enabled) {
     database: geoipDatabase,
     filePath:
       config.geoip.dbPath ??
-      path.join(config.updateStagingDir ?? tmpdir(), config.geoip.city ? 'dbip-city-lite.mmdb' : 'dbip-country-lite.mmdb'),
+      path.join(
+        config.updateStagingDir ?? tmpdir(),
+        config.geoip.city ? 'dbip-city-lite.mmdb' : 'dbip-country-lite.mmdb',
+      ),
     autoDownload: config.geoip.dbPath === undefined,
     ...(config.geoip.city
-      ? { parse: parseCityDatabase, downloadUrl: dbIpCityDownloadUrl, label: 'IP city database' }
+      ? {
+          parse: parseCityDatabase,
+          downloadUrl: dbIpCityDownloadUrl,
+          label: 'IP city database',
+        }
       : {}),
   });
   // Not awaited: a slow or failed download must never delay the bot's start.
@@ -123,7 +158,8 @@ if (config.geoip.enabled) {
   const asnUpdater = new GeoIpUpdater({
     database: asnDatabase,
     filePath:
-      config.geoip.asnDbPath ?? path.join(config.updateStagingDir ?? tmpdir(), 'dbip-asn-lite.mmdb'),
+      config.geoip.asnDbPath ??
+      path.join(config.updateStagingDir ?? tmpdir(), 'dbip-asn-lite.mmdb'),
     autoDownload: config.geoip.asnDbPath === undefined,
     parse: parseAsnDatabase,
     downloadUrl: dbIpAsnDownloadUrl,
@@ -137,7 +173,9 @@ if (config.geoip.enabled) {
 const vpnDatabase = new VpnRangeDatabase((ip) => asnDatabase.asn(ip));
 if (config.vpnFlag.enabled) {
   vpnDatabase.setNetworks(
-    parseVpnNetworks(await adminStore.getSetting(VPN_NETWORKS_SETTING_KEY)).map((network) => network.asn),
+    parseVpnNetworks(await adminStore.getSetting(VPN_NETWORKS_SETTING_KEY)).map(
+      (network) => network.asn,
+    ),
   );
   const vpnUpdater = new VpnListUpdater({
     database: vpnDatabase,
@@ -148,7 +186,9 @@ if (config.vpnFlag.enabled) {
 }
 // /vpnkick (lib/vpn-kick.ts): off unless an admin turned it on; runs with the ban sweep.
 const vpnKick = new VpnKicker();
-vpnKick.setSettings(parseVpnKickSettings(await adminStore.getSetting(VPN_KICK_SETTING_KEY)));
+vpnKick.setSettings(
+  parseVpnKickSettings(await adminStore.getSetting(VPN_KICK_SETTING_KEY)),
+);
 
 // How the bot reaches Telegram (lib/telegram-routes.ts, docs/PLAN-russia-access.md): a /relays
 // change stored in the database wins over .env, which wins over direct + the built-in relays.
@@ -156,16 +196,29 @@ const telegramDefaults: TelegramRouteSettings = {
   direct: config.telegram.direct,
   relays: config.telegram.relays ?? [...DEFAULT_TELEGRAM_RELAYS],
 };
-const telegramRouteSettings = parseRouteSettings(await adminStore.getSetting(ROUTES_SETTING_KEY)) ?? telegramDefaults;
+const telegramRouteSettings =
+  parseRouteSettings(await adminStore.getSetting(ROUTES_SETTING_KEY)) ??
+  telegramDefaults;
 const telegramRouter = new TelegramRouter(routesFrom(telegramRouteSettings));
-const probeTelegramRoute = (root: string) => probeRoute(root, config.telegramBotToken);
-const routeResults = await selectWorkingRoute(telegramRouter, probeTelegramRoute);
+const probeTelegramRoute = (root: string) =>
+  probeRoute(root, config.telegramBotToken);
+const routeResults = await selectWorkingRoute(
+  telegramRouter,
+  probeTelegramRoute,
+);
 if ([...routeResults.values()].some((result) => result.ok)) {
-  console.log(`Telegram: connecting via ${describeRoute(telegramRouter.current)}`);
+  console.log(
+    `Telegram: connecting via ${describeRoute(telegramRouter.current)}`,
+  );
 } else {
   console.warn(
     'Telegram: no route reaches the Bot API right now (' +
-      [...routeResults].map(([root, result]) => `${describeRoute(root)}: ${result.ok ? 'ok' : result.error}`).join('; ') +
+      [...routeResults]
+        .map(
+          ([root, result]) =>
+            `${describeRoute(root)}: ${result.ok ? 'ok' : result.error}`,
+        )
+        .join('; ') +
       ') — retrying in the background. If this host is in Russia, see docs/PLAN-russia-access.md.',
   );
 }
@@ -184,7 +237,11 @@ const deps: GatewayDeps = {
   provider: config.geoip.enabled ? asnDatabase : NO_PROVIDER_LOOKUP,
   vpn: config.vpnFlag.enabled ? vpnDatabase : NO_VPN_LOOKUP,
   vpnKick,
-  telegramRoutes: { router: telegramRouter, defaults: telegramDefaults, probe: probeTelegramRoute },
+  telegramRoutes: {
+    router: telegramRouter,
+    defaults: telegramDefaults,
+    probe: probeTelegramRoute,
+  },
   reportRegistry: new ReportRegistry(),
   reportAntiSpam: new ReportAntiSpam<string>(),
   sessionsByServer: new Map<string, SessionLookup>(),
@@ -221,10 +278,14 @@ if (config.miniapp.port !== undefined) {
       port,
       botToken: config.telegramBotToken,
       // The built web app ships next to dist/ (scripts/build-installer-bundle.sh).
-      staticDir: config.miniapp.staticDir ?? fileURLToPath(new URL('../miniapp', import.meta.url)),
+      staticDir:
+        config.miniapp.staticDir ??
+        fileURLToPath(new URL('../miniapp', import.meta.url)),
       devTelegramId: config.miniapp.devTelegramId,
     });
-    console.log(`Mini App: listening on http://${host}:${port}${config.miniapp.url ? `, public at ${config.miniapp.url}` : ''}`);
+    console.log(
+      `Mini App: listening on http://${host}:${port}${config.miniapp.url ? `, public at ${config.miniapp.url}` : ''}`,
+    );
   } catch (error) {
     console.error(`Mini App: could not start on ${host}:${port}:`, error);
   }
@@ -233,7 +294,13 @@ if (config.miniapp.port !== undefined) {
 // bot. Only set when MINIAPP_URL is: otherwise a button set by hand in @BotFather stays as it was.
 if (config.miniapp.url) {
   void bot.api
-    .setChatMenuButton({ menu_button: { type: 'web_app', text: APP_BUTTON_TEXT, web_app: { url: config.miniapp.url } } })
+    .setChatMenuButton({
+      menu_button: {
+        type: 'web_app',
+        text: APP_BUTTON_TEXT,
+        web_app: { url: config.miniapp.url },
+      },
+    })
     .catch((error: unknown) => {
       console.error('Mini App: setting the bot menu button failed:', error);
     });

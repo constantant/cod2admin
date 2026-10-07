@@ -3,7 +3,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { AdminRole } from '@cod2admin/admin-store';
 import type { ChatEvent } from '@cod2admin/log-tailer';
-import { UdpQueryTimeoutError, type StatusPlayer } from '@cod2admin/rcon-client';
+import {
+  UdpQueryTimeoutError,
+  type StatusPlayer,
+} from '@cod2admin/rcon-client';
 import type { FastifyInstance } from 'fastify';
 // Brings in the type of `injectWS`, which the plugin adds to every Fastify instance.
 import type {} from '@fastify/websocket';
@@ -16,22 +19,48 @@ import { signInitData } from './init-data.js';
 import { createMiniAppServer } from './server.js';
 
 const TOKEN = '123456:TEST-token';
-const PLAYER: StatusPlayer = { num: 3, name: '^1Cheater', score: 5, ping: 50, guid: '0', ip: '203.0.113.7' };
+const PLAYER: StatusPlayer = {
+  num: 3,
+  name: '^1Cheater',
+  score: 5,
+  ping: 50,
+  guid: '0',
+  ip: '203.0.113.7',
+};
 
 function authHeader(telegramId: number, username = 'kim'): string {
   const initData = signInitData(
-    { user: JSON.stringify({ id: telegramId, username, first_name: 'Kim' }), auth_date: String(Math.floor(Date.now() / 1000)) },
+    {
+      user: JSON.stringify({ id: telegramId, username, first_name: 'Kim' }),
+      auth_date: String(Math.floor(Date.now() / 1000)),
+    },
     TOKEN,
   );
   return `tma ${initData}`;
 }
 
-function setup(roles: Record<number, AdminRole> = { 1: 'owner', 2: 'admin', 3: 'moderator' }) {
+function setup(
+  roles: Record<number, AdminRole> = { 1: 'owner', 2: 'admin', 3: 'moderator' },
+) {
   const fake = createFakeDeps();
-  const admins = Object.entries(roles).map(([id, role]) => sampleAdmin({ telegramId: Number(id), role, username: 'kim', firstName: 'Kim' }));
-  fake.adminStore.getAdmin.mockImplementation(async (id) => admins.find((admin) => admin.telegramId === id));
+  const admins = Object.entries(roles).map(([id, role]) =>
+    sampleAdmin({
+      telegramId: Number(id),
+      role,
+      username: 'kim',
+      firstName: 'Kim',
+    }),
+  );
+  fake.adminStore.getAdmin.mockImplementation(async (id) =>
+    admins.find((admin) => admin.telegramId === id),
+  );
   fake.adminStore.listAdmins.mockResolvedValue(admins);
-  fake.rcon.status.mockResolvedValue({ raw: '', mapName: 'mp_toujane', hostname: 'Test server', players: [PLAYER] });
+  fake.rcon.status.mockResolvedValue({
+    raw: '',
+    mapName: 'mp_toujane',
+    hostname: 'Test server',
+    players: [PLAYER],
+  });
   return fake;
 }
 
@@ -48,7 +77,10 @@ describe('Mini App server', () => {
     }
   });
 
-  async function start(fake: FakeDeps, options: { devTelegramId?: number; staticDir?: string } = {}) {
+  async function start(
+    fake: FakeDeps,
+    options: { devTelegramId?: number; staticDir?: string } = {},
+  ) {
     app = await createMiniAppServer(fake.deps, { botToken: TOKEN, ...options });
     return app;
   }
@@ -60,14 +92,27 @@ describe('Mini App server', () => {
       const response = await server.inject({ method: 'GET', url: '/api/me' });
 
       expect(response.statusCode).toBe(401);
-      expect(response.json()).toEqual({ error: 'auth_missing', message: 'Open this app from the bot in Telegram.' });
+      expect(response.json()).toEqual({
+        error: 'auth_missing',
+        message: 'Open this app from the bot in Telegram.',
+      });
     });
 
     it('refuses initData signed with another bot token', async () => {
       const server = await start(setup());
-      const forged = signInitData({ user: JSON.stringify({ id: 1 }), auth_date: String(Math.floor(Date.now() / 1000)) }, '9:other');
+      const forged = signInitData(
+        {
+          user: JSON.stringify({ id: 1 }),
+          auth_date: String(Math.floor(Date.now() / 1000)),
+        },
+        '9:other',
+      );
 
-      const response = await server.inject({ method: 'GET', url: '/api/me', headers: { authorization: `tma ${forged}` } });
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/me',
+        headers: { authorization: `tma ${forged}` },
+      });
 
       expect(response.statusCode).toBe(401);
       expect(response.json().error).toBe('auth_bad_signature');
@@ -76,18 +121,32 @@ describe('Mini App server', () => {
     it('refuses a real Telegram user who is not an admin, and tells them their ID', async () => {
       const server = await start(setup());
 
-      const response = await server.inject({ method: 'GET', url: '/api/me', headers: { authorization: authHeader(77) } });
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/me',
+        headers: { authorization: authHeader(77) },
+      });
 
       expect(response.statusCode).toBe(403);
-      expect(response.json()).toEqual({ error: 'not_admin', message: expect.stringContaining('77') });
+      expect(response.json()).toEqual({
+        error: 'not_admin',
+        message: expect.stringContaining('77'),
+      });
     });
 
     it('returns the admin, their role and the servers', async () => {
       const fake = setup();
-      fake.deps.logTailers.set('default', { on: vi.fn(), readRecentChat: vi.fn() } as never);
+      fake.deps.logTailers.set('default', {
+        on: vi.fn(),
+        readRecentChat: vi.fn(),
+      } as never);
       const server = await start(fake);
 
-      const response = await server.inject({ method: 'GET', url: '/api/me', headers: { authorization: authHeader(2) } });
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/me',
+        headers: { authorization: authHeader(2) },
+      });
 
       expect(response.statusCode).toBe(200);
       expect(response.json()).toEqual({
@@ -104,7 +163,9 @@ describe('Mini App server', () => {
 
       const response = await server.inject({ method: 'GET', url: '/api/me' });
 
-      expect(response.json()).toEqual(expect.objectContaining({ role: 'owner' }));
+      expect(response.json()).toEqual(
+        expect.objectContaining({ role: 'owner' }),
+      );
     });
 
     it("gates routes by the same roles as the chat commands: a moderator can't ban or open the console", async () => {
@@ -112,8 +173,18 @@ describe('Mini App server', () => {
       const server = await start(fake);
       const headers = { authorization: authHeader(3) };
 
-      const ban = await server.inject({ method: 'POST', url: '/api/servers/default/players/3/ban', headers, payload: { name: PLAYER.name } });
-      const consoleCall = await server.inject({ method: 'POST', url: '/api/servers/default/console', headers, payload: { command: 'status' } });
+      const ban = await server.inject({
+        method: 'POST',
+        url: '/api/servers/default/players/3/ban',
+        headers,
+        payload: { name: PLAYER.name },
+      });
+      const consoleCall = await server.inject({
+        method: 'POST',
+        url: '/api/servers/default/console',
+        headers,
+        payload: { command: 'status' },
+      });
 
       expect(ban.statusCode).toBe(403);
       expect(consoleCall.statusCode).toBe(403);
@@ -124,7 +195,11 @@ describe('Mini App server', () => {
     it('answers unknown API routes with JSON 404', async () => {
       const server = await start(setup());
 
-      const response = await server.inject({ method: 'GET', url: '/api/nope', headers: { authorization: authHeader(1) } });
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/nope',
+        headers: { authorization: authHeader(1) },
+      });
 
       expect(response.statusCode).toBe(404);
       expect(response.json().error).toBe('not_found');
@@ -135,13 +210,26 @@ describe('Mini App server', () => {
     it('returns the live status with player details', async () => {
       const server = await start(setup());
 
-      const response = await server.inject({ method: 'GET', url: '/api/servers/default/status', headers: { authorization: authHeader(3) } });
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/servers/default/status',
+        headers: { authorization: authHeader(3) },
+      });
 
       expect(response.json()).toEqual({
         server: 'default',
         hostname: 'Test server',
         mapName: 'mp_toujane',
-        players: [{ num: 3, name: '^1Cheater', score: 5, ping: 50, guid: null, ip: '203.0.113.7' }],
+        players: [
+          {
+            num: 3,
+            name: '^1Cheater',
+            score: 5,
+            ping: 50,
+            guid: null,
+            ip: '203.0.113.7',
+          },
+        ],
         fetchedAt: expect.any(String),
       });
     });
@@ -149,7 +237,11 @@ describe('Mini App server', () => {
     it('404s an unknown server', async () => {
       const server = await start(setup());
 
-      const response = await server.inject({ method: 'GET', url: '/api/servers/nope/status', headers: { authorization: authHeader(1) } });
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/servers/nope/status',
+        headers: { authorization: authHeader(1) },
+      });
 
       expect(response.statusCode).toBe(404);
       expect(response.json().error).toBe('unknown_server');
@@ -169,7 +261,12 @@ describe('Mini App server', () => {
       expect(response.json()).toEqual({ message: 'Kicked Cheater.' });
       expect(fake.rcon.kick).toHaveBeenCalledWith('^1Cheater');
       expect(fake.adminStore.recordAuditLog).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'kick', target: '^1Cheater', source: 'miniapp', actorTelegramId: 3 }),
+        expect.objectContaining({
+          action: 'kick',
+          target: '^1Cheater',
+          source: 'miniapp',
+          actorTelegramId: 3,
+        }),
       );
     });
 
@@ -184,9 +281,16 @@ describe('Mini App server', () => {
         payload: { name: '^1Cheater', durationMinutes: 120, reason: 'spam' },
       });
 
-      expect(response.json()).toEqual({ message: 'IP temp-banned (GUID unavailable) Cheater for 2h.' });
+      expect(response.json()).toEqual({
+        message: 'IP temp-banned (GUID unavailable) Cheater for 2h.',
+      });
       expect(fake.banStore.recordIpBan).toHaveBeenCalledWith(
-        expect.objectContaining({ ip: '203.0.113.7', reason: 'spam', bannedBy: 3, expiresAt: expect.any(Date) }),
+        expect.objectContaining({
+          ip: '203.0.113.7',
+          reason: 'spam',
+          bannedBy: 3,
+          expiresAt: expect.any(Date),
+        }),
       );
     });
 
@@ -202,7 +306,10 @@ describe('Mini App server', () => {
       });
 
       expect(response.statusCode).toBe(409);
-      expect(response.json()).toEqual({ error: 'player_changed', message: "SomeoneElse isn't in slot 3 any more — refresh the list." });
+      expect(response.json()).toEqual({
+        error: 'player_changed',
+        message: "SomeoneElse isn't in slot 3 any more — refresh the list.",
+      });
       expect(fake.rcon.kick).not.toHaveBeenCalled();
     });
 
@@ -224,7 +331,11 @@ describe('Mini App server', () => {
       fake.rcon.status.mockRejectedValue(new UdpQueryTimeoutError('timeout'));
       const server = await start(fake);
 
-      const response = await server.inject({ method: 'GET', url: '/api/servers/default/status', headers: { authorization: authHeader(1) } });
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/servers/default/status',
+        headers: { authorization: authHeader(1) },
+      });
 
       expect(response.statusCode).toBe(504);
       expect(response.json().error).toBe('server_unresponsive');
@@ -254,10 +365,19 @@ describe('Mini App server', () => {
     it('lists the rotation and the other installed maps, flagging stock ones', async () => {
       const fake = setup();
       fake.rcon.getMapRotation.mockResolvedValue(['mp_toujane', 'mp_carentan']);
-      fake.rcon.getInstalledMaps.mockResolvedValue(['mp_carentan', 'mp_harbor', 'mp_toujane', 'mp_custom']);
+      fake.rcon.getInstalledMaps.mockResolvedValue([
+        'mp_carentan',
+        'mp_harbor',
+        'mp_toujane',
+        'mp_custom',
+      ]);
       const server = await start(fake);
 
-      const response = await server.inject({ method: 'GET', url: '/api/servers/default/maps', headers: { authorization: authHeader(2) } });
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/servers/default/maps',
+        headers: { authorization: authHeader(2) },
+      });
 
       expect(response.json()).toEqual({
         current: 'mp_toujane',
@@ -275,13 +395,29 @@ describe('Mini App server', () => {
       const server = await start(fake);
       const headers = { authorization: authHeader(2) };
 
-      const ok = await server.inject({ method: 'POST', url: '/api/servers/default/map', headers, payload: { map: 'MP_HARBOR' } });
-      const missing = await server.inject({ method: 'POST', url: '/api/servers/default/map', headers, payload: { map: 'mp_nope' } });
+      const ok = await server.inject({
+        method: 'POST',
+        url: '/api/servers/default/map',
+        headers,
+        payload: { map: 'MP_HARBOR' },
+      });
+      const missing = await server.inject({
+        method: 'POST',
+        url: '/api/servers/default/map',
+        headers,
+        payload: { map: 'mp_nope' },
+      });
 
       expect(ok.json()).toEqual({ message: 'Changing map to mp_Harbor…' });
       expect(fake.rcon.map).toHaveBeenCalledWith('mp_Harbor');
       expect(missing.statusCode).toBe(404);
-      expect(fake.adminStore.recordAuditLog).toHaveBeenCalledWith(expect.objectContaining({ action: 'map', target: 'mp_Harbor', source: 'miniapp' }));
+      expect(fake.adminStore.recordAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'map',
+          target: 'mp_Harbor',
+          source: 'miniapp',
+        }),
+      );
     });
 
     it('runs a raw console command for the owner, on one line', async () => {
@@ -305,25 +441,55 @@ describe('Mini App server', () => {
     it('says there is no chat feed on an RCON-only install', async () => {
       const server = await start(setup());
 
-      const response = await server.inject({ method: 'GET', url: '/api/servers/default/chat', headers: { authorization: authHeader(3) } });
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/servers/default/chat',
+        headers: { authorization: authHeader(3) },
+      });
 
       expect(response.json()).toEqual({ available: false, lines: [] });
     });
 
     it("returns the log's recent chat, and adds what admins say", async () => {
       const fake = setup();
-      const old: ChatEvent = { channel: 'say', guid: '0', num: 3, name: 'Kim', message: 'hello', timestamp: { minutes: 1, seconds: 0 }, raw: 'r1' };
-      fake.deps.logTailers.set('default', { on: vi.fn(), readRecentChat: vi.fn(async () => [old]) } as never);
+      const old: ChatEvent = {
+        channel: 'say',
+        guid: '0',
+        num: 3,
+        name: 'Kim',
+        message: 'hello',
+        timestamp: { minutes: 1, seconds: 0 },
+        raw: 'r1',
+      };
+      fake.deps.logTailers.set('default', {
+        on: vi.fn(),
+        readRecentChat: vi.fn(async () => [old]),
+      } as never);
       const server = await start(fake);
       const headers = { authorization: authHeader(2) };
 
-      await server.inject({ method: 'POST', url: '/api/servers/default/say', headers, payload: { message: 'be nice; "please"' } });
-      const response = await server.inject({ method: 'GET', url: '/api/servers/default/chat', headers });
+      await server.inject({
+        method: 'POST',
+        url: '/api/servers/default/say',
+        headers,
+        payload: { message: 'be nice; "please"' },
+      });
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/servers/default/chat',
+        headers,
+      });
 
       expect(fake.rcon.say).toHaveBeenCalledWith('be nice please');
       expect(response.json().lines).toEqual([
         expect.objectContaining({ id: -1, message: 'hello', source: 'game' }),
-        expect.objectContaining({ id: 1, message: 'be nice please', source: 'admin', name: '@kim', channel: 'say' }),
+        expect.objectContaining({
+          id: 1,
+          message: 'be nice please',
+          source: 'admin',
+          name: '@kim',
+          channel: 'say',
+        }),
       ]);
     });
 
@@ -347,29 +513,66 @@ describe('Mini App server', () => {
     it('lists GUID bans a page at a time, naming who banned', async () => {
       const fake = setup();
       fake.banStore.searchBans.mockResolvedValue(
-        Array.from({ length: 51 }, (_, i) => sampleGuidBan({ id: i + 1, bannedBy: 2 })),
+        Array.from({ length: 51 }, (_, i) =>
+          sampleGuidBan({ id: i + 1, bannedBy: 2 }),
+        ),
       );
       const server = await start(fake);
 
-      const response = await server.inject({ method: 'GET', url: '/api/bans?q=chea&lifted=1&offset=50', headers: { authorization: authHeader(2) } });
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/bans?q=chea&lifted=1&offset=50',
+        headers: { authorization: authHeader(2) },
+      });
 
-      expect(fake.banStore.searchBans).toHaveBeenCalledWith({ query: 'chea', includeLifted: true, limit: 51, offset: 50 });
+      expect(fake.banStore.searchBans).toHaveBeenCalledWith({
+        query: 'chea',
+        includeLifted: true,
+        limit: 51,
+        offset: 50,
+      });
       const body = response.json();
       expect(body.more).toBe(true);
       expect(body.items).toHaveLength(50);
-      expect(body.items[0]).toEqual(expect.objectContaining({ kind: 'guid', guid: 'GUID123', name: 'Cheater', bannedBy: '@kim (2)' }));
+      expect(body.items[0]).toEqual(
+        expect.objectContaining({
+          kind: 'guid',
+          guid: 'GUID123',
+          name: 'Cheater',
+          bannedBy: '@kim (2)',
+        }),
+      );
     });
 
     it('lists IP bans', async () => {
       const fake = setup();
       fake.banStore.searchIpBans.mockResolvedValue([
-        { id: 4, serverAlias: 'default', ip: '1.2.3.4', reason: 'x', bannedBy: 0, bannedAt: new Date(), expiresAt: null, unbannedAt: null },
+        {
+          id: 4,
+          serverAlias: 'default',
+          ip: '1.2.3.4',
+          reason: 'x',
+          bannedBy: 0,
+          bannedAt: new Date(),
+          expiresAt: null,
+          unbannedAt: null,
+        },
       ]);
       const server = await start(fake);
 
-      const response = await server.inject({ method: 'GET', url: '/api/bans?kind=ip', headers: { authorization: authHeader(2) } });
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/bans?kind=ip',
+        headers: { authorization: authHeader(2) },
+      });
 
-      expect(response.json().items).toEqual([expect.objectContaining({ kind: 'ip', ip: '1.2.3.4', bannedBy: 'bot (automatic)' })]);
+      expect(response.json().items).toEqual([
+        expect.objectContaining({
+          kind: 'ip',
+          ip: '1.2.3.4',
+          bannedBy: 'bot (automatic)',
+        }),
+      ]);
     });
 
     it("making a permanent GUID ban temporary also takes it out of the server's ban.txt", async () => {
@@ -390,7 +593,9 @@ describe('Mini App server', () => {
       expect(response.statusCode).toBe(200);
       expect(fake.banStore.updateBan).toHaveBeenCalledWith(7, { expiresAt });
       expect(fake.rcon.unbanUser).toHaveBeenCalledWith('Cheater');
-      expect(fake.adminStore.recordAuditLog).toHaveBeenCalledWith(expect.objectContaining({ action: 'editban', source: 'miniapp' }));
+      expect(fake.adminStore.recordAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'editban', source: 'miniapp' }),
+      );
     });
 
     it('refuses an expiry in the past', async () => {
@@ -428,7 +633,9 @@ describe('Mini App server', () => {
           { target: 'GUID123', lifted: 1, unanswered: [] },
         ],
       });
-      expect(fake.adminStore.recordAuditLog).toHaveBeenCalledWith(expect.objectContaining({ action: 'unban', source: 'miniapp' }));
+      expect(fake.adminStore.recordAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'unban', source: 'miniapp' }),
+      );
     });
 
     it('adds an IP ban for someone offline, and validates the IP', async () => {
@@ -436,11 +643,32 @@ describe('Mini App server', () => {
       const server = await start(fake);
       const headers = { authorization: authHeader(2) };
 
-      const ok = await server.inject({ method: 'POST', url: '/api/bans', headers, payload: { kind: 'ip', server: 'default', ip: '5.6.7.8', durationMinutes: 60 } });
-      const bad = await server.inject({ method: 'POST', url: '/api/bans', headers, payload: { kind: 'ip', server: 'default', ip: '999.1.1.1' } });
+      const ok = await server.inject({
+        method: 'POST',
+        url: '/api/bans',
+        headers,
+        payload: {
+          kind: 'ip',
+          server: 'default',
+          ip: '5.6.7.8',
+          durationMinutes: 60,
+        },
+      });
+      const bad = await server.inject({
+        method: 'POST',
+        url: '/api/bans',
+        headers,
+        payload: { kind: 'ip', server: 'default', ip: '999.1.1.1' },
+      });
 
       expect(ok.statusCode).toBe(201);
-      expect(fake.banStore.recordIpBan).toHaveBeenCalledWith(expect.objectContaining({ ip: '5.6.7.8', serverAlias: 'default', expiresAt: expect.any(Date) }));
+      expect(fake.banStore.recordIpBan).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ip: '5.6.7.8',
+          serverAlias: 'default',
+          expiresAt: expect.any(Date),
+        }),
+      );
       expect(bad.statusCode).toBe(400);
     });
 
@@ -449,11 +677,32 @@ describe('Mini App server', () => {
       const server = await start(fake);
       const headers = { authorization: authHeader(2) };
 
-      const ok = await server.inject({ method: 'POST', url: '/api/bans', headers, payload: { kind: 'guid', server: 'default', guid: '123456', name: 'Cheater' } });
-      const zero = await server.inject({ method: 'POST', url: '/api/bans', headers, payload: { kind: 'guid', server: 'default', guid: '0', name: 'X' } });
+      const ok = await server.inject({
+        method: 'POST',
+        url: '/api/bans',
+        headers,
+        payload: {
+          kind: 'guid',
+          server: 'default',
+          guid: '123456',
+          name: 'Cheater',
+        },
+      });
+      const zero = await server.inject({
+        method: 'POST',
+        url: '/api/bans',
+        headers,
+        payload: { kind: 'guid', server: 'default', guid: '0', name: 'X' },
+      });
 
       expect(ok.statusCode).toBe(201);
-      expect(fake.banStore.recordBan).toHaveBeenCalledWith(expect.objectContaining({ guid: '123456', name: 'Cheater', expiresAt: null }));
+      expect(fake.banStore.recordBan).toHaveBeenCalledWith(
+        expect.objectContaining({
+          guid: '123456',
+          name: 'Cheater',
+          expiresAt: null,
+        }),
+      );
       expect(zero.statusCode).toBe(400);
     });
   });
@@ -468,9 +717,18 @@ describe('Mini App server', () => {
 
       const root = await server.inject({ method: 'GET', url: '/' });
       const deepLink = await server.inject({ method: 'GET', url: '/bans' });
-      const asset = await server.inject({ method: 'GET', url: '/main-ABCD1234.js' });
-      const chunk = await server.inject({ method: 'GET', url: '/chunk-De-zqpfv.js' });
-      const missingAsset = await server.inject({ method: 'GET', url: '/nope.js' });
+      const asset = await server.inject({
+        method: 'GET',
+        url: '/main-ABCD1234.js',
+      });
+      const chunk = await server.inject({
+        method: 'GET',
+        url: '/chunk-De-zqpfv.js',
+      });
+      const missingAsset = await server.inject({
+        method: 'GET',
+        url: '/nope.js',
+      });
 
       expect(root.body).toBe('<html>app</html>');
       expect(deepLink.body).toBe('<html>app</html>');
@@ -496,22 +754,48 @@ describe('Mini App server', () => {
 
       const ws = await server.injectWS('/api/ws');
       const messages: LiveServerMessage[] = [];
-      ws.on('message', (data: Buffer) => messages.push(JSON.parse(data.toString())));
+      ws.on('message', (data: Buffer) =>
+        messages.push(JSON.parse(data.toString())),
+      );
       const waitFor = async (type: string) => {
-        for (let i = 0; i < 100 && !messages.some((m) => m.type === type); i++) {
+        for (
+          let i = 0;
+          i < 100 && !messages.some((m) => m.type === type);
+          i++
+        ) {
           await new Promise((resolve) => setTimeout(resolve, 10));
         }
         return messages.find((m) => m.type === type);
       };
 
-      ws.send(JSON.stringify({ type: 'auth', initData: authHeader(3).slice(4) }));
-      expect(await waitFor('ready')).toEqual({ type: 'ready', role: 'moderator' });
+      ws.send(
+        JSON.stringify({ type: 'auth', initData: authHeader(3).slice(4) }),
+      );
+      expect(await waitFor('ready')).toEqual({
+        type: 'ready',
+        role: 'moderator',
+      });
 
       ws.send(JSON.stringify({ type: 'subscribe', server: 'default' }));
-      expect(await waitFor('status')).toEqual({ type: 'status', status: expect.objectContaining({ mapName: 'mp_toujane' }) });
+      expect(await waitFor('status')).toEqual({
+        type: 'status',
+        status: expect.objectContaining({ mapName: 'mp_toujane' }),
+      });
 
-      emitChat({ channel: 'say', guid: '0', num: 1, name: 'A', message: 'gg', timestamp: { minutes: 0, seconds: 1 }, raw: 'x' });
-      expect(await waitFor('chat')).toEqual({ type: 'chat', server: 'default', line: expect.objectContaining({ message: 'gg' }) });
+      emitChat({
+        channel: 'say',
+        guid: '0',
+        num: 1,
+        name: 'A',
+        message: 'gg',
+        timestamp: { minutes: 0, seconds: 1 },
+        raw: 'x',
+      });
+      expect(await waitFor('chat')).toEqual({
+        type: 'chat',
+        server: 'default',
+        line: expect.objectContaining({ message: 'gg' }),
+      });
       ws.terminate();
     });
 
@@ -520,7 +804,9 @@ describe('Mini App server', () => {
       await server.ready();
 
       const ws = await server.injectWS('/api/ws');
-      const closed = new Promise<number>((resolve) => ws.on('close', (code: number) => resolve(code)));
+      const closed = new Promise<number>((resolve) =>
+        ws.on('close', (code: number) => resolve(code)),
+      );
       ws.send(JSON.stringify({ type: 'auth', initData: 'user=x&hash=00' }));
 
       expect(await closed).toBe(4001);
