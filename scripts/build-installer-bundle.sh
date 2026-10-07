@@ -24,8 +24,8 @@ OUT_DIR="$ROOT_DIR/out"
 BUNDLE_DIR="$OUT_DIR/gateway-bundle"
 TARBALL="$ROOT_DIR/installer/cod2admin-gateway-${VERSION}.tar.gz"
 
-echo "==> Building: ${PROJECTS[*]}"
-$PNPM exec nx run-many -t build -p "$(IFS=,; echo "${PROJECTS[*]}")"
+echo "==> Building: ${PROJECTS[*]} miniapp-web"
+$PNPM exec nx run-many -t build -p "$(IFS=,; echo "${PROJECTS[*]}"),miniapp-web"
 
 echo "==> Assembling bundle at $BUNDLE_DIR"
 rm -rf "$BUNDLE_DIR"
@@ -36,6 +36,9 @@ cp -r "apps/gateway/dist" "$BUNDLE_DIR/dist"
 # (fileURLToPath(new URL('../../../docs/BOT-HELP*.md', import.meta.url)) in help.ts) — same pattern
 # as admin-store/ban-store's drizzle/ folder below.
 cp -r "apps/gateway/docs" "$BUNDLE_DIR/docs"
+# The Telegram Mini App's web UI (docs/PLAN-miniapp.md). The gateway serves it from miniapp/ next
+# to dist/ (main.ts) when MINIAPP_PORT is set — plain static files, no runtime dependencies.
+cp -r "dist/apps/miniapp-web/browser" "$BUNDLE_DIR/miniapp"
 
 for name in admin-store ban-store log-tailer rcon-client report-pipeline; do
   dest="$BUNDLE_DIR/node_modules/@cod2admin/$name"

@@ -1,0 +1,48 @@
+.current {
+  margin-bottom: 8px;
+}
+
+.map-name {
+  flex: 1;
+  font: var(--mat-sys-headline-small);
+}
+
+h2 {
+  font: var(--mat-sys-title-small);
+  margin: 20px 4px 8px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+
+  button {
+    justify-content: flex-start;
+    gap: 4px;
+  }
+  .on {
+    background: var(--mat-sys-secondary-container);
+    color: var(--mat-sys-on-secondary-container);
+  }
+}
+
+.custom {
+  width: 18px;
+  height: 18px;
+  color: var(--mat-sys-tertiary);
+}
+
+.inline {
+  vertical-align: -3px;
+}
+
+.prefix {
+  margin: 0 4px 0 12px;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.small {
+  font: var(--mat-sys-body-small);
+  margin-top: 12px;
+}
