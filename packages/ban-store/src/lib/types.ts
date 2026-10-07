@@ -45,6 +45,20 @@ export interface RecordIpBanInput {
   expiresAt: Date | null;
 }
 
+export interface BanSearchFilter {
+  query?: string;
+  /** Also return bans already lifted with `/unban`. Default: only bans still in effect. */
+  includeLifted?: boolean;
+  limit: number;
+  offset?: number;
+}
+
+/** Fields the Mini App can edit on an existing ban — omitted ones stay as they are. */
+export interface BanChanges {
+  reason?: string | null;
+  expiresAt?: Date | null;
+}
+
 /**
  * Thin repository over Postgres (docs/PLAN.md §3.1/§7). `bans` is the GUID path, `ban_ips` the IP
  * path (GUID-0 players and every `/tempban`), both enforced by `poller.ts`.
@@ -92,6 +106,20 @@ export interface BanStore {
   listBansByName(name: string, limit: number): Promise<Ban[]>;
   /** IP-ban history — `bans` has no IP column, so IP-based history only ever comes from here. */
   listIpBansByIp(ip: string, limit: number): Promise<BanIp[]>;
+
+  /**
+   * The Mini App's ban browser (docs/PLAN-miniapp.md §6.3), newest first. `query` matches the
+   * name or GUID (case-insensitive substring); `includeLifted` also returns bans `/unban` lifted.
+   * Expired temp bans aren't there either way: the expiry sweep deletes them.
+   */
+  searchBans(filter: BanSearchFilter): Promise<Ban[]>;
+  /** Same as `searchBans`, for `ban_ips` — `query` matches the IP or the reason. */
+  searchIpBans(filter: BanSearchFilter): Promise<BanIp[]>;
+  getBan(id: number): Promise<Ban | undefined>;
+  getIpBan(id: number): Promise<BanIp | undefined>;
+  /** Edits the reason and/or expiry (`null` = permanent) of a ban; `undefined` if no such row. */
+  updateBan(id: number, changes: BanChanges): Promise<Ban | undefined>;
+  updateIpBan(id: number, changes: BanChanges): Promise<BanIp | undefined>;
 
   close(): Promise<void>;
 }
