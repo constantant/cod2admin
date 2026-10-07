@@ -767,6 +767,17 @@ Roles, stored in `admin-store`:
   - **Settings:** `GEOIP_ENABLED=false` turns it off, and `GEOIP_DB_PATH` points at a file the
     admin supplies, with no download. With no database, the bot just shows no countries.
   - **Checked live** against 34 real players: every IP resolved to a country.
+- **IP city (implemented 2026-10-07, issue #2, opt-in).** Admins recognise regulars playing under
+  a new name by their city. `GEOIP_CITY_ENABLED=true` swaps the country database for DB-IP's free
+  "IP to City Lite" (same vendor and license, it includes the country). `/players` and `/bans`
+  then show `🇷🇺 RU, Yekaterinburg`, report cards `🇷🇺 Russia, Yekaterinburg (Sverdlovsk Oblast)`
+  (the region is dropped when it repeats the city, and used alone when there's no city).
+  - **Off by default because of size:** ~60 MB monthly download, ~120 MB of memory once loaded
+    (~300 MB briefly while loading) — fine on the NAS, risky on a 1 GB VPS.
+  - **Accuracy (checked 2026-10-07 on 17 CTF RUSSIA players):** all 17 got a city, but it's
+    often the provider's hub city: `XMAO_SURGUT` was placed in Khanty-Mansiysk, the capital of
+    the same region — hence the region on report cards. Names are English only; the free
+    database has no Russian names.
 - **IP provider (implemented 2026-10-07).** `/players` and report cards show who owns the IP after
   the country: `🇷🇺 RU · PJSC Rostelecom`. `/players` cuts names over 25 characters with `…`
   (some are 60+); report cards show them whole. `/bans` doesn't show it. It comes from DB-IP's

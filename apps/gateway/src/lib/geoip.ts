@@ -1,14 +1,14 @@
 import { readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { gunzipSync } from 'node:zlib';
-import { Reader, type AsnResponse, type CountryResponse } from 'maxmind';
+import { Reader, type AsnResponse, type CityResponse, type CountryResponse } from 'maxmind';
 
 /**
- * IP → country and provider, for showing admins where a player connects from (country in
- * `/players`, report cards and `/bans`; provider in `/players` and report cards).
+ * IP → country (optionally city) and provider, for showing admins where a player connects from
+ * (country/city in `/players`, report cards and `/bans`; provider in `/players` and report cards).
  *
- * Offline on purpose: lookups use DB-IP's free "IP to Country Lite" and "IP to ASN Lite" databases
- * (CC BY 4.0 — attribution is in /help and the README), downloaded by the bot itself and refreshed
- * monthly. No player IP is ever sent to a third-party lookup service, and lookups keep working
+ * Offline on purpose: lookups use DB-IP's free "IP to Country Lite" (or, with
+ * `GEOIP_CITY_ENABLED`, "IP to City Lite") and "IP to ASN Lite" databases (CC BY 4.0 — attribution
+ * is in /help and the README), downloaded by the bot itself and refreshed monthly. No player IP is ever sent to a third-party lookup service, and lookups keep working
  * where such services are slow, rate-limited or blocked.
  */
 
@@ -17,6 +17,10 @@ export interface IpCountry {
   code: string;
   /** English name, e.g. "Russia". */
   name: string;
+  /** English city name, e.g. "Yekaterinburg" — only from the city database. */
+  city?: string;
+  /** English region name, e.g. "Sverdlovsk Oblast" — only from the city database. */
+  region?: string;
 }
 
 export interface CountryLookup {
@@ -56,19 +60,35 @@ export function flagEmoji(code: string): string {
   return String.fromCodePoint(...[...code].map((char) => 0x1f1e6 + char.charCodeAt(0) - 65));
 }
 
-/** `🇷🇺 RU` — for compact lists like `/players` and `/bans`. */
+/** `🇷🇺 RU`, or `🇷🇺 RU, Yekaterinburg` with the city database — for `/players` and `/bans`. */
 export function formatCountryShort(country: IpCountry): string {
-  return country.code === 'LAN' ? 'LAN' : `${flagEmoji(country.code)} ${country.code}`;
+  if (country.code === 'LAN') {
+    return 'LAN';
+  }
+  const place = country.city ?? country.region;
+  return `${flagEmoji(country.code)} ${country.code}${place ? `, ${place}` : ''}`;
 }
 
-/** `🇷🇺 Russia` — for the report card, which has room for the full name. */
+/**
+ * `🇷🇺 Russia`, or `🇷🇺 Russia, Yekaterinburg (Sverdlovsk Oblast)` with the city database — for the
+ * report card. The region is there because the free database often names the provider's hub city
+ * rather than the player's (found live: a Surgut player shown in Khanty-Mansiysk, same region).
+ */
 export function formatCountryLong(country: IpCountry): string {
-  return country.code === 'LAN' ? 'LAN' : `${flagEmoji(country.code)} ${country.name}`;
+  if (country.code === 'LAN') {
+    return 'LAN';
+  }
+  const { city, region } = country;
+  const place = city && region && city !== region ? `${city} (${region})` : (city ?? region);
+  return `${flagEmoji(country.code)} ${country.name}${place ? `, ${place}` : ''}`;
 }
 
-/** The slice of maxmind's `Reader` this needs — lets tests use a fake instead of a real .mmdb. */
+/**
+ * The slice of maxmind's `Reader` this needs — lets tests use a fake instead of a real .mmdb. A
+ * country database answers without `city`/`subdivisions`; a city database adds them.
+ */
 export interface CountryReader {
-  get(ip: string): CountryResponse | null;
+  get(ip: string): CountryResponse | CityResponse | null;
 }
 
 /** A `CountryLookup` whose database can be swapped while the bot runs (monthly refresh). */
@@ -95,7 +115,7 @@ export class GeoIpDatabase implements CountryLookup {
     if (!this.reader) {
       return undefined;
     }
-    let record: CountryResponse | null;
+    let record: CityResponse | null;
     try {
       record = this.reader.get(ip);
     } catch {
@@ -105,15 +125,33 @@ export class GeoIpDatabase implements CountryLookup {
     if (!country?.iso_code) {
       return undefined;
     }
-    return { code: country.iso_code, name: country.names?.en ?? country.iso_code };
+    const result: IpCountry = { code: country.iso_code, name: country.names?.en ?? country.iso_code };
+    const city = record?.city?.names?.en?.trim();
+    const region = record?.subdivisions?.[0]?.names?.en?.trim();
+    if (city) {
+      result.city = city;
+    }
+    if (region) {
+      result.region = region;
+    }
+    return result;
   }
 }
 
 /** Parses a raw (un-gzipped) .mmdb file, rejecting anything that isn't a country database. */
 export function parseCountryDatabase(buffer: Buffer): CountryReader {
-  const reader = new Reader<CountryResponse>(buffer);
-  if (!/country/i.test(reader.metadata.databaseType)) {
-    throw new Error(`Not a country database: ${reader.metadata.databaseType}`);
+  return parseLocationDatabase(buffer, /country/i, 'country');
+}
+
+/** Parses a raw (un-gzipped) .mmdb file, rejecting anything that isn't a city database. */
+export function parseCityDatabase(buffer: Buffer): CountryReader {
+  return parseLocationDatabase(buffer, /city/i, 'city');
+}
+
+function parseLocationDatabase(buffer: Buffer, type: RegExp, label: string): CountryReader {
+  const reader = new Reader<CityResponse>(buffer);
+  if (!type.test(reader.metadata.databaseType)) {
+    throw new Error(`Not a ${label} database: ${reader.metadata.databaseType}`);
   }
   return reader;
 }
@@ -189,7 +227,12 @@ export function dbIpAsnDownloadUrl(date: Date): string {
   return dbIpUrl('asn', date);
 }
 
-function dbIpUrl(kind: 'country' | 'asn', date: Date): string {
+/** DB-IP publishes `dbip-city-lite-YYYY-MM.mmdb.gz` monthly — ~60 MB, ~120 MB once loaded. */
+export function dbIpCityDownloadUrl(date: Date): string {
+  return dbIpUrl('city', date);
+}
+
+function dbIpUrl(kind: 'country' | 'asn' | 'city', date: Date): string {
   const month = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
   return `https://download.db-ip.com/free/dbip-${kind}-lite-${month}.mmdb.gz`;
 }

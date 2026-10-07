@@ -22,7 +22,7 @@ describe('loadConfig', () => {
       logPath: undefined,
       updateStagingDir: undefined,
       textEncoding: 'cp1251',
-      geoip: { enabled: true, dbPath: undefined, asnDbPath: undefined },
+      geoip: { enabled: true, city: false, dbPath: undefined, asnDbPath: undefined },
       vpnFlag: { enabled: true },
       telegram: { direct: true, relays: undefined },
     });
@@ -41,10 +41,17 @@ describe('loadConfig', () => {
     expect(loadConfig({ ...VALID_ENV, GEOIP_ENABLED: 'FALSE' }).geoip.enabled).toBe(false);
     expect(loadConfig({ ...VALID_ENV, GEOIP_DB_PATH: '/data/country.mmdb' }).geoip).toEqual({
       enabled: true,
+      city: false,
       dbPath: '/data/country.mmdb',
       asnDbPath: undefined,
     });
     expect(loadConfig({ ...VALID_ENV, GEOIP_ASN_DB_PATH: ' /data/asn.mmdb ' }).geoip.asnDbPath).toBe('/data/asn.mmdb');
+  });
+
+  it('parses GEOIP_CITY_ENABLED, off unless exactly "true"', () => {
+    expect(loadConfig({ ...VALID_ENV, GEOIP_CITY_ENABLED: 'TRUE' }).geoip.city).toBe(true);
+    expect(loadConfig({ ...VALID_ENV, GEOIP_CITY_ENABLED: 'yes' }).geoip.city).toBe(false);
+    expect(loadConfig(VALID_ENV).geoip.city).toBe(false);
   });
 
   it('parses VPN_FLAG_ENABLED', () => {

@@ -2,11 +2,12 @@ import { mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
-import type { CountryResponse } from 'maxmind';
+import type { CityResponse, CountryResponse } from 'maxmind';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   AsnDatabase,
   dbIpAsnDownloadUrl,
+  dbIpCityDownloadUrl,
   dbIpDownloadUrl,
   describeIpLong,
   describeIpShort,
@@ -62,6 +63,60 @@ describe('formatting', () => {
     // Real bug: a misparsed `status` row gave "50" as an IP, which maxmind reads as 0.0.0.50.
     expect(describeIpShort(databaseWith({ '50': 'US' }), '50')).toBeUndefined();
     expect(describeIpShort(NO_COUNTRY_LOOKUP, '77.37.210.26')).toBeUndefined();
+  });
+});
+
+describe('city database', () => {
+  function cityDatabase(): GeoIpDatabase {
+    const database = new GeoIpDatabase();
+    const records: Record<string, CityResponse> = {
+      '5.167.234.1': {
+        country: { iso_code: 'RU', names: { en: 'Russia' } },
+        city: { geoname_id: 1, names: { en: 'Yekaterinburg' } },
+        subdivisions: [{ geoname_id: 2, iso_code: 'SVE', names: { en: 'Sverdlovsk Oblast' } }],
+      } as CityResponse,
+      '46.34.143.1': {
+        country: { iso_code: 'RU', names: { en: 'Russia' } },
+        city: { geoname_id: 3, names: { en: 'Moscow' } },
+        subdivisions: [{ geoname_id: 3, iso_code: 'MOW', names: { en: 'Moscow' } }],
+      } as CityResponse,
+      '93.170.213.1': {
+        country: { iso_code: 'KZ', names: { en: 'Kazakhstan' } },
+        subdivisions: [{ geoname_id: 4, iso_code: 'AST', names: { en: 'Astana' } }],
+      } as CityResponse,
+    };
+    database.setReader({ get: (ip) => records[ip] ?? null });
+    return database;
+  }
+
+  it('adds city and region to the lookup', () => {
+    expect(cityDatabase().lookup('5.167.234.1')).toEqual({
+      code: 'RU',
+      name: 'Russia',
+      city: 'Yekaterinburg',
+      region: 'Sverdlovsk Oblast',
+    });
+  });
+
+  it('shows the city short in /players and with its region on report cards', () => {
+    const database = cityDatabase();
+
+    expect(describeIpShort(database, '5.167.234.1')).toBe('🇷🇺 RU, Yekaterinburg');
+    expect(describeIpLong(database, '5.167.234.1')).toBe('🇷🇺 Russia, Yekaterinburg (Sverdlovsk Oblast)');
+  });
+
+  it('skips a region that repeats the city, and falls back to the region with no city', () => {
+    const database = cityDatabase();
+
+    expect(describeIpLong(database, '46.34.143.1')).toBe('🇷🇺 Russia, Moscow');
+    expect(describeIpShort(database, '93.170.213.1')).toBe('🇰🇿 KZ, Astana');
+    expect(describeIpLong(database, '93.170.213.1')).toBe('🇰🇿 Kazakhstan, Astana');
+  });
+
+  it('builds the city download URL', () => {
+    expect(dbIpCityDownloadUrl(new Date('2026-10-07T00:00:00Z'))).toBe(
+      'https://download.db-ip.com/free/dbip-city-lite-2026-10.mmdb.gz',
+    );
   });
 });
 

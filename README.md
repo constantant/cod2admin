@@ -18,7 +18,9 @@ receive `!report` cards from players in-game, manage other admins, and more.
 
 IP country labels (`/players`, report cards, `/bans`) and provider names (`/players`, report
 cards) use the [IP to Country Lite](https://db-ip.com/db/download/ip-to-country-lite) and
-[IP to ASN Lite](https://db-ip.com/db/download/ip-to-asn-lite) databases by
+[IP to ASN Lite](https://db-ip.com/db/download/ip-to-asn-lite) databases — or, with
+`GEOIP_CITY_ENABLED=true`, [IP to City Lite](https://db-ip.com/db/download/ip-to-city-lite)
+instead of the country one — by
 [DB-IP.com](https://db-ip.com), licensed under
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The bot downloads them itself and
 refreshes them monthly; they aren't part of this repository or its releases.

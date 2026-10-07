@@ -13,11 +13,13 @@ import { startExpiryPoller } from './lib/expiry-poller.js';
 import {
   AsnDatabase,
   dbIpAsnDownloadUrl,
+  dbIpCityDownloadUrl,
   GeoIpDatabase,
   GeoIpUpdater,
   NO_COUNTRY_LOOKUP,
   NO_PROVIDER_LOOKUP,
   parseAsnDatabase,
+  parseCityDatabase,
 } from './lib/geoip.js';
 import {
   DEFAULT_TELEGRAM_RELAYS,
@@ -97,11 +99,16 @@ const updateConfig: UpdateFeatureConfig | undefined = config.updateStagingDir
 // $INSTALL_DIR root-owned), and apply-update.sh only ever deletes the release tarball it applied.
 const geoipDatabase = new GeoIpDatabase();
 if (config.geoip.enabled) {
+  // GEOIP_CITY_ENABLED swaps in the city database, which also has the country — one or the other.
   const geoipUpdater = new GeoIpUpdater({
     database: geoipDatabase,
     filePath:
-      config.geoip.dbPath ?? path.join(config.updateStagingDir ?? tmpdir(), 'dbip-country-lite.mmdb'),
+      config.geoip.dbPath ??
+      path.join(config.updateStagingDir ?? tmpdir(), config.geoip.city ? 'dbip-city-lite.mmdb' : 'dbip-country-lite.mmdb'),
     autoDownload: config.geoip.dbPath === undefined,
+    ...(config.geoip.city
+      ? { parse: parseCityDatabase, downloadUrl: dbIpCityDownloadUrl, label: 'IP city database' }
+      : {}),
   });
   // Not awaited: a slow or failed download must never delay the bot's start.
   void geoipUpdater.start();
