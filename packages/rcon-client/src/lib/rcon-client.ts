@@ -142,6 +142,14 @@ export class RconClient {
     return this.rcon(`say "${message.replace(/"/g, '')}"`);
   }
 
+  /**
+   * A private message to the player in slot `clientId` — the server console's `tell`. Quoted for
+   * the same reason as `say`: unquoted CP1251 text would be dropped.
+   */
+  async tell(clientId: number, message: string): Promise<string> {
+    return this.rcon(`tell ${clientId} "${message.replace(/"/g, '')}"`);
+  }
+
   async map(mapName: string): Promise<string> {
     return this.rcon(`map ${mapName}`);
   }

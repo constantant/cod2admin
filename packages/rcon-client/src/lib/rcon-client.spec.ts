@@ -90,6 +90,7 @@ describe('RconClient', () => {
     ['say', (client: RconClient) => client.say('hello'), 'rcon secret say "hello"'],
     ['say (quotes stripped)', (client: RconClient) => client.say('a "b" c'), 'rcon secret say "a b c"'],
     ['map', (client: RconClient) => client.map('mp_toujane'), 'rcon secret map mp_toujane'],
+    ['tell', (client: RconClient) => client.tell(4, 'stop "that"'), 'rcon secret tell 4 "stop that"'],
   ])('%s sends the expected raw rcon command', async (_name, action, expectedCommand) => {
     let received: string | undefined;
     peer = await createMockPeer((payload, respond) => {
