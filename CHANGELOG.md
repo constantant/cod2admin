@@ -1,3 +1,15 @@
+## [1.8.0](https://github.com/constantant/cod2admin/releases/tag/v1.8.0) (2026-10-07)
+
+### 🚀 Features
+
+- **gateway:** let admins mark provider networks as VPN with /vpnnets ([8fb13bb](https://github.com/constantant/cod2admin/commit/8fb13bb))
+- **gateway:** optionally show the player's city in /players, /bans and report cards ([#2](https://github.com/constantant/cod2admin/issues/2))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5 (1M context)
+- kk
+
 ## [1.7.0](https://github.com/constantant/cod2admin/releases/tag/v1.7.0) (2026-10-07)
 
 ### 🚀 Features
