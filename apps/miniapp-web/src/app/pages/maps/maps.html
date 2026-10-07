@@ -1,0 +1,51 @@
+@if (loading()) {
+  <mat-progress-bar mode="indeterminate" />
+}
+<div class="page">
+  <section class="card current">
+    <div class="muted">Now playing</div>
+    <div class="row">
+      <div class="map-name">{{ current() ?? '—' }}</div>
+      <button mat-icon-button aria-label="Reload" [disabled]="loading()" (click)="load()"><c2a-icon name="refresh" /></button>
+    </div>
+  </section>
+
+  @if (maps(); as maps) {
+    <h2>Rotation</h2>
+    @if (maps.rotation.length > 0) {
+      <div class="grid">
+        @for (name of maps.rotation; track name) {
+          <button mat-stroked-button [class.on]="name === current()" [disabled]="switching() !== null" (click)="change(name, true)">
+            {{ name }}
+          </button>
+        }
+      </div>
+    } @else {
+      <p class="muted">sv_mapRotation is empty.</p>
+    }
+
+    @if (maps.others.length > 0) {
+      <h2>Other installed maps <span class="muted">({{ maps.others.length }})</span></h2>
+      @if (maps.others.length > 12) {
+        <mat-form-field class="full-width" subscriptSizing="dynamic" appearance="outline">
+          <c2a-icon matPrefix name="search" class="prefix" />
+          <input matInput placeholder="Find a map" [(ngModel)]="filter" />
+        </mat-form-field>
+      }
+      <div class="grid">
+        @for (map of others(); track map.name) {
+          <button mat-stroked-button [class.on]="map.name === current()" [disabled]="switching() !== null" (click)="change(map.name, map.stock)">
+            @if (!map.stock) {
+              <c2a-icon name="warning" class="custom" />
+            }
+            {{ map.name }}
+          </button>
+        }
+      </div>
+      @if (others().length === 0) {
+        <p class="muted">No map matches "{{ filter() }}".</p>
+      }
+      <p class="muted small"><c2a-icon name="warning" class="custom inline" /> custom map — you'll be asked to confirm.</p>
+    }
+  }
+</div>

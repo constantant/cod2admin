@@ -1,0 +1,105 @@
+{
+  "name": "miniapp-web",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "prefix": "c2a",
+  "sourceRoot": "apps/miniapp-web/src",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@angular/build:application",
+      "outputs": [
+        "{options.outputPath}"
+      ],
+      "defaultConfiguration": "production",
+      "options": {
+        "outputPath": "dist/apps/miniapp-web",
+        "browser": "apps/miniapp-web/src/main.ts",
+        "tsConfig": "apps/miniapp-web/tsconfig.app.json",
+        "inlineStyleLanguage": "scss",
+        "assets": [
+          {
+            "glob": "**/*",
+            "input": "apps/miniapp-web/public"
+          }
+        ],
+        "styles": [
+          "apps/miniapp-web/src/styles.scss"
+        ],
+        "allowedCommonJsDependencies": [
+          "@twa-dev/sdk"
+        ]
+      },
+      "configurations": {
+        "production": {
+          "budgets": [
+            {
+              "type": "initial",
+              "maximumWarning": "900kb",
+              "maximumError": "1.5mb"
+            },
+            {
+              "type": "anyComponentStyle",
+              "maximumWarning": "6kb",
+              "maximumError": "12kb"
+            }
+          ],
+          "outputHashing": "all"
+        },
+        "development": {
+          "optimization": false,
+          "extractLicenses": false,
+          "sourceMap": true
+        }
+      }
+    },
+    "serve": {
+      "continuous": true,
+      "executor": "@angular/build:dev-server",
+      "defaultConfiguration": "development",
+      "configurations": {
+        "production": {
+          "buildTarget": "miniapp-web:build:production"
+        },
+        "development": {
+          "buildTarget": "miniapp-web:build:development"
+        }
+      },
+      "options": {
+        "proxyConfig": "apps/miniapp-web/proxy.conf.json",
+        "port": 4300
+      }
+    },
+    "test": {
+      "executor": "@angular/build:unit-test",
+      "options": {
+        "watch": false
+      }
+    },
+    "serve-static": {
+      "continuous": true,
+      "executor": "@nx/web:file-server",
+      "options": {
+        "buildTarget": "miniapp-web:build",
+        "staticFilePath": "dist/apps/miniapp-web/browser",
+        "spa": true
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": [
+        "default",
+        "{workspaceRoot}/apps/gateway/src/miniapp/api-types.ts"
+      ],
+      "options": {
+        "cwd": "{projectRoot}",
+        "commands": [
+          "tsc -p tsconfig.app.json --noEmit",
+          "tsc -p tsconfig.spec.json --noEmit"
+        ],
+        "parallel": false
+      }
+    }
+  }
+}

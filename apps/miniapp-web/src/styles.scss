@@ -1,0 +1,103 @@
+@use '@angular/material' as mat;
+
+// Material 3 (docs/PLAN-miniapp.md §5). `color-scheme` picks light or dark: the system's outside
+// Telegram, Telegram's own inside it (TelegramService sets it on <html>).
+html {
+  color-scheme: light dark;
+  @include mat.theme(
+    (
+      color: (
+        primary: mat.$azure-palette,
+        tertiary: mat.$orange-palette,
+        theme-type: color-scheme,
+      ),
+      typography: (
+        plain-family: (system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif),
+        brand-family: (system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif),
+      ),
+      density: -1,
+    )
+  );
+}
+
+// Inside Telegram the app wears the chat's own colours: Telegram's script puts them in
+// --tg-theme-* variables, and the main M3 roles take them over here.
+html.tg {
+  --mat-sys-surface: var(--tg-theme-bg-color);
+  --mat-sys-background: var(--tg-theme-bg-color);
+  --mat-sys-on-surface: var(--tg-theme-text-color);
+  --mat-sys-on-background: var(--tg-theme-text-color);
+  --mat-sys-on-surface-variant: var(--tg-theme-hint-color);
+  --mat-sys-primary: var(--tg-theme-button-color);
+  --mat-sys-on-primary: var(--tg-theme-button-text-color);
+  --mat-sys-surface-container-lowest: var(--tg-theme-secondary-bg-color);
+  --mat-sys-surface-container-low: var(--tg-theme-secondary-bg-color);
+  --mat-sys-surface-container: var(--tg-theme-secondary-bg-color);
+  --mat-sys-surface-container-high: var(--tg-theme-section-bg-color, var(--tg-theme-secondary-bg-color));
+  --mat-sys-surface-container-highest: var(--tg-theme-section-bg-color, var(--tg-theme-secondary-bg-color));
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+  font: var(--mat-sys-body-medium);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+// Shared bits used by more than one page.
+.page {
+  padding: 12px 12px calc(88px + env(safe-area-inset-bottom));
+  max-width: 760px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.muted {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.mono {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.empty {
+  text-align: center;
+  padding: 40px 16px;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.card {
+  background: var(--mat-sys-surface-container);
+  border-radius: 16px;
+  padding: 14px 16px;
+}
+
+.banner {
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}
+
+.full-width {
+  width: 100%;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spacer {
+  flex: 1;
+}

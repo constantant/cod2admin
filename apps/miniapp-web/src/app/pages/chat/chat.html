@@ -1,0 +1,66 @@
+@if (loading()) {
+  <mat-progress-bar mode="indeterminate" class="loading" />
+}
+@if (!available()) {
+  <div class="page empty">
+    <c2a-icon name="chat" class="big" />
+    <p>No chat feed for {{ session.server() }}.</p>
+    <p class="small">
+      The bot reads chat from the server's games_mp.log, so it has to run on the game server's machine with
+      COD2_LOG_PATH set. A bot that manages the server over RCON only can't see the chat.
+    </p>
+  </div>
+} @else {
+  <div class="chat">
+    <div class="lines" #scroller>
+      @for (line of lines(); track line.id) {
+        <div class="line" [class.admin]="line.source === 'admin'" [class.team]="line.channel === 'sayteam'">
+          <span class="time">{{ clock(line) }}</span>
+          <span class="body">
+            @if (line.channel === 'sayteam') {
+              <span class="tag">team</span>
+            } @else if (line.channel === 'tell') {
+              <span class="tag">to {{ plain(line.to ?? '') }}</span>
+            }
+            @if (line.source === 'admin') {
+              <span class="author">{{ line.name }}</span>
+            } @else {
+              <button class="author" (click)="openPlayer(line)"><c2a-game-name [name]="line.name" /></button>
+            }
+            <span class="text">{{ line.message }}</span>
+          </span>
+        </div>
+      } @empty {
+        @if (!loading()) {
+          <p class="empty">Nothing said yet.</p>
+        }
+      }
+    </div>
+
+    @if (session.can('admin')) {
+      <form class="composer" (ngSubmit)="send()">
+        <mat-select class="to" [value]="to()" (valueChange)="to.set($event)" aria-label="Send to" panelWidth="auto">
+          <mat-option [value]="everyone">Everyone</mat-option>
+          @for (player of players(); track player.num) {
+            <mat-option [value]="player.num">{{ plain(player.name) || 'client ' + player.num }}</mat-option>
+          }
+        </mat-select>
+        <mat-form-field class="input" subscriptSizing="dynamic" appearance="outline">
+          <input
+            matInput
+            name="message"
+            [(ngModel)]="draft"
+            maxlength="120"
+            autocomplete="off"
+            [placeholder]="to() === everyone ? 'Message to everyone' : 'Private message'"
+          />
+        </mat-form-field>
+        <button mat-icon-button type="submit" aria-label="Send" [disabled]="sending() || !draft().trim()">
+          <c2a-icon name="send" />
+        </button>
+      </form>
+    } @else {
+      <p class="read-only muted">Moderators can read the chat; writing to it needs the admin role.</p>
+    }
+  </div>
+}

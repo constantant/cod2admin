@@ -1,0 +1,91 @@
+@if (refreshing() && !status()) {
+  <mat-progress-bar mode="indeterminate" />
+}
+<div class="page">
+  @if (live.statusError(); as error) {
+    <div class="banner">{{ error }}</div>
+  }
+
+  @if (status(); as status) {
+    <section class="card summary">
+      <div class="row">
+        <div class="hostname">
+          @if (status.hostname) {
+            <c2a-game-name [name]="status.hostname" />
+          } @else {
+            {{ status.server }}
+          }
+        </div>
+        <button mat-icon-button aria-label="Refresh" [disabled]="refreshing()" (click)="refresh()">
+          <c2a-icon name="refresh" />
+        </button>
+      </div>
+      <div class="stats">
+        <div>
+          <div class="value">{{ status.players.length }}</div>
+          <div class="muted">players</div>
+        </div>
+        <div>
+          <div class="value map">{{ status.mapName ?? '—' }}</div>
+          <div class="muted">map</div>
+        </div>
+        @if (flagged() > 0) {
+          <div>
+            <div class="value vpn">{{ flagged() }}</div>
+            <div class="muted">on VPN</div>
+          </div>
+        }
+      </div>
+      <div class="muted small">Updated {{ updated() }}{{ live.connected() ? ' · live' : '' }}</div>
+    </section>
+
+    @if (status.players.length > 0) {
+      <div class="tools">
+        @if (status.players.length > 8) {
+          <mat-form-field class="search" subscriptSizing="dynamic" appearance="outline">
+            <c2a-icon matPrefix name="search" class="prefix" />
+            <input matInput placeholder="Name or IP" [(ngModel)]="filter" />
+          </mat-form-field>
+        }
+        <mat-button-toggle-group hideSingleSelectionIndicator [value]="sort()" (change)="sort.set($event.value)" aria-label="Sort by">
+          <mat-button-toggle value="score">Score</mat-button-toggle>
+          <mat-button-toggle value="ping">Ping</mat-button-toggle>
+          <mat-button-toggle value="name">Name</mat-button-toggle>
+          <mat-button-toggle value="num">#</mat-button-toggle>
+        </mat-button-toggle-group>
+      </div>
+
+      <ul class="players">
+        @for (player of players(); track player.num) {
+          <li>
+            <button class="player" (click)="openPlayer(player)">
+              <span class="num">{{ player.num }}</span>
+              <span class="who">
+                <c2a-game-name [name]="player.name" />
+                <span class="muted small">
+                  {{ flag(player) }} {{ player.location ?? player.ip ?? '' }}
+                  @if (player.vpn) {
+                    <span class="vpn">{{ player.vpn }}</span>
+                  }
+                </span>
+              </span>
+              <span class="numbers">
+                <span>{{ player.score }}</span>
+                <span class="muted small">{{ player.ping }} ms</span>
+              </span>
+            </button>
+          </li>
+        } @empty {
+          <li class="empty">Nobody matches "{{ filter() }}".</li>
+        }
+      </ul>
+    } @else {
+      <p class="empty">Nobody is playing right now.</p>
+    }
+  } @else if (!refreshing()) {
+    <div class="empty">
+      <p>No status yet.</p>
+      <button mat-stroked-button (click)="refresh()">Load</button>
+    </div>
+  }
+</div>

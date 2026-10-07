@@ -1,0 +1,50 @@
+@if (loading()) {
+  <mat-progress-bar mode="indeterminate" />
+} @else if (session.failure(); as failure) {
+  <main class="gate">
+    <c2a-icon [name]="failure.status === 403 ? 'block' : 'warning'" class="gate-icon" />
+    <h1>{{ failure.status === 403 ? 'No access' : "Can't open the manager" }}</h1>
+    <p>{{ failure.message }}</p>
+    @if (failure.status !== 403 && failure.status !== 401) {
+      <button mat-flat-button (click)="retry()">Try again</button>
+    }
+    @if (!inTelegram && failure.status === 401) {
+      <p class="muted small">Opened outside Telegram. For local development, start the bot with MINIAPP_DEV_TELEGRAM_ID.</p>
+    }
+  </main>
+} @else if (session.me(); as me) {
+  <header class="top">
+    <div class="title">
+      <span class="dot" [class.on]="live.connected()" [attr.title]="live.connected() ? 'Live' : 'Reconnecting…'"></span>
+      @if (me.servers.length > 1) {
+        <mat-select
+          class="server-select"
+          [value]="session.server()"
+          (valueChange)="session.selectServer($event)"
+          panelWidth="auto"
+          aria-label="Server"
+        >
+          @for (server of me.servers; track server.alias) {
+            <mat-option [value]="server.alias">{{ server.alias }}</mat-option>
+          }
+        </mat-select>
+      } @else {
+        <span class="server-name">{{ session.server() }}</span>
+      }
+    </div>
+    <span class="role">{{ me.role }}</span>
+  </header>
+
+  <main class="content">
+    <router-outlet />
+  </main>
+
+  <nav class="bottom-nav">
+    @for (item of nav(); track item.path) {
+      <a [routerLink]="item.path" routerLinkActive="active" class="nav-item">
+        <span class="pill"><c2a-icon [name]="item.icon" /></span>
+        <span class="label">{{ item.label }}</span>
+      </a>
+    }
+  </nav>
+}

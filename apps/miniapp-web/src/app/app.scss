@@ -1,0 +1,125 @@
+:host {
+  display: block;
+  min-height: 100%;
+}
+
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  min-height: 48px;
+  box-sizing: border-box;
+  background: var(--mat-sys-surface);
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  font: var(--mat-sys-title-medium);
+}
+
+.server-select {
+  width: auto;
+  max-width: 60vw;
+  font: var(--mat-sys-title-medium);
+}
+
+.server-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--mat-sys-outline);
+  &.on {
+    background: #43a047;
+  }
+}
+
+.role {
+  font: var(--mat-sys-label-medium);
+  text-transform: capitalize;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+// M3 navigation bar.
+.bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: space-around;
+  padding: 6px 4px calc(8px + env(safe-area-inset-bottom));
+  background: var(--mat-sys-surface-container);
+}
+
+.nav-item {
+  flex: 1;
+  max-width: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-label-medium);
+
+  .pill {
+    display: flex;
+    justify-content: center;
+    width: 56px;
+    padding: 4px 0;
+    border-radius: 16px;
+    transition: background-color 150ms;
+  }
+
+  &.active {
+    color: var(--mat-sys-on-surface);
+    .pill {
+      background: var(--mat-sys-secondary-container);
+      color: var(--mat-sys-on-secondary-container);
+    }
+  }
+}
+
+.gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 64px 24px;
+  gap: 8px;
+
+  h1 {
+    font: var(--mat-sys-headline-small);
+    margin: 8px 0 0;
+  }
+  p {
+    max-width: 420px;
+    margin: 0 0 8px;
+  }
+  .small {
+    font: var(--mat-sys-body-small);
+  }
+}
+
+.gate-icon {
+  width: 48px;
+  height: 48px;
+  color: var(--mat-sys-on-surface-variant);
+}
