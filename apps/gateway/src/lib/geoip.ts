@@ -1,14 +1,15 @@
 import { readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { gunzipSync } from 'node:zlib';
-import { Reader, type CountryResponse } from 'maxmind';
+import { Reader, type AsnResponse, type CountryResponse } from 'maxmind';
 
 /**
- * IP → country, for showing admins where a player connects from (`/players`, report cards, `/bans`).
+ * IP → country and provider, for showing admins where a player connects from (country in
+ * `/players`, report cards and `/bans`; provider in `/players` and report cards).
  *
- * Offline on purpose: lookups use DB-IP's free "IP to Country Lite" database (CC BY 4.0 —
- * attribution is in /help and the README), downloaded by the bot itself and refreshed monthly. No
- * player IP is ever sent to a third-party lookup service, and lookups keep working where such
- * services are slow, rate-limited or blocked.
+ * Offline on purpose: lookups use DB-IP's free "IP to Country Lite" and "IP to ASN Lite" databases
+ * (CC BY 4.0 — attribution is in /help and the README), downloaded by the bot itself and refreshed
+ * monthly. No player IP is ever sent to a third-party lookup service, and lookups keep working
+ * where such services are slow, rate-limited or blocked.
  */
 
 export interface IpCountry {
@@ -117,25 +118,91 @@ export function parseCountryDatabase(buffer: Buffer): CountryReader {
   return reader;
 }
 
+/** IP → the provider (ISP or hosting company) that owns it, e.g. "PJSC Rostelecom". */
+export interface ProviderLookup {
+  lookup(ip: string): string | undefined;
+}
+
+/** Used when the feature is off or no database could be loaded yet — shows nothing extra. */
+export const NO_PROVIDER_LOOKUP: ProviderLookup = { lookup: () => undefined };
+
+/** The slice of maxmind's `Reader` this needs — lets tests use a fake instead of a real .mmdb. */
+export interface AsnReader {
+  get(ip: string): AsnResponse | null;
+}
+
+/** A `ProviderLookup` whose database can be swapped while the bot runs (monthly refresh). */
+export class AsnDatabase implements ProviderLookup {
+  private reader: AsnReader | undefined;
+
+  get loaded(): boolean {
+    return this.reader !== undefined;
+  }
+
+  setReader(reader: AsnReader): void {
+    this.reader = reader;
+  }
+
+  lookup(ip: string): string | undefined {
+    // Same guards as GeoIpDatabase.lookup; a private address has no provider worth showing.
+    if (!IPV4_PATTERN.test(ip) || isPrivateIpv4(ip) || !this.reader) {
+      return undefined;
+    }
+    try {
+      return this.reader.get(ip)?.autonomous_system_organization?.trim() || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+}
+
+/** Parses a raw (un-gzipped) .mmdb file, rejecting anything that isn't an ASN database. */
+export function parseAsnDatabase(buffer: Buffer): AsnReader {
+  const reader = new Reader<AsnResponse>(buffer);
+  if (!/asn/i.test(reader.metadata.databaseType)) {
+    throw new Error(`Not an ASN database: ${reader.metadata.databaseType}`);
+  }
+  return reader;
+}
+
 const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const DOWNLOAD_TIMEOUT_MS = 120_000;
 
 /** DB-IP publishes `dbip-country-lite-YYYY-MM.mmdb.gz` monthly. */
 export function dbIpDownloadUrl(date: Date): string {
-  const month = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
-  return `https://download.db-ip.com/free/dbip-country-lite-${month}.mmdb.gz`;
+  return dbIpUrl('country', date);
 }
 
-export interface GeoIpUpdaterOptions {
-  database: GeoIpDatabase;
+/** DB-IP publishes `dbip-asn-lite-YYYY-MM.mmdb.gz` monthly, alongside the country database. */
+export function dbIpAsnDownloadUrl(date: Date): string {
+  return dbIpUrl('asn', date);
+}
+
+function dbIpUrl(kind: 'country' | 'asn', date: Date): string {
+  const month = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+  return `https://download.db-ip.com/free/dbip-${kind}-lite-${month}.mmdb.gz`;
+}
+
+/** What `GeoIpUpdater` fills: a `GeoIpDatabase` or an `AsnDatabase`. */
+export interface ReaderHolder<R> {
+  readonly loaded: boolean;
+  setReader(reader: R): void;
+}
+
+export interface GeoIpUpdaterOptions<R = CountryReader> {
+  database: ReaderHolder<R>;
   /** Where the .mmdb lives. Loaded on start; overwritten by downloads when `autoDownload` is on. */
   filePath: string;
   /** Off when the admin supplied the file themselves (`GEOIP_DB_PATH`) — then it's only loaded. */
   autoDownload: boolean;
   fetchImpl?: typeof fetch;
   now?: () => Date;
-  parse?: (buffer: Buffer) => CountryReader;
+  /** Defaults to the country database's parser and URL — pass both for the ASN database. */
+  parse?: (buffer: Buffer) => R;
+  downloadUrl?: (date: Date) => string;
+  /** Names the database in log lines. Defaults to "IP country database". */
+  label?: string;
   log?: (message: string) => void;
 }
 
@@ -144,18 +211,23 @@ export interface GeoIpUpdaterOptions {
  * re-checks daily so a long-running bot picks up each monthly release. Never throws: when no
  * database is available the lookup just returns nothing, and every other feature is unaffected.
  */
-export class GeoIpUpdater {
+export class GeoIpUpdater<R = CountryReader> {
   private readonly fetchImpl: typeof fetch;
   private readonly now: () => Date;
-  private readonly parse: (buffer: Buffer) => CountryReader;
+  private readonly parse: (buffer: Buffer) => R;
+  private readonly downloadUrl: (date: Date) => string;
+  private readonly label: string;
   private readonly log: (message: string) => void;
   private timer: NodeJS.Timeout | undefined;
   private running = false;
 
-  constructor(private readonly options: GeoIpUpdaterOptions) {
+  constructor(private readonly options: GeoIpUpdaterOptions<R>) {
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.now = options.now ?? (() => new Date());
-    this.parse = options.parse ?? parseCountryDatabase;
+    // Without `parse`, R is the default CountryReader — the cast only restates that.
+    this.parse = options.parse ?? (parseCountryDatabase as unknown as (buffer: Buffer) => R);
+    this.downloadUrl = options.downloadUrl ?? dbIpDownloadUrl;
+    this.label = options.label ?? 'IP country database';
     this.log = options.log ?? ((message) => console.log(message));
   }
 
@@ -182,9 +254,9 @@ export class GeoIpUpdater {
       if (fileStat && !database.loaded) {
         try {
           database.setReader(this.parse(await readFile(filePath)));
-          this.log(`IP country database loaded from ${filePath}`);
+          this.log(`${this.label} loaded from ${filePath}`);
         } catch (error) {
-          this.log(`IP country database at ${filePath} is unreadable (${String(error)})`);
+          this.log(`${this.label} at ${filePath} is unreadable (${String(error)})`);
         }
       }
 
@@ -201,7 +273,7 @@ export class GeoIpUpdater {
   private async download(): Promise<void> {
     const now = this.now();
     const lastMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15));
-    for (const url of [dbIpDownloadUrl(now), dbIpDownloadUrl(lastMonth)]) {
+    for (const url of [this.downloadUrl(now), this.downloadUrl(lastMonth)]) {
       try {
         const response = await this.fetchImpl(url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
         if (!response.ok) {
@@ -213,16 +285,16 @@ export class GeoIpUpdater {
         await writeFile(tmpPath, buffer);
         await rename(tmpPath, this.options.filePath);
         this.options.database.setReader(reader);
-        this.log(`IP country database updated from ${url}`);
+        this.log(`${this.label} updated from ${url}`);
         return;
       } catch (error) {
-        this.log(`IP country database download from ${url} failed: ${String(error)}`);
+        this.log(`${this.label} download from ${url} failed: ${String(error)}`);
       }
     }
     this.log(
       this.options.database.loaded
-        ? 'IP country database not updated — keeping the current one.'
-        : 'No IP country database available yet — countries won\'t be shown until a download succeeds.',
+        ? `${this.label} not updated — keeping the current one.`
+        : `No ${this.label} available yet — nothing from it will be shown until a download succeeds.`,
     );
   }
 }
@@ -237,4 +309,29 @@ export function describeIpShort(lookup: CountryLookup, ip: string | undefined): 
 export function describeIpLong(lookup: CountryLookup, ip: string | undefined): string | undefined {
   const country = ip ? lookup.lookup(ip) : undefined;
   return country ? formatCountryLong(country) : undefined;
+}
+
+/** Longest provider name `/players` shows before cutting it with "…" — some are 60+ characters. */
+const SHORT_PROVIDER_LENGTH = 25;
+
+/** The IP's provider, cut to fit a `/players` line, or undefined when unknown. */
+export function describeProviderShort(lookup: ProviderLookup, ip: string | undefined): string | undefined {
+  const provider = ip ? lookup.lookup(ip) : undefined;
+  if (!provider || provider.length <= SHORT_PROVIDER_LENGTH) {
+    return provider;
+  }
+  return `${provider.slice(0, SHORT_PROVIDER_LENGTH - 1).trimEnd()}…`;
+}
+
+/** The IP's provider in full, for report cards, or undefined when unknown. */
+export function describeProviderLong(lookup: ProviderLookup, ip: string | undefined): string | undefined {
+  return ip ? lookup.lookup(ip) : undefined;
+}
+
+/** `🇷🇺 RU · PJSC Rostelecom` — country and provider, either of which may be unknown. */
+export function joinCountryAndProvider(country: string | undefined, provider: string | undefined): string | undefined {
+  if (country && provider) {
+    return `${country} · ${provider}`;
+  }
+  return country ?? provider;
 }

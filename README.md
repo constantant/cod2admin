@@ -16,11 +16,12 @@ receive `!report` cards from players in-game, manage other admins, and more.
 
 ## Attribution
 
-IP country labels (`/players`, report cards, `/bans`) use the
-[IP to Country Lite](https://db-ip.com/db/download/ip-to-country-lite) database by
+IP country labels (`/players`, report cards, `/bans`) and provider names (`/players`, report
+cards) use the [IP to Country Lite](https://db-ip.com/db/download/ip-to-country-lite) and
+[IP to ASN Lite](https://db-ip.com/db/download/ip-to-asn-lite) databases by
 [DB-IP.com](https://db-ip.com), licensed under
-[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The bot downloads it itself and
-refreshes it monthly; it isn't part of this repository or its releases.
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The bot downloads them itself and
+refreshes them monthly; they aren't part of this repository or its releases.
 
 VPN flags (`/players`, report cards) use the data-centre and VPN range lists from
 [X4BNet/lists_vpn](https://github.com/X4BNet/lists_vpn) and the Tor Project's

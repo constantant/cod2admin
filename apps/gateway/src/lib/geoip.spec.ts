@@ -5,13 +5,19 @@ import { gzipSync } from 'node:zlib';
 import type { CountryResponse } from 'maxmind';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  AsnDatabase,
+  dbIpAsnDownloadUrl,
   dbIpDownloadUrl,
   describeIpLong,
   describeIpShort,
+  describeProviderLong,
+  describeProviderShort,
   flagEmoji,
   GeoIpDatabase,
   GeoIpUpdater,
+  joinCountryAndProvider,
   NO_COUNTRY_LOOKUP,
+  NO_PROVIDER_LOOKUP,
   type CountryReader,
 } from './geoip.js';
 
@@ -80,10 +86,62 @@ describe('GeoIpDatabase', () => {
   });
 });
 
-describe('dbIpDownloadUrl', () => {
+describe('AsnDatabase and provider labels', () => {
+  function asnWith(table: Record<string, string>): AsnDatabase {
+    const database = new AsnDatabase();
+    database.setReader({
+      get(ip: string) {
+        if (!/^[\d.]+$/.test(ip)) {
+          throw new Error(`invalid IP ${ip}`);
+        }
+        const name = table[ip];
+        return name === undefined ? null : { autonomous_system_number: 1, autonomous_system_organization: name };
+      },
+    });
+    return database;
+  }
+
+  it('returns the provider name for a public IP', () => {
+    expect(asnWith({ '188.19.61.1': 'PJSC Rostelecom' }).lookup('188.19.61.1')).toBe('PJSC Rostelecom');
+  });
+
+  it('returns nothing for private, unknown, invalid or blank-named IPs, or before loading', () => {
+    const database = asnWith({ '10.0.0.5': 'Should not show', '1.1.1.1': '  ' });
+
+    expect(database.lookup('10.0.0.5')).toBeUndefined();
+    expect(database.lookup('8.8.8.8')).toBeUndefined();
+    expect(database.lookup('1.1.1.1')).toBeUndefined();
+    expect(database.lookup('bot')).toBeUndefined();
+    expect(database.lookup('50')).toBeUndefined();
+    expect(new AsnDatabase().lookup('188.19.61.1')).toBeUndefined();
+    expect(describeProviderShort(NO_PROVIDER_LOOKUP, '188.19.61.1')).toBeUndefined();
+  });
+
+  it('cuts long names for /players and keeps them whole for report cards', () => {
+    const long = 'SOCIETE NATIONALE DES TELECOMMUNICATIONS (Tunisie Telecom)';
+    const database = asnWith({ '196.187.164.1': long, '188.19.61.1': 'PJSC Rostelecom' });
+
+    expect(describeProviderShort(database, '196.187.164.1')).toBe('SOCIETE NATIONALE DES TE…');
+    expect(describeProviderShort(database, '188.19.61.1')).toBe('PJSC Rostelecom');
+    expect(describeProviderLong(database, '196.187.164.1')).toBe(long);
+    expect(describeProviderLong(database, undefined)).toBeUndefined();
+  });
+
+  it('joins country and provider, either of which may be missing', () => {
+    expect(joinCountryAndProvider('🇷🇺 RU', 'OBIT')).toBe('🇷🇺 RU · OBIT');
+    expect(joinCountryAndProvider('🇷🇺 RU', undefined)).toBe('🇷🇺 RU');
+    expect(joinCountryAndProvider(undefined, 'OBIT')).toBe('OBIT');
+    expect(joinCountryAndProvider(undefined, undefined)).toBeUndefined();
+  });
+});
+
+describe('DB-IP download URLs', () => {
   it('uses the UTC year and zero-padded month', () => {
     expect(dbIpDownloadUrl(new Date('2026-03-01T00:30:00Z'))).toBe(
       'https://download.db-ip.com/free/dbip-country-lite-2026-03.mmdb.gz',
+    );
+    expect(dbIpAsnDownloadUrl(new Date('2026-10-07T00:30:00Z'))).toBe(
+      'https://download.db-ip.com/free/dbip-asn-lite-2026-10.mmdb.gz',
     );
   });
 });
@@ -131,6 +189,27 @@ describe('GeoIpUpdater', () => {
     expect(fetchImpl).toHaveBeenCalledWith(dbIpDownloadUrl(NOW), expect.anything());
     expect(await readFile(filePath)).toEqual(DB_BYTES);
     expect(database.lookup('77.37.210.26')?.code).toBe('RU');
+  });
+
+  it('downloads the ASN database from its own URL into an AsnDatabase', async () => {
+    const database = new AsnDatabase();
+    const fetchImpl = vi.fn(async () => okResponse()) as unknown as typeof fetch;
+    const instance = new GeoIpUpdater({
+      database,
+      filePath,
+      autoDownload: true,
+      fetchImpl,
+      now: () => NOW,
+      parse: () => ({ get: () => ({ autonomous_system_number: 8492, autonomous_system_organization: 'OBIT Ltd.' }) }),
+      downloadUrl: dbIpAsnDownloadUrl,
+      label: 'IP provider database',
+      log: () => undefined,
+    });
+
+    await instance.check();
+
+    expect(fetchImpl).toHaveBeenCalledWith(dbIpAsnDownloadUrl(NOW), expect.anything());
+    expect(database.lookup('46.34.143.1')).toBe('OBIT Ltd.');
   });
 
   it('falls back to last month\'s file when this month\'s isn\'t published yet', async () => {

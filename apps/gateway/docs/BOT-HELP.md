@@ -21,7 +21,8 @@ Example: `!report Cheatr123 aimbot`
 *Commands for every role (moderator and up)*
 
 `/status` — server name, map, player count
-`/players` — detailed player list with IP addresses (🛡 marks a VPN, proxy or Tor IP)
+`/players` — detailed player list with IP addresses, their country and provider (🛡 marks a VPN,
+proxy or Tor IP)
 `/servers` — list of servers this bot manages
 
 *Moderator commands*
@@ -85,5 +86,5 @@ server — see `/servers` for the list of aliases. Without it, a command goes to
 to this chat (`/bindserver`), otherwise to the default server (`/setdefault`). The server from
 the bot's config file can't be changed or removed from Telegram.
 
-_IP country data by [DB-IP.com](https://db-ip.com) (CC BY 4.0). VPN ranges by
+_IP country and provider data by [DB-IP.com](https://db-ip.com) (CC BY 4.0). VPN ranges by
 [X4BNet](https://github.com/X4BNet/lists_vpn), Tor exits by the Tor Project._

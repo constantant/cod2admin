@@ -767,6 +767,13 @@ Roles, stored in `admin-store`:
   - **Settings:** `GEOIP_ENABLED=false` turns it off, and `GEOIP_DB_PATH` points at a file the
     admin supplies, with no download. With no database, the bot just shows no countries.
   - **Checked live** against 34 real players: every IP resolved to a country.
+- **IP provider (implemented 2026-10-07).** `/players` and report cards show who owns the IP after
+  the country: `🇷🇺 RU · PJSC Rostelecom`. `/players` cuts names over 25 characters with `…`
+  (some are 60+); report cards show them whole. `/bans` doesn't show it. It comes from DB-IP's
+  free "IP to ASN Lite" database, same vendor, license, folder and monthly refresh as the
+  country database (`GeoIpUpdater` handles both). `GEOIP_ENABLED=false` turns both off;
+  `GEOIP_ASN_DB_PATH` points at a file the admin supplies, like `GEOIP_DB_PATH`. Private
+  addresses show no provider.
 - **VPN flag (implemented 2026-10-07).** `/players` adds `🛡 VPN`, `🛡 hosting` or `🛡 Tor` after the
   country, and report cards add `🛡 VPN`, `🛡 hosting IP (likely VPN/proxy)` or `🛡 Tor exit`
   (`apps/gateway/src/lib/vpn-ranges.ts`). `/bans` doesn't show it.
@@ -875,7 +882,7 @@ failure, and this DB now holds durable ban/audit history, not just cache-able st
 ## 9. Phased delivery plan
 
 **Status (2026-10-06):** Phases 0–3 and the self-update track are done and verified live. From
-Phase 4, only the IP country label and a VPN flag are built (§6). Work done since Phase 3 that wasn't in the
+Phase 4, only the IP country and provider labels and a VPN flag are built (§6). Work done since Phase 3 that wasn't in the
 original phases: managing servers from Telegram (`/addserver`, `/removeserver`, `/setdefault`,
 §4), bans that apply on every server (§7), Telegram relays for hosts in Russia
 (`docs/PLAN-russia-access.md`), and CP1251 text for Russian names and chat (§2.4). Releases and

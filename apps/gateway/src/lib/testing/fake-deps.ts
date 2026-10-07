@@ -1,6 +1,6 @@
 import { ReportAntiSpam, type SessionLookup } from '@cod2admin/report-pipeline';
 import type { GatewayDeps } from '../deps.js';
-import { NO_COUNTRY_LOOKUP } from '../geoip.js';
+import { NO_COUNTRY_LOOKUP, NO_PROVIDER_LOOKUP } from '../geoip.js';
 import { DIRECT_TELEGRAM_ROOT, TelegramRouter } from '../telegram-routes.js';
 import { vi } from 'vitest';
 import { ReportRegistry } from '../reports.js';
@@ -42,6 +42,7 @@ export function createFakeDeps(): FakeDeps {
       createRconClient: () => asRconClient(createFakeRcon()),
       bootstrapServerAlias: 'default',
       geoip: NO_COUNTRY_LOOKUP,
+      provider: NO_PROVIDER_LOOKUP,
       vpn: NO_VPN_LOOKUP,
       telegramRoutes: {
         router: new TelegramRouter([DIRECT_TELEGRAM_ROOT], () => undefined),

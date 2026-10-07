@@ -43,9 +43,10 @@ export interface GatewayConfig {
   /**
    * IP → country labels (geoip.ts). `GEOIP_ENABLED=false` turns them off. `GEOIP_DB_PATH` points at
    * a .mmdb the admin supplies themselves (e.g. a host that can't reach db-ip.com), which turns
-   * off the automatic monthly download.
+   * off the automatic monthly download. `GEOIP_ASN_DB_PATH` does the same for the provider
+   * (ASN) database.
    */
-  geoip: { enabled: boolean; dbPath: string | undefined };
+  geoip: { enabled: boolean; dbPath: string | undefined; asnDbPath: string | undefined };
   /** VPN/proxy/Tor flags (vpn-ranges.ts). `VPN_FLAG_ENABLED=false` turns them and their downloads off. */
   vpnFlag: { enabled: boolean };
   /**
@@ -136,6 +137,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
     geoip: {
       enabled: env['GEOIP_ENABLED']?.trim().toLowerCase() !== 'false',
       dbPath: env['GEOIP_DB_PATH']?.trim() || undefined,
+      asnDbPath: env['GEOIP_ASN_DB_PATH']?.trim() || undefined,
     },
     vpnFlag: { enabled: env['VPN_FLAG_ENABLED']?.trim().toLowerCase() !== 'false' },
   };

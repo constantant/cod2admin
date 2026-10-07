@@ -10,7 +10,15 @@ import { createBot } from './lib/bot.js';
 import { loadConfig } from './lib/config.js';
 import type { GatewayDeps, UpdateFeatureConfig } from './lib/deps.js';
 import { startExpiryPoller } from './lib/expiry-poller.js';
-import { GeoIpDatabase, GeoIpUpdater, NO_COUNTRY_LOOKUP } from './lib/geoip.js';
+import {
+  AsnDatabase,
+  dbIpAsnDownloadUrl,
+  GeoIpDatabase,
+  GeoIpUpdater,
+  NO_COUNTRY_LOOKUP,
+  NO_PROVIDER_LOOKUP,
+  parseAsnDatabase,
+} from './lib/geoip.js';
 import {
   DEFAULT_TELEGRAM_RELAYS,
   describeRoute,
@@ -92,6 +100,20 @@ if (config.geoip.enabled) {
   // Not awaited: a slow or failed download must never delay the bot's start.
   void geoipUpdater.start();
 }
+// IP → provider, from DB-IP's ASN database — same vendor, place and refresh as the country one.
+const asnDatabase = new AsnDatabase();
+if (config.geoip.enabled) {
+  const asnUpdater = new GeoIpUpdater({
+    database: asnDatabase,
+    filePath:
+      config.geoip.asnDbPath ?? path.join(config.updateStagingDir ?? tmpdir(), 'dbip-asn-lite.mmdb'),
+    autoDownload: config.geoip.asnDbPath === undefined,
+    parse: parseAsnDatabase,
+    downloadUrl: dbIpAsnDownloadUrl,
+    label: 'IP provider database',
+  });
+  void asnUpdater.start();
+}
 
 // VPN/proxy/Tor flags (lib/vpn-ranges.ts) — public lists, kept next to the country database.
 const vpnDatabase = new VpnRangeDatabase();
@@ -135,6 +157,7 @@ const deps: GatewayDeps = {
   createRconClient,
   bootstrapServerAlias: config.serverAlias,
   geoip: config.geoip.enabled ? geoipDatabase : NO_COUNTRY_LOOKUP,
+  provider: config.geoip.enabled ? asnDatabase : NO_PROVIDER_LOOKUP,
   vpn: config.vpnFlag.enabled ? vpnDatabase : NO_VPN_LOOKUP,
   telegramRoutes: { router: telegramRouter, defaults: telegramDefaults, probe: probeTelegramRoute },
   reportRegistry: new ReportRegistry(),

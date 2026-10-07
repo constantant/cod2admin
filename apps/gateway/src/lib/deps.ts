@@ -2,7 +2,7 @@ import type { AdminStore } from '@cod2admin/admin-store';
 import type { BanStore } from '@cod2admin/ban-store';
 import type { RconClient } from '@cod2admin/rcon-client';
 import type { ReportAntiSpam, SessionLookup } from '@cod2admin/report-pipeline';
-import type { CountryLookup } from './geoip.js';
+import type { CountryLookup, ProviderLookup } from './geoip.js';
 import type { GithubReleaseClient } from './github-releases.js';
 import type { RouteProbeResult, TelegramRouter, TelegramRouteSettings } from './telegram-routes.js';
 import type { ReportRegistry } from './reports.js';
@@ -37,6 +37,8 @@ export interface GatewayDeps {
   bootstrapServerAlias: string;
   /** IP → country for `/players`, `/bans` and report cards — `NO_COUNTRY_LOOKUP` when off. */
   geoip: CountryLookup;
+  /** IP → provider (ISP/hosting company) for `/players` and report cards — `NO_PROVIDER_LOOKUP` when off. */
+  provider: ProviderLookup;
   /** IP → VPN/proxy/Tor flag for `/players` and report cards — `NO_VPN_LOOKUP` when off. */
   vpn: VpnLookup;
   /** How the bot reaches Telegram (telegram-routes.ts) — managed with `/relays`. */

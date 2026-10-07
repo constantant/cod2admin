@@ -31,7 +31,7 @@ import { unbanCommand } from './commands/unban.js';
 import { updateActionCallback, updateCommand, type UpdateCallbackContext } from './commands/update.js';
 import type { GatewayConfig } from './config.js';
 import type { GatewayDeps } from './deps.js';
-import { describeIpLong } from './geoip.js';
+import { describeIpLong, describeProviderLong, joinCountryAndProvider } from './geoip.js';
 import { describeVpnLong, joinIpLabels } from './vpn-ranges.js';
 import { failoverTransformer, probeRoute } from './telegram-routes.js';
 
@@ -163,7 +163,11 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
       adminStore: deps.adminStore,
       banStore: deps.banStore,
       sessionsByServer: deps.sessionsByServer,
-      describeIp: (ip) => joinIpLabels(describeIpLong(deps.geoip, ip), describeVpnLong(deps.vpn, ip)),
+      describeIp: (ip) =>
+        joinIpLabels(
+          joinCountryAndProvider(describeIpLong(deps.geoip, ip), describeProviderLong(deps.provider, ip)),
+          describeVpnLong(deps.vpn, ip),
+        ),
     }),
   );
 
