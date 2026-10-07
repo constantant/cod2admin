@@ -1,3 +1,19 @@
+## [1.7.0](https://github.com/constantant/cod2admin/releases/tag/v1.7.0) (2026-10-07)
+
+### 🚀 Features
+
+- **gateway:** flag VPN, proxy and Tor IPs in /players and report cards ([8ec994e](https://github.com/constantant/cod2admin/commit/8ec994e))
+- **gateway:** show the IP's provider in /players and report cards ([3e14334](https://github.com/constantant/cod2admin/commit/3e14334))
+
+### 🩹 Fixes
+
+- **release:** keep apostrophes out of the single-quoted notes script ([431fcbd](https://github.com/constantant/cod2admin/commit/431fcbd))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5 (1M context)
+- kk
+
 ## [1.6.1](https://github.com/constantant/cod2admin/releases/tag/v1.6.1) (2026-10-07)
 
 ### 🩹 Fixes
