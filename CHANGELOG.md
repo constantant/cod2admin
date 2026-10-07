@@ -1,3 +1,14 @@
+## [1.13.1](https://github.com/constantant/cod2admin/releases/tag/v1.13.1) (2026-10-07)
+
+### 🩹 Fixes
+
+- **rcon-client:** send map once instead of retrying it ([fa56975](https://github.com/constantant/cod2admin/commit/fa56975))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5 (1M context)
+- kk
+
 ## [1.13.0](https://github.com/constantant/cod2admin/releases/tag/v1.13.0) (2026-10-07)
 
 ### 🚀 Features
