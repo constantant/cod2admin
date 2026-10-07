@@ -70,11 +70,19 @@ See `docs/PLAN.md` for the full design of the CoD2 Admin Telegram/RCON bot this 
 building (architecture, phased delivery plan in §9, dev/test environment in §11). `docs/PLAN-ru.md`
 is a condensed Russian summary for the server owner, kept in sync with the same decisions.
 
-`docs/PLAN-miniapp.md` is a companion plan (not yet implemented) for adding a Telegram Mini App
-(Angular + Material 3) as a second, graphical admin surface alongside the chat bot — see it for
-hosting/HTTPS tradeoffs and feature scope. `docs/PLAN-miniapp-ru.md` is its condensed Russian
-summary for the server owner, kept in sync the same way as the `PLAN.md`/`PLAN-ru.md` pair — update
-it whenever `docs/PLAN-miniapp.md` changes.
+`docs/PLAN-miniapp.md` is the companion plan for the Telegram Mini App (Angular + Material 3), a
+second, graphical admin surface alongside the chat bot. Phases M1–M4 and the installer's HTTPS
+step are implemented (2026-10-07, see its §0); M5 is open:
+- web app: `apps/miniapp-web` (Angular, outside the TS project-reference graph — Nx's Angular
+  plugin needs `NX_IGNORE_UNSUPPORTED_TS_SETUP=true` for generators; own `tsc --noEmit` typecheck)
+- backend: `apps/gateway/src/miniapp/` (Fastify, in the gateway process, off unless
+  `MINIAPP_PORT` is set); `api-types.ts` there is the contract both apps compile
+- installer: `installer/lib/miniapp.sh` (Caddy + own domain or `<ip>.sslip.io`)
+- local dev loop: `nx serve miniapp-web` proxies `/api` to 127.0.0.1:18090. Don't start the full
+  gateway locally with the shared dev bot token — the NAS instance uses the same token.
+
+`docs/PLAN-miniapp-ru.md` is its condensed Russian summary for the server owner, kept in sync the
+same way as the `PLAN.md`/`PLAN-ru.md` pair — update it whenever `docs/PLAN-miniapp.md` changes.
 
 `docs/PLAN-russia-access.md` covers game hosts in Russia, where Telegram has been blocked since
 March 2026 (`api.telegram.org` unreachable from most Russian hosting). Part A is implemented
