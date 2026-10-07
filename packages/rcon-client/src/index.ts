@@ -3,6 +3,7 @@ export { cleanBanFileName, isBanFileSafeName } from './lib/ban-file.js';
 export * from './lib/types.js';
 export {
   parseCvarBlock,
+  parseInstalledMaps,
   parseMapRotation,
   parseOobPlayerLine,
   parseRconStatusTable,

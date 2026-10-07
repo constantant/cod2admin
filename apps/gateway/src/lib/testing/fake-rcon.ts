@@ -17,6 +17,7 @@ export interface FakeRcon {
   say: Mock<(message: string) => Promise<string>>;
   map: Mock<(mapName: string) => Promise<string>>;
   getMapRotation: Mock<() => Promise<string[]>>;
+  getInstalledMaps: Mock<() => Promise<string[]>>;
 }
 
 export function createFakeRcon(): FakeRcon {
@@ -31,6 +32,7 @@ export function createFakeRcon(): FakeRcon {
     say: vi.fn().mockResolvedValue(''),
     map: vi.fn().mockResolvedValue(''),
     getMapRotation: vi.fn().mockResolvedValue([]),
+    getInstalledMaps: vi.fn().mockResolvedValue([]),
   };
 }
 

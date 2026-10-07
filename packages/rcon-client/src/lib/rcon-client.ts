@@ -1,5 +1,11 @@
 import { RateLimiter } from './rate-limiter.js';
-import { parseCvarBlock, parseMapRotation, parseOobPlayerLine, parseRconStatusTable } from './status-parser.js';
+import {
+  parseCvarBlock,
+  parseInstalledMaps,
+  parseMapRotation,
+  parseOobPlayerLine,
+  parseRconStatusTable,
+} from './status-parser.js';
 import type { TextEncoding } from './text-encoding.js';
 import type { CvarMap, OobStatusPlayer, RconClientOptions, ServerStatus } from './types.js';
 import { sendOobQuery } from './udp-transport.js';
@@ -143,6 +149,11 @@ export class RconClient {
   /** Map names configured in `sv_mapRotation`, in rotation order — see `parseMapRotation` for why. */
   async getMapRotation(): Promise<string[]> {
     return parseMapRotation(await this.rcon('sv_mapRotation'));
+  }
+
+  /** Every map the server can load (stock and custom), sorted — see `parseInstalledMaps`. */
+  async getInstalledMaps(): Promise<string[]> {
+    return parseInstalledMaps(await this.rcon('dir maps/mp d3dbsp'));
   }
 
   private async query(payload: string) {

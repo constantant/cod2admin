@@ -156,7 +156,7 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
   bot.command('vpnkick', requireAdmin, (ctx) => vpnKickCommand(ctx, deps));
 
   bot.callbackQuery(STATUS_REFRESH_CALLBACK_DATA, requireAny, (ctx) => statusRefreshCallback(ctx, deps));
-  bot.callbackQuery(/^map:/, requireAdmin, (ctx) => mapsSelectCallback(toMapsCallbackContext(ctx), deps));
+  bot.callbackQuery(/^map(ask|no)?:/, requireAdmin, (ctx) => mapsSelectCallback(toMapsCallbackContext(ctx), deps));
   bot.callbackQuery(/^update:/, requireOwner, (ctx) => updateActionCallback(toUpdateCallbackContext(ctx), deps));
   bot.callbackQuery(/^report:/, requireAny, (ctx) =>
     reportActionCallback(toReportCallbackContext(ctx), {

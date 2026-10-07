@@ -179,6 +179,14 @@ dedicated servers:
     is a cracked 1.3 build, not CoD2x. Moving CTF RUSSIA to CoD2x would force all its players
     onto 1.3 + CoD2x, so that's the owner's decision. Until then, IP bans stay its main
     mechanism.
+  - **Installed maps (found 2026-10-07).** `rcon dir maps/mp d3dbsp` lists every map file the
+    server can load — loose files and inside .iwd packs, so stock maps too. Reply: a
+    `Directory of maps/mp d3dbsp` header, a `---` line, one `name.d3dbsp` per line
+    (`parseInstalledMaps`, `RconClient.getInstalledMaps`). The dev server lists the 15 stock 1.3
+    maps; CTF RUSSIA lists 24 (13 in rotation, plus e.g. `mp_bazaar`, `mp_tobruk`, `rts`,
+    `tuscany`). `fdir *.bsp` finds nothing (CoD2 maps are `.d3dbsp`). An installed map isn't
+    necessarily one players have: a custom map needs downloads (`sv_allowDownload`/
+    `sv_wwwBaseURL`) or players without it can be dropped.
   - **`dumpuser` on a stock server (checked 2026-10-07, dev server, one CoD2x client).** RCON
     `dumpuser` prints a player's userinfo. Facts found:
     - It takes a **name, not a slot**: `dumpuser 0` says `Player 0 is not on the server` while
@@ -735,7 +743,10 @@ Roles, stored in `admin-store`:
   inline `Kick`/`Temp Ban (30m)`/`Ban` shortcuts first planned here aren't built; admins use the
   slot number with `/kick`/`/tempban`/`/ban`.
 - `/map <name>` and `/maps` (tap-to-switch buttons for the maps in `sv_mapRotation`, 2026-09-08)
-  — map control, admin-role-gated. `/maprotate`, `/restart` and `/fastrestart` aren't built;
+  — map control, admin-role-gated. Since v1.12.0 (2026-10-07) `/maps` also lists every other
+  installed map (§2.4 "Installed maps") in a second message, with ⚠ and a confirm step for maps
+  outside the 15 stock ones, and `/map` checks the name against the installed list
+  (case-insensitive, suggestions on a typo; sent as typed if the server can't list its maps). `/maprotate`, `/restart` and `/fastrestart` aren't built;
   `/rcon` covers them for the owner.
 - `/say <message>` — broadcast to the game via `rcon say`.
 - **Moderation broadcasts** *(decided)*: every kick/ban/tempban (whether triggered via a

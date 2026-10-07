@@ -38,9 +38,11 @@ Example: `!report Cheatr123 aimbot`
 - `/bans` — list currently active GUID/IP bans, with the server each was issued on
   Bans (including `/tempban`) apply on **all** servers this bot manages, not just the one the
   player was banned on — `--server` only picks which server to find the player on.
-- `/map <name> [--server <alias>]`
-- `/maps [--server <alias>]` — tap-to-switch buttons for the maps in `sv_mapRotation`, if typing an
-  exact map name for `/map` is inconvenient
+- `/map <name> [--server <alias>]` — the name is checked against the maps installed on the
+  server, with suggestions for a typo
+- `/maps [--server <alias>]` — tap-to-switch buttons: the maps in rotation, then every other map
+  installed on the server. ⚠ marks a non-standard map: players who don't have it may be dropped
+  unless the server offers downloads, so the bot asks before switching to one
 - `/say <message> [--server <alias>]` — broadcasts to the game server's chat
 - `/bindserver <alias>` — makes **this** chat receive report cards for that server
 - `/setdefault <alias>` — which server commands without `--server` go to

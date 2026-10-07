@@ -40,10 +40,8 @@ const MAP_ROTATION_ENTRY = /\bmap\s+(\S+)/gi;
 /**
  * Extracts map names from a `rcon sv_mapRotation` response, e.g.
  * `"sv_mapRotation" is: "gametype tdm map mp_brecourt gametype ctf map mp_carentan^7" default: "^7"`
- * (confirmed against a real server 2026-09-08) — order-preserved, de-duplicated. There's no
- * RCON-exposed way to list every map installed on disk (stock maps ship packed inside the game's
- * own pak files, not as loose files), so the configured rotation is the practical "maps available
- * to switch to" list.
+ * (confirmed against a real server 2026-09-08) — order-preserved, de-duplicated. This is what the
+ * server cycles through; for every map it *has*, see `parseInstalledMaps`.
  */
 export function parseMapRotation(raw: string): string[] {
   const value = stripColorCodes(MAP_ROTATION_VALUE.exec(raw)?.[1] ?? '');
@@ -54,6 +52,26 @@ export function parseMapRotation(raw: string): string[] {
     }
   }
   return maps;
+}
+
+const INSTALLED_MAP_LINE = /^([A-Za-z0-9_-]+)\.d3dbsp$/;
+
+/**
+ * Map names from a `rcon dir maps/mp d3dbsp` response — every map the server can load, stock or
+ * custom, sorted and de-duplicated. `dir` searches the game's .iwd packs as well as loose files,
+ * so the stock maps are listed too (an earlier note here said there was no RCON way to do this;
+ * disproved 2026-10-07 on the dev server and on CTF RUSSIA, which lists 24 against 13 in rotation).
+ * The reply is a `Directory of maps/mp d3dbsp` header, a `---` line, then one file per line.
+ */
+export function parseInstalledMaps(raw: string): string[] {
+  const maps = new Set<string>();
+  for (const line of raw.replace(/\r\n/g, '\n').split('\n')) {
+    const match = INSTALLED_MAP_LINE.exec(line.trim());
+    if (match) {
+      maps.add(match[1]);
+    }
+  }
+  return [...maps].sort((a, b) => a.localeCompare(b));
 }
 
 interface ColumnBounds {

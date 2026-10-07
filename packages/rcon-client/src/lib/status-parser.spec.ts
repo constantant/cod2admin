@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   parseCvarBlock,
+  parseInstalledMaps,
   parseMapRotation,
   parseOobPlayerLine,
   parseRconStatusTable,
@@ -38,6 +39,27 @@ describe('parseOobPlayerLine', () => {
   it('returns null for lines that do not match the expected shape', () => {
     expect(parseOobPlayerLine('not a player line')).toBeNull();
     expect(parseOobPlayerLine('')).toBeNull();
+  });
+});
+
+describe('parseInstalledMaps', () => {
+  it('lists map files from a real `dir maps/mp d3dbsp` reply, sorted and de-duplicated', () => {
+    // Shape captured from the dev server 2026-10-07, shortened, with CRLF and a duplicate.
+    const raw = [
+      'Directory of maps/mp d3dbsp',
+      '---------------',
+      'mp_toujane.d3dbsp',
+      'mp_breakout.d3dbsp',
+      'rts.d3dbsp',
+      'mp_breakout.d3dbsp',
+      '',
+    ].join('\r\n');
+
+    expect(parseInstalledMaps(raw)).toEqual(['mp_breakout', 'mp_toujane', 'rts']);
+  });
+
+  it('ignores headers, other file types and odd names', () => {
+    expect(parseInstalledMaps('Directory of maps/mp d3dbsp\n---------------\nmp_x.gsc\nbad name.d3dbsp\n')).toEqual([]);
   });
 });
 
