@@ -70,3 +70,7 @@ installer/*.tar.gz
 installer/*.tar.gz.sha256
 # Cloudflare wrangler local state (packages/telegram-relay)
 .wrangler
+
+.angular
+
+__screenshots__/

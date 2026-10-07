@@ -2,6 +2,11 @@ packages:
   - packages/*
   - apps/*
 allowBuilds:
+  # Angular CLI deps (apps/miniapp-web): each ships prebuilt binaries as optional platform
+  # packages and its install script only compiles from source when none matches - not needed.
+  '@parcel/watcher': false
   '@swc/core': true
   esbuild: true
+  lmdb: false
+  msgpackr-extract: false
   nx: true

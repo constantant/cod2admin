@@ -9,16 +9,26 @@
   },
   "private": true,
   "devDependencies": {
+    "@angular-devkit/core": "~22.1.0",
+    "@angular-devkit/schematics": "~22.1.0",
+    "@angular/build": "~22.1.0",
+    "@angular/cli": "~22.1.0",
+    "@angular/compiler-cli": "~22.1.0",
+    "@angular/language-service": "~22.1.0",
     "@commitlint/cli": "^21.2.2",
     "@commitlint/config-conventional": "^21.2.2",
+    "@nx/angular": "23.2.0",
     "@nx/js": "23.2.0",
     "@nx/vitest": "23.2.0",
+    "@nx/web": "23.2.0",
+    "@schematics/angular": "~22.1.0",
     "@swc-node/register": "1.11.1",
     "@swc/core": "1.15.8",
     "@swc/helpers": "0.5.18",
     "@types/node": "^24.0.0",
     "@vitest/coverage-v8": "~4.1.0",
     "husky": "^9.1.7",
+    "jsdom": "^27.1.0",
     "nx": "23.2.0",
     "prettier": "^3.8.1",
     "tslib": "^2.3.0",
@@ -26,5 +36,17 @@
     "vite": "^8.0.0",
     "vitest": "~4.1.0"
   },
-  "packageManager": "pnpm@11.18.0"
+  "packageManager": "pnpm@11.18.0",
+  "dependencies": {
+    "@angular/cdk": "~22.1.8",
+    "@angular/common": "~22.1.0",
+    "@angular/compiler": "~22.1.0",
+    "@angular/core": "~22.1.0",
+    "@angular/forms": "~22.1.0",
+    "@angular/material": "~22.1.8",
+    "@angular/platform-browser": "~22.1.0",
+    "@angular/router": "~22.1.0",
+    "@twa-dev/sdk": "8.0.2",
+    "rxjs": "~7.8.0"
+  }
 }
