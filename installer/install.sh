@@ -23,6 +23,9 @@ NODE_MIN_MAJOR=20
 # See installer/lib/service.sh - also sourced by apply-update.sh from its own installed location.
 # shellcheck source=lib/service.sh
 . "$SCRIPT_DIR/lib/service.sh"
+# The Telegram Mini App's HTTPS step (Caddy + domain or sslip.io) - wizard_miniapp/verify_miniapp.
+# shellcheck source=lib/miniapp.sh
+. "$SCRIPT_DIR/lib/miniapp.sh"
 
 # Layout (docs/PLAN.md §13.5): $INSTALL_DIR itself is stable and never swapped. Each
 # install/update lands in its own $RELEASES_DIR/<version>, and $CURRENT_LINK always points at
@@ -662,6 +665,10 @@ write_env() {
     # Enables the gateway's self-update poller/`/update` command (docs/PLAN.md §13.2/§13.3) -
     # unconditional, $STAGING_DIR always exists by this point (install_app, earlier in main()).
     printf 'UPDATE_STAGING_DIR=%s\n' "$STAGING_DIR"
+    # The Telegram Mini App (lib/miniapp.sh) - both empty when it's off. `if`, not `&&`: as the
+    # group's last command a false test would fail the whole group, and `set -e` with it.
+    if [ -n "$MINIAPP_PORT" ]; then printf 'MINIAPP_PORT=%s\n' "$MINIAPP_PORT"; fi
+    if [ -n "$MINIAPP_URL" ]; then printf 'MINIAPP_URL=%s\n' "$MINIAPP_URL"; fi
   } > "$_env"
   chown cod2admin "$_env"
   chmod 600 "$_env"
@@ -823,6 +830,7 @@ main() {
   wizard_rcon
   wizard_log_path
   wizard_server_alias
+  wizard_miniapp
   generate_secrets
   write_env
   register_service
@@ -834,6 +842,8 @@ main() {
   else
     verify_running || die "cod2admin failed to start after install. See the output above for details."
   fi
+
+  verify_miniapp
 
   step "Done"
   success "cod2admin is installed and running."

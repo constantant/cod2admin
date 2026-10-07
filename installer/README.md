@@ -58,6 +58,44 @@ One bot can manage several CoD2 servers. The owner adds them from Telegram with
 apply on every server the bot manages. Servers added this way are reached over RCON only, so
 `!report` works only for the server whose `games_mp.log` path you gave the installer.
 
+## The Mini App (server manager inside Telegram)
+
+Besides chat commands, the bot has a full-screen app that opens inside Telegram: live players
+with kick/ban buttons, the in-game chat (read and write), map switching, and a ban list you can
+search and edit. Admins open it with the menu button in their private chat with the bot, or with
+`/app`. It uses the same admin roles as the commands, and everything done in it goes into
+`/auditlog`.
+
+Telegram only opens it over HTTPS, so the installer asks whether to turn it on and then:
+
+- uses your domain if you enter one (point its DNS at this server first), or else a free
+  `<your-ip>.sslip.io` name — nothing to register or configure;
+- installs [Caddy](https://caddyserver.com), which gets the HTTPS certificate by itself, and
+  puts the app behind it. Ports **80 and 443** must be open to the internet (the installer opens
+  them in `ufw`; a firewall in your hosting panel you open yourself).
+
+If ports 80/443 are already used by a web server you run (nginx, Apache), Caddy isn't
+installed; the installer prints the proxy rule to add to yours instead. For `--config` installs,
+add `MINIAPP_ENABLED=true` (and optionally `MINIAPP_DOMAIN=bot.example.com`), or set
+`MINIAPP_URL=https://...` if you handle HTTPS yourself. Existing installs: re-run `install.sh`
+to turn it on.
+
+The live chat needs the `games_mp.log` path; without it the app still does everything else.
+
+### Mini App behind NAT
+
+A server at home behind a router (no public IP) can't be reached by Telegram directly. A free
+[Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
+fixes that without opening any port:
+
+1. Re-run the installer and turn the Mini App on — it detects the NAT and starts the app on
+   `127.0.0.1:18090` without Caddy.
+2. Install `cloudflared` and create a tunnel to `http://127.0.0.1:18090` (with a free Cloudflare
+   account and a domain on it; `cloudflared tunnel --url http://127.0.0.1:18090` gives a
+   temporary URL for a quick test, but it changes on every restart).
+3. Put the tunnel's address in `/opt/cod2admin/.env` as `MINIAPP_URL=https://...` and restart the
+   bot. It sets the menu button to that address on start.
+
 ## Re-running the installer
 
 Running `sudo ./install.sh` again on a machine that already has cod2admin installed lets you
