@@ -29,6 +29,7 @@ import { STATUS_REFRESH_CALLBACK_DATA, statusCommand, statusRefreshCallback } fr
 import { tempbanCommand } from './commands/tempban.js';
 import { unbanCommand } from './commands/unban.js';
 import { updateActionCallback, updateCommand, type UpdateCallbackContext } from './commands/update.js';
+import { vpnKickCommand } from './commands/vpnkick.js';
 import { vpnNetsCommand } from './commands/vpnnets.js';
 import type { GatewayConfig } from './config.js';
 import type { GatewayDeps } from './deps.js';
@@ -152,6 +153,7 @@ export function createBot(config: GatewayConfig, deps: GatewayDeps, claimSecret:
   bot.command('removeserver', requireOwner, (ctx) => removeServerCommand(ctx, deps));
   bot.command('relays', requireOwner, (ctx) => relaysCommand(ctx, deps));
   bot.command('vpnnets', requireAdmin, (ctx) => vpnNetsCommand(ctx, deps));
+  bot.command('vpnkick', requireAdmin, (ctx) => vpnKickCommand(ctx, deps));
 
   bot.callbackQuery(STATUS_REFRESH_CALLBACK_DATA, requireAny, (ctx) => statusRefreshCallback(ctx, deps));
   bot.callbackQuery(/^map:/, requireAdmin, (ctx) => mapsSelectCallback(toMapsCallbackContext(ctx), deps));

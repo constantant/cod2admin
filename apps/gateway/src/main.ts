@@ -10,6 +10,7 @@ import { createBot } from './lib/bot.js';
 import { loadConfig } from './lib/config.js';
 import type { GatewayDeps, UpdateFeatureConfig } from './lib/deps.js';
 import { startExpiryPoller } from './lib/expiry-poller.js';
+import { parseVpnKickSettings, VPN_KICK_SETTING_KEY, VpnKicker } from './lib/vpn-kick.js';
 import {
   AsnDatabase,
   dbIpAsnDownloadUrl,
@@ -142,6 +143,9 @@ if (config.vpnFlag.enabled) {
   // Not awaited, same as the country database.
   void vpnUpdater.start();
 }
+// /vpnkick (lib/vpn-kick.ts): off unless an admin turned it on; runs with the ban sweep.
+const vpnKick = new VpnKicker();
+vpnKick.setSettings(parseVpnKickSettings(await adminStore.getSetting(VPN_KICK_SETTING_KEY)));
 
 // How the bot reaches Telegram (lib/telegram-routes.ts, docs/PLAN-russia-access.md): a /relays
 // change stored in the database wins over .env, which wins over direct + the built-in relays.
@@ -176,6 +180,7 @@ const deps: GatewayDeps = {
   geoip: config.geoip.enabled ? geoipDatabase : NO_COUNTRY_LOOKUP,
   provider: config.geoip.enabled ? asnDatabase : NO_PROVIDER_LOOKUP,
   vpn: config.vpnFlag.enabled ? vpnDatabase : NO_VPN_LOOKUP,
+  vpnKick,
   telegramRoutes: { router: telegramRouter, defaults: telegramDefaults, probe: probeTelegramRoute },
   reportRegistry: new ReportRegistry(),
   reportAntiSpam: new ReportAntiSpam<string>(),

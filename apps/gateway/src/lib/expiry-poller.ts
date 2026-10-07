@@ -6,7 +6,8 @@ const DEFAULT_INTERVAL_MS = 10_000;
 /**
  * Wires the gateway's non-event-driven actions (docs/PLAN.md §3/§5.7) onto one fixed interval:
  * the ban enforcement sweep (kick-on-sight by IP or GUID on every server, plus IP-ban expiry) and
- * the GUID-path ban expiry sweep (§5 step 7 job (b)). Sweep failures are logged, not thrown — one
+ * the GUID-path ban expiry sweep (§5 step 7 job (b)), and the `/vpnkick` sweep when it's on
+ * (vpn-kick.ts). Sweep failures are logged, not thrown — one
  * bad tick shouldn't kill the poller or the process.
  *
  * A tick is skipped while the previous one is still running: a server that drops queries can make
@@ -25,6 +26,9 @@ export function startExpiryPoller(deps: GatewayDeps, intervalMs = DEFAULT_INTERV
       }),
       runBanExpirySweep(deps.banStore).catch((error: unknown) => {
         console.error('GUID ban expiry sweep failed:', error);
+      }),
+      deps.vpnKick.sweep(deps).catch((error: unknown) => {
+        console.error('VPN kick sweep failed:', error);
       }),
     ]).finally(() => {
       running = false;

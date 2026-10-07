@@ -822,6 +822,18 @@ Roles, stored in `admin-store`:
   - **Baseline (2026-10-07):** a one-off offline check of the 12 players then on CTF RUSSIA
     flagged none; all were on home or mobile ISPs.
   - **Settings:** `VPN_FLAG_ENABLED=false` turns the flag and its downloads off.
+  - **Kick on sight (`/vpnkick`, v1.11.0, 2026-10-07).** The owner asked for VPN players to be
+    removed automatically after joining CTF RUSSIA through a VPN. Decided with the owner: **kick,
+    not ban** (a ban on a shared exit IP hits strangers, and the player can return with the VPN
+    off), triggered by everything the 🛡 mark covers including `hosting`, **off by default**
+    (`/vpnkick on|off`, admin+). `apps/gateway/src/lib/vpn-kick.ts` runs on the ban sweep's
+    10-second interval and queries servers only while on; each kick is announced in game chat
+    (`<name> kicked: VPN is not allowed here…`) and audit-logged as `vpn_kick` (source `auto`,
+    actor 0 = "bot (automatic)") at most once per server+IP per 5 minutes, while the kick itself
+    repeats every sweep. `/vpnkick allow <GUID or name>` exempts trusted players (GUID
+    preferred — names can be taken). Detection is still the weak part: the owner's second VPN
+    (AS58061 "Scalaxy B.V.") was on no list, not even FireHOL's, so `/vpnnets add` is how such
+    networks get caught.
   - **Provider networks (`/vpnnets`, 2026-10-07).** The lists missed a real VPN: the owner joined
     CTF RUSSIA through one, and its IP (AS202226, "Emil Vitukhnovskii trading as Great Flower")
     was on neither X4BNet list. FireHOL's `firehol_proxies` did list it, and none of the other 13

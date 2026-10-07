@@ -9,6 +9,9 @@ export function formatTelegramUser(
   username: string | null | undefined,
   firstName: string | null | undefined,
 ): string {
+  if (telegramId === 0) {
+    return 'bot (automatic)'; // actions the bot takes itself, e.g. /vpnkick's kicks
+  }
   const name = username ? `@${username}` : firstName;
   return name ? `${name} (${telegramId})` : String(telegramId);
 }

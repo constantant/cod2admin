@@ -7,6 +7,7 @@ import type { GithubReleaseClient } from './github-releases.js';
 import type { RouteProbeResult, TelegramRouter, TelegramRouteSettings } from './telegram-routes.js';
 import type { ReportRegistry } from './reports.js';
 import type { UpdateRegistry } from './update-registry.js';
+import type { VpnKicker } from './vpn-kick.js';
 import type { VpnFlags } from './vpn-ranges.js';
 
 /**
@@ -41,6 +42,8 @@ export interface GatewayDeps {
   provider: ProviderLookup;
   /** IP → VPN/proxy/Tor flag for `/players` and report cards — `NO_VPN_LOOKUP` when off. `/vpnnets` updates it. */
   vpn: VpnFlags;
+  /** `/vpnkick` state and its sweep (vpn-kick.ts) — off until an admin turns it on. */
+  vpnKick: VpnKicker;
   /** How the bot reaches Telegram (telegram-routes.ts) — managed with `/relays`. */
   telegramRoutes: {
     router: TelegramRouter;

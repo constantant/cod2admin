@@ -5,6 +5,7 @@ import { DIRECT_TELEGRAM_ROOT, TelegramRouter } from '../telegram-routes.js';
 import { vi } from 'vitest';
 import { ReportRegistry } from '../reports.js';
 import { UpdateRegistry } from '../update-registry.js';
+import { VpnKicker } from '../vpn-kick.js';
 import { NO_VPN_LOOKUP } from '../vpn-ranges.js';
 import { asRconClient, createFakeRcon, type FakeRcon } from './fake-rcon.js';
 import { createFakeAdminStore, type FakeAdminStore } from './fake-admin-store.js';
@@ -44,6 +45,7 @@ export function createFakeDeps(): FakeDeps {
       geoip: NO_COUNTRY_LOOKUP,
       provider: NO_PROVIDER_LOOKUP,
       vpn: NO_VPN_LOOKUP,
+      vpnKick: new VpnKicker(),
       telegramRoutes: {
         router: new TelegramRouter([DIRECT_TELEGRAM_ROOT], () => undefined),
         defaults: { direct: true, relays: [] },

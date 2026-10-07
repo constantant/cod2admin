@@ -47,6 +47,9 @@ Example: `!report Cheatr123 aimbot`
 - `/vpnnets` — provider networks shown as 🛡 VPN, for VPNs the built-in lists miss.
 - `/vpnnets add <player IP or ASN>` marks the whole network of that IP (e.g. a VPN player's IP
   from `/players`); `/vpnnets remove <ASN>` unmarks it. Only a mark — nobody is kicked for it
+- `/vpnkick on|off` — kick players marked 🛡 on sight, on every server, with a message in the game
+  chat (off by default; nobody is banned). `/vpnkick allow <GUID or name>` exempts a trusted
+  player, `/vpnkick unallow` undoes it, `/vpnkick` shows the state
 - `/addadmin <telegram-id-or-reply> <admin|moderator>` — reply to the person's message, or give
   their numeric Telegram ID; only the owner can grant `admin`, an admin can grant `moderator`
 - `/removeadmin <telegram-id-or-reply>`
