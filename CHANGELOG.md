@@ -1,3 +1,14 @@
+## [1.9.0](https://github.com/constantant/cod2admin/releases/tag/v1.9.0) (2026-10-07)
+
+### 🚀 Features
+
+- **gateway:** send long lists as a short summary with an attached .md report ([0a7a036](https://github.com/constantant/cod2admin/commit/0a7a036))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5 (1M context)
+- kk
+
 ## [1.8.0](https://github.com/constantant/cod2admin/releases/tag/v1.8.0) (2026-10-07)
 
 ### 🚀 Features
