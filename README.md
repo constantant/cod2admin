@@ -12,7 +12,17 @@ receive `!report` cards from players in-game, manage other admins, and more.
   [`docs/PLAN-ru.md`](./docs/PLAN-ru.md)). Companion plans:
   [`docs/PLAN-russia-access.md`](./docs/PLAN-russia-access.md) (running where Telegram is
   blocked; partly built) and [`docs/PLAN-miniapp.md`](./docs/PLAN-miniapp.md) (a Telegram Mini
-  App; not started).
+  App).
+
+## Mini App
+
+Besides chat commands, admins can open a Telegram Mini App with live players, chat, maps, bans
+and an RCON console:
+
+<p>
+  <img src="./docs/images/miniapp.gif" alt="Mini App: live player list, chat, maps, bans and console tabs" width="300">
+  <img src="./docs/images/miniapp-kick.gif" alt="Mini App: kicking a player from the player list" width="300">
+</p>
 
 ## Attribution
 
@@ -34,7 +44,8 @@ refreshes them weekly; they aren't part of this repository or its releases eithe
 
 This is a pnpm/Nx workspace:
 
-- `apps/gateway` — the Telegram bot (grammy)
+- `apps/gateway` — the Telegram bot (grammy), plus the Mini App's backend
+- `apps/miniapp-web` — the Telegram Mini App (Angular)
 - `packages/rcon-client` — CoD2 RCON protocol client
 - `packages/admin-store`, `packages/ban-store` — Postgres-backed admin roles and ban records
   (Drizzle)
