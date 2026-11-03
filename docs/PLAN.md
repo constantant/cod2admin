@@ -337,8 +337,11 @@ and the 30-minute check for a better Telegram route (`docs/PLAN-russia-access.md
   managed this way, from a bot running on another machine.
 - **Finding the log (`/findlog`, 2026-11-03).** Owner-only, and it works on any server, not only
   the `.env` one. It builds the path from `fs_homepath`/`fs_basepath`, `fs_game` and `g_log` over
-  RCON, then searches the disk from `/` (breadth-first, within limits), because in Docker the
-  reported path is inside the game's container. A file counts only if its latest `InitGame` line
+  RCON and tries the `fs_homepath` one first. If that file doesn't exist, belongs to another
+  server or is out of date, it searches the disk from `/` (breadth-first, within limits), because
+  in Docker the reported path is inside the game's container. A locked path ends the search, since
+  the search couldn't open it either. Such a path isn't proof the file exists: a locked folder hides
+  that too, so the reply doesn't claim the log was found. A file counts only if its latest `InitGame` line
   has the live `sv_hostname`, `mapname` and `g_gametype`, and the path is set automatically only
   when exactly one file matches all three. The path is saved in `servers.log_source_config`
   and the tailer starts with no restart. `COD2_LOG_PATH`, when set, still wins on every start, so

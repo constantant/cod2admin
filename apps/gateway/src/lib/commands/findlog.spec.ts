@@ -114,7 +114,7 @@ describe('findLogCommand', () => {
     await findLogCommand(ctx, deps, env);
 
     expect(adminStore.setServerLogPath).not.toHaveBeenCalled();
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining("can't read it"));
+    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('allowed to open'));
     expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('/findlog again'));
   });
 

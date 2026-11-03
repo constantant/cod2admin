@@ -44,6 +44,8 @@ function accessCommands(path: string, user: string): string {
 }
 
 const guideLinks = `Full guide: ${GUIDE_URL}\nПо-русски: ${GUIDE_RU_URL}`;
+const AFTER_ACCESS =
+  "Then send /findlog again. I'll check that it's this server's log once I can read it.";
 
 /** What to do about log files that exist, but that the bot's user can't read. */
 export function unreadableLogHelp(
@@ -52,12 +54,12 @@ export function unreadableLogHelp(
 ): string {
   if (runtime.inContainer) {
     return (
-      `I can see this log, but I can't read it:\n${paths.join('\n')}\n\n` +
+      `I'm not allowed to open this log:\n${paths.join('\n')}\n\n` +
       "I run in a container, so these are paths inside it, and read-only mounts can't be changed from here. " +
       'On the machine that runs the container, find the same file and run this as root:\n\n' +
       'chmod o+r games_mp.log\n\n' +
       'Its folder, and every folder above it, also needs o+x. This lets every user on that machine read the log.\n\n' +
-      `Then send /findlog again.\n\n${guideLinks}`
+      `${AFTER_ACCESS}\n\n${guideLinks}`
     );
   }
 
@@ -67,12 +69,12 @@ export function unreadableLogHelp(
   );
   const hidden = paths.length - shown.length;
   return (
-    `I found the log, but my user (${runtime.user}) can't read it. Run this on the server as root:\n\n` +
+    `My user (${runtime.user}) isn't allowed to open the log here. Run this on the server as root:\n\n` +
     blocks.join('\n\n') +
     (hidden > 0 ? `\n\n(${hidden} more files found: same commands for each.)` : '') +
     '\n\nThese give access to my user only. The last line keeps it working if the server creates the file again. ' +
     'If setfacl is missing, install the acl package.\n\n' +
-    `Then send /findlog again.\n\n${guideLinks}`
+    `${AFTER_ACCESS}\n\n${guideLinks}`
   );
 }
 

@@ -156,7 +156,10 @@ export interface GameLogSearchResult {
   log: string | undefined;
   /** Logs that could be this server's, when there isn't exactly one exact match. */
   possible: string[];
-  /** Files that may be it, but that the bot's user can't read. */
+  /**
+   * Paths that may be it, but that the bot's user can't open. Not proof the file exists: a locked
+   * folder hides that too.
+   */
   unreadable: string[];
   /** Where the server says it writes its log. In Docker, that's a path inside its container. */
   reportedPath: string | undefined;
@@ -176,8 +179,9 @@ export interface FindGameLogOptions {
 
 /**
  * Finds the `games_mp.log` of the server behind `rcon`, on the machine the bot runs on. First
- * tries where the server says it writes it (`fs_homepath`, `fs_game`, `g_log`), then searches the
- * disk — the only way to find it when the game runs in Docker and the log is mounted elsewhere.
+ * tries where the server says it writes it (`fs_homepath`, `fs_game`, `g_log`). Only if that doesn't
+ * settle it does it search the disk — the only way to find it when the game runs in Docker and the
+ * log is mounted elsewhere.
  *
  * Only content decides which file it is: its latest `InitGame` line has to name the live server,
  * map and mode. So nothing the server reports can make the bot follow a file that isn't a game log.
@@ -198,6 +202,24 @@ export async function findGameLog(
   const reportedPaths = [homePath, basePath]
     .filter((dir): dir is string => Boolean(dir))
     .map((dir) => join(dir, gameDir, logName));
+
+  // The server writes under fs_homepath, so that path usually settles it with no disk search. A
+  // locked folder is settled too: searching can't open it either. With logging off, a file there
+  // is only an old log.
+  const writePath = homePath ? reportedPaths[0] : undefined;
+  if (writePath && logCvar !== '') {
+    const verdict = await inspectLogFile(writePath, live, options.decode);
+    if (verdict === 'current' || verdict === 'unreadable') {
+      return {
+        log: verdict === 'current' ? await realpath(writePath) : undefined,
+        possible: [],
+        unreadable: verdict === 'unreadable' ? [writePath] : [],
+        reportedPath: writePath,
+        loggingOff: false,
+        complete: true,
+      };
+    }
+  }
 
   const { found, complete } = await searchDisk(
     options.root ?? '/',

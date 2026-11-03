@@ -144,7 +144,12 @@ export async function findLogCommand(
   if (result.unreadable.length > 0) {
     notes.push(unreadableLogHelp(result.unreadable, runtime));
   }
-  if (!result.complete) {
+  // Only when there's nothing to act on above: otherwise it reads as if the search failed.
+  if (
+    !result.complete &&
+    result.possible.length === 0 &&
+    result.unreadable.length === 0
+  ) {
     notes.push(
       'The search stopped before covering the whole disk. If you know the path, use /findlog <path>.',
     );

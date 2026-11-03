@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -63,6 +63,44 @@ describe('findGameLog', () => {
     const rcon = fakeRcon({ fs_homepath: `"fs_homepath" is: "${join(root, 'home')}^7" default: "^7"` });
 
     const result = await findGameLog(rcon, { root: join(root, 'empty') });
+
+    expect(result.log).toBe(path);
+  });
+
+  it("skips the disk search when the reported path is this server's log", async () => {
+    const path = await put('home/main/games_mp.log', logText(LIVE));
+    await put('copy/games_mp.log', logText(LIVE)); // a search would make this ambiguous
+    const rcon = fakeRcon({ fs_homepath: `"fs_homepath" is: "${join(root, 'home')}^7" default: "^7"` });
+
+    const result = await findGameLog(rcon, { root });
+
+    expect(result.log).toBe(path);
+    expect(result.possible).toEqual([]);
+    expect(result.complete).toBe(true);
+  });
+
+  // Root can open any folder, so this can't fail the way it needs to when tests run as root.
+  it.skipIf(process.getuid?.() === 0)('reports a locked path without searching the disk', async () => {
+    const path = await put('home/main/games_mp.log', logText(LIVE));
+    await put('copy/games_mp.log', logText(LIVE));
+    const rcon = fakeRcon({ fs_homepath: `"fs_homepath" is: "${join(root, 'home')}^7" default: "^7"` });
+    await chmod(join(root, 'home'), 0o000);
+
+    const result = await findGameLog(rcon, { root, maxDirs: 1 }).finally(() =>
+      chmod(join(root, 'home'), 0o755),
+    );
+
+    expect(result.unreadable).toEqual([path]);
+    expect(result.log).toBeUndefined();
+    expect(result.complete).toBe(true); // maxDirs: 1 would have cut a search short
+  });
+
+  it("searches the disk when the reported path holds another server's log", async () => {
+    await put('home/main/games_mp.log', logText({ ...LIVE, sv_hostname: 'Other' }));
+    const path = await put('real/main/games_mp.log', logText(LIVE));
+    const rcon = fakeRcon({ fs_homepath: `"fs_homepath" is: "${join(root, 'home')}^7" default: "^7"` });
+
+    const result = await findGameLog(rcon, { root });
 
     expect(result.log).toBe(path);
   });
