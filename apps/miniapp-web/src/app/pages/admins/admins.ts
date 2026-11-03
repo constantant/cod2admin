@@ -19,6 +19,7 @@ import { formatAgo } from '../../shared/format';
 import { Forms } from '../../shared/form-dialog';
 import { Icon } from '../../shared/icon';
 import { Notify } from '../../shared/notify';
+import { T } from '../../shared/i18n';
 
 const ROLE_HELP: Record<MiniAppRole, string> = {
   owner: 'Everything',
@@ -30,14 +31,14 @@ const ROLE_HELP: Record<MiniAppRole, string> = {
 @Component({
   selector: 'c2a-admins-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatButtonModule, MatProgressBarModule, MatSelectModule, Icon],
+  imports: [T, MatButtonModule, MatProgressBarModule, MatSelectModule, Icon],
   template: `
     @if (loading()) {
       <mat-progress-bar mode="indeterminate" />
     }
     <div class="page">
       <button mat-flat-button class="add" (click)="add()">
-        <c2a-icon name="add" /> Add someone
+        <c2a-icon name="add" /> {{ 'Add someone' | t }}
       </button>
       @if (data(); as data) {
         <ul>
@@ -47,45 +48,48 @@ const ROLE_HELP: Record<MiniAppRole, string> = {
                 <div class="name">
                   {{ name(admin) }}
                   @if (admin.telegramId === myId()) {
-                    <span class="muted">(you)</span>
+                    <span class="muted">{{ '(you)' | t }}</span>
                   }
                 </div>
                 <div class="muted small mono">{{ admin.telegramId }}</div>
                 <div class="muted small">
-                  {{ help(admin.role) }}
+                  {{ help(admin.role) | t }}
                   @if (admin.addedBy) {
-                    · added by {{ admin.addedBy }}, {{ ago(admin.addedAt) }}
+                    {{ '· added by' | t }} {{ admin.addedBy }},
+                    {{ ago(admin.addedAt) }}
                   }
                 </div>
               </div>
               @if (admin.manageable) {
                 <mat-select
                   class="role"
-                  aria-label="Role"
+                  [aria-label]="'Role' | t"
                   panelWidth="auto"
                   [value]="admin.role"
                   (valueChange)="setRole(admin, $event)"
                 >
                   @for (role of rolesFor(data, admin); track role) {
-                    <mat-option [value]="role">{{ role }}</mat-option>
+                    <mat-option [value]="role">{{ role | t }}</mat-option>
                   }
                 </mat-select>
                 <button
                   mat-icon-button
-                  aria-label="Remove"
+                  [attr.aria-label]="'Remove' | t"
                   (click)="remove(admin)"
                 >
                   <c2a-icon name="delete" />
                 </button>
               } @else {
-                <span class="role fixed">{{ admin.role }}</span>
+                <span class="role fixed">{{ admin.role | t }}</span>
               }
             </li>
           }
         </ul>
         @if (!session.can('owner')) {
           <p class="muted small">
-            Admins manage moderators; only the owner can change admins.
+            {{
+              'Admins manage moderators; only the owner can change admins.' | t
+            }}
           </p>
         }
       }

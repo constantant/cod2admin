@@ -1,53 +1,53 @@
 <div class="head">
   <div class="name"><c2a-game-name [name]="player.name" /></div>
   <div class="muted">
-    #{{ player.num }} · score {{ player.score }} · ping {{ player.ping }} @if
-    (player.watched) {
-    <span class="watched">· on the watchlist</span>
-    } @else if (player.noted) { · has notes }
+    #{{ player.num }} {{ '· score' | t }} {{ player.score }} {{ '· ping' | t }}
+    {{ player.ping }} @if (player.watched) {
+    <span class="watched">{{ '· on the watchlist' | t }}</span>
+    } @else if (player.noted) { {{ '· has notes' | t }} }
   </div>
 </div>
 
 <dl class="facts">
-  <dt>IP</dt>
-  <dd class="mono">{{ player.ip ?? 'unknown' }}</dd>
+  <dt>{{ 'IP' | t }}</dt>
+  <dd class="mono">{{ player.ip ?? ('unknown' | t) }}</dd>
   @if (player.location) {
-  <dt>Location</dt>
+  <dt>{{ 'Location' | t }}</dt>
   <dd>{{ flag }} {{ player.location }}</dd>
   } @if (player.provider) {
-  <dt>Provider</dt>
+  <dt>{{ 'Provider' | t }}</dt>
   <dd>{{ player.provider }}</dd>
   } @if (player.vpn) {
-  <dt>Flag</dt>
+  <dt>{{ 'Flag' | t }}</dt>
   <dd class="vpn">{{ player.vpn }}</dd>
   }
-  <dt>GUID</dt>
-  <dd class="mono">{{ player.guid ?? '0 (none — bans use the IP)' }}</dd>
+  <dt>{{ 'GUID' | t }}</dt>
+  <dd class="mono">{{ player.guid ?? ('0 (none — bans use the IP)' | t) }}</dd>
 </dl>
 
 @switch (mode()) { @case ('menu') {
 <div class="actions">
   <button mat-stroked-button (click)="open('kick')">
-    <c2a-icon name="kick" /> Kick
+    <c2a-icon name="kick" /> {{ 'Kick' | t }}
   </button>
   <button mat-stroked-button (click)="open('tempban')">
-    <c2a-icon name="timer" /> Temp ban
+    <c2a-icon name="timer" /> {{ 'Temp ban' | t }}
   </button>
   @if (session.can('admin')) {
   <button mat-stroked-button class="danger" (click)="open('ban')">
-    <c2a-icon name="block" /> Ban
+    <c2a-icon name="block" /> {{ 'Ban' | t }}
   </button>
   <button mat-stroked-button (click)="open('tell')">
-    <c2a-icon name="whisper" /> Message
+    <c2a-icon name="whisper" /> {{ 'Message' | t }}
   </button>
   }
   <button mat-stroked-button (click)="open('history')">
-    <c2a-icon name="history" /> History & notes
+    <c2a-icon name="history" /> {{ 'History & notes' | t }}
   </button>
 </div>
 } @case ('tell') {
 <mat-form-field class="full-width" subscriptSizing="dynamic">
-  <mat-label>Private message</mat-label>
+  <mat-label>{{ 'Private message' | t }}</mat-label>
   <input
     matInput
     [(ngModel)]="message"
@@ -57,19 +57,19 @@
   />
 </mat-form-field>
 <div class="buttons">
-  <button mat-button (click)="open('menu')">Back</button>
+  <button mat-button (click)="open('menu')">{{ 'Back' | t }}</button>
   <button
     mat-flat-button
     [disabled]="busy() || !message().trim()"
     (click)="tell()"
   >
-    Send
+    {{ 'Send' | t }}
   </button>
 </div>
 } @case ('history') {
 <div class="history">
   @if (history(); as history) {
-  <h3>Notes</h3>
+  <h3>{{ 'Notes' | t }}</h3>
   @for (note of history.notes; track note.id) {
   <p class="entry">
     @if (note.watch) {
@@ -80,17 +80,17 @@
     >
   </p>
   } @empty {
-  <p class="muted small">None.</p>
+  <p class="muted small">{{ 'None.' | t }}</p>
   }
   <mat-form-field class="full-width" subscriptSizing="dynamic">
-    <mat-label>Add a note on {{ noteTarget().label }}</mat-label>
+    <mat-label>{{ 'Add a note on' | t }} {{ noteTarget().label }}</mat-label>
     <input matInput [(ngModel)]="noteText" maxlength="500" />
   </mat-form-field>
   <div class="row">
     <mat-checkbox
       [checked]="noteWatch()"
       (change)="noteWatch.set($event.checked)"
-      >Watch</mat-checkbox
+      >{{ 'Watch' | t }}</mat-checkbox
     >
     <span class="spacer"></span>
     <button
@@ -98,42 +98,42 @@
       [disabled]="busy() || !noteText().trim()"
       (click)="addNote()"
     >
-      Add
+      {{ 'Add' | t }}
     </button>
   </div>
 
-  <h3>Bans</h3>
+  <h3>{{ 'Bans' | t }}</h3>
   @for (ban of history.bans; track ban.kind + ban.id) {
   <p class="entry">
-    {{ ban.liftedAt ? 'Lifted' : ban.expiresAt ? 'Temp' : 'Permanent' }}: {{
-    ban.reason ?? 'no reason' }}
+    {{ (ban.liftedAt ? 'Lifted' : ban.expiresAt ? 'Temp' : 'Permanent') | t }}:
+    {{ ban.reason ?? ('no reason' | t) }}
     <span class="muted small"
       >{{ ban.ip ?? ban.name }} · {{ ban.bannedBy }} · {{ ago(ban.bannedAt)
       }}</span
     >
   </p>
   } @empty {
-  <p class="muted small">None on record.</p>
+  <p class="muted small">{{ 'None on record.' | t }}</p>
   }
 
-  <h3>Actions on this server</h3>
+  <h3>{{ 'Actions on this server' | t }}</h3>
   @for (action of history.actions; track action.id) {
   <p class="entry">
     {{ action.action }}@if (action.reason) {: {{ action.reason }} }
     <span class="muted small">{{ action.actor }} · {{ ago(action.at) }}</span>
   </p>
   } @empty {
-  <p class="muted small">None on record, by this name.</p>
+  <p class="muted small">{{ 'None on record, by this name.' | t }}</p>
   } } @else {
-  <p class="muted">Loading…</p>
+  <p class="muted">{{ 'Loading…' | t }}</p>
   }
 </div>
 <div class="buttons">
-  <button mat-button (click)="open('menu')">Back</button>
+  <button mat-button (click)="open('menu')">{{ 'Back' | t }}</button>
 </div>
 } @default { @if (mode() === 'tempban') {
 <mat-chip-listbox
-  aria-label="Duration"
+  [attr.aria-label]="'Duration' | t"
   [value]="duration()"
   (change)="duration.set($event.value)"
   required
@@ -146,25 +146,26 @@
 </mat-chip-listbox>
 }
 <mat-form-field class="full-width" subscriptSizing="dynamic">
-  <mat-label>Reason (optional)</mat-label>
+  <mat-label>{{ 'Reason (optional)' | t }}</mat-label>
   <input matInput [(ngModel)]="reason" maxlength="100" />
 </mat-form-field>
 @if (presets().reasons.length > 0) {
-<mat-chip-set class="reasons" aria-label="Common reasons">
+<mat-chip-set class="reasons" [attr.aria-label]="'Common reasons' | t">
   @for (preset of presets().reasons; track preset) {
   <mat-chip (click)="reason.set(preset)">{{ preset }}</mat-chip>
   }
 </mat-chip-set>
 }
 <div class="buttons">
-  <button mat-button (click)="open('menu')">Back</button>
+  <button mat-button (click)="open('menu')">{{ 'Back' | t }}</button>
   <button
     mat-flat-button
     [class.danger-fill]="mode() === 'ban'"
     [disabled]="busy()"
     (click)="moderate($any(mode()))"
   >
-    {{ mode() === 'kick' ? 'Kick' : mode() === 'ban' ? 'Ban…' : 'Temp ban' }}
+    {{ (mode() === 'kick' ? 'Kick' : mode() === 'ban' ? 'Ban…' : 'Temp ban') | t
+    }}
   </button>
 </div>
 } }

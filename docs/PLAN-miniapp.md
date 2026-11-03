@@ -103,8 +103,15 @@ fills `sv_mapRotationCurrent` with the rest of the list.
 the built app in a browser, against a fake UDP game server. Still not opened from a real Telegram
 client (above).
 
-**Not built:** a Telegram message when a watched player joins (the alert needs the app open), and a
-Russian UI (the app is English only).
+**Russian UI (2026-11-03):** the language follows the Telegram user's setting, with a switch under
+More. English is the catalogue's key (`shared/i18n-ru.ts`): templates use the `t` pipe, and dialogs,
+snackbars and the gateway's messages go through the same lookup, with patterns for variable text. So
+the gateway keeps writing English, which the audit log and chat rely on, and an untranslated text
+shows in English rather than breaking. `i18n.spec.ts` fails if a template string has no translation.
+Still English: the long `/findlog` advice (`log-access-help.ts`) and the default preset reasons, which
+go into game chat and are the owner's to change.
+
+**Not built:** a Telegram message when a watched player joins (the alert needs the app open).
 
 ## 1. Goal
 

@@ -18,6 +18,7 @@ import { formatAgo } from '../../shared/format';
 import { Forms } from '../../shared/form-dialog';
 import { Icon } from '../../shared/icon';
 import { Notify } from '../../shared/notify';
+import { T } from '../../shared/i18n';
 
 const KIND_LABELS: Record<NoteKind, string> = {
   guid: 'GUID',
@@ -34,6 +35,7 @@ const KIND_LABELS: Record<NoteKind, string> = {
   selector: 'c2a-notes-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    T,
     FormsModule,
     MatButtonModule,
     MatFormFieldModule,
@@ -56,49 +58,53 @@ const KIND_LABELS: Record<NoteKind, string> = {
           <c2a-icon matPrefix name="search" class="prefix" />
           <input
             matInput
-            placeholder="Name, IP, GUID or text"
+            [placeholder]="'Name, IP, GUID or text' | t"
             [ngModel]="query()"
             (ngModelChange)="query.set($event)"
           />
         </mat-form-field>
         <button mat-flat-button (click)="add()">
-          <c2a-icon name="add" /> Add
+          <c2a-icon name="add" /> {{ 'Add' | t }}
         </button>
       </div>
       <mat-slide-toggle
         class="watch-only"
         [checked]="watchOnly()"
         (change)="watchOnly.set($event.checked)"
-        >Watchlist only</mat-slide-toggle
+        >{{ 'Watchlist only' | t }}</mat-slide-toggle
       >
 
       @for (note of items(); track note.id) {
         <section class="card note">
           <div class="row">
-            <span class="kind">{{ kind(note.kind) }}</span>
+            <span class="kind">{{ kind(note.kind) | t }}</span>
             <span class="value mono">{{ note.value }}</span>
             @if (note.watch) {
               <c2a-icon
                 name="eye"
                 class="watched"
-                aria-label="On the watchlist"
+                [attr.aria-label]="'On the watchlist' | t"
               />
             }
             <span class="spacer"></span>
             @if (note.editable) {
               <button
                 mat-icon-button
-                [attr.aria-label]="note.watch ? 'Stop watching' : 'Watch'"
+                [attr.aria-label]="(note.watch ? 'Stop watching' : 'Watch') | t"
                 (click)="toggleWatch(note)"
               >
                 <c2a-icon [name]="note.watch ? 'eyeOff' : 'eye'" />
               </button>
-              <button mat-icon-button aria-label="Edit" (click)="edit(note)">
+              <button
+                mat-icon-button
+                [attr.aria-label]="'Edit' | t"
+                (click)="edit(note)"
+              >
                 <c2a-icon name="edit" />
               </button>
               <button
                 mat-icon-button
-                aria-label="Delete"
+                [attr.aria-label]="'Delete' | t"
                 (click)="remove(note)"
               >
                 <c2a-icon name="delete" />
@@ -114,16 +120,17 @@ const KIND_LABELS: Record<NoteKind, string> = {
         @if (!loading()) {
           <p class="empty">
             {{
-              query() || watchOnly()
+              (query() || watchOnly()
                 ? 'No notes match.'
                 : 'No notes yet. Add one here, or from a player.'
+              ) | t
             }}
           </p>
         }
       }
       @if (more()) {
         <button mat-button class="full-width" (click)="load(true)">
-          Show more
+          {{ 'Show more' | t }}
         </button>
       }
     </div>

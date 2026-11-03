@@ -16,6 +16,7 @@ import type { MapsResponse } from '@cod2admin/miniapp-api';
 import { ApiService } from '../../core/api';
 import { Icon } from '../../shared/icon';
 import { Notify } from '../../shared/notify';
+import { T } from '../../shared/i18n';
 
 interface Entry {
   map: string;
@@ -27,6 +28,7 @@ interface Entry {
   selector: 'c2a-rotation-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    T,
     MatButtonModule,
     MatDialogModule,
     MatFormFieldModule,
@@ -34,11 +36,13 @@ interface Entry {
     Icon,
   ],
   template: `
-    <h2 mat-dialog-title>Map rotation</h2>
+    <h2 mat-dialog-title>{{ 'Map rotation' | t }}</h2>
     <mat-dialog-content>
       <p class="muted small">
-        Lasts until the server restarts: to keep it, put it in the server's
-        config too.
+        {{
+          "Lasts until the server restarts: to keep it, put it in the server's config too."
+            | t
+        }}
       </p>
       <ol>
         @for (entry of entries(); track $index) {
@@ -51,7 +55,7 @@ interface Entry {
             </span>
             <button
               mat-icon-button
-              aria-label="Move up"
+              [attr.aria-label]="'Move up' | t"
               [disabled]="$first"
               (click)="move($index, -1)"
             >
@@ -59,7 +63,7 @@ interface Entry {
             </button>
             <button
               mat-icon-button
-              aria-label="Move down"
+              [attr.aria-label]="'Move down' | t"
               [disabled]="$last"
               (click)="move($index, 1)"
             >
@@ -67,7 +71,7 @@ interface Entry {
             </button>
             <button
               mat-icon-button
-              aria-label="Remove"
+              [attr.aria-label]="'Remove' | t"
               (click)="remove($index)"
             >
               <c2a-icon name="close" />
@@ -77,7 +81,7 @@ interface Entry {
       </ol>
       <div class="add">
         <mat-form-field subscriptSizing="dynamic" class="grow">
-          <mat-label>Map</mat-label>
+          <mat-label>{{ 'Map' | t }}</mat-label>
           <mat-select [value]="newMap()" (valueChange)="newMap.set($event)">
             @for (map of data.maps.maps; track map.name) {
               <mat-option [value]="map.name">{{ map.name }}</mat-option>
@@ -86,7 +90,7 @@ interface Entry {
         </mat-form-field>
         @if (data.maps.gametypes.length > 0) {
           <mat-form-field subscriptSizing="dynamic" class="mode">
-            <mat-label>Mode</mat-label>
+            <mat-label>{{ 'Mode' | t }}</mat-label>
             <mat-select [value]="newMode()" (valueChange)="newMode.set($event)">
               @for (gametype of data.maps.gametypes; track gametype) {
                 <mat-option [value]="gametype">{{ gametype }}</mat-option>
@@ -99,18 +103,18 @@ interface Entry {
           [disabled]="!newMap() || isListed()"
           (click)="add()"
         >
-          Add
+          {{ 'Add' | t }}
         </button>
       </div>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close>Cancel</button>
+      <button mat-button mat-dialog-close>{{ 'Cancel' | t }}</button>
       <button
         mat-flat-button
         [disabled]="busy() || entries().length === 0"
         (click)="save()"
       >
-        Save
+        {{ 'Save' | t }}
       </button>
     </mat-dialog-actions>
   `,

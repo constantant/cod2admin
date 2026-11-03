@@ -14,7 +14,7 @@
       </div>
       <button
         mat-icon-button
-        aria-label="Refresh"
+        [attr.aria-label]="'Refresh' | t"
         [disabled]="refreshing()"
         (click)="refresh()"
       >
@@ -24,21 +24,22 @@
     <div class="stats">
       <div>
         <div class="value">{{ status.players.length }}</div>
-        <div class="muted">players</div>
+        <div class="muted">{{ 'players' | t }}</div>
       </div>
       <div>
         <div class="value map">{{ status.mapName ?? '—' }}</div>
-        <div class="muted">map</div>
+        <div class="muted">{{ 'map' | t }}</div>
       </div>
       @if (flagged() > 0) {
       <div>
         <div class="value vpn">{{ flagged() }}</div>
-        <div class="muted">on VPN</div>
+        <div class="muted">{{ 'on VPN' | t }}</div>
       </div>
       }
     </div>
     <div class="muted small">
-      Updated {{ updated() }}{{ live.connected() ? ' · live' : '' }}
+      {{ 'Updated' | t }} {{ updated() | t }}{{ (live.connected() ? ' · live' :
+      '') | t }}
     </div>
   </section>
 
@@ -51,18 +52,18 @@
       appearance="outline"
     >
       <c2a-icon matPrefix name="search" class="prefix" />
-      <input matInput placeholder="Name or IP" [(ngModel)]="filter" />
+      <input matInput [placeholder]="'Name or IP' | t" [(ngModel)]="filter" />
     </mat-form-field>
     }
     <mat-button-toggle-group
       hideSingleSelectionIndicator
       [value]="sort()"
       (change)="sort.set($event.value)"
-      aria-label="Sort by"
+      [aria-label]="'Sort by' | t"
     >
-      <mat-button-toggle value="score">Score</mat-button-toggle>
-      <mat-button-toggle value="ping">Ping</mat-button-toggle>
-      <mat-button-toggle value="name">Name</mat-button-toggle>
+      <mat-button-toggle value="score">{{ 'Score' | t }}</mat-button-toggle>
+      <mat-button-toggle value="ping">{{ 'Ping' | t }}</mat-button-toggle>
+      <mat-button-toggle value="name">{{ 'Name' | t }}</mat-button-toggle>
       <mat-button-toggle value="num">#</mat-button-toggle>
     </mat-button-toggle-group>
   </div>
@@ -79,10 +80,14 @@
             <c2a-icon
               name="eye"
               class="mark watched"
-              aria-label="On the watchlist"
+              [attr.aria-label]="'On the watchlist' | t"
             />
             } @else if (player.noted) {
-            <c2a-icon name="note" class="mark" aria-label="Has notes" />
+            <c2a-icon
+              name="note"
+              class="mark"
+              [attr.aria-label]="'Has notes' | t"
+            />
             }
           </span>
           <span class="muted small">
@@ -94,20 +99,20 @@
         </span>
         <span class="numbers">
           <span>{{ player.score }}</span>
-          <span class="muted small">{{ player.ping }} ms</span>
+          <span class="muted small">{{ player.ping }} {{ 'ms' | t }}</span>
         </span>
       </button>
     </li>
     } @empty {
-    <li class="empty">Nobody matches "{{ filter() }}".</li>
+    <li class="empty">{{ 'Nobody matches "' + filter() + '".' | t }}</li>
     }
   </ul>
   } @else {
-  <p class="empty">Nobody is playing right now.</p>
+  <p class="empty">{{ 'Nobody is playing right now.' | t }}</p>
   } } @else if (!refreshing()) {
   <div class="empty">
-    <p>No status yet.</p>
-    <button mat-stroked-button (click)="refresh()">Load</button>
+    <p>{{ 'No status yet.' | t }}</p>
+    <button mat-stroked-button (click)="refresh()">{{ 'Load' | t }}</button>
   </div>
   }
 </div>

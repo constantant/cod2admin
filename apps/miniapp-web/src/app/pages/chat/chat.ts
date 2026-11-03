@@ -30,6 +30,7 @@ import { GameName, plainName } from '../../shared/game-name';
 import { Icon } from '../../shared/icon';
 import { Notify } from '../../shared/notify';
 import { openPlayerSheet } from '../players/player-sheet';
+import { T } from '../../shared/i18n';
 
 const MAX_LINES = 300;
 /** The recipient picker's "Everyone" — not `null`, which mat-select shows as no choice at all. */
@@ -45,6 +46,7 @@ const STICK_TO_BOTTOM_PX = 80;
   selector: 'c2a-chat-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    T,
     FormsModule,
     MatButtonModule,
     MatFormFieldModule,

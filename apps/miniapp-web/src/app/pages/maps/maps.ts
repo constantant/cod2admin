@@ -21,6 +21,7 @@ import { SessionService } from '../../core/session';
 import { Icon } from '../../shared/icon';
 import { Notify } from '../../shared/notify';
 import { RotationDialog } from './rotation-dialog';
+import { T } from '../../shared/i18n';
 
 /** Short names for the stock CoD2 modes; a mod's own modes show as their name in capitals. */
 const MODE_LABELS: Record<string, string> = {
@@ -46,6 +47,7 @@ export function modeLabel(gametype: string | null | undefined): string {
   selector: 'c2a-maps-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    T,
     FormsModule,
     MatButtonModule,
     MatChipsModule,

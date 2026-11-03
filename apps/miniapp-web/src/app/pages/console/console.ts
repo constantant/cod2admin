@@ -12,6 +12,7 @@ import { ApiService } from '../../core/api';
 import { SessionService } from '../../core/session';
 import { Icon } from '../../shared/icon';
 import { Notify } from '../../shared/notify';
+import { T } from '../../shared/i18n';
 
 interface Entry {
   id: number;
@@ -25,6 +26,7 @@ interface Entry {
   selector: 'c2a-console-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    T,
     FormsModule,
     MatButtonModule,
     MatFormFieldModule,
@@ -39,7 +41,9 @@ interface Entry {
           subscriptSizing="dynamic"
           appearance="outline"
         >
-          <mat-label>RCON command on {{ session.server() }}</mat-label>
+          <mat-label
+            >{{ 'RCON command on' | t }} {{ session.server() }}</mat-label
+          >
           <input
             matInput
             name="command"
@@ -55,12 +59,14 @@ interface Entry {
           type="submit"
           [disabled]="running() || !command().trim()"
         >
-          Run
+          {{ 'Run' | t }}
         </button>
       </form>
       <p class="muted small">
-        Sent as typed, like /rcon in the chat. Every command goes into the audit
-        log.
+        {{
+          'Sent as typed, like /rcon in the chat. Every command goes into the audit log.'
+            | t
+        }}
       </p>
 
       @for (entry of entries(); track entry.id) {
@@ -71,13 +77,13 @@ interface Entry {
             <span class="muted small">{{ entry.server }}</span>
             <button
               mat-icon-button
-              aria-label="Run again"
+              [attr.aria-label]="'Run again' | t"
               (click)="command.set(entry.command)"
             >
               <c2a-icon name="edit" />
             </button>
           </div>
-          <pre class="mono">{{ entry.output || '(no output)' }}</pre>
+          <pre class="mono">{{ entry.output || ('(no output)' | t) }}</pre>
         </section>
       }
     </div>

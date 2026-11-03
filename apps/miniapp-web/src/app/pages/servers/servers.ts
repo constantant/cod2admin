@@ -15,6 +15,7 @@ import { GameName } from '../../shared/game-name';
 import { Icon } from '../../shared/icon';
 import { Notify } from '../../shared/notify';
 import { modeLabel } from '../maps/maps';
+import { T } from '../../shared/i18n';
 
 /**
  * Every server the bot manages: `/servers`, `/addserver`, `/removeserver`, `/setdefault` and
@@ -23,7 +24,7 @@ import { modeLabel } from '../maps/maps';
 @Component({
   selector: 'c2a-servers-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatButtonModule, MatProgressBarModule, GameName, Icon],
+  imports: [T, MatButtonModule, MatProgressBarModule, GameName, Icon],
   template: `
     @if (loading()) {
       <mat-progress-bar mode="indeterminate" />
@@ -31,7 +32,7 @@ import { modeLabel } from '../maps/maps';
     <div class="page">
       @if (session.can('owner')) {
         <button mat-flat-button class="add" (click)="add()">
-          <c2a-icon name="add" /> Add a server
+          <c2a-icon name="add" /> {{ 'Add a server' | t }}
         </button>
       }
       @for (server of servers(); track server.alias) {
@@ -40,13 +41,15 @@ import { modeLabel } from '../maps/maps';
             <span class="state" [class.on]="server.online"></span>
             <strong class="alias">{{ server.alias }}</strong>
             @if (server.isDefault) {
-              <span class="badge">default</span>
+              <span class="badge">{{ 'default' | t }}</span>
             }
             <span class="spacer"></span>
             @if (server.alias !== session.server()) {
-              <button mat-button (click)="open(server)">Open</button>
+              <button mat-button (click)="open(server)">
+                {{ 'Open this one' | t }}
+              </button>
             } @else {
-              <span class="muted small">open now</span>
+              <span class="muted small">{{ 'open now' | t }}</span>
             }
           </div>
           @if (server.online) {
@@ -55,52 +58,54 @@ import { modeLabel } from '../maps/maps';
             }
             <div class="muted small">
               {{ server.players
-              }}{{ server.maxClients ? '/' + server.maxClients : '' }} players ·
-              {{ server.map ?? 'unknown map' }}
+              }}{{ server.maxClients ? '/' + server.maxClients : '' }}
+              {{ 'players ·' | t }}
+              {{ server.map ?? ('unknown map' | t) }}
               {{ server.gametype ? '· ' + mode(server.gametype) : '' }}
             </div>
           } @else {
-            <div class="muted small">Not answering right now.</div>
+            <div class="muted small">{{ 'Not answering right now.' | t }}</div>
           }
           @if (server.connection; as connection) {
             <dl>
-              <dt>Address</dt>
+              <dt>{{ 'Address' | t }}</dt>
               <dd class="mono">{{ connection.host }}:{{ connection.port }}</dd>
-              <dt>Log</dt>
-              <dd class="mono">{{ connection.logPath ?? 'not read' }}</dd>
-              <dt>!report cards</dt>
+              <dt>{{ 'Log' | t }}</dt>
+              <dd class="mono">{{ connection.logPath ?? ('not read' | t) }}</dd>
+              <dt>{{ '!report cards' | t }}</dt>
               <dd>
                 {{
-                  connection.boundChat
+                  (connection.boundChat
                     ? 'Go to the bound chat'
                     : 'No chat: send /bindserver ' +
                       server.alias +
                       " in your admins' group"
+                  ) | t
                 }}
               </dd>
             </dl>
             <div class="actions">
               @if (!server.isDefault) {
                 <button mat-stroked-button (click)="setDefault(server)">
-                  Make default
+                  {{ 'Make default' | t }}
                 </button>
               }
               @if (session.can('owner')) {
                 @if (!connection.logFromConfig) {
                   <button mat-stroked-button (click)="manageLog(server)">
-                    Game log…
+                    {{ 'Game log…' | t }}
                   </button>
                 }
                 @if (!connection.fromConfig) {
                   <button mat-stroked-button (click)="update(server)">
-                    Update…
+                    {{ 'Update…' | t }}
                   </button>
                   <button
                     mat-stroked-button
                     class="danger"
                     (click)="remove(server)"
                   >
-                    Remove
+                    {{ 'Remove' | t }}
                   </button>
                 }
               }

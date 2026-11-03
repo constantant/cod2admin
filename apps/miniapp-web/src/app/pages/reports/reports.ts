@@ -18,6 +18,7 @@ import { GameName } from '../../shared/game-name';
 import { Icon } from '../../shared/icon';
 import { Notify } from '../../shared/notify';
 import { openPlayerSheet } from '../players/player-sheet';
+import { T } from '../../shared/i18n';
 
 /**
  * Players' `!report`s (docs/PLAN-miniapp.md §6.4), from every server, whether or not a Telegram chat
@@ -27,6 +28,7 @@ import { openPlayerSheet } from '../players/player-sheet';
   selector: 'c2a-reports-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    T,
     MatButtonModule,
     MatButtonToggleModule,
     MatProgressBarModule,
@@ -41,12 +43,12 @@ import { openPlayerSheet } from '../players/player-sheet';
       <mat-button-toggle-group
         class="full-width tabs"
         hideSingleSelectionIndicator
-        aria-label="Which reports"
+        [aria-label]="'Which reports' | t"
         [value]="resolved()"
         (change)="resolved.set($event.value)"
       >
-        <mat-button-toggle [value]="false">Open</mat-button-toggle>
-        <mat-button-toggle [value]="true">Closed</mat-button-toggle>
+        <mat-button-toggle [value]="false">{{ 'Open' | t }}</mat-button-toggle>
+        <mat-button-toggle [value]="true">{{ 'Closed' | t }}</mat-button-toggle>
       </mat-button-toggle-group>
 
       @for (report of items(); track report.id) {
@@ -60,10 +62,10 @@ import { openPlayerSheet } from '../players/player-sheet';
             <span class="muted small">{{ ago(report.lastReportedAt) }}</span>
           </div>
           <div class="reason">
-            {{ report.reason ?? 'No reason given' }}
+            {{ report.reason ?? ('No reason given' | t) }}
           </div>
           <div class="muted small">
-            from <c2a-game-name [name]="report.reporter" /> ·
+            {{ 'from' | t }} <c2a-game-name [name]="report.reporter" /> ·
             {{ report.server }}
           </div>
 
@@ -81,7 +83,9 @@ import { openPlayerSheet } from '../players/player-sheet';
                 }
               </div>
             } @else {
-              <p class="muted small">Nobody with that name is on now.</p>
+              <p class="muted small">
+                {{ 'Nobody with that name is on now.' | t }}
+              </p>
             }
             <div class="buttons">
               <button
@@ -89,21 +93,21 @@ import { openPlayerSheet } from '../players/player-sheet';
                 [disabled]="busy()"
                 (click)="resolve(report, 'ignored')"
               >
-                Ignore
+                {{ 'Ignore' | t }}
               </button>
               <button
                 mat-button
                 [disabled]="busy()"
                 (click)="resolve(report, 'handled')"
               >
-                <c2a-icon name="check" /> Mark handled
+                <c2a-icon name="check" /> {{ 'Mark handled' | t }}
               </button>
             </div>
           } @else {
             <p class="muted small">
-              {{ report.outcome ?? report.status }}
+              {{ report.outcome ?? report.status | t }}
               @if (report.resolvedBy) {
-                by {{ report.resolvedBy }}
+                {{ 'by' | t }} {{ report.resolvedBy }}
               }
               @if (report.resolvedAt) {
                 · {{ ago(report.resolvedAt) }}
@@ -115,16 +119,17 @@ import { openPlayerSheet } from '../players/player-sheet';
         @if (!loading()) {
           <p class="empty">
             {{
-              resolved()
+              (resolved()
                 ? 'No closed reports yet.'
                 : 'No open reports. Players file them in game with !report.'
+              ) | t
             }}
           </p>
         }
       }
       @if (more()) {
         <button mat-button class="full-width" (click)="loadMore()">
-          Show more
+          {{ 'Show more' | t }}
         </button>
       }
     </div>

@@ -17,12 +17,14 @@ import type { RelaysResponse, RelayTestResponse } from '@cod2admin/miniapp-api';
 import { ApiService } from '../../core/api';
 import { Icon } from '../../shared/icon';
 import { Notify } from '../../shared/notify';
+import { T } from '../../shared/i18n';
 
 /** How the bot reaches Telegram (`/relays`, docs/PLAN-russia-access.md). Owner only. */
 @Component({
   selector: 'c2a-relays-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    T,
     FormsModule,
     MatButtonModule,
     MatFormFieldModule,
@@ -34,20 +36,20 @@ import { Notify } from '../../shared/notify';
     <div class="page">
       @if (data(); as data) {
         <section class="card">
-          <div class="muted">Connected through</div>
+          <div class="muted">{{ 'Connected through' | t }}</div>
           <div class="current mono">{{ current() }}</div>
           <mat-slide-toggle
             [checked]="data.direct"
             [disabled]="busy()"
             (change)="setDirect($event)"
-            >Try api.telegram.org directly first</mat-slide-toggle
+            >{{ 'Try api.telegram.org directly first' | t }}</mat-slide-toggle
           >
         </section>
 
         <div class="heading">
-          <h2>Routes, in the order tried</h2>
+          <h2>{{ 'Routes, in the order tried' | t }}</h2>
           <button mat-button [disabled]="testing()" (click)="test()">
-            {{ testing() ? 'Checking…' : 'Check all' }}
+            {{ (testing() ? 'Checking…' : 'Check all') | t }}
           </button>
         </div>
         <ol>
@@ -57,13 +59,14 @@ import { Notify } from '../../shared/notify';
                 <div class="mono">
                   {{ route.label }}
                   @if (route.inUse) {
-                    <span class="badge">in use</span>
+                    <span class="badge">{{ 'in use' | t }}</span>
                   }
                 </div>
                 @if (result(route.url); as result) {
                   <div class="small" [class.bad]="!result.ok">
                     {{
-                      result.ok ? 'Works, ' + result.ms + ' ms' : result.error
+                      (result.ok ? 'Works, ' + result.ms + ' ms' : result.error)
+                        | t
                     }}
                   </div>
                 }
@@ -71,7 +74,7 @@ import { Notify } from '../../shared/notify';
               @if (data.relays.includes(route.url)) {
                 <button
                   mat-icon-button
-                  [attr.aria-label]="'Remove ' + route.label"
+                  [attr.aria-label]="'Remove ' + route.label | t"
                   (click)="remove(route.url)"
                 >
                   <c2a-icon name="close" />
@@ -87,12 +90,12 @@ import { Notify } from '../../shared/notify';
             subscriptSizing="dynamic"
             appearance="outline"
           >
-            <mat-label>Add a relay</mat-label>
+            <mat-label>{{ 'Add a relay' | t }}</mat-label>
             <input
               matInput
               name="url"
               class="mono"
-              placeholder="https://my-relay.deno.dev"
+              [placeholder]="'https://my-relay.deno.dev' | t"
               autocapitalize="off"
               [(ngModel)]="url"
             />
@@ -102,12 +105,14 @@ import { Notify } from '../../shared/notify';
             type="submit"
             [disabled]="busy() || !url().trim()"
           >
-            Add
+            {{ 'Add' | t }}
           </button>
         </form>
-        <p class="muted small">It's checked before it's saved.</p>
+        <p class="muted small">{{ "It's checked before it's saved." | t }}</p>
         @if (data.changed) {
-          <button mat-button (click)="reset()">Back to the defaults</button>
+          <button mat-button (click)="reset()">
+            {{ 'Back to the defaults' | t }}
+          </button>
         }
       }
     </div>

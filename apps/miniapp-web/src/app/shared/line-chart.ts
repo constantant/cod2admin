@@ -5,6 +5,7 @@ import {
   input,
   signal,
 } from '@angular/core';
+import { dateLocale, t } from './i18n';
 
 export interface ChartPoint {
   at: string;
@@ -78,9 +79,7 @@ const HEIGHT = 180;
             [class.flip]="point.x > width * 0.6"
             [style.left.%]="(point.x / width) * 100"
           >
-            <strong>{{
-              point.players === null ? 'Offline' : point.players + ' players'
-            }}</strong>
+            <strong>{{ playersLabel(point.players) }}</strong>
             <span>{{ when(point.at) }}</span>
           </div>
         }
@@ -233,6 +232,10 @@ export class LineChart {
     return path;
   });
 
+  protected playersLabel(players: number | null): string {
+    return t(players === null ? 'Offline' : `${players} players`);
+  }
+
   protected hover(event: PointerEvent): void {
     const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
     const x = ((event.clientX - box.left) / box.width) * WIDTH;
@@ -246,7 +249,7 @@ export class LineChart {
   }
 
   protected when(iso: string): string {
-    return new Date(iso).toLocaleString([], {
+    return new Date(iso).toLocaleString(dateLocale, {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',

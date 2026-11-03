@@ -20,12 +20,14 @@ import { Icon } from '../../shared/icon';
 import { LineChart } from '../../shared/line-chart';
 import { Notify } from '../../shared/notify';
 import { modeLabel } from '../maps/maps';
+import { dateLocale, t, T } from '../../shared/i18n';
 
 /** The server at a glance, and how busy it has been (docs/PLAN-miniapp.md §6.4). */
 @Component({
   selector: 'c2a-dashboard-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    T,
     RouterLink,
     MatButtonModule,
     MatButtonToggleModule,
@@ -43,12 +45,12 @@ import { modeLabel } from '../maps/maps';
         <section class="card">
           <div class="row">
             <span class="state" [class.on]="data.online">{{
-              data.online ? 'Online' : 'Offline'
+              (data.online ? 'Online' : 'Offline') | t
             }}</span>
             <span class="spacer"></span>
             <button
               mat-icon-button
-              aria-label="Reload"
+              [attr.aria-label]="'Reload' | t"
               [disabled]="loading()"
               (click)="load()"
             >
@@ -66,12 +68,13 @@ import { modeLabel } from '../maps/maps';
                   <span class="of">/{{ data.maxClients }}</span>
                 }
               </div>
-              <div class="muted">players now</div>
+              <div class="muted">{{ 'players now' | t }}</div>
             </div>
             <div>
               <div class="value text">{{ map() ?? '—' }}</div>
               <div class="muted">
-                map{{ data.gametype ? ' · ' + mode(data.gametype) : '' }}
+                {{ 'map' | t
+                }}{{ data.gametype ? ' · ' + mode(data.gametype) : '' }}
               </div>
             </div>
           </div>
@@ -80,42 +83,50 @@ import { modeLabel } from '../maps/maps';
         <mat-button-toggle-group
           class="full-width range"
           hideSingleSelectionIndicator
-          aria-label="Period"
+          [aria-label]="'Period' | t"
           [value]="hours()"
           (change)="hours.set($event.value)"
         >
-          <mat-button-toggle [value]="24">24 hours</mat-button-toggle>
-          <mat-button-toggle [value]="168">7 days</mat-button-toggle>
-          <mat-button-toggle [value]="720">30 days</mat-button-toggle>
+          <mat-button-toggle [value]="24">{{
+            '24 hours' | t
+          }}</mat-button-toggle>
+          <mat-button-toggle [value]="168">{{
+            '7 days' | t
+          }}</mat-button-toggle>
+          <mat-button-toggle [value]="720">{{
+            '30 days' | t
+          }}</mat-button-toggle>
         </mat-button-toggle-group>
 
         @if (data.history.samples === 0) {
           <p class="empty">
-            No history for this period yet. The bot checks the server once a
-            minute and keeps 30 days.
+            {{
+              'No history for this period yet. The bot checks the server once a minute and keeps 30 days.'
+                | t
+            }}
           </p>
         } @else {
           <section class="tiles three">
             <div class="card">
               <div class="value">{{ data.history.peak?.players ?? '—' }}</div>
-              <div class="muted">peak</div>
+              <div class="muted">{{ 'peak' | t }}</div>
             </div>
             <div class="card">
               <div class="value">{{ rounded(data.history.average) }}</div>
-              <div class="muted">average</div>
+              <div class="muted">{{ 'average' | t }}</div>
             </div>
             <div class="card">
               <div class="value">{{ percent(data.history.uptimePercent) }}</div>
-              <div class="muted">uptime</div>
+              <div class="muted">{{ 'uptime' | t }}</div>
             </div>
           </section>
 
           <section class="card chart">
             <div class="row">
-              <h2>Players</h2>
+              <h2>{{ 'Players' | t }}</h2>
               <span class="spacer"></span>
               <button mat-button (click)="table.set(!table())">
-                {{ table() ? 'Chart' : 'Table' }}
+                {{ (table() ? 'Chart' : 'Table') | t }}
               </button>
             </div>
             @if (table()) {
@@ -123,15 +134,17 @@ import { modeLabel } from '../maps/maps';
                 <table>
                   <thead>
                     <tr>
-                      <th>Time</th>
-                      <th class="num">Players</th>
+                      <th>{{ 'Time' | t }}</th>
+                      <th class="num">{{ 'Players' | t }}</th>
                     </tr>
                   </thead>
                   <tbody>
                     @for (point of data.history.points; track point.at) {
                       <tr>
                         <td>{{ time(point.at) }}</td>
-                        <td class="num">{{ point.players ?? 'offline' }}</td>
+                        <td class="num">
+                          {{ point.players ?? ('offline' | t) }}
+                        </td>
                       </tr>
                     }
                   </tbody>
@@ -149,7 +162,7 @@ import { modeLabel } from '../maps/maps';
 
           @if (data.history.topMaps.length > 0) {
             <section class="card">
-              <h2>Most played</h2>
+              <h2>{{ 'Most played' | t }}</h2>
               <ul class="maps">
                 @for (entry of data.history.topMaps; track entry.map) {
                   <li>
@@ -162,14 +175,16 @@ import { modeLabel } from '../maps/maps';
                   </li>
                 }
               </ul>
-              <p class="muted small">By time with at least one player on.</p>
+              <p class="muted small">
+                {{ 'By time with at least one player on.' | t }}
+              </p>
             </section>
           }
         }
 
         @if (session.can('admin')) {
           <a mat-button routerLink="/settings">
-            <c2a-icon name="tune" /> All server settings
+            <c2a-icon name="tune" /> {{ 'All server settings' | t }}
           </a>
         }
       }
@@ -291,7 +306,9 @@ export class DashboardPage {
   );
   protected readonly chartLabel = computed(() => {
     const history = this.data()?.history;
-    return `Players over the last ${this.hours()} hours, peak ${history?.peak?.players ?? 0}, average ${this.rounded(history?.average ?? null)}`;
+    return t(
+      `Players over the last ${this.hours()} hours, peak ${history?.peak?.players ?? 0}, average ${this.rounded(history?.average ?? null)}`,
+    );
   });
 
   constructor() {
@@ -311,7 +328,7 @@ export class DashboardPage {
   }
 
   protected time(iso: string): string {
-    return new Date(iso).toLocaleString([], {
+    return new Date(iso).toLocaleString(dateLocale, {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',

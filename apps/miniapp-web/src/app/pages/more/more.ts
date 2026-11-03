@@ -7,7 +7,9 @@ import {
 import { RouterLink } from '@angular/router';
 import type { MiniAppRole } from '@cod2admin/miniapp-api';
 import { SessionService } from '../../core/session';
+import { language, setLanguage, type Language } from '../../shared/i18n';
 import { Icon, type IconName } from '../../shared/icon';
+import { T } from '../../shared/i18n';
 
 interface Link {
   path: string;
@@ -108,7 +110,7 @@ const LINKS: readonly Link[] = [
 @Component({
   selector: 'c2a-more-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, Icon],
+  imports: [T, RouterLink, Icon],
   template: `
     <div class="page">
       <nav>
@@ -116,16 +118,25 @@ const LINKS: readonly Link[] = [
           <a [routerLink]="link.path">
             <c2a-icon [name]="link.icon" />
             <span class="text">
-              <span class="label">{{ link.label }}</span>
-              <span class="muted hint">{{ link.hint }}</span>
+              <span class="label">{{ link.label | t }}</span>
+              <span class="muted hint">{{ link.hint | t }}</span>
             </span>
           </a>
         }
       </nav>
+      <div class="language" role="group" aria-label="Language">
+        <button [class.on]="language === 'ru'" (click)="setLanguage('ru')">
+          Русский
+        </button>
+        <button [class.on]="language === 'en'" (click)="setLanguage('en')">
+          English
+        </button>
+      </div>
       @if (session.me(); as me) {
         <p class="muted about">
           {{ me.user.username ? '@' + me.user.username : me.user.firstName }} ·
-          {{ me.role }} · ID {{ me.user.id }} · bot v{{ me.version }}
+          {{ me.role | t }} {{ '· ID' | t }} {{ me.user.id }} {{ '· bot v' | t
+          }}{{ me.version }}
         </p>
       }
     </div>
@@ -158,6 +169,25 @@ const LINKS: readonly Link[] = [
     .hint {
       font: var(--mat-sys-body-small);
     }
+    .language {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 20px;
+      button {
+        padding: 6px 16px;
+        border-radius: 16px;
+        border: 1px solid var(--mat-sys-outline-variant);
+        background: none;
+        color: inherit;
+        font: var(--mat-sys-label-large);
+        cursor: pointer;
+        &.on {
+          background: var(--mat-sys-secondary-container);
+          color: var(--mat-sys-on-secondary-container);
+        }
+      }
+    }
     .about {
       font: var(--mat-sys-body-small);
       text-align: center;
@@ -167,6 +197,13 @@ const LINKS: readonly Link[] = [
 })
 export class MorePage {
   protected readonly session = inject(SessionService);
+  protected readonly language = language;
+
+  protected setLanguage(next: Language): void {
+    if (next !== language) {
+      setLanguage(next);
+    }
+  }
   protected readonly links = computed(() =>
     LINKS.filter((link) => this.session.can(link.minRole)),
   );
