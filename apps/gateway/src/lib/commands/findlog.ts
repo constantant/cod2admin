@@ -5,6 +5,8 @@ import {
   findGameLog,
   inspectLogFile,
   readLiveServerInfo,
+  type GameLogSearchResult,
+  type LogFileVerdict,
 } from '../find-game-log.js';
 import {
   detectBotRuntime,
@@ -18,6 +20,19 @@ const USAGE =
   'Usage: /findlog [--server <alias>] — search for the log\n' +
   '/findlog /path/to/games_mp.log — use this file\n' +
   '/findlog off — stop reading the log';
+
+/** Why a path the owner named can't be used. Also used by the Mini App. */
+export function describeLogProblem(
+  alias: string,
+  verdict: Exclude<LogFileVerdict, 'current' | 'same-name' | 'unreadable'>,
+): string {
+  return {
+    missing: 'There is no such file. Check the path.',
+    'not-a-log':
+      "That file has no map start (InitGame) line, so it isn't a CoD2 game log, or the server hasn't started a map since it was created.",
+    'other-server': `That's not the log of "${alias}": its latest map start has a different server name.`,
+  }[verdict];
+}
 
 export interface FindLogEnv {
   /** Starts reading a server's log (`startReportTailer`, bound to the bot and its text encoding). */
@@ -110,13 +125,7 @@ export async function findLogCommand(
       await ctx.reply(unreadableLogHelp([rest], detectBotRuntime()));
       return;
     }
-    const problems = {
-      missing: 'There is no such file. Check the path.',
-      'not-a-log':
-        "That file has no map start (InitGame) line, so it isn't a CoD2 game log, or the server hasn't started a map since it was created.",
-      'other-server': `That's not the log of "${alias}": its latest map start has a different server name.`,
-    };
-    await ctx.reply(`Nothing was changed. ${problems[verdict]}`);
+    await ctx.reply(`Nothing was changed. ${describeLogProblem(alias, verdict)}`);
     return;
   }
 
@@ -128,6 +137,11 @@ export async function findLogCommand(
     return;
   }
 
+  await ctx.reply(describeLogSearchFailure(alias, result).join('\n\n'));
+}
+
+/** What to tell the owner when a search didn't settle on one file. Also used by the Mini App. */
+export function describeLogSearchFailure(alias: string, result: GameLogSearchResult): string[] {
   const runtime = detectBotRuntime();
   const notes: string[] = [];
   if (result.possible.length > 0) {
@@ -154,5 +168,5 @@ export async function findLogCommand(
       'The search stopped before covering the whole disk. If you know the path, use /findlog <path>.',
     );
   }
-  await ctx.reply(notes.join('\n\n'));
+  return notes;
 }

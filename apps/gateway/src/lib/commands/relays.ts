@@ -19,7 +19,7 @@ export const RELAYS_USAGE = [
   '/relays reset — back to the defaults',
 ].join('\n');
 
-async function loadSettings(deps: GatewayDeps): Promise<{ settings: TelegramRouteSettings; changed: boolean }> {
+export async function loadRouteSettings(deps: GatewayDeps): Promise<{ settings: TelegramRouteSettings; changed: boolean }> {
   const stored = parseRouteSettings(await deps.adminStore.getSetting(ROUTES_SETTING_KEY));
   return stored ? { settings: stored, changed: true } : { settings: deps.telegramRoutes.defaults, changed: false };
 }
@@ -53,7 +53,7 @@ function formatRoutes(deps: GatewayDeps, settings: TelegramRouteSettings, change
  */
 export async function relaysCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
   const [subcommand = '', ...args] = matchText(ctx).split(/\s+/).filter(Boolean);
-  const { settings, changed } = await loadSettings(deps);
+  const { settings, changed } = await loadRouteSettings(deps);
 
   switch (subcommand.toLowerCase()) {
     case '': {

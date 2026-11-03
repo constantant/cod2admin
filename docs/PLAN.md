@@ -759,8 +759,8 @@ Roles, stored in `admin-store`:
   — map control, admin-role-gated. Since v1.12.0 (2026-10-07) `/maps` also lists every other
   installed map (§2.4 "Installed maps") in a second message, with ⚠ and a confirm step for maps
   outside the 15 stock ones, and `/map` checks the name against the installed list
-  (case-insensitive, suggestions on a typo; sent as typed if the server can't list its maps). `/maprotate`, `/restart` and `/fastrestart` aren't built;
-  `/rcon` covers them for the owner.
+  (case-insensitive, suggestions on a typo; sent as typed if the server can't list its maps). `/maprotate`, `/restart` and `/fastrestart` aren't built
+  as chat commands; `/rcon` covers them for the owner, and the Mini App's Maps page has them for admins.
 - `/say <message>` — broadcast to the game via `rcon say`.
 - **Moderation broadcasts** *(decided)*: every kick/ban/tempban (whether triggered via a
   report card or a manual `/kick`/`/ban` command) also sends an `rcon say` announcement to

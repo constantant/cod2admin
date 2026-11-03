@@ -73,7 +73,18 @@
       <button class="player" (click)="openPlayer(player)">
         <span class="num">{{ player.num }}</span>
         <span class="who">
-          <c2a-game-name [name]="player.name" />
+          <span class="name-line">
+            <c2a-game-name [name]="player.name" />
+            @if (player.watched) {
+            <c2a-icon
+              name="eye"
+              class="mark watched"
+              aria-label="On the watchlist"
+            />
+            } @else if (player.noted) {
+            <c2a-icon name="note" class="mark" aria-label="Has notes" />
+            }
+          </span>
           <span class="muted small">
             {{ flag(player) }} {{ player.location ?? player.ip ?? '' }} @if
             (player.vpn) {

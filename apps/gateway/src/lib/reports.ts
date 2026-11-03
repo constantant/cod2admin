@@ -6,6 +6,7 @@ import {
   deriveReportActionContext,
   enrichReport,
   processReportTrigger,
+  type ProcessReportTriggerOutcome,
   type CardSender,
   type ReportActionContext,
   type ReportAntiSpam,
@@ -18,6 +19,7 @@ import {
 import type { RconClient } from '@cod2admin/rcon-client';
 import { Bot, InlineKeyboard } from 'grammy';
 import { executeModerationAction, ModerationActionError } from './moderation-actions.js';
+import type { ReportQueue } from './report-queue.js';
 import { formatTelegramUser } from './telegram-user.js';
 
 const CALLBACK_PREFIX = 'report:';
@@ -76,6 +78,8 @@ export interface PendingReport {
   trigger: ReportTrigger;
   detailText?: string;
   context?: ReportActionContext;
+  /** The saved report this card belongs to (report-queue.ts), so closing one closes the other. */
+  queueId?: number;
 }
 
 /**
@@ -102,6 +106,15 @@ export class ReportRegistry {
 
   delete(id: string): void {
     this.reports.delete(id);
+  }
+
+  findByQueueId(queueId: number): [string, PendingReport] | undefined {
+    for (const entry of this.reports) {
+      if (entry[1].queueId === queueId) {
+        return entry;
+      }
+    }
+    return undefined;
   }
 }
 
@@ -165,7 +178,10 @@ export interface HandleReportTriggerOptions {
  * wired to a live per-server tailer instance — see docs/PLAN.md's note on this — but this is the
  * function that wiring will call once it exists; it's fully functional and tested on its own.
  */
-export async function handleReportTrigger(trigger: ReportTrigger, options: HandleReportTriggerOptions): Promise<void> {
+export async function handleReportTrigger(
+  trigger: ReportTrigger,
+  options: HandleReportTriggerOptions,
+): Promise<ProcessReportTriggerOutcome<string>> {
   const cardSender = new GatewayCardSender(options.bot, options.registry, options.serverAlias, trigger);
   const outcome = await processReportTrigger(trigger, {
     rcon: options.rcon,
@@ -184,6 +200,26 @@ export async function handleReportTrigger(trigger: ReportTrigger, options: Handl
       entry.context = outcome.context;
     }
   }
+  return outcome;
+}
+
+/**
+ * A report was closed in the Mini App: its Telegram card (if it has one, and the bot hasn't
+ * restarted since) stops offering buttons and says what happened.
+ */
+export async function closeReportCard(
+  queueId: number,
+  text: string,
+  deps: { bot: Bot; registry: ReportRegistry; antiSpam: ReportAntiSpam<string> },
+): Promise<void> {
+  const found = deps.registry.findByQueueId(queueId);
+  if (!found) {
+    return;
+  }
+  const [id, entry] = found;
+  deps.antiSpam.resolve(entry.trigger.chat.num, entry.trigger.targetName);
+  deps.registry.delete(id);
+  await deps.bot.api.editMessageText(entry.chatId, entry.messageId, text);
 }
 
 /** Structural subset of grammy's callback-query `Context` (mirrors `BotContext`'s own approach). */
@@ -205,6 +241,21 @@ export interface ReportCallbackDeps {
   /** Per-server session lookup for `select`'s re-enrichment — keyed like `rconClients`. */
   sessionsByServer: Map<string, SessionLookup>;
   describeIp?: (ip: string) => string | undefined;
+  reportQueue?: ReportQueue;
+}
+
+/** A card's button closed the report, so the saved one closes too. Never gets in the button's way. */
+async function closeQueuedReport(
+  deps: ReportCallbackDeps,
+  entry: PendingReport,
+  resolution: { status: 'handled' | 'ignored'; resolvedBy: number; outcome: string },
+): Promise<void> {
+  if (entry.queueId === undefined) {
+    return;
+  }
+  await deps.reportQueue?.resolve(entry.queueId, resolution).catch((error: unknown) => {
+    console.error(`Failed to close saved report ${entry.queueId}:`, error);
+  });
 }
 
 function requiresAdmin(action: ReportCardAction): boolean {
@@ -255,6 +306,7 @@ export async function reportActionCallback(ctx: ReportCallbackContext, deps: Rep
     await ctx.editMessageText(`${entry.trigger.targetName}'s report was ignored by admin ${formatTelegramUser(admin.telegramId, admin.username, admin.firstName)}.`);
     deps.antiSpam.resolve(entry.trigger.chat.num, entry.trigger.targetName);
     deps.registry.delete(decoded.reportId);
+    await closeQueuedReport(deps, entry, { status: 'ignored', resolvedBy: admin.telegramId, outcome: 'Ignored' });
     await ctx.answerCallbackQuery();
     return;
   }
@@ -309,6 +361,7 @@ export async function reportActionCallback(ctx: ReportCallbackContext, deps: Rep
     );
     deps.antiSpam.resolve(entry.trigger.chat.num, entry.trigger.targetName);
     deps.registry.delete(decoded.reportId);
+    await closeQueuedReport(deps, entry, { status: 'handled', resolvedBy: admin.telegramId, outcome: result.label });
     await ctx.answerCallbackQuery();
   } catch (error) {
     if (error instanceof ModerationActionError) {

@@ -11,7 +11,7 @@ export const VPNNETS_USAGE = [
 const IPV4_PATTERN = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
 
 /** `AS202226`, `as202226` or `202226` → 202226. */
-function parseAsn(text: string): number | undefined {
+export function parseAsn(text: string): number | undefined {
   const match = /^(?:AS)?(\d{1,10})$/i.exec(text);
   const asn = match ? Number(match[1]) : NaN;
   return Number.isSafeInteger(asn) && asn > 0 && asn <= 0xffffffff ? asn : undefined;

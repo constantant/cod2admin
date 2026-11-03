@@ -1,7 +1,10 @@
 <div class="head">
   <div class="name"><c2a-game-name [name]="player.name" /></div>
   <div class="muted">
-    #{{ player.num }} · score {{ player.score }} · ping {{ player.ping }}
+    #{{ player.num }} · score {{ player.score }} · ping {{ player.ping }} @if
+    (player.watched) {
+    <span class="watched">· on the watchlist</span>
+    } @else if (player.noted) { · has notes }
   </div>
 </div>
 
@@ -38,6 +41,9 @@
     <c2a-icon name="whisper" /> Message
   </button>
   }
+  <button mat-stroked-button (click)="open('history')">
+    <c2a-icon name="history" /> History & notes
+  </button>
 </div>
 } @case ('tell') {
 <mat-form-field class="full-width" subscriptSizing="dynamic">
@@ -60,6 +66,71 @@
     Send
   </button>
 </div>
+} @case ('history') {
+<div class="history">
+  @if (history(); as history) {
+  <h3>Notes</h3>
+  @for (note of history.notes; track note.id) {
+  <p class="entry">
+    @if (note.watch) {
+    <c2a-icon name="eye" class="watched small-icon" />
+    } {{ note.note }}
+    <span class="muted small"
+      >{{ note.author }} · {{ ago(note.updatedAt) }}</span
+    >
+  </p>
+  } @empty {
+  <p class="muted small">None.</p>
+  }
+  <mat-form-field class="full-width" subscriptSizing="dynamic">
+    <mat-label>Add a note on {{ noteTarget().label }}</mat-label>
+    <input matInput [(ngModel)]="noteText" maxlength="500" />
+  </mat-form-field>
+  <div class="row">
+    <mat-checkbox
+      [checked]="noteWatch()"
+      (change)="noteWatch.set($event.checked)"
+      >Watch</mat-checkbox
+    >
+    <span class="spacer"></span>
+    <button
+      mat-stroked-button
+      [disabled]="busy() || !noteText().trim()"
+      (click)="addNote()"
+    >
+      Add
+    </button>
+  </div>
+
+  <h3>Bans</h3>
+  @for (ban of history.bans; track ban.kind + ban.id) {
+  <p class="entry">
+    {{ ban.liftedAt ? 'Lifted' : ban.expiresAt ? 'Temp' : 'Permanent' }}: {{
+    ban.reason ?? 'no reason' }}
+    <span class="muted small"
+      >{{ ban.ip ?? ban.name }} · {{ ban.bannedBy }} · {{ ago(ban.bannedAt)
+      }}</span
+    >
+  </p>
+  } @empty {
+  <p class="muted small">None on record.</p>
+  }
+
+  <h3>Actions on this server</h3>
+  @for (action of history.actions; track action.id) {
+  <p class="entry">
+    {{ action.action }}@if (action.reason) {: {{ action.reason }} }
+    <span class="muted small">{{ action.actor }} · {{ ago(action.at) }}</span>
+  </p>
+  } @empty {
+  <p class="muted small">None on record, by this name.</p>
+  } } @else {
+  <p class="muted">Loading…</p>
+  }
+</div>
+<div class="buttons">
+  <button mat-button (click)="open('menu')">Back</button>
+</div>
 } @default { @if (mode() === 'tempban') {
 <mat-chip-listbox
   aria-label="Duration"
@@ -67,8 +138,10 @@
   (change)="duration.set($event.value)"
   required
 >
-  @for (choice of durations; track choice.minutes) {
-  <mat-chip-option [value]="choice.minutes">{{ choice.label }}</mat-chip-option>
+  @for (minutes of presets().durations; track minutes) {
+  <mat-chip-option [value]="minutes"
+    >{{ durationLabel(minutes) }}</mat-chip-option
+  >
   }
 </mat-chip-listbox>
 }
@@ -76,6 +149,13 @@
   <mat-label>Reason (optional)</mat-label>
   <input matInput [(ngModel)]="reason" maxlength="100" />
 </mat-form-field>
+@if (presets().reasons.length > 0) {
+<mat-chip-set class="reasons" aria-label="Common reasons">
+  @for (preset of presets().reasons; track preset) {
+  <mat-chip (click)="reason.set(preset)">{{ preset }}</mat-chip>
+  }
+</mat-chip-set>
+}
 <div class="buttons">
   <button mat-button (click)="open('menu')">Back</button>
   <button

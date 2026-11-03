@@ -13,12 +13,14 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import type { MapsResponse } from '@cod2admin/miniapp-api';
+import { MatDialog } from '@angular/material/dialog';
+import type { LevelCommand, MapsResponse } from '@cod2admin/miniapp-api';
 import { ApiService } from '../../core/api';
 import { LiveService } from '../../core/live';
 import { SessionService } from '../../core/session';
 import { Icon } from '../../shared/icon';
 import { Notify } from '../../shared/notify';
+import { RotationDialog } from './rotation-dialog';
 
 /** Short names for the stock CoD2 modes; a mod's own modes show as their name in capitals. */
 const MODE_LABELS: Record<string, string> = {
@@ -59,6 +61,7 @@ export class MapsPage {
   private readonly api = inject(ApiService);
   private readonly notify = inject(Notify);
   private readonly live = inject(LiveService);
+  private readonly dialog = inject(MatDialog);
   protected readonly session = inject(SessionService);
 
   protected readonly maps = signal<MapsResponse | null>(null);
@@ -110,6 +113,65 @@ export class MapsPage {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  protected async level(command: LevelCommand): Promise<void> {
+    const questions: Record<
+      LevelCommand,
+      { title: string; message: string; confirm: string }
+    > = {
+      restart: {
+        title: 'Restart the map?',
+        message: 'Reloads the current map. Scores start over.',
+        confirm: 'Restart',
+      },
+      fastrestart: {
+        title: 'Restart the round?',
+        message:
+          'A quick restart, without reloading the level. Scores start over.',
+        confirm: 'Restart',
+      },
+      rotate: {
+        title: 'Go to the next map?',
+        message: 'Ends this map and moves on in the rotation.',
+        confirm: 'Next map',
+      },
+    };
+    if (!(await this.notify.confirm(questions[command]))) {
+      return;
+    }
+    this.switching.set(command);
+    try {
+      const result = await this.api.levelCommand(
+        this.session.server(),
+        command,
+      );
+      this.notify.info(result.message);
+    } catch (error) {
+      this.notify.error(error);
+    } finally {
+      this.switching.set(null);
+    }
+  }
+
+  protected editRotation(): void {
+    const maps = this.maps();
+    if (!maps) {
+      return;
+    }
+    this.dialog
+      .open(RotationDialog, {
+        data: { server: this.session.server(), maps },
+        autoFocus: false,
+        maxWidth: '460px',
+        width: '92vw',
+      })
+      .afterClosed()
+      .subscribe((saved) => {
+        if (saved) {
+          void this.load();
+        }
+      });
   }
 
   /** Whether this button is what's playing now (same map, and same mode when it has one). */

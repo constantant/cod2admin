@@ -40,7 +40,15 @@
     } }
   </div>
 
-  @if (session.can('admin')) {
+  @if (session.can('admin')) { @if (presets().messages.length > 0) {
+  <div class="canned">
+    @for (preset of presets().messages; track preset) {
+    <button type="button" mat-stroked-button (click)="draft.set(preset)">
+      {{ preset }}
+    </button>
+    }
+  </div>
+  }
   <form class="composer" (ngSubmit)="send()">
     <mat-select
       class="to"

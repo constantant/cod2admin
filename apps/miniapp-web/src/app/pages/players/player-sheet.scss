@@ -60,3 +60,42 @@ mat-chip-listbox {
   gap: 8px;
   margin-top: 12px;
 }
+
+.watched {
+  color: var(--mat-sys-tertiary);
+}
+
+.small-icon {
+  width: 16px;
+  height: 16px;
+  vertical-align: text-bottom;
+}
+
+.reasons {
+  display: block;
+  margin-top: 8px;
+
+  mat-chip {
+    cursor: pointer;
+  }
+}
+
+.history {
+  max-height: 50vh;
+  overflow: auto;
+
+  h3 {
+    font: var(--mat-sys-title-small);
+    margin: 16px 0 4px;
+  }
+
+  .entry {
+    margin: 0 0 8px;
+    overflow-wrap: anywhere;
+  }
+
+  .small {
+    display: block;
+    font: var(--mat-sys-body-small);
+  }
+}

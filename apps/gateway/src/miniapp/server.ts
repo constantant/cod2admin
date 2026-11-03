@@ -17,13 +17,14 @@ import {
   type MiniAppActor,
 } from './auth.js';
 import { ApiProblem, apiError, registerRoutes } from './routes.js';
-import { MiniAppState } from './state.js';
+import { MiniAppState, type MiniAppIntegrations } from './state.js';
 
 export interface MiniAppServerOptions {
   botToken: string;
   /** The built `apps/miniapp-web` — served at `/` when it has an `index.html`. */
   staticDir?: string;
   devTelegramId?: number;
+  integrations?: MiniAppIntegrations;
 }
 
 /** How long a new WebSocket has to send its `auth` message. */
@@ -46,7 +47,7 @@ export async function createMiniAppServer(
   options: MiniAppServerOptions,
 ): Promise<FastifyInstance> {
   const app = Fastify({ logger: false, bodyLimit: 64 * 1024 });
-  const state = new MiniAppState(deps);
+  const state = new MiniAppState(deps, options.integrations);
   const authOptions: AuthOptions = {
     botToken: options.botToken,
     adminStore: deps.adminStore,
@@ -130,7 +131,7 @@ export async function createMiniAppServer(
         '/ws',
         { websocket: true, config: { websocket: true } },
         (socket) => {
-          handleLiveSocket(socket, state, authOptions);
+          handleLiveSocket(socket, state, authOptions, deps);
         },
       );
       api.all('/*', async (_request, reply) =>
@@ -190,9 +191,11 @@ function handleLiveSocket(
   socket: WebSocket,
   state: MiniAppState,
   authOptions: AuthOptions,
+  deps: GatewayDeps,
 ): void {
   let actor: MiniAppActor | undefined;
   let unsubscribe: (() => void)[] = [];
+  let stopReports: (() => void) | undefined;
   const send = (message: LiveServerMessage) => {
     if (socket.readyState === socket.OPEN) {
       socket.send(JSON.stringify(message));
@@ -226,7 +229,31 @@ function handleLiveSocket(
           return fail(outcome.error, outcome.message);
         }
         actor = outcome.actor;
-        return send({ type: 'ready', role: actor.role });
+        send({ type: 'ready', role: actor.role });
+        // Reports concern every server, so they don't depend on the subscribed one.
+        stopReports = deps.reportQueue.subscribe((event) => {
+          void deps.adminStore
+            .countOpenReports()
+            .then((openReports) =>
+              send({
+                type: 'reports',
+                openReports,
+                ...(event.kind === 'new'
+                  ? {
+                      added: {
+                        server: event.report.serverAlias,
+                        target: event.report.targetName,
+                        reporter: event.report.reporterName,
+                      },
+                    }
+                  : {}),
+              }),
+            )
+            .catch((error: unknown) => {
+              console.error('Mini App: counting open reports failed:', error);
+            });
+        });
+        return;
       }
 
       if (message.type === 'subscribe') {
@@ -271,6 +298,7 @@ function handleLiveSocket(
   socket.on('close', () => {
     clearTimeout(authTimer);
     unsubscribe.forEach((stop) => stop());
+    stopReports?.();
   });
 }
 

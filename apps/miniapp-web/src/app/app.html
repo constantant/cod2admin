@@ -51,7 +51,14 @@
 <nav class="bottom-nav">
   @for (item of nav(); track item.path) {
   <a [routerLink]="item.path" routerLinkActive="active" class="nav-item">
-    <span class="pill"><c2a-icon [name]="item.icon" /></span>
+    <span class="pill">
+      <c2a-icon [name]="item.icon" />
+      @if (item.path === '/reports' && live.openReports() > 0) {
+      <span class="badge" [attr.aria-label]="live.openReports() + ' open'"
+        >{{ live.openReports() > 99 ? '99+' : live.openReports() }}</span
+      >
+      }
+    </span>
     <span class="label">{{ item.label }}</span>
   </a>
   }

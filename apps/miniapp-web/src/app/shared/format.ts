@@ -44,6 +44,14 @@ export function formatClock(iso: string): string {
   });
 }
 
+/** `30m`, `2h`, `1d`, `90m` — a preset's length, in the largest unit that fits exactly. */
+export function formatMinutes(minutes: number): string {
+  if (minutes % 1440 === 0) {
+    return `${minutes / 1440}d`;
+  }
+  return minutes % 60 === 0 ? `${minutes / 60}h` : `${minutes}m`;
+}
+
 export interface DurationChoice {
   label: string;
   minutes: number;

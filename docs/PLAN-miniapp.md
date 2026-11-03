@@ -1,7 +1,7 @@
 # CoD2 Admin — Telegram Mini App Server Manager
 
-Status: Phases M1–M4 and the installer HTTPS step implemented (2026-10-07, see §0); M5 open ·
-Owner: kk · Last updated: 2026-10-07
+Status: Phases M1–M5 and the installer HTTPS step implemented (M5: 2026-11-03, see §0) ·
+Owner: kk · Last updated: 2026-11-03
 
 ## 0. Implementation status (2026-10-07)
 
@@ -60,8 +60,43 @@ server (the console command exists in CoD2 1.3, but its quoting was only tested 
 Local verification used a harness running the Mini App server with real Postgres stores, a real
 `GameLogTailer` and `RconClient` against a fake UDP RCON server, driven in a mobile-sized browser.
 
-**Still open (M5):** dashboard history (`server_snapshots`), report queue (`reports` table),
-audit log viewer, role management, watchlist, quick-action presets.
+**M5 and chat-command parity (2026-11-03), built and tested locally, not yet released:**
+
+- **Navigation:** Home, Players, Chat, Reports (with a badge) and More, which lists the rest for the
+  person's role. Maps, Bans and Console moved under More.
+- **Dashboard:** live state plus 24h/7d/30d history (peak, average, uptime, most-played maps).
+  `server_snapshots` gets one public `getstatus` per server per minute, 30 days kept. The poller only
+  runs when the Mini App is on, so other installs send the server no extra queries.
+- **Report queue:** `reports` table, written by `report-queue.ts` from `report-tailers.ts`. A report
+  is now saved even with no bound chat, or when Telegram can't be reached. Closing a report in either
+  place closes it in the other (Telegram cards until the bot restarts: the card registry is in
+  memory). Open apps get new reports over `/api/ws`, as a badge, a snackbar and a haptic buzz.
+- **Notes and watchlist:** `player_notes`, on a GUID, IP or name. Players are marked live, and a
+  watched player joining alerts whoever has the app open. Authors and admins can edit a note.
+  The player sheet shows notes, bans and past actions.
+- **Presets:** one-tap reasons, temp-ban lengths and chat lines (settings key `miniapp.presets`).
+- **Management:** audit log search, admins, servers (`/addserver`, `/removeserver`, `/setdefault`,
+  `/findlog`), VPN rules, Telegram routes and self-update. `/claim` and `/bindserver` stay in chat:
+  the first runs before anyone has a role, the second binds the chat it's sent in.
+- **Beyond the chat bot:** next map, map restart, round restart (`RconClient.levelCommand`, sent
+  once for the same reason as `map()`), rotation editor, and server cvars (admins read, the owner
+  writes; `rcon_password` is refused, since it would cut the bot off).
+
+**Decided while building M5:**
+
+- Managing admins is **tighter than the chat commands**: an admin manages moderators only, and nobody
+  changes the owner or themselves. `/removeadmin` and `/setrole` in chat don't have these checks yet.
+- A rotation is read back after it's set; if the server didn't take all of it, the old one goes back.
+  It lives in a cvar, so a server restart undoes it, and the UI says so.
+- `levelCommand` reports "sent, no answer" rather than success or failure: a loading server often
+  doesn't reply, and a busy one can drop the command unrun (`PLAN.md` §2.4).
+
+**Not verified on a real CoD2 server:** `map_rotate`, `map_restart`, `fast_restart`, and setting
+`sv_mapRotation`/`sv_mapRotationCurrent`. M5 was tested with real Postgres and the built app in a
+browser, against a fake UDP game server. Also still not opened from a real Telegram client (above).
+
+**Not built:** a Telegram message when a watched player joins (the alert needs the app open), and a
+Russian UI (the app is English only).
 
 ## 1. Goal
 
@@ -272,6 +307,8 @@ map/getMapRotation` are implemented) — it would go through the raw `rcon()` pa
   populated by the self-poll PLAN.md §3/§5.7 already runs for ban enforcement. That poll skips
   `status` while there are no active bans, so it would need to run unconditionally, at least
   for snapshots).
+*All of §6.4 was built in M5 (see §0) except where §0 says otherwise; kept as the original reasoning.*
+
 - **Report queue view**: the `!report` cards report-pipeline already assembles (PLAN.md §5) are
   currently Telegram-message-only, and — checked against the real schema — **nothing persists
   them today**: PLAN.md §7 only sketches a `reports` table, and no `packages/*/src/lib/schema.ts`
@@ -305,7 +342,8 @@ adding a `miniapp` value to that existing enum, not a new column.
 
 New tables only needed for §6.4 items, and only if/when those are built: `server_snapshots`
 (dashboard history), a `reports` table (report queue view — see §6.4, not yet built despite being
-sketched in PLAN.md §7), and a `player_notes`/watchlist table. None are needed for v1.
+sketched in PLAN.md §7), and a `player_notes`/watchlist table. None are needed for v1. All three
+exist since M5 (`admin-store` migration `0005_reports_notes_snapshots`).
 
 ## 8. Security notes
 

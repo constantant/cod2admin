@@ -449,6 +449,39 @@ describe('RconClient', () => {
     });
   });
 
+  describe('levelCommand and setCvar', () => {
+    it('sends a level command once, and says when the server stayed silent', async () => {
+      let received = 0;
+      peer = await createMockPeer(() => {
+        received++;
+      });
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'secret',
+        mapReplyTimeoutMs: 30,
+      });
+
+      await expect(client.levelCommand('map_rotate')).resolves.toBe(false);
+      expect(received).toBe(1);
+    });
+
+    it('reports an answered level command, and quotes a cvar value', async () => {
+      const payloads: string[] = [];
+      peer = await createMockPeer((payload, respond) => {
+        payloads.push(payload);
+        respond('print\nOK\n');
+      });
+      const client = new RconClient({ host: '127.0.0.1', port: peer.port, password: 'secret' });
+
+      await expect(client.levelCommand('fast_restart')).resolves.toBe(true);
+      await client.setCvar('sv_hostname', 'My "server"');
+
+      expect(payloads[0]).toBe('rcon secret fast_restart');
+      expect(payloads[1]).toBe('rcon secret set sv_hostname "My server"');
+    });
+  });
+
   describe('map (sent once - the server loads the level instead of replying)', () => {
     /** A server that runs `map` without replying, as the dev server did (2026-10-07). */
     async function silentMapServer(mapAfter: string) {

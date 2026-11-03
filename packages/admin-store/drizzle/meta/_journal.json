@@ -36,6 +36,13 @@
       "when": 1791386236528,
       "tag": "0004_audit_source_miniapp",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793741765405,
+      "tag": "0005_reports_notes_snapshots",
+      "breakpoints": true
     }
   ]
 }

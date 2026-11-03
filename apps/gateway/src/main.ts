@@ -10,7 +10,7 @@ import {
   createBanStore,
   migrate as migrateBanStore,
 } from '@cod2admin/ban-store';
-import { RconClient } from '@cod2admin/rcon-client';
+import { decodeText, RconClient } from '@cod2admin/rcon-client';
 import { ReportAntiSpam } from '@cod2admin/report-pipeline';
 import type { SessionLookup } from '@cod2admin/report-pipeline';
 import { createBot } from './lib/bot.js';
@@ -46,8 +46,10 @@ import {
   type TelegramRouteSettings,
 } from './lib/telegram-routes.js';
 import { createGithubReleaseClient } from './lib/github-releases.js';
-import { startReportTailers } from './lib/report-tailers.js';
-import { ReportRegistry } from './lib/reports.js';
+import { ReportQueue } from './lib/report-queue.js';
+import { startReportTailer, startReportTailers } from './lib/report-tailers.js';
+import { closeReportCard, ReportRegistry } from './lib/reports.js';
+import { startSnapshotPoller } from './lib/snapshot-poller.js';
 import { checkPendingUpdateOnBoot } from './lib/update-boot-check.js';
 import { UpdateRegistry } from './lib/update-registry.js';
 import {
@@ -245,6 +247,7 @@ const deps: GatewayDeps = {
   },
   reportRegistry: new ReportRegistry(),
   reportAntiSpam: new ReportAntiSpam<string>(),
+  reportQueue: new ReportQueue(adminStore),
   sessionsByServer: new Map<string, SessionLookup>(),
   logTailers: new Map(),
   updateConfig,
@@ -283,7 +286,21 @@ if (config.miniapp.port !== undefined) {
         config.miniapp.staticDir ??
         fileURLToPath(new URL('../miniapp', import.meta.url)),
       devTelegramId: config.miniapp.devTelegramId,
+      integrations: {
+        startTailer: (server) => {
+          startReportTailer(server, deps, bot, config.textEncoding);
+        },
+        decode: (bytes) => decodeText(bytes, config.textEncoding),
+        closeReportCard: (reportId, text) =>
+          closeReportCard(reportId, text, {
+            bot,
+            registry: deps.reportRegistry,
+            antiSpam: deps.reportAntiSpam,
+          }),
+      },
     });
+    // Only for the app's dashboard, so an install without it sends the server no extra queries.
+    startSnapshotPoller(deps);
     console.log(
       `Mini App: listening on http://${host}:${port}${config.miniapp.url ? `, public at ${config.miniapp.url}` : ''}`,
     );

@@ -232,6 +232,7 @@ export function createBot(
       adminStore: deps.adminStore,
       banStore: deps.banStore,
       sessionsByServer: deps.sessionsByServer,
+      reportQueue: deps.reportQueue,
       describeIp: (ip) =>
         joinIpLabels(
           joinCountryAndProvider(

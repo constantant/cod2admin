@@ -2,6 +2,8 @@ import { sql } from 'drizzle-orm';
 import {
   bigint,
   boolean,
+  index,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -23,6 +25,13 @@ export const auditSourceEnum = pgEnum('audit_source', [
   'auto',
   'miniapp',
 ]);
+
+export const reportStatusEnum = pgEnum('report_status', [
+  'open',
+  'handled',
+  'ignored',
+]);
+export const noteKindEnum = pgEnum('player_note_kind', ['guid', 'ip', 'name']);
 
 /** docs/PLAN.md §4/§7 — one row per Telegram admin. At most one `owner` row, ever. */
 export const admins = pgTable(
@@ -115,3 +124,72 @@ export const auditLog = pgTable('audit_log', {
     .notNull()
     .defaultNow(),
 });
+
+/**
+ * Every `!report` players file (docs/PLAN-miniapp.md §6.4) — the Mini App's queue. Repeats of an
+ * open report collapse into one row (`count`), like the Telegram card does.
+ */
+export const reports = pgTable(
+  'reports',
+  {
+    id: serial('id').primaryKey(),
+    serverAlias: text('server_alias').notNull(),
+    reporterName: text('reporter_name').notNull(),
+    reporterGuid: text('reporter_guid'),
+    targetName: text('target_name').notNull(),
+    reason: text('reason'),
+    status: reportStatusEnum('status').notNull().default('open'),
+    count: integer('count').notNull().default(1),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    lastReportedAt: timestamp('last_reported_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    resolvedBy: bigint('resolved_by', { mode: 'number' }),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    /** What was done, e.g. `Kicked`. */
+    outcome: text('outcome'),
+  },
+  (table) => [index('reports_status_idx').on(table.status, table.lastReportedAt)],
+);
+
+/**
+ * Free-text notes on a player, separate from bans (docs/PLAN-miniapp.md §6.4). `value` is a GUID,
+ * an IP, or a name in lower case without colour codes. `watch` puts them on the watchlist.
+ */
+export const playerNotes = pgTable(
+  'player_notes',
+  {
+    id: serial('id').primaryKey(),
+    kind: noteKindEnum('kind').notNull(),
+    value: text('value').notNull(),
+    note: text('note').notNull(),
+    watch: boolean('watch').notNull().default(false),
+    createdBy: bigint('created_by', { mode: 'number' }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index('player_notes_value_idx').on(table.kind, table.value)],
+);
+
+/** One public `getstatus` per server per minute — the dashboard's history (§6.4). */
+export const serverSnapshots = pgTable(
+  'server_snapshots',
+  {
+    id: serial('id').primaryKey(),
+    serverAlias: text('server_alias').notNull(),
+    at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+    /** `false`: the server didn't answer, so the other fields say nothing. */
+    online: boolean('online').notNull(),
+    playerCount: integer('player_count').notNull().default(0),
+    maxClients: integer('max_clients'),
+    map: text('map'),
+    gametype: text('gametype'),
+  },
+  (table) => [index('server_snapshots_alias_at_idx').on(table.serverAlias, table.at)],
+);

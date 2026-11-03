@@ -71,13 +71,15 @@ building (architecture, phased delivery plan in §9, dev/test environment in §1
 is a condensed Russian summary for the server owner, kept in sync with the same decisions.
 
 `docs/PLAN-miniapp.md` is the companion plan for the Telegram Mini App (Angular + Material 3), a
-second, graphical admin surface alongside the chat bot. Phases M1–M4 and the installer's HTTPS
-step are implemented (2026-10-07, see its §0); M5 is open:
+second, graphical admin surface alongside the chat bot. Phases M1–M5 and the installer's HTTPS
+step are implemented (M5: 2026-11-03, see its §0, including what hasn't been tried on a real server):
 
 - web app: `apps/miniapp-web` (Angular, outside the TS project-reference graph — Nx's Angular
   plugin needs `NX_IGNORE_UNSUPPORTED_TS_SETUP=true` for generators; own `tsc --noEmit` typecheck)
 - backend: `apps/gateway/src/miniapp/` (Fastify, in the gateway process, off unless
-  `MINIAPP_PORT` is set); `api-types.ts` there is the contract both apps compile
+  `MINIAPP_PORT` is set); `api-types.ts` there is the contract both apps compile. Routes:
+  `routes.ts` (players, maps, chat, bans), `routes-insight.ts` (dashboard, reports, notes),
+  `routes-management.ts` (audit, admins, servers, VPN, relays, update, presets, cvars)
 - installer: `installer/lib/miniapp.sh` (Caddy + own domain or `<ip>.sslip.io`)
 - local dev loop: `nx serve miniapp-web` proxies `/api` to 127.0.0.1:18090. Don't start the full
   gateway locally with the shared dev bot token — the NAS instance uses the same token.

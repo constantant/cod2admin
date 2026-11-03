@@ -1,7 +1,12 @@
+import type { ServerConfig } from '@cod2admin/admin-store';
 import type { GameLogTailer } from '@cod2admin/log-tailer';
-import type { RconClient } from '@cod2admin/rcon-client';
+import {
+  stripColorCodes,
+  type RconClient,
+  type StatusPlayer,
+} from '@cod2admin/rcon-client';
 import type { GatewayDeps } from '../lib/deps.js';
-import type { StatusResponse } from './api-types.js';
+import type { PlayerDto, StatusResponse } from './api-types.js';
 import { ChatFeed } from './chat-feed.js';
 import { toPlayerDto } from './dto.js';
 import { StatusWatcher } from './status-watcher.js';
@@ -38,6 +43,23 @@ export class ActionLimiter {
   }
 }
 
+/** How much of the note list the live player marks look at — far more than any server has. */
+const MAX_INDEXED_NOTES = 5000;
+
+/** What notes are filed under for a name: lower case, no colour codes. */
+export function noteNameKey(name: string): string {
+  return stripColorCodes(name).trim().toLowerCase();
+}
+
+/** Things only `main.ts` has — the bot and the text encoding. Absent in tests that don't need them. */
+export interface MiniAppIntegrations {
+  /** Starts reading a server's log (`startReportTailer`). */
+  startTailer?(server: ServerConfig): void;
+  decode?(bytes: Buffer): string;
+  /** Closes a report's Telegram card, if it has one. */
+  closeReportCard?(reportId: number, text: string): Promise<void>;
+}
+
 /**
  * What the Mini App keeps while the bot runs: one chat feed and one status watcher per server,
  * made on first use — servers come and go with `/addserver`/`/removeserver`.
@@ -49,8 +71,60 @@ export class MiniAppState {
   >();
   private readonly statusWatchers = new Map<string, StatusWatcher>();
   readonly limiter = new ActionLimiter();
+  /** Why the last update from the app failed, until the next try. */
+  updateProblem: string | null = null;
+  /** `kind:value` → on the watchlist, for marking players live. Reloaded after any note change. */
+  private noteIndex: Promise<Map<string, boolean>> | undefined;
 
-  constructor(private readonly deps: GatewayDeps) {}
+  constructor(
+    private readonly deps: GatewayDeps,
+    readonly integrations: MiniAppIntegrations = {},
+  ) {}
+
+  invalidateNotes(): void {
+    this.noteIndex = undefined;
+  }
+
+  private notes(): Promise<Map<string, boolean>> {
+    this.noteIndex ??= this.deps.adminStore
+      .searchPlayerNotes({ limit: MAX_INDEXED_NOTES })
+      .then((notes) => {
+        const index = new Map<string, boolean>();
+        for (const { kind, value, watch } of notes) {
+          const key = `${kind}:${value}`;
+          index.set(key, watch || index.get(key) === true);
+        }
+        return index;
+      })
+      .catch((error: unknown) => {
+        // Marks are a convenience: the player list must not fail over them.
+        console.error('Mini App: loading player notes failed:', error);
+        this.noteIndex = undefined;
+        return new Map<string, boolean>();
+      });
+    return this.noteIndex;
+  }
+
+  private noteMarks(
+    player: StatusPlayer,
+    index: Map<string, boolean>,
+  ): { noted?: true; watched?: true } {
+    const keys = [`name:${noteNameKey(player.name)}`];
+    if (player.guid && player.guid !== '0') {
+      keys.push(`guid:${player.guid}`);
+    }
+    if (player.ip) {
+      keys.push(`ip:${player.ip}`);
+    }
+    const found = keys.filter((key) => index.has(key));
+    if (found.length === 0) {
+      return {};
+    }
+    return {
+      noted: true,
+      ...(found.some((key) => index.get(key)) ? { watched: true } : {}),
+    };
+  }
 
   rcon(alias: string): RconClient | undefined {
     return this.deps.rconClients.get(alias);
@@ -81,6 +155,15 @@ export class MiniAppState {
     return watcher;
   }
 
+  /** Players as the app shows them: IP details, plus the marks from notes and the watchlist. */
+  async playerDtos(players: readonly StatusPlayer[]): Promise<PlayerDto[]> {
+    const notes = await this.notes();
+    return players.map((player) => ({
+      ...toPlayerDto(player, this.deps),
+      ...this.noteMarks(player, notes),
+    }));
+  }
+
   async fetchStatus(alias: string): Promise<StatusResponse> {
     const rcon = this.rcon(alias);
     if (!rcon) {
@@ -91,7 +174,7 @@ export class MiniAppState {
       server: alias,
       hostname: status.hostname ?? null,
       mapName: status.mapName ?? null,
-      players: status.players.map((player) => toPlayerDto(player, this.deps)),
+      players: await this.playerDtos(status.players),
       fetchedAt: new Date().toISOString(),
     };
   }

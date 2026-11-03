@@ -13,6 +13,8 @@ export interface MeResponse {
   servers: ServerSummary[];
   /** The server to open first: `/setdefault`'s, else the one from `.env`. */
   defaultServer: string;
+  /** `!report`s nobody has dealt with yet, on all servers. */
+  openReports: number;
 }
 
 export interface ServerSummary {
@@ -37,6 +39,10 @@ export interface PlayerDto {
   provider?: string;
   /** e.g. `🛡 VPN` — set only when the IP is flagged. */
   vpn?: string;
+  /** Someone wrote a note on this GUID, IP or name. */
+  noted?: boolean;
+  /** On the watchlist. */
+  watched?: boolean;
 }
 
 export interface StatusResponse {
@@ -199,4 +205,283 @@ export type LiveServerMessage =
   | { type: 'status'; status: StatusResponse }
   | { type: 'statusError'; server: string; message: string }
   | { type: 'chat'; server: string; line: ChatLineDto }
+  | {
+      type: 'reports';
+      openReports: number;
+      /** Set when this update is a new report, not one being closed. */
+      added?: { server: string; target: string; reporter: string };
+    }
   | { type: 'error'; error: string; message: string };
+
+// ── Dashboard ───────────────────────────────────────────────────────────────────────────────
+
+export interface DashboardHistory {
+  /** How many checks the period has — one a minute, kept for 30 days. */
+  samples: number;
+  /** Oldest first. `players` is `null` when the server didn't answer in that slice of time. */
+  points: { at: string; players: number | null }[];
+  peak: { players: number; at: string } | null;
+  average: number | null;
+  uptimePercent: number | null;
+  /** The maps played most, by time with at least one player on. */
+  topMaps: { map: string; percent: number }[];
+}
+
+export interface DashboardResponse {
+  server: string;
+  online: boolean;
+  hostname: string | null;
+  map: string | null;
+  gametype: string | null;
+  players: number;
+  maxClients: number | null;
+  hours: number;
+  history: DashboardHistory;
+}
+
+// ── Servers ─────────────────────────────────────────────────────────────────────────────────
+
+export interface ServerDto {
+  alias: string;
+  isDefault: boolean;
+  chat: boolean;
+  online: boolean;
+  hostname: string | null;
+  map: string | null;
+  gametype: string | null;
+  players: number;
+  maxClients: number | null;
+  /** Admin and owner only — a moderator sees what's on, not how the bot reaches it. */
+  connection?: {
+    host: string;
+    port: number;
+    logPath: string | null;
+    /** `!report` cards have a chat to go to (`/bindserver`, sent in that chat). */
+    boundChat: boolean;
+    /** Set in the bot's `.env`, so it can't be changed or removed from here. */
+    fromConfig: boolean;
+    /** `COD2_LOG_PATH` is set, so the log path can't be changed from here. */
+    logFromConfig: boolean;
+  };
+}
+
+export interface ServersResponse {
+  servers: ServerDto[];
+}
+
+export interface AddServerRequest {
+  alias: string;
+  host: string;
+  port: number;
+  password: string;
+}
+
+export type LogRequest =
+  { action: 'search' } | { action: 'off' } | { action: 'set'; path: string };
+
+export interface LogResponse {
+  logPath: string | null;
+  /** `true`: the log is now in use, or was turned off. `false`: nothing changed, see `message`. */
+  changed: boolean;
+  message: string;
+  /** Files that could be the log — pick one with `action: 'set'`. */
+  possible: string[];
+}
+
+export type LevelCommand = 'restart' | 'fastrestart' | 'rotate';
+
+export interface RotationRequest {
+  entries: { map: string; gametype: string | null }[];
+}
+
+export interface CvarsResponse {
+  cvars: { name: string; value: string }[];
+}
+
+export interface SetCvarRequest {
+  name: string;
+  value: string;
+}
+
+// ── Admins ──────────────────────────────────────────────────────────────────────────────────
+
+export interface AdminDto {
+  telegramId: number;
+  role: MiniAppRole;
+  username: string | null;
+  firstName: string | null;
+  addedBy: string | null;
+  addedAt: string;
+  /** Whether the person asking may change or remove this one. */
+  manageable: boolean;
+}
+
+export interface AdminsResponse {
+  admins: AdminDto[];
+  /** The roles the person asking may hand out. */
+  assignable: MiniAppRole[];
+}
+
+export interface AddAdminRequest {
+  telegramId: number;
+  role: MiniAppRole;
+}
+
+// ── Audit log ───────────────────────────────────────────────────────────────────────────────
+
+export type AuditSourceDto =
+  'telegram_button' | 'telegram_command' | 'auto' | 'miniapp';
+
+export interface AuditEntryDto {
+  id: number;
+  at: string;
+  actor: string;
+  action: string;
+  target: string | null;
+  server: string | null;
+  reason: string | null;
+  source: AuditSourceDto;
+  /** Pretty-printed, when the entry has more to say. */
+  detail: string | null;
+}
+
+export interface AuditResponse {
+  items: AuditEntryDto[];
+  more: boolean;
+  /** Every action in the log, for the filter. */
+  actions: string[];
+}
+
+// ── Reports ─────────────────────────────────────────────────────────────────────────────────
+
+export type ReportStatusDto = 'open' | 'handled' | 'ignored';
+
+export interface ReportDto {
+  id: number;
+  server: string;
+  reporter: string;
+  target: string;
+  reason: string | null;
+  status: ReportStatusDto;
+  count: number;
+  createdAt: string;
+  lastReportedAt: string;
+  resolvedBy: string | null;
+  resolvedAt: string | null;
+  outcome: string | null;
+  /** Open reports: connected players whose name matches the target. */
+  candidates: PlayerDto[];
+}
+
+export interface ReportsResponse {
+  items: ReportDto[];
+  more: boolean;
+}
+
+export interface ResolveReportRequest {
+  status: 'handled' | 'ignored';
+  outcome?: string;
+}
+
+// ── Player notes & history ──────────────────────────────────────────────────────────────────
+
+export type NoteKind = 'guid' | 'ip' | 'name';
+
+export interface NoteDto {
+  id: number;
+  kind: NoteKind;
+  value: string;
+  note: string;
+  watch: boolean;
+  author: string;
+  /** Whether the person asking may edit or delete it: its author, or an admin. */
+  editable: boolean;
+  updatedAt: string;
+}
+
+export interface NotesResponse {
+  items: NoteDto[];
+  more: boolean;
+}
+
+export interface AddNoteRequest {
+  kind: NoteKind;
+  value: string;
+  note: string;
+  watch: boolean;
+}
+
+export interface UpdateNoteRequest {
+  note?: string;
+  watch?: boolean;
+}
+
+export interface PlayerHistoryResponse {
+  notes: NoteDto[];
+  bans: BanDto[];
+  actions: AuditEntryDto[];
+}
+
+// ── Presets ─────────────────────────────────────────────────────────────────────────────────
+
+export interface Presets {
+  /** Offered when kicking or banning. */
+  reasons: string[];
+  /** Temp-ban lengths, in minutes. */
+  durations: number[];
+  /** Ready-made lines for the chat. */
+  messages: string[];
+}
+
+// ── VPN ─────────────────────────────────────────────────────────────────────────────────────
+
+export interface VpnResponse {
+  /** `false` when `VPN_FLAG_ENABLED=false`: nobody gets flagged, so kicks do nothing. */
+  flagsEnabled: boolean;
+  kickEnabled: boolean;
+  exempt: string[];
+  networks: { asn: number; name: string | null }[];
+}
+
+// ── Telegram routes ─────────────────────────────────────────────────────────────────────────
+
+export interface RelaysResponse {
+  /** The route in use now. */
+  current: string;
+  direct: boolean;
+  relays: string[];
+  /** Every route, in the order they're tried. */
+  routes: { url: string; label: string; inUse: boolean }[];
+  /** Changed from the defaults. */
+  changed: boolean;
+}
+
+export interface RelayTestResponse {
+  results: {
+    url: string;
+    label: string;
+    ok: boolean;
+    ms?: number;
+    error?: string;
+  }[];
+}
+
+// ── Self-update ─────────────────────────────────────────────────────────────────────────────
+
+export interface UpdateStatusResponse {
+  /** `false`: this install can't update itself (re-run install.sh). */
+  enabled: boolean;
+  running: string;
+  latest: string | null;
+  notes: string | null;
+  available: boolean;
+  /** GitHub couldn't be asked. */
+  checkError: string | null;
+  /** The last update attempt's problem, if this process is still here to tell. */
+  problem: string | null;
+}
+
+export interface ApplyUpdateRequest {
+  /** The version the owner agreed to. Refused if the latest has changed since. */
+  tag: string;
+}

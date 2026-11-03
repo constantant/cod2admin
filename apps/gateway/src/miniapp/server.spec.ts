@@ -155,6 +155,7 @@ describe('Mini App server', () => {
         version: expect.any(String),
         servers: [{ alias: 'default', chat: true }],
         defaultServer: 'default',
+        openReports: 0,
       });
     });
 

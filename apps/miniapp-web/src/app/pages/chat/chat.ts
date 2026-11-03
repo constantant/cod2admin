@@ -22,6 +22,7 @@ import { MatSelectModule } from '@angular/material/select';
 import type { ChatLineDto } from '@cod2admin/miniapp-api';
 import { ApiService } from '../../core/api';
 import { LiveService } from '../../core/live';
+import { PresetsService } from '../../core/presets';
 import { SessionService } from '../../core/session';
 import { TelegramService } from '../../core/telegram';
 import { formatClock } from '../../shared/format';
@@ -63,6 +64,8 @@ export class ChatPage {
   private readonly notify = inject(Notify);
   private readonly telegram = inject(TelegramService);
   private readonly injector = inject(Injector);
+  private readonly presetsService = inject(PresetsService);
+  protected readonly presets = this.presetsService.presets;
   protected readonly session = inject(SessionService);
 
   private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
@@ -79,6 +82,7 @@ export class ChatPage {
   );
 
   constructor() {
+    void this.presetsService.load();
     // Reload on server switch and after every reconnect, to fill what the socket missed.
     effect(() => {
       const alias = this.session.server();

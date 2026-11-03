@@ -119,3 +119,10 @@ body {
 .spacer {
   flex: 1;
 }
+
+// An icon next to a button's text: `matButtonIcon` needs mat-icon, which this app doesn't load.
+.mdc-button:has(c2a-icon) > .mdc-button__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

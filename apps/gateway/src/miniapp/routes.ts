@@ -25,6 +25,7 @@ import type {
   MapsResponse,
   MeResponse,
   ModerationRequest,
+  RotationRequest,
   SayRequest,
   StatusResponse,
   TellRequest,
@@ -33,8 +34,11 @@ import type {
   UpdateBanRequest,
   UpdateBanResponse,
 } from './api-types.js';
+import { ApiProblem } from './api-problem.js';
 import { actorLabel, type MiniAppActor } from './auth.js';
 import { toGuidBanDto, toIpBanDto, type AdminNames } from './dto.js';
+import { registerInsightRoutes } from './routes-insight.js';
+import { registerManagementRoutes } from './routes-management.js';
 import type { MiniAppState } from './state.js';
 
 declare module 'fastify' {
@@ -57,18 +61,9 @@ const MAX_UNBAN_TARGETS = 50;
 const MAX_CHAT_MESSAGE = 128;
 const MAX_CONSOLE_COMMAND = 512;
 
-/** An error the client should show as-is. */
-export class ApiProblem extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: string,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+export { ApiProblem };
 
-function serverParam(state: MiniAppState, alias: string) {
+export function serverParam(state: MiniAppState, alias: string) {
   const rcon = state.rcon(alias);
   if (!rcon) {
     throw new ApiProblem(
@@ -81,7 +76,7 @@ function serverParam(state: MiniAppState, alias: string) {
 }
 
 /** Text that goes into a game command: no line breaks, `;` or `"` (sanitize.ts), not empty. */
-function requiredText(
+export function requiredText(
   value: unknown,
   field: string,
   maxLength = MAX_CHAT_MESSAGE,
@@ -148,7 +143,7 @@ function resolveGametype(
   return known;
 }
 
-async function adminNames(deps: GatewayDeps): Promise<AdminNames> {
+export async function adminNames(deps: GatewayDeps): Promise<AdminNames> {
   const admins = await deps.adminStore.listAdmins();
   return new Map(
     admins.map((admin) => [
@@ -213,6 +208,7 @@ export function registerRoutes(
         chat: deps.logTailers.has(alias),
       })),
       defaultServer: await defaultServer(deps),
+      openReports: await deps.adminStore.countOpenReports(),
     };
   });
 
@@ -382,6 +378,82 @@ export function registerRoutes(
       });
       return {
         message: `Changing map to ${mapName}${gametype ? ` (${gametype.toUpperCase()})` : ''}…`,
+      };
+    },
+  );
+
+  const LEVEL_COMMANDS = {
+    restart: { command: 'map_restart', done: 'Restarting the map' },
+    fastrestart: { command: 'fast_restart', done: 'Restarting the round' },
+    rotate: { command: 'map_rotate', done: 'Moving to the next map' },
+  } as const;
+
+  app.post(
+    '/servers/:server/level',
+    { config: { minRole: 'admin', action: true } },
+    async (
+      request: FastifyRequest<{
+        Params: { server: string };
+        Body: { command?: string };
+      }>,
+    ): Promise<ActionResponse> => {
+      const alias = request.params.server;
+      const rcon = serverParam(state, alias);
+      const key = request.body?.command as keyof typeof LEVEL_COMMANDS;
+      const level = Object.hasOwn(LEVEL_COMMANDS, key ?? '')
+        ? LEVEL_COMMANDS[key]
+        : undefined;
+      if (!level) {
+        throw new ApiProblem(400, 'bad_request', 'Unknown command.');
+      }
+      const answered = await rcon.levelCommand(level.command);
+      await audit(request, {
+        action: level.command,
+        serverAlias: alias,
+        detailJson: { answered },
+      });
+      return {
+        message: answered
+          ? `${level.done}…`
+          : `Sent, but ${alias} didn't answer: it may be loading, or it may have missed the command. Check the map in a moment.`,
+      };
+    },
+  );
+
+  app.put(
+    '/servers/:server/rotation',
+    { config: { minRole: 'admin', action: true } },
+    async (
+      request: FastifyRequest<{
+        Params: { server: string };
+        Body: RotationRequest;
+      }>,
+    ): Promise<ActionResponse> => {
+      const alias = request.params.server;
+      const rcon = serverParam(state, alias);
+      const entries = parseRotation(request.body?.entries);
+      const before = await rcon.getMapRotationEntries();
+      await rcon.setCvar('sv_mapRotation', formatRotation(entries));
+      const after = await rcon.getMapRotationEntries();
+      if (JSON.stringify(after) !== JSON.stringify(entries)) {
+        // Too long for the server's command buffer, most likely: don't leave half a rotation.
+        await rcon.setCvar('sv_mapRotation', formatRotation(before));
+        throw new ApiProblem(
+          422,
+          'rotation_not_applied',
+          `${alias} didn't take the whole rotation, so the old one was put back. Try fewer maps.`,
+        );
+      }
+      // The game plays out what's left of the old list from this one first.
+      await rcon.setCvar('sv_mapRotationCurrent', '');
+      await audit(request, {
+        action: 'maprotation',
+        serverAlias: alias,
+        detailJson: { before, after: entries },
+      });
+      return {
+        message:
+          "Rotation saved. It lasts until the server restarts: to keep it, put it in the server's config too.",
       };
     },
   );
@@ -752,6 +824,60 @@ export function registerRoutes(
       throw new ApiProblem(400, 'bad_request', 'Choose an IP or GUID ban.');
     },
   );
+
+  registerInsightRoutes(app, deps, state);
+  registerManagementRoutes(app, deps, state);
+}
+
+const MAX_ROTATION_ENTRIES = 64;
+const GAME_TOKEN = /^[A-Za-z0-9_-]{1,64}$/;
+
+function parseRotation(value: unknown): RotationRequest['entries'] {
+  const entries = Array.isArray(value) ? (value as unknown[]) : [];
+  const seen = new Set<string>();
+  const parsed = entries.map((entry) => {
+    const { map, gametype } = (entry ?? {}) as Record<string, unknown>;
+    if (
+      typeof map !== 'string' ||
+      !GAME_TOKEN.test(map) ||
+      (gametype !== null &&
+        (typeof gametype !== 'string' || !GAME_TOKEN.test(gametype)))
+    ) {
+      throw new ApiProblem(400, 'bad_request', 'A rotation entry is invalid.');
+    }
+    const key = `${map}|${gametype}`;
+    if (seen.has(key)) {
+      throw new ApiProblem(
+        400,
+        'bad_request',
+        `${map} is in the rotation twice with the same mode.`,
+      );
+    }
+    seen.add(key);
+    return { map, gametype: gametype as string | null };
+  });
+  if (parsed.length === 0 || parsed.length > MAX_ROTATION_ENTRIES) {
+    throw new ApiProblem(
+      400,
+      'bad_request',
+      `A rotation needs between 1 and ${MAX_ROTATION_ENTRIES} maps.`,
+    );
+  }
+  return parsed;
+}
+
+/** `gametype ctf map mp_toujane map mp_dawnville gametype tdm map mp_burgundy` */
+function formatRotation(entries: RotationRequest['entries']): string {
+  const tokens: string[] = [];
+  let current: string | null = null;
+  for (const { map, gametype } of entries) {
+    if (gametype && gametype !== current) {
+      tokens.push('gametype', gametype);
+      current = gametype;
+    }
+    tokens.push('map', map);
+  }
+  return tokens.join(' ');
 }
 
 function parseBanChanges(body: UpdateBanRequest): BanChanges {

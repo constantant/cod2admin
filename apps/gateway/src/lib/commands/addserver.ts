@@ -1,4 +1,4 @@
-import { UdpQueryTimeoutError, type ServerStatus } from '@cod2admin/rcon-client';
+import { UdpQueryTimeoutError, type RconClient, type ServerStatus } from '@cod2admin/rcon-client';
 import { matchText, type BotContext } from '../bot-context.js';
 import type { GatewayDeps } from '../deps.js';
 
@@ -53,6 +53,48 @@ async function deleteCommandMessage(ctx: BotContext): Promise<boolean> {
   }
 }
 
+/** Tries the address and password against the live server. Nothing is saved. */
+export async function checkServer(
+  deps: Pick<GatewayDeps, 'createRconClient'>,
+  server: { host: string; port: number; password: string },
+): Promise<{ rcon: RconClient; status: ServerStatus } | 'no-answer' | 'bad-password'> {
+  const rcon = deps.createRconClient(server);
+  let status: ServerStatus;
+  try {
+    status = await rcon.status();
+  } catch (error) {
+    if (error instanceof UdpQueryTimeoutError) {
+      return 'no-answer';
+    }
+    throw error;
+  }
+  return BAD_PASSWORD_PATTERN.test(status.raw) ? 'bad-password' : { rcon, status };
+}
+
+/**
+ * Saves a server `checkServer` accepted and starts using it, no restart. The first extra server
+ * would otherwise make every command without --server ambiguous, so they keep going where they went
+ * before, to the config-file server. Returns whether that default was just set.
+ */
+export async function saveCheckedServer(
+  deps: GatewayDeps,
+  server: AddServerArgs,
+  rcon: RconClient,
+): Promise<boolean> {
+  await deps.adminStore.upsertServer({
+    alias: server.alias,
+    rconHost: server.host,
+    rconPort: server.port,
+    rconPassword: server.password,
+  });
+  deps.rconClients.set(server.alias, rcon);
+  if (!(await deps.adminStore.getDefaultServer()) && deps.rconClients.has(deps.bootstrapServerAlias)) {
+    await deps.adminStore.setDefaultServer(deps.bootstrapServerAlias);
+    return true;
+  }
+  return false;
+}
+
 function describeStatus(status: ServerStatus): string {
   const players = `${status.players.length} player${status.players.length === 1 ? '' : 's'}`;
   return status.mapName ? `${status.mapName}, ${players}` : players;
@@ -98,35 +140,24 @@ export async function addServerCommand(ctx: BotContext, deps: GatewayDeps): Prom
   }
 
   await ctx.reply(`Checking ${host}:${port}… (can take up to ~10 seconds)`);
-  const rcon = deps.createRconClient({ host, port, password });
-  let status: ServerStatus;
-  try {
-    status = await rcon.status();
-  } catch (error) {
-    if (error instanceof UdpQueryTimeoutError) {
-      await ctx.reply(
-        `No answer from ${host}:${port}. Check the address and port, and that the server is running. Nothing was saved.`,
-      );
-      return;
-    }
-    throw error;
+  const checked = await checkServer(deps, { host, port, password });
+  if (checked === 'no-answer') {
+    await ctx.reply(
+      `No answer from ${host}:${port}. Check the address and port, and that the server is running. Nothing was saved.`,
+    );
+    return;
   }
-  if (BAD_PASSWORD_PATTERN.test(status.raw)) {
+  if (checked === 'bad-password') {
     await ctx.reply(`${host}:${port} answered, but rejected the RCON password. Nothing was saved.`);
     return;
   }
+  const { rcon, status } = checked;
 
   const existed = deps.rconClients.has(alias);
-  await deps.adminStore.upsertServer({ alias, rconHost: host, rconPort: port, rconPassword: password });
-  deps.rconClients.set(alias, rcon);
-
-  // The first extra server would otherwise make every command without --server ambiguous; keep
-  // them going where they went before, to the config-file server.
-  let defaultNote = '';
-  if (!(await deps.adminStore.getDefaultServer()) && deps.rconClients.has(deps.bootstrapServerAlias)) {
-    await deps.adminStore.setDefaultServer(deps.bootstrapServerAlias);
-    defaultNote = `\nCommands without --server still go to "${deps.bootstrapServerAlias}" — change that with /setdefault.`;
-  }
+  const defaultSet = await saveCheckedServer(deps, { alias, host, port, password }, rcon);
+  const defaultNote = defaultSet
+    ? `\nCommands without --server still go to "${deps.bootstrapServerAlias}" — change that with /setdefault.`
+    : '';
 
   await deps.adminStore.recordAuditLog({
     actorTelegramId: ctx.admin!.telegramId,
