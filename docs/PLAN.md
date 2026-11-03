@@ -1208,7 +1208,7 @@ Owner-only, same permission tier as `/rcon`. `apps/gateway/src/lib/commands/upda
 3. Verifies the downloaded tarball's checksum against the downloaded `.sha256` (`update-apply.ts`'s
    `verifyChecksum`) before writing anything `apply-update.sh` would act on — aborts and cleans up
    both files on a mismatch, no audit log, nothing staged.
-4. Writes `staging/pending-update.env` (`CHAT_ID=<chat id>`) — the exact marker
+4. Writes `staging/pending-update.env` (`CHAT_ID=<chat id>`, `VERSION=<tag>`) — the exact marker
    `installer/apply-update.sh`'s failure-alert path already reads (built and tested before this
    command existed, §13.4/§13.5).
 5. Audit-logs the action (`action: 'update'`, `target: <tag>`, `source: 'telegram_command'`), then
@@ -1219,12 +1219,24 @@ Owner-only, same permission tier as `/rcon`. `apps/gateway/src/lib/commands/upda
    observe.
 6. **Implemented (2026-09-07)**: the gateway process itself dies as part of step 5's restart, so
    it's the **new** process that confirms success — `apps/gateway/src/lib/update-boot-check.ts`'s
-   `checkPendingUpdateOnBoot(deps, bot)`, awaited in `main.ts` *before* `bot.start()`. If
+   `checkPendingUpdateOnBoot(deps, bot)`, started in `main.ts` before `bot.start()`. If
    `staging/pending-update.env` is still there, it posts "✅ Updated to vX.Y.Z" to the marker's
    chat id and removes the marker; if there's nothing to find (every normal boot), it's a no-op.
-   Has to run and finish before `bot.start()` specifically because `apply-update.sh`'s own health
-   check is "the log shows 'started as @...'", which only happens once `bot.start()`'s `onStart`
-   fires — running the check earlier than that guarantees it always sees the marker first.
+   If the running version isn't the marker's `VERSION`, it says the update didn't apply instead.
+   **Changed 2026-11-03:** it used to be awaited and made one attempt, then removed the marker
+   whatever happened, so one failed request on a relay lost the message, and a stalled connection
+   could hold up the bot's start. It now retries for about 9 minutes, at most 20 seconds per
+   attempt, keeps the marker until resolved, and doesn't hold up `bot.start()`.
+   **Failures (2026-11-03):** `/update` never replaces the installed `bin/apply-update.sh`, so these
+   live in the gateway, which every install gets. `runApplyUpdate` watches the script: a non-zero
+   exit while this process is still alive (`sudo` refusing, a bad tarball), or no restart after 5
+   minutes, is written into the "Applying update…" message. After a rollback, the restored
+   version finds the `FAILED` line in `update.log` and tells the owner over its working route,
+   since the script's own alert goes straight to api.telegram.org. **Known gap:** `verify_running`
+   (`installer/lib/service.sh`) greps logs that still hold the previous start's "started as" line,
+   so it passes at once and rollback rarely triggers. Fixing it needs care, because its `error`
+   match and 20-second limit could then roll back healthy starts, and it needs a re-install to reach
+   existing hosts.
    - **Found and fixed a real race while building this**: `apply-update.sh`'s *rollback* path
      restarts the **old** version after a failed update — and that old process's own boot-time
      check has no way to tell "this restart followed a failed update" from "this restart followed

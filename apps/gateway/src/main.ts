@@ -256,8 +256,8 @@ startExpiryPoller(deps);
 
 const bot = createBot(config, deps, claimSecret);
 
-// Must run (and finish) before bot.start() - see checkPendingUpdateOnBoot's doc comment for why.
-await checkPendingUpdateOnBoot(deps, bot);
+// Not awaited: it retries for minutes on a bad connection, and the bot has to start meanwhile.
+void checkPendingUpdateOnBoot(deps, bot);
 
 startVersionCheckPoller(deps, bot);
 

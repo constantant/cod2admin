@@ -5,7 +5,12 @@ import { InlineKeyboard } from 'grammy';
 import type { BotContext } from '../bot-context.js';
 import type { GatewayDeps } from '../deps.js';
 import type { GithubRelease } from '../github-releases.js';
-import { downloadReleaseAsset, runApplyUpdate, verifyChecksum } from '../update-apply.js';
+import {
+  downloadReleaseAsset,
+  runApplyUpdate,
+  verifyChecksum,
+  type ApplyUpdateProblem,
+} from '../update-apply.js';
 import { getRunningVersion, isNewerVersion } from '../version.js';
 
 const CALLBACK_PREFIX = 'update:';
@@ -139,7 +144,8 @@ export async function updateActionCallback(ctx: UpdateCallbackContext, deps: Gat
     return;
   }
 
-  await writeFile(path.join(stagingDir, 'pending-update.env'), `CHAT_ID=${chatId}\n`);
+  const markerPath = path.join(stagingDir, 'pending-update.env');
+  await writeFile(markerPath, `CHAT_ID=${chatId}\nVERSION=${release.tagName}\n`);
 
   await deps.adminStore.recordAuditLog({
     actorTelegramId: admin.telegramId,
@@ -150,6 +156,37 @@ export async function updateActionCallback(ctx: UpdateCallbackContext, deps: Gat
   });
 
   await ctx.editMessageText(`Applying update to ${release.tagName}… the bot will restart shortly.`);
-  runApplyUpdate(applyUpdateScriptPath, tarballPath);
+  runApplyUpdate(applyUpdateScriptPath, tarballPath, {
+    onProblem: (problem) => {
+      void reportApplyProblem(ctx, problem, {
+        tagName: release.tagName,
+        command: `${applyUpdateScriptPath} ${tarballPath}`,
+        markerPath,
+      });
+    },
+  });
   await ctx.answerCallbackQuery();
+}
+
+async function reportApplyProblem(
+  ctx: UpdateCallbackContext,
+  problem: ApplyUpdateProblem,
+  update: { tagName: string; command: string; markerPath: string },
+): Promise<void> {
+  const running = getRunningVersion();
+  const runByHand = `To see what happens, run this on the server as root:\n${update.command}`;
+  let text: string;
+  if (problem.kind === 'failed') {
+    // It's over, so the next restart mustn't report on this update as well.
+    await rm(update.markerPath, { force: true });
+    text =
+      `❌ The update to ${update.tagName} didn't run. The bot is still on v${running}.\n\n` +
+      (problem.output ? `${problem.output}\n\n` : '') +
+      runByHand;
+  } else {
+    text = `⚠️ The update to ${update.tagName} hasn't finished after 5 minutes. The bot is still on v${running}.\n\n${runByHand}`;
+  }
+  await ctx.editMessageText(text).catch((error: unknown) => {
+    console.error('Failed to report an update problem:', error);
+  });
 }

@@ -3,7 +3,83 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { downloadReleaseAsset, verifyChecksum } from './update-apply.js';
+import {
+  downloadReleaseAsset,
+  runApplyUpdate,
+  verifyChecksum,
+  type ApplyUpdateProblem,
+} from './update-apply.js';
+
+describe('runApplyUpdate', () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'cod2admin-apply-test-'));
+  });
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  /** Runs a real script through `sh`, standing in for `sudo`. */
+  const run = async (script: string, timeoutMs?: number) => {
+    const scriptPath = join(dir, 'script.sh');
+    await writeFile(scriptPath, script);
+    const problems: ApplyUpdateProblem[] = [];
+    runApplyUpdate(scriptPath, join(dir, 'gateway.tar.gz'), {
+      command: 'sh',
+      timeoutMs,
+      onProblem: (problem) => problems.push(problem),
+    });
+    return problems;
+  };
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 150));
+
+  it('reports a failed script with the end of its output', async () => {
+    const problems = await run('echo "sudo: a password is required" >&2; exit 1');
+
+    await vi.waitFor(() => expect(problems).toHaveLength(1));
+    expect(problems[0]).toEqual({ kind: 'failed', output: 'sudo: a password is required' });
+  });
+
+  it('keeps secrets from the bot log out of the report', async () => {
+    const problems = await run('echo "/claim secret: abc123"; echo "boom"; exit 1');
+
+    await vi.waitFor(() => expect(problems).toHaveLength(1));
+    expect(problems[0]).toEqual({ kind: 'failed', output: 'boom' });
+  });
+
+  it('reports nothing when the script succeeds', async () => {
+    const problems = await run('exit 0', 50);
+
+    await settle();
+    expect(problems).toEqual([]);
+  });
+
+  it("doesn't call a script killed by a signal failed: that's the service restart", async () => {
+    const problems = await run('kill -TERM $$', 50);
+
+    await settle();
+    expect(problems).toEqual([{ kind: 'timeout' }]);
+  });
+
+  it('reports a script that never finishes', async () => {
+    const problems = await run('sleep 1', 30);
+
+    await vi.waitFor(() => expect(problems).toEqual([{ kind: 'timeout' }]));
+  });
+
+  it("reports sudo not being installed instead of crashing the bot", async () => {
+    await writeFile(join(dir, 'script.sh'), '');
+    const problems: ApplyUpdateProblem[] = [];
+
+    runApplyUpdate(join(dir, 'script.sh'), join(dir, 'gateway.tar.gz'), {
+      command: 'no-such-command-cod2admin',
+      onProblem: (problem) => problems.push(problem),
+    });
+
+    await vi.waitFor(() => expect(problems).toHaveLength(1));
+    expect(problems[0]).toMatchObject({ kind: 'failed', output: expect.stringContaining('ENOENT') });
+  });
+});
 
 function fakeFetch(body: Uint8Array, ok = true, status = 200): typeof fetch {
   return vi.fn().mockResolvedValue({

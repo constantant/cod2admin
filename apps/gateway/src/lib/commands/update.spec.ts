@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -151,8 +151,55 @@ describe('updateActionCallback', () => {
     expect(runApplyUpdate).toHaveBeenCalledWith(
       deps.updateConfig?.applyUpdateScriptPath,
       expect.stringContaining(release.gatewayAsset.name),
+      expect.objectContaining({ onProblem: expect.any(Function) }),
     );
     expect(deps.updateRegistry.get('1')).toBeUndefined();
+    await expect(readFile(join(stagingDir, 'pending-update.env'), 'utf8')).resolves.toBe(
+      `CHAT_ID=100\nVERSION=${release.tagName}\n`,
+    );
+  });
+
+  describe('when applying the update goes wrong', () => {
+    const confirm = async () => {
+      const { deps } = createFakeDeps();
+      deps.updateConfig = { stagingDir, applyUpdateScriptPath: '/opt/cod2admin/bin/apply-update.sh' };
+      const release = sampleRelease();
+      deps.updateRegistry.set('1', { release });
+      const ctx = createFakeCallbackCtx({ callbackData: 'update:1:confirm' });
+      await updateActionCallback(ctx, deps);
+      const { onProblem } = vi.mocked(runApplyUpdate).mock.calls[0][2];
+      return { ctx, onProblem, release };
+    };
+
+    it('shows the error in the chat and drops the marker when the script fails', async () => {
+      const { ctx, onProblem, release } = await confirm();
+
+      onProblem({ kind: 'failed', output: 'sudo: a password is required' });
+
+      await vi.waitFor(() =>
+        expect(ctx.editMessageText).toHaveBeenLastCalledWith(
+          expect.stringContaining('sudo: a password is required'),
+        ),
+      );
+      const text = vi.mocked(ctx.editMessageText).mock.lastCall?.[0];
+      expect(text).toContain(`didn't run`);
+      expect(text).toContain(release.tagName);
+      expect(text).toContain('/opt/cod2admin/bin/apply-update.sh');
+      await expect(readFile(join(stagingDir, 'pending-update.env'))).rejects.toThrow();
+    });
+
+    it('keeps the marker on a timeout, since the update may still finish', async () => {
+      const { ctx, onProblem } = await confirm();
+
+      onProblem({ kind: 'timeout' });
+
+      await vi.waitFor(() =>
+        expect(ctx.editMessageText).toHaveBeenLastCalledWith(
+          expect.stringContaining("hasn't finished after 5 minutes"),
+        ),
+      );
+      await expect(readFile(join(stagingDir, 'pending-update.env'))).resolves.toBeDefined();
+    });
   });
 
   it('confirm aborts (no audit log, no apply) when the checksum does not match', async () => {
