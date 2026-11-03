@@ -1,3 +1,14 @@
+## [1.15.2](https://github.com/constantant/cod2admin/releases/tag/v1.15.2) (2026-11-03)
+
+### 🩹 Fixes
+
+- **gateway:** make /findlog check the reported log path before searching ([4b2b346](https://github.com/constantant/cod2admin/commit/4b2b346))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5
+- kk
+
 ## [1.15.1](https://github.com/constantant/cod2admin/releases/tag/v1.15.1) (2026-11-03)
 
 ### 🩹 Fixes
