@@ -1,3 +1,14 @@
+## [1.15.1](https://github.com/constantant/cod2admin/releases/tag/v1.15.1) (2026-11-03)
+
+### 🩹 Fixes
+
+- **gateway:** tell the owner how to give the bot access to the game log ([7a99218](https://github.com/constantant/cod2admin/commit/7a99218))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5
+- kk
+
 ## [1.15.0](https://github.com/constantant/cod2admin/releases/tag/v1.15.0) (2026-11-03)
 
 ### 🚀 Features
