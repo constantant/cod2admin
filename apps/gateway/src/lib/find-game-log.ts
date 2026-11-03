@@ -65,13 +65,15 @@ interface LiveServerInfo {
  * - `other-server`: a game log, but of a different server.
  * - `not-a-log`: readable, with no `InitGame` line.
  * - `unreadable`: the bot's user has no read access.
+ * - `missing`: no such file.
  */
 export type LogFileVerdict =
   | 'current'
   | 'same-name'
   | 'other-server'
   | 'not-a-log'
-  | 'unreadable';
+  | 'unreadable'
+  | 'missing';
 
 export async function inspectLogFile(
   path: string,
@@ -80,8 +82,9 @@ export async function inspectLogFile(
 ): Promise<LogFileVerdict> {
   try {
     await access(path, constants.R_OK);
-  } catch {
-    return 'unreadable';
+  } catch (error) {
+    const { code } = error as NodeJS.ErrnoException;
+    return code === 'ENOENT' || code === 'ENOTDIR' ? 'missing' : 'unreadable';
   }
   const lines = await readFileTail(path, VERIFY_TAIL_BYTES, decode);
   const initGame = lines.filter((line) => line.includes('InitGame: ')).at(-1);

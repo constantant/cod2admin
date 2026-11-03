@@ -72,7 +72,8 @@ Example: `!report Cheatr123 aimbot`
 - `/removeserver <alias>` — stops managing a server added with `/addserver`
 - `/findlog [--server <alias>]` — finds the server's `games_mp.log` on the bot's machine and starts
   reading it, for `!report` cards and the app's chat. No restart needed. `/findlog <path>` uses a
-  file you name, `/findlog off` stops reading the log
+  file you name, `/findlog off` stops reading the log. If the bot can't read the log, it replies
+  with the commands to give it access
 - `/update` — installs the newest release of this bot after you confirm; the bot also messages
   the owner when one comes out
 - `/relays` — how the bot reaches Telegram: directly, or through relays where Telegram is blocked

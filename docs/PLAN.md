@@ -343,7 +343,10 @@ and the 30-minute check for a better Telegram route (`docs/PLAN-russia-access.md
   when exactly one file matches all three. The path is saved in `servers.log_source_config`
   and the tailer starts with no restart. `COD2_LOG_PATH`, when set, still wins on every start, so
   `/findlog` refuses to change it. Leaving it unset no longer clears a saved path: `upsertServer`
-  keeps the column when `logSourceConfig` is left out, and `/findlog off` clears it.
+  keeps the column when `logSourceConfig` is left out, and `/findlog off` clears it. When it
+  can't connect a log, it replies with what to do (`log-access-help.ts`): exact `setfacl` commands
+  for the bot's user and the file's path, or mounts when the bot runs in a container. The
+  full guide is `installer/README.md` "Connecting the game log" and `docs/game-log-access-ru.md`.
 
 ### 3.1 Components (Nx layout under `packages/` and `apps/`)
 

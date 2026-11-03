@@ -55,8 +55,52 @@ version doesn't start, it rolls back to the previous one by itself and tells you
 
 One bot can manage several CoD2 servers. The owner adds them from Telegram with
 `/addserver <alias> <host:port> <rcon password>`, sent in a private chat with the bot. Bans
-apply on every server the bot manages. Servers added this way are reached over RCON only, so
-`!report` works only for the server whose `games_mp.log` path you gave the installer.
+apply on every server the bot manages. For `!report` on a server, the bot also needs to read its
+`games_mp.log`, see below.
+
+## Connecting the game log
+
+`!report` cards and the Mini App's chat need the bot to read the server's `games_mp.log` as a
+local file. RCON can't deliver it, and every other command works without it.
+
+The owner sends `/findlog` to the bot (`/findlog --server <alias>` for a specific server). It finds
+the log and starts reading it, with no restart. To get `!report` cards, also send
+`/bindserver <alias>` in your admins' group. If the bot can't connect the log, it tells you what to
+do. These are the cases:
+
+**The bot can't read the file.** The bot replies with commands for your exact path. Run them on
+the server as root. For example, with the bot's default user:
+
+```sh
+setfacl -m u:cod2admin:x /home /home/cod2 /home/cod2/main
+setfacl -m u:cod2admin:r /home/cod2/main/games_mp.log
+setfacl -d -m u:cod2admin:r /home/cod2/main
+```
+
+The first line lets the bot through each folder, the second lets it read the file, and the third
+keeps that working if the server creates the file again. Only the bot's user gets access. If
+`setfacl` is missing, install the `acl` package.
+
+**The bot can't find the file, but the game server is on the same machine.** The bot can't search
+folders it can't open. Find the log as root with `find / -name games_mp.log 2>/dev/null`, then send
+`/findlog <that path>`. The bot then replies with the commands above.
+
+**The game server runs in Docker.** The log has to exist on the machine, so its folder must be a
+bind mount, not a named volume. The server writes to `<fs_homepath>/main/games_mp.log`, so mount
+`fs_homepath` to a folder on the machine.
+
+**The bot runs in a container.** It only sees folders mounted into it. Mount the log's folder
+read-only (`/path/on/host/main:/cod2-logs:ro`), recreate the container, and send `/findlog`. Then
+make the log readable on the machine with `chmod o+r games_mp.log`, plus `o+x` on its folder and
+every folder above it. Note that this lets every user on the machine read the log. With the Docker
+kit, give the folder to `run.sh`, see `docker/README-ru.md`.
+
+**The game server is on another machine.** The bot can't read the log from there. Install the bot
+on the game server's machine. Without the log, everything except `!report` and the Mini App's chat
+still works.
+
+**The server doesn't write a log.** Set `g_log "games_mp.log"` and `g_logsync "1"` in its config,
+and restart it.
 
 ## The Mini App (server manager inside Telegram)
 

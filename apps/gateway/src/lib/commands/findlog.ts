@@ -6,6 +6,11 @@ import {
   inspectLogFile,
   readLiveServerInfo,
 } from '../find-game-log.js';
+import {
+  detectBotRuntime,
+  logNotFoundHelp,
+  unreadableLogHelp,
+} from '../log-access-help.js';
 import { stopReportTailer } from '../report-tailers.js';
 import { extractServerFlag, resolveServer } from '../resolve-server.js';
 
@@ -101,9 +106,12 @@ export async function findLogCommand(
       await useLog(ctx, deps, env, alias, rest);
       return;
     }
+    if (verdict === 'unreadable') {
+      await ctx.reply(unreadableLogHelp([rest], detectBotRuntime()));
+      return;
+    }
     const problems = {
-      unreadable:
-        "I can't read that file. Check the path, and that the bot's user can read the file and its folders.",
+      missing: 'There is no such file. Check the path.',
       'not-a-log':
         "That file has no map start (InitGame) line, so it isn't a CoD2 game log, or the server hasn't started a map since it was created.",
       'other-server': `That's not the log of "${alias}": its latest map start has a different server name.`,
@@ -120,6 +128,7 @@ export async function findLogCommand(
     return;
   }
 
+  const runtime = detectBotRuntime();
   const notes: string[] = [];
   if (result.possible.length > 0) {
     notes.push(
@@ -130,18 +139,10 @@ export async function findLogCommand(
       'The server has logging turned off. Set g_log "games_mp.log" in its config and restart it, then try again.',
     );
   } else if (result.unreadable.length === 0) {
-    notes.push(
-      `I couldn't find the log of "${alias}" on this machine. ` +
-        'The bot has to run on the game server\'s machine, or have its log folder mounted.' +
-        (result.reportedPath
-          ? `\nThe server says it writes to ${result.reportedPath}`
-          : ''),
-    );
+    notes.push(logNotFoundHelp(alias, result.reportedPath, runtime));
   }
   if (result.unreadable.length > 0) {
-    notes.push(
-      `I found these, but the bot's user can't read them. Give it access to the file and its folders, then try again:\n${result.unreadable.join('\n')}`,
-    );
+    notes.push(unreadableLogHelp(result.unreadable, runtime));
   }
   if (!result.complete) {
     notes.push(

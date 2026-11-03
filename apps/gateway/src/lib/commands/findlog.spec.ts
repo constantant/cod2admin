@@ -1,6 +1,6 @@
 import type { ServerConfig } from '@cod2admin/admin-store';
 import type { GameLogTailer } from '@cod2admin/log-tailer';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -102,7 +102,20 @@ describe('findLogCommand', () => {
 
     expect(adminStore.setServerLogPath).not.toHaveBeenCalled();
     expect(notes.reply).toHaveBeenCalledWith(expect.stringContaining("isn't a CoD2 game log"));
-    expect(missing.reply).toHaveBeenCalledWith(expect.stringContaining("can't read that file"));
+    expect(missing.reply).toHaveBeenCalledWith(expect.stringContaining('no such file'));
+  });
+
+  // Root can read any file, so this can't fail the way it needs to when tests run as root.
+  it.skipIf(process.getuid?.() === 0)('explains how to give access when the file exists but is unreadable', async () => {
+    const { deps, adminStore, env } = setup();
+    await chmod(logPath, 0o000);
+    const ctx = createFakeCtx({ match: logPath, admin: OWNER });
+
+    await findLogCommand(ctx, deps, env);
+
+    expect(adminStore.setServerLogPath).not.toHaveBeenCalled();
+    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining("can't read it"));
+    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('/findlog again'));
   });
 
   it('leaves a path from COD2_LOG_PATH alone', async () => {
