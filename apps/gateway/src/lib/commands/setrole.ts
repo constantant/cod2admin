@@ -10,7 +10,10 @@ function isAssignableRole(value: string): value is AssignableRole {
 }
 
 /** `/setrole <reply-or-telegram-id> <role>` (docs/PLAN.md §4). */
-export async function setRoleCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
+export async function setRoleCommand(
+  ctx: BotContext,
+  deps: GatewayDeps,
+): Promise<void> {
   const tokens = matchText(ctx).split(/\s+/).filter(Boolean);
   const targetId = ctx.replyToUserId ?? Number.parseInt(tokens[0] ?? '', 10);
   const role = ctx.replyToUserId !== undefined ? tokens[0] : tokens[1];

@@ -125,11 +125,15 @@ export async function findLogCommand(
       await ctx.reply(unreadableLogHelp([rest], detectBotRuntime()));
       return;
     }
-    await ctx.reply(`Nothing was changed. ${describeLogProblem(alias, verdict)}`);
+    await ctx.reply(
+      `Nothing was changed. ${describeLogProblem(alias, verdict)}`,
+    );
     return;
   }
 
-  await ctx.reply(`Looking for the log of "${alias}"… (can take up to ~30 seconds)`);
+  await ctx.reply(
+    `Looking for the log of "${alias}"… (can take up to ~30 seconds)`,
+  );
   const result = await findGameLog(rcon, { decode: env.decode });
 
   if (result.log) {
@@ -141,7 +145,10 @@ export async function findLogCommand(
 }
 
 /** What to tell the owner when a search didn't settle on one file. Also used by the Mini App. */
-export function describeLogSearchFailure(alias: string, result: GameLogSearchResult): string[] {
+export function describeLogSearchFailure(
+  alias: string,
+  result: GameLogSearchResult,
+): string[] {
   const runtime = detectBotRuntime();
   const notes: string[] = [];
   if (result.possible.length > 0) {

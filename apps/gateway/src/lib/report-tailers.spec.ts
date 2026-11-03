@@ -177,7 +177,13 @@ describe('startReportTailers', () => {
 
   describe('saving reports for the Mini App queue', () => {
     const trigger = {
-      chat: { num: 1, guid: '0', name: 'Honest', message: '!report Cheater', channel: 'say' },
+      chat: {
+        num: 1,
+        guid: '0',
+        name: 'Honest',
+        message: '!report Cheater',
+        channel: 'say',
+      },
       targetName: 'Cheater',
     };
     const fire = async () => {
@@ -187,14 +193,23 @@ describe('startReportTailers', () => {
 
     it('saves a report with no bound chat, and holds back a flood from one reporter', async () => {
       const { deps, adminStore } = createFakeDeps();
-      adminStore.getServer.mockResolvedValue(serverConfig({ boundTelegramChatId: null }));
+      adminStore.getServer.mockResolvedValue(
+        serverConfig({ boundTelegramChatId: null }),
+      );
       const record = vi.spyOn(deps.reportQueue, 'record');
-      startReportTailers([serverConfig({ boundTelegramChatId: null })], deps, {} as never);
+      startReportTailers(
+        [serverConfig({ boundTelegramChatId: null })],
+        deps,
+        {} as never,
+      );
 
       await fire();
       expect(record).toHaveBeenCalledTimes(1);
 
-      fakeTailerInstances[0].listeners['reportTrigger']![0]({ ...trigger, targetName: 'Someone else' });
+      fakeTailerInstances[0].listeners['reportTrigger']![0]({
+        ...trigger,
+        targetName: 'Someone else',
+      });
       await new Promise((resolve) => setTimeout(resolve, 20));
       expect(record).toHaveBeenCalledTimes(1);
     });
@@ -204,8 +219,12 @@ describe('startReportTailers', () => {
       adminStore.getServer.mockResolvedValue(serverConfig());
       rcon.status.mockResolvedValue({ raw: '', players: [] });
       const record = vi.spyOn(deps.reportQueue, 'record');
-      const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-      const bot = { api: { sendMessage: vi.fn().mockRejectedValue(new Error('no route')) } };
+      const error = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined);
+      const bot = {
+        api: { sendMessage: vi.fn().mockRejectedValue(new Error('no route')) },
+      };
       startReportTailers([serverConfig()], deps, bot as never);
 
       await fire();
@@ -219,7 +238,9 @@ describe('startReportTailers', () => {
       const { deps, adminStore, rcon } = createFakeDeps();
       adminStore.getServer.mockResolvedValue(serverConfig());
       rcon.status.mockResolvedValue({ raw: '', players: [] });
-      const bot = { api: { sendMessage: vi.fn().mockResolvedValue({ message_id: 9 }) } };
+      const bot = {
+        api: { sendMessage: vi.fn().mockResolvedValue({ message_id: 9 }) },
+      };
       startReportTailers([serverConfig()], deps, bot as never);
 
       await fire();

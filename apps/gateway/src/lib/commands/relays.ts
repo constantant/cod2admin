@@ -13,18 +13,29 @@ import {
 export const RELAYS_USAGE = [
   '/relays — show how the bot reaches Telegram',
   '/relays test — check every route now',
-  '/relays add <https://url> — add a relay (checked before it\'s saved)',
+  "/relays add <https://url> — add a relay (checked before it's saved)",
   '/relays remove <number or url> — remove a relay',
   '/relays direct on|off — try api.telegram.org itself first, or not',
   '/relays reset — back to the defaults',
 ].join('\n');
 
-export async function loadRouteSettings(deps: GatewayDeps): Promise<{ settings: TelegramRouteSettings; changed: boolean }> {
-  const stored = parseRouteSettings(await deps.adminStore.getSetting(ROUTES_SETTING_KEY));
-  return stored ? { settings: stored, changed: true } : { settings: deps.telegramRoutes.defaults, changed: false };
+export async function loadRouteSettings(
+  deps: GatewayDeps,
+): Promise<{ settings: TelegramRouteSettings; changed: boolean }> {
+  const stored = parseRouteSettings(
+    await deps.adminStore.getSetting(ROUTES_SETTING_KEY),
+  );
+  return stored
+    ? { settings: stored, changed: true }
+    : { settings: deps.telegramRoutes.defaults, changed: false };
 }
 
-async function saveSettings(ctx: BotContext, deps: GatewayDeps, settings: TelegramRouteSettings, detail: unknown): Promise<void> {
+async function saveSettings(
+  ctx: BotContext,
+  deps: GatewayDeps,
+  settings: TelegramRouteSettings,
+  detail: unknown,
+): Promise<void> {
   await deps.adminStore.setSetting(ROUTES_SETTING_KEY, settings);
   deps.telegramRoutes.router.setRoutes(routesFrom(settings));
   await deps.adminStore.recordAuditLog({
@@ -36,13 +47,28 @@ async function saveSettings(ctx: BotContext, deps: GatewayDeps, settings: Telegr
   });
 }
 
-function formatRoutes(deps: GatewayDeps, settings: TelegramRouteSettings, changed: boolean): string {
+function formatRoutes(
+  deps: GatewayDeps,
+  settings: TelegramRouteSettings,
+  changed: boolean,
+): string {
   const { router } = deps.telegramRoutes;
-  const lines = [`Connected to Telegram via: ${describeRoute(router.current)}`, '', 'Routes, tried in this order:'];
+  const lines = [
+    `Connected to Telegram via: ${describeRoute(router.current)}`,
+    '',
+    'Routes, tried in this order:',
+  ];
   routesFrom(settings).forEach((root, i) => {
-    lines.push(`${i + 1}. ${describeRoute(root)}${root === router.current ? '  ← in use' : ''}`);
+    lines.push(
+      `${i + 1}. ${describeRoute(root)}${root === router.current ? '  ← in use' : ''}`,
+    );
   });
-  lines.push('', changed ? 'Changed with /relays (/relays reset goes back to the defaults).' : 'These are the defaults.');
+  lines.push(
+    '',
+    changed
+      ? 'Changed with /relays (/relays reset goes back to the defaults).'
+      : 'These are the defaults.',
+  );
   lines.push('', RELAYS_USAGE);
   return lines.join('\n');
 }
@@ -51,8 +77,13 @@ function formatRoutes(deps: GatewayDeps, settings: TelegramRouteSettings, change
  * `/relays [test|add|remove|direct|reset]` — owner-only management of how the bot reaches Telegram
  * (telegram-routes.ts). Changes are saved in the database and applied immediately, no restart.
  */
-export async function relaysCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
-  const [subcommand = '', ...args] = matchText(ctx).split(/\s+/).filter(Boolean);
+export async function relaysCommand(
+  ctx: BotContext,
+  deps: GatewayDeps,
+): Promise<void> {
+  const [subcommand = '', ...args] = matchText(ctx)
+    .split(/\s+/)
+    .filter(Boolean);
   const { settings, changed } = await loadRouteSettings(deps);
 
   switch (subcommand.toLowerCase()) {
@@ -63,7 +94,9 @@ export async function relaysCommand(ctx: BotContext, deps: GatewayDeps): Promise
 
     case 'test': {
       const routes = routesFrom(settings);
-      const results = await Promise.all(routes.map((root) => deps.telegramRoutes.probe(root)));
+      const results = await Promise.all(
+        routes.map((root) => deps.telegramRoutes.probe(root)),
+      );
       const lines = routes.map((root, i) => {
         const result = results[i];
         return `${i + 1}. ${describeRoute(root)} — ${result.ok ? `✅ ${result.ms} ms` : `❌ ${result.error}`}`;
@@ -75,7 +108,9 @@ export async function relaysCommand(ctx: BotContext, deps: GatewayDeps): Promise
     case 'add': {
       const url = args[0] ? normalizeRelayUrl(args[0]) : undefined;
       if (!url) {
-        await ctx.reply('Usage: /relays add <https://url>, e.g. /relays add https://my-relay.deno.dev');
+        await ctx.reply(
+          'Usage: /relays add <https://url>, e.g. /relays add https://my-relay.deno.dev',
+        );
         return;
       }
       if (url === DIRECT_TELEGRAM_ROOT || settings.relays.includes(url)) {
@@ -84,7 +119,9 @@ export async function relaysCommand(ctx: BotContext, deps: GatewayDeps): Promise
       }
       const result = await deps.telegramRoutes.probe(url);
       if (!result.ok) {
-        await ctx.reply(`Couldn't reach Telegram through ${url} (${result.error}). Nothing was changed.`);
+        await ctx.reply(
+          `Couldn't reach Telegram through ${url} (${result.error}). Nothing was changed.`,
+        );
         return;
       }
       const next = { ...settings, relays: [...settings.relays, url] };
@@ -99,16 +136,23 @@ export async function relaysCommand(ctx: BotContext, deps: GatewayDeps): Promise
       const byNumber = /^\d+$/.test(arg) ? routes[Number(arg) - 1] : undefined;
       const target = byNumber ?? normalizeRelayUrl(arg);
       if (!target || !routes.includes(target)) {
-        await ctx.reply('Usage: /relays remove <number or url> — see /relays for the numbers.');
+        await ctx.reply(
+          'Usage: /relays remove <number or url> — see /relays for the numbers.',
+        );
         return;
       }
       if (target === DIRECT_TELEGRAM_ROOT) {
-        await ctx.reply('That\'s direct access — turn it off with /relays direct off.');
+        await ctx.reply(
+          "That's direct access — turn it off with /relays direct off.",
+        );
         return;
       }
-      const next = { ...settings, relays: settings.relays.filter((relay) => relay !== target) };
+      const next = {
+        ...settings,
+        relays: settings.relays.filter((relay) => relay !== target),
+      };
       if (routesFrom(next).length === 0) {
-        await ctx.reply('That\'s the only route left — add another one first.');
+        await ctx.reply("That's the only route left — add another one first.");
         return;
       }
       await saveSettings(ctx, deps, next, { remove: target });
@@ -124,7 +168,9 @@ export async function relaysCommand(ctx: BotContext, deps: GatewayDeps): Promise
       }
       const next = { ...settings, direct: mode === 'on' };
       if (routesFrom(next).length === 0) {
-        await ctx.reply('There are no relays — add one before turning direct access off.');
+        await ctx.reply(
+          'There are no relays — add one before turning direct access off.',
+        );
         return;
       }
       await saveSettings(ctx, deps, next, { direct: next.direct });
@@ -134,7 +180,9 @@ export async function relaysCommand(ctx: BotContext, deps: GatewayDeps): Promise
 
     case 'reset': {
       await deps.adminStore.deleteSetting(ROUTES_SETTING_KEY);
-      deps.telegramRoutes.router.setRoutes(routesFrom(deps.telegramRoutes.defaults));
+      deps.telegramRoutes.router.setRoutes(
+        routesFrom(deps.telegramRoutes.defaults),
+      );
       await deps.adminStore.recordAuditLog({
         actorTelegramId: ctx.admin!.telegramId,
         action: 'relays',

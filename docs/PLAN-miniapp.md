@@ -322,7 +322,7 @@ map/getMapRotation` are implemented) — it would go through the raw `rcon()` pa
   populated by the self-poll PLAN.md §3/§5.7 already runs for ban enforcement. That poll skips
   `status` while there are no active bans, so it would need to run unconditionally, at least
   for snapshots).
-*All of §6.4 was built in M5 (see §0) except where §0 says otherwise; kept as the original reasoning.*
+  _All of §6.4 was built in M5 (see §0) except where §0 says otherwise; kept as the original reasoning._
 
 - **Report queue view**: the `!report` cards report-pipeline already assembles (PLAN.md §5) are
   currently Telegram-message-only, and — checked against the real schema — **nothing persists

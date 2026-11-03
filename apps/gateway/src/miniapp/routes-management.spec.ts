@@ -428,7 +428,9 @@ describe('Mini App management routes', () => {
     });
 
     it('runs only known level commands', async () => {
-      await call('POST', '/servers/default/level', ADMIN, { command: 'rotate' });
+      await call('POST', '/servers/default/level', ADMIN, {
+        command: 'rotate',
+      });
       expect(fake.rcon.levelCommand).toHaveBeenCalledWith('map_rotate');
 
       for (const command of ['quit', 'constructor', '__proto__']) {
