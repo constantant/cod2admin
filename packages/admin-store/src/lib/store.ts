@@ -1,4 +1,18 @@
-import { and, asc, count, desc, eq, gte, ilike, lt, lte, ne, or, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  lt,
+  lte,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import {
@@ -43,7 +57,9 @@ function isUniqueViolation(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) {
     return false;
   }
-  const code = (error as { code?: string }).code ?? (error as { cause?: { code?: string } }).cause?.code;
+  const code =
+    (error as { code?: string }).code ??
+    (error as { cause?: { code?: string } }).cause?.code;
   return code === POSTGRES_UNIQUE_VIOLATION;
 }
 
@@ -88,13 +104,17 @@ export class DrizzleAdminStore implements AdminStore {
   }
 
   async getAdmin(telegramId: number): Promise<Admin | undefined> {
-    const [row] = await this.selectAdmins().where(eq(admins.telegramId, telegramId));
+    const [row] = await this.selectAdmins().where(
+      eq(admins.telegramId, telegramId),
+    );
     return row;
   }
 
   async claimOwner(telegramId: number): Promise<ClaimOwnerResult> {
     try {
-      await this.db.insert(admins).values({ telegramId, role: 'owner', addedBy: null });
+      await this.db
+        .insert(admins)
+        .values({ telegramId, role: 'owner', addedBy: null });
       return 'claimed';
     } catch (error) {
       if (isUniqueViolation(error)) {
@@ -104,7 +124,11 @@ export class DrizzleAdminStore implements AdminStore {
     }
   }
 
-  async addAdmin(telegramId: number, role: AdminRole, addedBy: number): Promise<void> {
+  async addAdmin(
+    telegramId: number,
+    role: AdminRole,
+    addedBy: number,
+  ): Promise<void> {
     await this.db.insert(admins).values({ telegramId, role, addedBy });
   }
 
@@ -113,7 +137,10 @@ export class DrizzleAdminStore implements AdminStore {
   }
 
   async setRole(telegramId: number, role: AdminRole): Promise<void> {
-    await this.db.update(admins).set({ role }).where(eq(admins.telegramId, telegramId));
+    await this.db
+      .update(admins)
+      .set({ role })
+      .where(eq(admins.telegramId, telegramId));
   }
 
   async listAdmins(): Promise<Admin[]> {
@@ -125,7 +152,10 @@ export class DrizzleAdminStore implements AdminStore {
     await this.db
       .insert(telegramUsers)
       .values({ telegramId, username, firstName })
-      .onConflictDoUpdate({ target: telegramUsers.telegramId, set: { username, firstName, updatedAt: new Date() } });
+      .onConflictDoUpdate({
+        target: telegramUsers.telegramId,
+        set: { username, firstName, updatedAt: new Date() },
+      });
   }
 
   async upsertServer(input: UpsertServerInput): Promise<void> {
@@ -153,11 +183,17 @@ export class DrizzleAdminStore implements AdminStore {
   }
 
   async setServerLogPath(alias: string, path: string | null): Promise<void> {
-    await this.db.update(servers).set({ logSourceConfig: path }).where(eq(servers.alias, alias));
+    await this.db
+      .update(servers)
+      .set({ logSourceConfig: path })
+      .where(eq(servers.alias, alias));
   }
 
   async getServer(alias: string): Promise<ServerConfig | undefined> {
-    const [row] = await this.db.select().from(servers).where(eq(servers.alias, alias));
+    const [row] = await this.db
+      .select()
+      .from(servers)
+      .where(eq(servers.alias, alias));
     return row ? this.toServerConfig(row) : undefined;
   }
 
@@ -167,42 +203,66 @@ export class DrizzleAdminStore implements AdminStore {
   }
 
   async bindServerToChat(alias: string, chatId: number): Promise<void> {
-    await this.db.update(servers).set({ boundTelegramChatId: chatId }).where(eq(servers.alias, alias));
+    await this.db
+      .update(servers)
+      .set({ boundTelegramChatId: chatId })
+      .where(eq(servers.alias, alias));
   }
 
   async getServerForChat(chatId: number): Promise<ServerConfig | undefined> {
-    const [row] = await this.db.select().from(servers).where(eq(servers.boundTelegramChatId, chatId));
+    const [row] = await this.db
+      .select()
+      .from(servers)
+      .where(eq(servers.boundTelegramChatId, chatId));
     return row ? this.toServerConfig(row) : undefined;
   }
 
   async removeServer(alias: string): Promise<boolean> {
     return this.db.transaction(async (tx) => {
       await tx.delete(adminServers).where(eq(adminServers.serverAlias, alias));
-      const deleted = await tx.delete(servers).where(eq(servers.alias, alias)).returning({ alias: servers.alias });
+      const deleted = await tx
+        .delete(servers)
+        .where(eq(servers.alias, alias))
+        .returning({ alias: servers.alias });
       return deleted.length > 0;
     });
   }
 
   async setDefaultServer(alias: string): Promise<boolean> {
     return this.db.transaction(async (tx) => {
-      const [row] = await tx.select({ alias: servers.alias }).from(servers).where(eq(servers.alias, alias));
+      const [row] = await tx
+        .select({ alias: servers.alias })
+        .from(servers)
+        .where(eq(servers.alias, alias));
       if (!row) {
         return false;
       }
       // Clear first: servers_one_default_idx allows only one true row at any moment.
-      await tx.update(servers).set({ isDefault: false }).where(eq(servers.isDefault, true));
-      await tx.update(servers).set({ isDefault: true }).where(eq(servers.alias, alias));
+      await tx
+        .update(servers)
+        .set({ isDefault: false })
+        .where(eq(servers.isDefault, true));
+      await tx
+        .update(servers)
+        .set({ isDefault: true })
+        .where(eq(servers.alias, alias));
       return true;
     });
   }
 
   async getDefaultServer(): Promise<ServerConfig | undefined> {
-    const [row] = await this.db.select().from(servers).where(eq(servers.isDefault, true));
+    const [row] = await this.db
+      .select()
+      .from(servers)
+      .where(eq(servers.isDefault, true));
     return row ? this.toServerConfig(row) : undefined;
   }
 
   async getSetting(key: string): Promise<unknown> {
-    const [row] = await this.db.select({ value: settings.value }).from(settings).where(eq(settings.key, key));
+    const [row] = await this.db
+      .select({ value: settings.value })
+      .from(settings)
+      .where(eq(settings.key, key));
     return row?.value;
   }
 
@@ -210,7 +270,10 @@ export class DrizzleAdminStore implements AdminStore {
     await this.db
       .insert(settings)
       .values({ key, value })
-      .onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: new Date() } });
+      .onConflictDoUpdate({
+        target: settings.key,
+        set: { value, updatedAt: new Date() },
+      });
   }
 
   async deleteSetting(key: string): Promise<void> {
@@ -233,9 +296,18 @@ export class DrizzleAdminStore implements AdminStore {
     return this.selectAuditLog().orderBy(desc(auditLog.createdAt)).limit(limit);
   }
 
-  async listAuditLogForTarget(serverAlias: string, targetName: string, limit: number): Promise<AuditLogEntry[]> {
+  async listAuditLogForTarget(
+    serverAlias: string,
+    targetName: string,
+    limit: number,
+  ): Promise<AuditLogEntry[]> {
     return this.selectAuditLog()
-      .where(and(eq(auditLog.serverAlias, serverAlias), ilike(auditLog.target, targetName)))
+      .where(
+        and(
+          eq(auditLog.serverAlias, serverAlias),
+          ilike(auditLog.target, targetName),
+        ),
+      )
       .orderBy(desc(auditLog.createdAt))
       .limit(limit);
   }
@@ -243,11 +315,18 @@ export class DrizzleAdminStore implements AdminStore {
   async searchAuditLog(filter: AuditLogFilter): Promise<AuditLogEntry[]> {
     const conditions: (SQL | undefined)[] = [
       filter.query
-        ? or(ilike(auditLog.target, contains(filter.query)), ilike(auditLog.reason, contains(filter.query)))
+        ? or(
+            ilike(auditLog.target, contains(filter.query)),
+            ilike(auditLog.reason, contains(filter.query)),
+          )
         : undefined,
       filter.action ? eq(auditLog.action, filter.action) : undefined,
-      filter.actorTelegramId === undefined ? undefined : eq(auditLog.actorTelegramId, filter.actorTelegramId),
-      filter.serverAlias ? eq(auditLog.serverAlias, filter.serverAlias) : undefined,
+      filter.actorTelegramId === undefined
+        ? undefined
+        : eq(auditLog.actorTelegramId, filter.actorTelegramId),
+      filter.serverAlias
+        ? eq(auditLog.serverAlias, filter.serverAlias)
+        : undefined,
       filter.source ? eq(auditLog.source, filter.source) : undefined,
       filter.since ? gte(auditLog.createdAt, filter.since) : undefined,
       filter.until ? lte(auditLog.createdAt, filter.until) : undefined,
@@ -260,7 +339,10 @@ export class DrizzleAdminStore implements AdminStore {
   }
 
   async listAuditActions(): Promise<string[]> {
-    const rows = await this.db.selectDistinct({ action: auditLog.action }).from(auditLog).orderBy(asc(auditLog.action));
+    const rows = await this.db
+      .selectDistinct({ action: auditLog.action })
+      .from(auditLog)
+      .orderBy(asc(auditLog.action));
     return rows.map((row) => row.action);
   }
 
@@ -307,7 +389,10 @@ export class DrizzleAdminStore implements AdminStore {
   }
 
   async getReport(id: number): Promise<Report | undefined> {
-    const [row] = await this.db.select().from(reports).where(eq(reports.id, id));
+    const [row] = await this.db
+      .select()
+      .from(reports)
+      .where(eq(reports.id, id));
     return row;
   }
 
@@ -317,23 +402,37 @@ export class DrizzleAdminStore implements AdminStore {
       .from(reports)
       .where(
         and(
-          filter.resolved ? ne(reports.status, 'open') : eq(reports.status, 'open'),
-          filter.serverAlias ? eq(reports.serverAlias, filter.serverAlias) : undefined,
+          filter.resolved
+            ? ne(reports.status, 'open')
+            : eq(reports.status, 'open'),
+          filter.serverAlias
+            ? eq(reports.serverAlias, filter.serverAlias)
+            : undefined,
         ),
       )
-      .orderBy(desc(filter.resolved ? reports.resolvedAt : reports.lastReportedAt), desc(reports.id))
+      .orderBy(
+        desc(filter.resolved ? reports.resolvedAt : reports.lastReportedAt),
+        desc(reports.id),
+      )
       .limit(filter.limit)
       .offset(filter.offset ?? 0);
   }
 
   async countOpenReports(): Promise<number> {
-    const [row] = await this.db.select({ value: count() }).from(reports).where(eq(reports.status, 'open'));
+    const [row] = await this.db
+      .select({ value: count() })
+      .from(reports)
+      .where(eq(reports.status, 'open'));
     return row?.value ?? 0;
   }
 
   async resolveReport(
     id: number,
-    resolution: { status: Exclude<ReportStatus, 'open'>; resolvedBy: number; outcome?: string | null },
+    resolution: {
+      status: Exclude<ReportStatus, 'open'>;
+      resolvedBy: number;
+      outcome?: string | null;
+    },
   ): Promise<Report | undefined> {
     const [row] = await this.db
       .update(reports)
@@ -355,7 +454,10 @@ export class DrizzleAdminStore implements AdminStore {
   }
 
   async getPlayerNote(id: number): Promise<PlayerNote | undefined> {
-    const [row] = await this.db.select().from(playerNotes).where(eq(playerNotes.id, id));
+    const [row] = await this.db
+      .select()
+      .from(playerNotes)
+      .where(eq(playerNotes.id, id));
     return row;
   }
 
@@ -366,7 +468,10 @@ export class DrizzleAdminStore implements AdminStore {
       .where(
         and(
           filter.query
-            ? or(ilike(playerNotes.value, contains(filter.query)), ilike(playerNotes.note, contains(filter.query)))
+            ? or(
+                ilike(playerNotes.value, contains(filter.query)),
+                ilike(playerNotes.note, contains(filter.query)),
+              )
             : undefined,
           filter.watchOnly ? eq(playerNotes.watch, true) : undefined,
         ),
@@ -376,18 +481,29 @@ export class DrizzleAdminStore implements AdminStore {
       .offset(filter.offset ?? 0);
   }
 
-  async findPlayerNotes(identities: { kind: PlayerNoteKind; value: string }[]): Promise<PlayerNote[]> {
+  async findPlayerNotes(
+    identities: { kind: PlayerNoteKind; value: string }[],
+  ): Promise<PlayerNote[]> {
     if (identities.length === 0) {
       return [];
     }
     return this.db
       .select()
       .from(playerNotes)
-      .where(or(...identities.map(({ kind, value }) => and(eq(playerNotes.kind, kind), eq(playerNotes.value, value)))))
+      .where(
+        or(
+          ...identities.map(({ kind, value }) =>
+            and(eq(playerNotes.kind, kind), eq(playerNotes.value, value)),
+          ),
+        ),
+      )
       .orderBy(desc(playerNotes.updatedAt), desc(playerNotes.id));
   }
 
-  async updatePlayerNote(id: number, changes: { note?: string; watch?: boolean }): Promise<PlayerNote | undefined> {
+  async updatePlayerNote(
+    id: number,
+    changes: { note?: string; watch?: boolean },
+  ): Promise<PlayerNote | undefined> {
     const [row] = await this.db
       .update(playerNotes)
       .set({ ...changes, updatedAt: new Date() })
@@ -397,7 +513,10 @@ export class DrizzleAdminStore implements AdminStore {
   }
 
   async deletePlayerNote(id: number): Promise<boolean> {
-    const deleted = await this.db.delete(playerNotes).where(eq(playerNotes.id, id)).returning({ id: playerNotes.id });
+    const deleted = await this.db
+      .delete(playerNotes)
+      .where(eq(playerNotes.id, id))
+      .returning({ id: playerNotes.id });
     return deleted.length > 0;
   }
 
@@ -405,7 +524,10 @@ export class DrizzleAdminStore implements AdminStore {
     await this.db.insert(serverSnapshots).values(input);
   }
 
-  async listServerSnapshots(serverAlias: string, since: Date): Promise<ServerSnapshot[]> {
+  async listServerSnapshots(
+    serverAlias: string,
+    since: Date,
+  ): Promise<ServerSnapshot[]> {
     return this.db
       .select({
         serverAlias: serverSnapshots.serverAlias,
@@ -417,7 +539,12 @@ export class DrizzleAdminStore implements AdminStore {
         gametype: serverSnapshots.gametype,
       })
       .from(serverSnapshots)
-      .where(and(eq(serverSnapshots.serverAlias, serverAlias), gte(serverSnapshots.at, since)))
+      .where(
+        and(
+          eq(serverSnapshots.serverAlias, serverAlias),
+          gte(serverSnapshots.at, since),
+        ),
+      )
       .orderBy(asc(serverSnapshots.at));
   }
 
@@ -441,7 +568,10 @@ export class DrizzleAdminStore implements AdminStore {
     return this.db
       .select(AUDIT_LOG_COLUMNS)
       .from(auditLog)
-      .leftJoin(telegramUsers, eq(telegramUsers.telegramId, auditLog.actorTelegramId))
+      .leftJoin(
+        telegramUsers,
+        eq(telegramUsers.telegramId, auditLog.actorTelegramId),
+      )
       .$dynamic();
   }
 
@@ -458,6 +588,9 @@ export class DrizzleAdminStore implements AdminStore {
   }
 }
 
-export function createAdminStore(connectionString: string, secretsEncryptionKey: string): AdminStore {
+export function createAdminStore(
+  connectionString: string,
+  secretsEncryptionKey: string,
+): AdminStore {
   return new DrizzleAdminStore(connectionString, secretsEncryptionKey);
 }

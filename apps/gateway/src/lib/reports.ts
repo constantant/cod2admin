@@ -18,14 +18,24 @@ import {
 } from '@cod2admin/report-pipeline';
 import type { RconClient } from '@cod2admin/rcon-client';
 import { Bot, InlineKeyboard } from 'grammy';
-import { executeModerationAction, ModerationActionError } from './moderation-actions.js';
+import {
+  executeModerationAction,
+  ModerationActionError,
+} from './moderation-actions.js';
 import type { ReportQueue } from './report-queue.js';
 import { formatTelegramUser } from './telegram-user.js';
 
 const CALLBACK_PREFIX = 'report:';
-const ROLE_RANK: Record<AdminRole, number> = { moderator: 1, admin: 2, owner: 3 };
+const ROLE_RANK: Record<AdminRole, number> = {
+  moderator: 1,
+  admin: 2,
+  owner: 3,
+};
 
-function encodeCallbackData(reportId: string, action: ReportCardAction): string {
+function encodeCallbackData(
+  reportId: string,
+  action: ReportCardAction,
+): string {
   if (action.kind === 'select') {
     return `${CALLBACK_PREFIX}${reportId}:select:${action.candidateNum}`;
   }
@@ -37,7 +47,13 @@ interface DecodedCallback {
   action: ReportCardAction;
 }
 
-const SIMPLE_ACTION_KINDS = new Set(['kick', 'tempban', 'ban', 'ignore', 'more-info']);
+const SIMPLE_ACTION_KINDS = new Set([
+  'kick',
+  'tempban',
+  'ban',
+  'ignore',
+  'more-info',
+]);
 
 /** The inverse of `encodeCallbackData` — returns null for anything not shaped like ours. */
 export function decodeCallbackData(data: string): DecodedCallback | null {
@@ -50,15 +66,23 @@ export function decodeCallbackData(data: string): DecodedCallback | null {
   }
   if (kind === 'select') {
     const candidateNum = Number.parseInt(extra, 10);
-    return Number.isNaN(candidateNum) ? null : { reportId, action: { kind: 'select', candidateNum } };
+    return Number.isNaN(candidateNum)
+      ? null
+      : { reportId, action: { kind: 'select', candidateNum } };
   }
   if (SIMPLE_ACTION_KINDS.has(kind)) {
-    return { reportId, action: { kind: kind as Exclude<ReportCardAction['kind'], 'select'> } };
+    return {
+      reportId,
+      action: { kind: kind as Exclude<ReportCardAction['kind'], 'select'> },
+    };
   }
   return null;
 }
 
-function buildInlineKeyboard(buttons: ReportCardButton[][], reportId: string): InlineKeyboard {
+function buildInlineKeyboard(
+  buttons: ReportCardButton[][],
+  reportId: string,
+): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   buttons.forEach((row, rowIndex) => {
     for (const button of row) {
@@ -130,7 +154,9 @@ export class GatewayCardSender implements CardSender<string> {
   async send(chatId: number, card: ReportCard): Promise<string> {
     const id = this.registry.reserveId();
     const keyboard = buildInlineKeyboard(card.buttons, id);
-    const message = await this.bot.api.sendMessage(chatId, card.text, { reply_markup: keyboard });
+    const message = await this.bot.api.sendMessage(chatId, card.text, {
+      reply_markup: keyboard,
+    });
     this.registry.set(id, {
       chatId,
       messageId: message.message_id,
@@ -149,10 +175,18 @@ export class GatewayCardSender implements CardSender<string> {
     entry.detailText = card.detailText;
     const keyboard = buildInlineKeyboard(card.buttons, existing);
     try {
-      await this.bot.api.editMessageText(entry.chatId, entry.messageId, card.text, { reply_markup: keyboard });
+      await this.bot.api.editMessageText(
+        entry.chatId,
+        entry.messageId,
+        card.text,
+        { reply_markup: keyboard },
+      );
     } catch (error) {
       // Telegram rejects a byte-identical edit (see status.ts's identical handling) - not an error.
-      if (!(error instanceof Error) || !error.message.includes('message is not modified')) {
+      if (
+        !(error instanceof Error) ||
+        !error.message.includes('message is not modified')
+      ) {
         throw error;
       }
     }
@@ -182,7 +216,12 @@ export async function handleReportTrigger(
   trigger: ReportTrigger,
   options: HandleReportTriggerOptions,
 ): Promise<ProcessReportTriggerOutcome<string>> {
-  const cardSender = new GatewayCardSender(options.bot, options.registry, options.serverAlias, trigger);
+  const cardSender = new GatewayCardSender(
+    options.bot,
+    options.registry,
+    options.serverAlias,
+    trigger,
+  );
   const outcome = await processReportTrigger(trigger, {
     rcon: options.rcon,
     sessions: options.sessions,
@@ -210,7 +249,11 @@ export async function handleReportTrigger(
 export async function closeReportCard(
   queueId: number,
   text: string,
-  deps: { bot: Bot; registry: ReportRegistry; antiSpam: ReportAntiSpam<string> },
+  deps: {
+    bot: Bot;
+    registry: ReportRegistry;
+    antiSpam: ReportAntiSpam<string>;
+  },
 ): Promise<void> {
   const found = deps.registry.findByQueueId(queueId);
   if (!found) {
@@ -225,10 +268,18 @@ export async function closeReportCard(
 /** Structural subset of grammy's callback-query `Context` (mirrors `BotContext`'s own approach). */
 export interface ReportCallbackContext {
   from?: { id: number };
-  admin?: { telegramId: number; role: AdminRole; username?: string; firstName?: string };
+  admin?: {
+    telegramId: number;
+    role: AdminRole;
+    username?: string;
+    firstName?: string;
+  };
   callbackData: string;
   editMessageText(text: string, other?: unknown): Promise<unknown>;
-  answerCallbackQuery(other?: { text?: string; show_alert?: boolean }): Promise<unknown>;
+  answerCallbackQuery(other?: {
+    text?: string;
+    show_alert?: boolean;
+  }): Promise<unknown>;
 }
 
 export interface ReportCallbackDeps {
@@ -248,14 +299,20 @@ export interface ReportCallbackDeps {
 async function closeQueuedReport(
   deps: ReportCallbackDeps,
   entry: PendingReport,
-  resolution: { status: 'handled' | 'ignored'; resolvedBy: number; outcome: string },
+  resolution: {
+    status: 'handled' | 'ignored';
+    resolvedBy: number;
+    outcome: string;
+  },
 ): Promise<void> {
   if (entry.queueId === undefined) {
     return;
   }
-  await deps.reportQueue?.resolve(entry.queueId, resolution).catch((error: unknown) => {
-    console.error(`Failed to close saved report ${entry.queueId}:`, error);
-  });
+  await deps.reportQueue
+    ?.resolve(entry.queueId, resolution)
+    .catch((error: unknown) => {
+      console.error(`Failed to close saved report ${entry.queueId}:`, error);
+    });
 }
 
 function requiresAdmin(action: ReportCardAction): boolean {
@@ -268,7 +325,10 @@ function requiresAdmin(action: ReportCardAction): boolean {
  * resolved state → audit log (inside `executeModerationAction`) → clear anti-spam tracking for
  * `ignore`/a completed action, so a later report against the same target gets a fresh card.
  */
-export async function reportActionCallback(ctx: ReportCallbackContext, deps: ReportCallbackDeps): Promise<void> {
+export async function reportActionCallback(
+  ctx: ReportCallbackContext,
+  deps: ReportCallbackDeps,
+): Promise<void> {
   const decoded = decodeCallbackData(ctx.callbackData);
   if (!decoded) {
     await ctx.answerCallbackQuery({ text: 'Unrecognized action.' });
@@ -277,7 +337,10 @@ export async function reportActionCallback(ctx: ReportCallbackContext, deps: Rep
 
   const entry = deps.registry.get(decoded.reportId);
   if (!entry) {
-    await ctx.answerCallbackQuery({ text: 'This report card has expired (gateway restarted).', show_alert: true });
+    await ctx.answerCallbackQuery({
+      text: 'This report card has expired (gateway restarted).',
+      show_alert: true,
+    });
     return;
   }
 
@@ -286,8 +349,14 @@ export async function reportActionCallback(ctx: ReportCallbackContext, deps: Rep
     await ctx.answerCallbackQuery({ text: 'Not authorized.' });
     return;
   }
-  if (requiresAdmin(decoded.action) && ROLE_RANK[admin.role] < ROLE_RANK['admin']) {
-    await ctx.answerCallbackQuery({ text: 'Admin role required for Ban.', show_alert: true });
+  if (
+    requiresAdmin(decoded.action) &&
+    ROLE_RANK[admin.role] < ROLE_RANK['admin']
+  ) {
+    await ctx.answerCallbackQuery({
+      text: 'Admin role required for Ban.',
+      show_alert: true,
+    });
     return;
   }
 
@@ -298,15 +367,24 @@ export async function reportActionCallback(ctx: ReportCallbackContext, deps: Rep
   }
 
   if (decoded.action.kind === 'more-info') {
-    await ctx.answerCallbackQuery({ text: entry.detailText ?? 'No additional detail available.', show_alert: true });
+    await ctx.answerCallbackQuery({
+      text: entry.detailText ?? 'No additional detail available.',
+      show_alert: true,
+    });
     return;
   }
 
   if (decoded.action.kind === 'ignore') {
-    await ctx.editMessageText(`${entry.trigger.targetName}'s report was ignored by admin ${formatTelegramUser(admin.telegramId, admin.username, admin.firstName)}.`);
+    await ctx.editMessageText(
+      `${entry.trigger.targetName}'s report was ignored by admin ${formatTelegramUser(admin.telegramId, admin.username, admin.firstName)}.`,
+    );
     deps.antiSpam.resolve(entry.trigger.chat.num, entry.trigger.targetName);
     deps.registry.delete(decoded.reportId);
-    await closeQueuedReport(deps, entry, { status: 'ignored', resolvedBy: admin.telegramId, outcome: 'Ignored' });
+    await closeQueuedReport(deps, entry, {
+      status: 'ignored',
+      resolvedBy: admin.telegramId,
+      outcome: 'Ignored',
+    });
     await ctx.answerCallbackQuery();
     return;
   }
@@ -316,10 +394,15 @@ export async function reportActionCallback(ctx: ReportCallbackContext, deps: Rep
     const { players } = await rcon.status();
     const candidate = players.find((player) => player.num === candidateNum);
     if (!candidate) {
-      await ctx.answerCallbackQuery({ text: 'That player is no longer connected.', show_alert: true });
+      await ctx.answerCallbackQuery({
+        text: 'That player is no longer connected.',
+        show_alert: true,
+      });
       return;
     }
-    const sessions = deps.sessionsByServer.get(entry.serverAlias) ?? { getSession: () => undefined };
+    const sessions = deps.sessionsByServer.get(entry.serverAlias) ?? {
+      getSession: () => undefined,
+    };
     const resolution = { kind: 'resolved' as const, player: candidate };
     const enriched = await enrichReport(resolution, entry.trigger, {
       sessions,
@@ -329,7 +412,12 @@ export async function reportActionCallback(ctx: ReportCallbackContext, deps: Rep
       describeIp: deps.describeIp,
     });
     const card = buildReportCard(enriched, entry.trigger);
-    const cardSender = new GatewayCardSender(deps.bot, deps.registry, entry.serverAlias, entry.trigger);
+    const cardSender = new GatewayCardSender(
+      deps.bot,
+      deps.registry,
+      entry.serverAlias,
+      entry.trigger,
+    );
     await cardSender.update(decoded.reportId, card);
     entry.context = deriveReportActionContext(resolution, entry.serverAlias);
     await ctx.answerCallbackQuery();
@@ -339,13 +427,21 @@ export async function reportActionCallback(ctx: ReportCallbackContext, deps: Rep
   // kick / tempban / ban
   const context = entry.context;
   if (!context) {
-    await ctx.answerCallbackQuery({ text: 'No resolved target to act on.', show_alert: true });
+    await ctx.answerCallbackQuery({
+      text: 'No resolved target to act on.',
+      show_alert: true,
+    });
     return;
   }
   try {
     const result = await executeModerationAction(
       decoded.action.kind,
-      { num: context.targetNum, name: context.targetName, guid: context.targetGuid, ip: context.targetIp },
+      {
+        num: context.targetNum,
+        name: context.targetName,
+        guid: context.targetGuid,
+        ip: context.targetIp,
+      },
       {
         serverAlias: entry.serverAlias,
         rcon,
@@ -361,7 +457,11 @@ export async function reportActionCallback(ctx: ReportCallbackContext, deps: Rep
     );
     deps.antiSpam.resolve(entry.trigger.chat.num, entry.trigger.targetName);
     deps.registry.delete(decoded.reportId);
-    await closeQueuedReport(deps, entry, { status: 'handled', resolvedBy: admin.telegramId, outcome: result.label });
+    await closeQueuedReport(deps, entry, {
+      status: 'handled',
+      resolvedBy: admin.telegramId,
+      outcome: result.label,
+    });
     await ctx.answerCallbackQuery();
   } catch (error) {
     if (error instanceof ModerationActionError) {

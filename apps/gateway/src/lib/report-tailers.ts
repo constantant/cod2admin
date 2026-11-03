@@ -80,7 +80,8 @@ export function startReportTailer(
   /** The card; `undefined` when no chat is bound, so the report only goes to the Mini App's queue. */
   const sendCard = async (trigger: ReportTrigger) => {
     // Looked up per report: /bindserver and /addserver can change these while the bot runs.
-    const chatId = (await deps.adminStore.getServer(alias))?.boundTelegramChatId;
+    const chatId = (await deps.adminStore.getServer(alias))
+      ?.boundTelegramChatId;
     const rcon = deps.rconClients.get(alias);
     if (!rcon) {
       return { kind: 'cooldown' as const, retryAfterMs: 0 };

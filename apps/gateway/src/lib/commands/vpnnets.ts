@@ -1,6 +1,11 @@
 import { matchText, type BotContext } from '../bot-context.js';
 import type { GatewayDeps } from '../deps.js';
-import { NO_VPN_LOOKUP, parseVpnNetworks, VPN_NETWORKS_SETTING_KEY, type VpnNetwork } from '../vpn-ranges.js';
+import {
+  NO_VPN_LOOKUP,
+  parseVpnNetworks,
+  VPN_NETWORKS_SETTING_KEY,
+  type VpnNetwork,
+} from '../vpn-ranges.js';
 
 export const VPNNETS_USAGE = [
   '/vpnnets — provider networks shown as 🛡 VPN',
@@ -14,22 +19,34 @@ const IPV4_PATTERN = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
 export function parseAsn(text: string): number | undefined {
   const match = /^(?:AS)?(\d{1,10})$/i.exec(text);
   const asn = match ? Number(match[1]) : NaN;
-  return Number.isSafeInteger(asn) && asn > 0 && asn <= 0xffffffff ? asn : undefined;
+  return Number.isSafeInteger(asn) && asn > 0 && asn <= 0xffffffff
+    ? asn
+    : undefined;
 }
 
 function formatNetwork(network: VpnNetwork): string {
-  return network.name ? `AS${network.asn} — ${network.name}` : `AS${network.asn}`;
+  return network.name
+    ? `AS${network.asn} — ${network.name}`
+    : `AS${network.asn}`;
 }
 
 function formatList(networks: VpnNetwork[]): string {
   const lines =
     networks.length === 0
       ? ['No provider networks are marked as VPN.']
-      : ['Provider networks shown as 🛡 VPN:', ...networks.map((network) => `• ${formatNetwork(network)}`)];
+      : [
+          'Provider networks shown as 🛡 VPN:',
+          ...networks.map((network) => `• ${formatNetwork(network)}`),
+        ];
   return [...lines, '', VPNNETS_USAGE].join('\n');
 }
 
-async function save(ctx: BotContext, deps: GatewayDeps, networks: VpnNetwork[], detail: unknown): Promise<void> {
+async function save(
+  ctx: BotContext,
+  deps: GatewayDeps,
+  networks: VpnNetwork[],
+  detail: unknown,
+): Promise<void> {
   await deps.adminStore.setSetting(VPN_NETWORKS_SETTING_KEY, networks);
   deps.vpn.setNetworks(networks.map((network) => network.asn));
   await deps.adminStore.recordAuditLog({
@@ -45,10 +62,20 @@ async function save(ctx: BotContext, deps: GatewayDeps, networks: VpnNetwork[], 
  * `/vpnnets [add|remove]` — whole provider networks (ASNs) that `/players` and report cards mark as
  * VPN, for VPNs the downloaded lists miss (vpn-ranges.ts). Saved in the database, applied at once.
  */
-export async function vpnNetsCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
-  const [subcommand = '', arg = ''] = matchText(ctx).split(/\s+/).filter(Boolean);
-  const networks = parseVpnNetworks(await deps.adminStore.getSetting(VPN_NETWORKS_SETTING_KEY));
-  const offNote = deps.vpn === NO_VPN_LOOKUP ? '\n\nNote: VPN flags are turned off on this bot (VPN_FLAG_ENABLED=false).' : '';
+export async function vpnNetsCommand(
+  ctx: BotContext,
+  deps: GatewayDeps,
+): Promise<void> {
+  const [subcommand = '', arg = ''] = matchText(ctx)
+    .split(/\s+/)
+    .filter(Boolean);
+  const networks = parseVpnNetworks(
+    await deps.adminStore.getSetting(VPN_NETWORKS_SETTING_KEY),
+  );
+  const offNote =
+    deps.vpn === NO_VPN_LOOKUP
+      ? '\n\nNote: VPN flags are turned off on this bot (VPN_FLAG_ENABLED=false).'
+      : '';
 
   switch (subcommand.toLowerCase()) {
     case '': {
@@ -61,7 +88,9 @@ export async function vpnNetsCommand(ctx: BotContext, deps: GatewayDeps): Promis
       if (IPV4_PATTERN.test(arg)) {
         const asn = deps.provider.asn(arg);
         if (asn === undefined) {
-          await ctx.reply(`Couldn't find the provider network for ${arg}. Add it by ASN instead, e.g. /vpnnets add AS202226.`);
+          await ctx.reply(
+            `Couldn't find the provider network for ${arg}. Add it by ASN instead, e.g. /vpnnets add AS202226.`,
+          );
           return;
         }
         const name = deps.provider.lookup(arg);
@@ -80,14 +109,21 @@ export async function vpnNetsCommand(ctx: BotContext, deps: GatewayDeps): Promis
         return;
       }
       await save(ctx, deps, [...networks, added], { add: added.asn });
-      await ctx.reply(`Players on ${formatNetwork(added)} are now shown as 🛡 VPN.${offNote}`);
+      await ctx.reply(
+        `Players on ${formatNetwork(added)} are now shown as 🛡 VPN.${offNote}`,
+      );
       return;
     }
 
     case 'remove': {
       const asn = parseAsn(arg);
-      if (asn === undefined || !networks.some((network) => network.asn === asn)) {
-        await ctx.reply('Usage: /vpnnets remove <ASN> — see /vpnnets for the list.');
+      if (
+        asn === undefined ||
+        !networks.some((network) => network.asn === asn)
+      ) {
+        await ctx.reply(
+          'Usage: /vpnnets remove <ASN> — see /vpnnets for the list.',
+        );
         return;
       }
       await save(

@@ -151,7 +151,9 @@ export const reports = pgTable(
     /** What was done, e.g. `Kicked`. */
     outcome: text('outcome'),
   },
-  (table) => [index('reports_status_idx').on(table.status, table.lastReportedAt)],
+  (table) => [
+    index('reports_status_idx').on(table.status, table.lastReportedAt),
+  ],
 );
 
 /**
@@ -191,5 +193,7 @@ export const serverSnapshots = pgTable(
     map: text('map'),
     gametype: text('gametype'),
   },
-  (table) => [index('server_snapshots_alias_at_idx').on(table.serverAlias, table.at)],
+  (table) => [
+    index('server_snapshots_alias_at_idx').on(table.serverAlias, table.at),
+  ],
 );

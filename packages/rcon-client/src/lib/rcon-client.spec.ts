@@ -472,7 +472,11 @@ describe('RconClient', () => {
         payloads.push(payload);
         respond('print\nOK\n');
       });
-      const client = new RconClient({ host: '127.0.0.1', port: peer.port, password: 'secret' });
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'secret',
+      });
 
       await expect(client.levelCommand('fast_restart')).resolves.toBe(true);
       await client.setCvar('sv_hostname', 'My "server"');

@@ -36,7 +36,10 @@ function decodeCallbackData(data: string): DecodedCallback | null {
   return { id, action };
 }
 
-export function formatConfirmMessage(release: GithubRelease, runningVersion: string): string {
+export function formatConfirmMessage(
+  release: GithubRelease,
+  runningVersion: string,
+): string {
   return [
     `Update to ${release.tagName}? Currently running ${runningVersion}.`,
     '',
@@ -49,9 +52,14 @@ export function formatConfirmMessage(release: GithubRelease, runningVersion: str
  * than trusting the version-check poller's last result — it may be stale, or nobody may have
  * hit the notification yet.
  */
-export async function updateCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
+export async function updateCommand(
+  ctx: BotContext,
+  deps: GatewayDeps,
+): Promise<void> {
   if (!deps.updateConfig) {
-    await ctx.reply("Self-update isn't available on this install — re-run install.sh to enable it.");
+    await ctx.reply(
+      "Self-update isn't available on this install — re-run install.sh to enable it.",
+    );
     return;
   }
 
@@ -67,7 +75,9 @@ export async function updateCommand(ctx: BotContext, deps: GatewayDeps): Promise
   const keyboard = new InlineKeyboard()
     .text('Update', encodeCallbackData(id, 'confirm'))
     .text('Cancel', encodeCallbackData(id, 'cancel'));
-  await ctx.reply(formatConfirmMessage(release, runningVersion), { reply_markup: keyboard });
+  await ctx.reply(formatConfirmMessage(release, runningVersion), {
+    reply_markup: keyboard,
+  });
 }
 
 /** Structural subset of grammy's callback-query `Context` — same approach as `reports.ts`'s `ReportCallbackContext`. */
@@ -77,7 +87,10 @@ export interface UpdateCallbackContext {
   admin?: { telegramId: number; role: AdminRole };
   callbackData: string;
   editMessageText(text: string, other?: unknown): Promise<unknown>;
-  answerCallbackQuery(other?: { text?: string; show_alert?: boolean }): Promise<unknown>;
+  answerCallbackQuery(other?: {
+    text?: string;
+    show_alert?: boolean;
+  }): Promise<unknown>;
 }
 
 /**
@@ -88,9 +101,15 @@ export interface UpdateCallbackContext {
  * the action, then fires `apply-update.sh` and returns without waiting for it — see
  * `update-apply.ts`'s `runApplyUpdate` doc comment for why it can't be awaited to completion.
  */
-export async function updateActionCallback(ctx: UpdateCallbackContext, deps: GatewayDeps): Promise<void> {
+export async function updateActionCallback(
+  ctx: UpdateCallbackContext,
+  deps: GatewayDeps,
+): Promise<void> {
   if (!deps.updateConfig) {
-    await ctx.answerCallbackQuery({ text: "Self-update isn't available on this install.", show_alert: true });
+    await ctx.answerCallbackQuery({
+      text: "Self-update isn't available on this install.",
+      show_alert: true,
+    });
     return;
   }
   const decoded = decodeCallbackData(ctx.callbackData);
@@ -100,7 +119,10 @@ export async function updateActionCallback(ctx: UpdateCallbackContext, deps: Gat
   }
   const pending = deps.updateRegistry.get(decoded.id);
   if (!pending) {
-    await ctx.answerCallbackQuery({ text: 'This update card has expired (gateway restarted).', show_alert: true });
+    await ctx.answerCallbackQuery({
+      text: 'This update card has expired (gateway restarted).',
+      show_alert: true,
+    });
     return;
   }
 
@@ -117,7 +139,10 @@ export async function updateActionCallback(ctx: UpdateCallbackContext, deps: Gat
   const admin = ctx.admin;
   const chatId = ctx.chat?.id;
   if (!admin || chatId === undefined) {
-    await ctx.answerCallbackQuery({ text: 'Could not determine who/where to update for.', show_alert: true });
+    await ctx.answerCallbackQuery({
+      text: 'Could not determine who/where to update for.',
+      show_alert: true,
+    });
     return;
   }
 
@@ -135,10 +160,15 @@ export async function updateActionCallback(ctx: UpdateCallbackContext, deps: Gat
     action: 'update',
     target: release.tagName,
     source: 'telegram_command',
-    detailJson: { tagName: release.tagName, assetName: release.gatewayAsset.name },
+    detailJson: {
+      tagName: release.tagName,
+      assetName: release.gatewayAsset.name,
+    },
   });
 
-  await ctx.editMessageText(`Applying update to ${release.tagName}… the bot will restart shortly.`);
+  await ctx.editMessageText(
+    `Applying update to ${release.tagName}… the bot will restart shortly.`,
+  );
   runApplyUpdate(deps.updateConfig.applyUpdateScriptPath, staged.tarballPath, {
     onProblem: (problem) => {
       void reportApplyProblem(ctx, problem, {
@@ -152,7 +182,8 @@ export async function updateActionCallback(ctx: UpdateCallbackContext, deps: Gat
 }
 
 export type StagedRelease =
-  { ok: true; tarballPath: string; markerPath: string } | { ok: false; message: string };
+  | { ok: true; tarballPath: string; markerPath: string }
+  | { ok: false; message: string };
 
 /**
  * Downloads a release, verifies its checksum *before* writing anything `apply-update.sh` would act
@@ -176,14 +207,20 @@ export async function stageRelease(
     };
   }
   if (!(await verifyChecksum(tarballPath, checksumPath))) {
-    await Promise.all([rm(tarballPath, { force: true }), rm(checksumPath, { force: true })]);
+    await Promise.all([
+      rm(tarballPath, { force: true }),
+      rm(checksumPath, { force: true }),
+    ]);
     return {
       ok: false,
       message: `Checksum verification failed for ${release.tagName} — aborting, nothing was applied.`,
     };
   }
   const markerPath = path.join(config.stagingDir, 'pending-update.env');
-  await writeFile(markerPath, `CHAT_ID=${chatId}\nVERSION=${release.tagName}\n`);
+  await writeFile(
+    markerPath,
+    `CHAT_ID=${chatId}\nVERSION=${release.tagName}\n`,
+  );
   return { ok: true, tarballPath, markerPath };
 }
 

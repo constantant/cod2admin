@@ -69,13 +69,25 @@ export function sampleReport(overrides: Partial<Report> = {}): Report {
 
 /** Convenience for tests that just need to simulate "this actor is already an admin". */
 export function sampleAdmin(overrides: Partial<Admin> = {}): Admin {
-  return { telegramId: 1, role: 'owner', addedBy: null, addedAt: new Date(), username: null, firstName: null, ...overrides };
+  return {
+    telegramId: 1,
+    role: 'owner',
+    addedBy: null,
+    addedAt: new Date(),
+    username: null,
+    firstName: null,
+    ...overrides,
+  };
 }
 
-export function createFakeAdminStore(overrides: Partial<{ admins: Admin[] }> = {}): FakeAdminStore {
+export function createFakeAdminStore(
+  overrides: Partial<{ admins: Admin[] }> = {},
+): FakeAdminStore {
   const admins = overrides.admins ?? [];
   return {
-    getAdmin: vi.fn(async (telegramId: number) => admins.find((admin) => admin.telegramId === telegramId)),
+    getAdmin: vi.fn(async (telegramId: number) =>
+      admins.find((admin) => admin.telegramId === telegramId),
+    ),
     claimOwner: vi.fn().mockResolvedValue('claimed'),
     addAdmin: vi.fn().mockResolvedValue(undefined),
     removeAdmin: vi.fn().mockResolvedValue(undefined),

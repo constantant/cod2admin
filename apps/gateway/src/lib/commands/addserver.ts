@@ -1,4 +1,8 @@
-import { UdpQueryTimeoutError, type RconClient, type ServerStatus } from '@cod2admin/rcon-client';
+import {
+  UdpQueryTimeoutError,
+  type RconClient,
+  type ServerStatus,
+} from '@cod2admin/rcon-client';
 import { matchText, type BotContext } from '../bot-context.js';
 import type { GatewayDeps } from '../deps.js';
 
@@ -57,7 +61,9 @@ async function deleteCommandMessage(ctx: BotContext): Promise<boolean> {
 export async function checkServer(
   deps: Pick<GatewayDeps, 'createRconClient'>,
   server: { host: string; port: number; password: string },
-): Promise<{ rcon: RconClient; status: ServerStatus } | 'no-answer' | 'bad-password'> {
+): Promise<
+  { rcon: RconClient; status: ServerStatus } | 'no-answer' | 'bad-password'
+> {
   const rcon = deps.createRconClient(server);
   let status: ServerStatus;
   try {
@@ -68,7 +74,9 @@ export async function checkServer(
     }
     throw error;
   }
-  return BAD_PASSWORD_PATTERN.test(status.raw) ? 'bad-password' : { rcon, status };
+  return BAD_PASSWORD_PATTERN.test(status.raw)
+    ? 'bad-password'
+    : { rcon, status };
 }
 
 /**
@@ -88,7 +96,10 @@ export async function saveCheckedServer(
     rconPassword: server.password,
   });
   deps.rconClients.set(server.alias, rcon);
-  if (!(await deps.adminStore.getDefaultServer()) && deps.rconClients.has(deps.bootstrapServerAlias)) {
+  if (
+    !(await deps.adminStore.getDefaultServer()) &&
+    deps.rconClients.has(deps.bootstrapServerAlias)
+  ) {
     await deps.adminStore.setDefaultServer(deps.bootstrapServerAlias);
     return true;
   }
@@ -105,7 +116,10 @@ function describeStatus(status: ServerStatus): string {
  * the live server before saving anything, then makes the server usable immediately (no restart).
  * Re-running it for an alias it added before updates that server (e.g. after a password change).
  */
-export async function addServerCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
+export async function addServerCommand(
+  ctx: BotContext,
+  deps: GatewayDeps,
+): Promise<void> {
   const text = matchText(ctx);
 
   if (ctx.chat?.type && ctx.chat.type !== 'private') {
@@ -115,7 +129,7 @@ export async function addServerCommand(ctx: BotContext, deps: GatewayDeps): Prom
         (text
           ? deleted
             ? ' I deleted your message here, but others may have seen it — consider changing that password.'
-            : ' I couldn\'t delete your message here — please delete it yourself, and consider changing that password.'
+            : " I couldn't delete your message here — please delete it yourself, and consider changing that password."
           : ''),
     );
     return;
@@ -134,7 +148,7 @@ export async function addServerCommand(ctx: BotContext, deps: GatewayDeps): Prom
   if (alias === deps.bootstrapServerAlias) {
     await ctx.reply(
       `"${alias}" comes from the bot's config file, so it can't be changed here. ` +
-        'Pick another alias, or change it with install.sh --config on the bot\'s host.',
+        "Pick another alias, or change it with install.sh --config on the bot's host.",
     );
     return;
   }
@@ -148,13 +162,19 @@ export async function addServerCommand(ctx: BotContext, deps: GatewayDeps): Prom
     return;
   }
   if (checked === 'bad-password') {
-    await ctx.reply(`${host}:${port} answered, but rejected the RCON password. Nothing was saved.`);
+    await ctx.reply(
+      `${host}:${port} answered, but rejected the RCON password. Nothing was saved.`,
+    );
     return;
   }
   const { rcon, status } = checked;
 
   const existed = deps.rconClients.has(alias);
-  const defaultSet = await saveCheckedServer(deps, { alias, host, port, password }, rcon);
+  const defaultSet = await saveCheckedServer(
+    deps,
+    { alias, host, port, password },
+    rcon,
+  );
   const defaultNote = defaultSet
     ? `\nCommands without --server still go to "${deps.bootstrapServerAlias}" — change that with /setdefault.`
     : '';

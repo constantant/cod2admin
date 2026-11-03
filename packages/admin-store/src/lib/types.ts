@@ -244,7 +244,10 @@ export interface AdminStore {
 
   recordServerSnapshot(input: RecordSnapshotInput): Promise<void>;
   /** Oldest first. */
-  listServerSnapshots(serverAlias: string, since: Date): Promise<ServerSnapshot[]>;
+  listServerSnapshots(
+    serverAlias: string,
+    since: Date,
+  ): Promise<ServerSnapshot[]>;
   /** Deletes every snapshot older than `before`, on all servers. */
   pruneServerSnapshots(before: Date): Promise<void>;
 
