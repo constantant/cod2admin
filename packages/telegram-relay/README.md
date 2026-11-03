@@ -42,7 +42,8 @@ since 2025. The bot works around that (a fresh connection per request, small upd
 but Deno avoids the problem entirely.
 
 The bot's owner can change the relay list from Telegram with `/relays`, including removing
-the shared relays.
+the shared relays. [`docs/add-relays-ru.md`](../../docs/add-relays-ru.md) is the step-by-step
+guide, in Russian, to deploying more relays and adding them this way.
 
 ## Deploying your own
 
