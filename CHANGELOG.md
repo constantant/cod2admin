@@ -1,3 +1,20 @@
+## [1.16.0](https://github.com/constantant/cod2admin/releases/tag/v1.16.0) (2026-11-03)
+
+### 🚀 Features
+
+- **miniapp-web:** add dashboard, report queue, notes and chat-command parity ([a460d48](https://github.com/constantant/cod2admin/commit/a460d48))
+- **miniapp-web:** add a Russian interface ([f115fc9](https://github.com/constantant/cod2admin/commit/f115fc9))
+
+### 🩹 Fixes
+
+- **gateway:** stop admins changing the owner with /removeadmin and /setrole ([c208c17](https://github.com/constantant/cod2admin/commit/c208c17))
+- **gateway:** work out what a silent level command did ([eec6481](https://github.com/constantant/cod2admin/commit/eec6481))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5
+- kk
+
 ## [1.15.3](https://github.com/constantant/cod2admin/releases/tag/v1.15.3) (2026-11-03)
 
 ### 🩹 Fixes

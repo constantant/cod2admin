@@ -1,6 +1,6 @@
 {
   "name": "@org/source",
-  "version": "1.15.3",
+  "version": "1.16.0",
   "license": "MIT",
   "scripts": {
     "prepare": "husky",
