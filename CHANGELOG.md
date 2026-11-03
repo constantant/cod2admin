@@ -1,3 +1,14 @@
+## [1.15.3](https://github.com/constantant/cod2admin/releases/tag/v1.15.3) (2026-11-03)
+
+### 🩹 Fixes
+
+- **gateway:** make /update report every outcome, also over a relay ([0f1aa2b](https://github.com/constantant/cod2admin/commit/0f1aa2b))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5
+- kk
+
 ## [1.15.2](https://github.com/constantant/cod2admin/releases/tag/v1.15.2) (2026-11-03)
 
 ### 🩹 Fixes
