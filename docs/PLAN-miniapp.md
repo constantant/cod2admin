@@ -84,8 +84,9 @@ Local verification used a harness running the Mini App server with real Postgres
 
 **Decided while building M5:**
 
-- Managing admins is **tighter than the chat commands**: an admin manages moderators only, and nobody
-  changes the owner or themselves. `/removeadmin` and `/setrole` in chat don't have these checks yet.
+- Managing admins: an admin manages moderators only, and nobody changes the owner or themselves.
+  One rule (`lib/admin-rules.ts`) for the app and for `/removeadmin` and `/setrole`, which had no such
+  check until now: any admin could remove or demote the owner.
 - A rotation is read back after it's set; if the server didn't take all of it, the old one goes back.
   It lives in a cvar, so a server restart undoes it, and the UI says so.
 - `levelCommand` reports "sent, no answer" rather than success or failure: a loading server often

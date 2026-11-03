@@ -1,3 +1,4 @@
+import { cannotManageReason, mayManageAdmin } from '../admin-rules.js';
 import { matchText, type BotContext } from '../bot-context.js';
 import type { GatewayDeps } from '../deps.js';
 
@@ -21,6 +22,16 @@ export async function setRoleCommand(ctx: BotContext, deps: GatewayDeps): Promis
 
   if (role === 'admin' && ctx.admin?.role !== 'owner') {
     await ctx.reply('Only the owner can grant the admin role.');
+    return;
+  }
+
+  const target = await deps.adminStore.getAdmin(targetId);
+  if (!target) {
+    await ctx.reply(`${targetId} isn't an admin. Add them with /addadmin.`);
+    return;
+  }
+  if (!mayManageAdmin(ctx.admin!, target)) {
+    await ctx.reply(cannotManageReason(ctx.admin!, target));
     return;
   }
 
