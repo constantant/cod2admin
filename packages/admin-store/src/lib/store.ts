@@ -119,9 +119,15 @@ export class DrizzleAdminStore implements AdminStore {
           rconHost: input.rconHost,
           rconPort: input.rconPort,
           rconPasswordEncrypted,
-          logSourceConfig: input.logSourceConfig ?? null,
+          ...(input.logSourceConfig === undefined
+            ? {}
+            : { logSourceConfig: input.logSourceConfig }),
         },
       });
+  }
+
+  async setServerLogPath(alias: string, path: string | null): Promise<void> {
+    await this.db.update(servers).set({ logSourceConfig: path }).where(eq(servers.alias, alias));
   }
 
   async getServer(alias: string): Promise<ServerConfig | undefined> {

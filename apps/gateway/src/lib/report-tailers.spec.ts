@@ -145,10 +145,12 @@ describe('startReportTailers', () => {
   });
 
   it("calls handleReportTrigger when the tailer's reportTrigger event fires", async () => {
-    const { deps, rcon } = createFakeDeps();
+    const { deps, rcon, adminStore } = createFakeDeps();
     rcon.status.mockResolvedValue({ raw: '', players: [] });
+    // Bound after the tailer started: /bindserver has to work without a restart.
+    adminStore.getServer.mockResolvedValue(serverConfig());
 
-    startReportTailers([serverConfig()], deps, {
+    startReportTailers([serverConfig({ boundTelegramChatId: null })], deps, {
       api: { sendMessage: vi.fn().mockResolvedValue({ message_id: 1 }) },
     } as never);
 

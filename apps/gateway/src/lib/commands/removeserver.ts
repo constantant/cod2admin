@@ -1,5 +1,6 @@
 import { matchText, type BotContext } from '../bot-context.js';
 import type { GatewayDeps } from '../deps.js';
+import { stopReportTailer } from '../report-tailers.js';
 
 /**
  * `/removeserver <alias>` — owner-only. Stops managing a server added with `/addserver`, right away.
@@ -24,7 +25,7 @@ export async function removeServerCommand(ctx: BotContext, deps: GatewayDeps): P
 
   await deps.adminStore.removeServer(alias);
   deps.rconClients.delete(alias);
-  deps.sessionsByServer.delete(alias);
+  stopReportTailer(alias, deps);
 
   await deps.adminStore.recordAuditLog({
     actorTelegramId: ctx.admin!.telegramId,

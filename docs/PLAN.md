@@ -335,6 +335,15 @@ and the 30-minute check for a better Telegram route (`docs/PLAN-russia-access.md
   Without `COD2_LOG_PATH` it has no log to tail, so `!report` cards are off, but every command,
   ban and the enforcement sweep work over RCON alone. The CTF RUSSIA server (~40 players) is
   managed this way, from a bot running on another machine.
+- **Finding the log (`/findlog`, 2026-11-03).** Owner-only, and it works on any server, not only
+  the `.env` one. It builds the path from `fs_homepath`/`fs_basepath`, `fs_game` and `g_log` over
+  RCON, then searches the disk from `/` (breadth-first, within limits), because in Docker the
+  reported path is inside the game's container. A file counts only if its latest `InitGame` line
+  has the live `sv_hostname`, `mapname` and `g_gametype`, and the path is set automatically only
+  when exactly one file matches all three. The path is saved in `servers.log_source_config`
+  and the tailer starts with no restart. `COD2_LOG_PATH`, when set, still wins on every start, so
+  `/findlog` refuses to change it. Leaving it unset no longer clears a saved path: `upsertServer`
+  keeps the column when `logSourceConfig` is left out, and `/findlog off` clears it.
 
 ### 3.1 Components (Nx layout under `packages/` and `apps/`)
 
@@ -653,11 +662,9 @@ Roles, stored in `admin-store`:
    `GameLogTailer`, registers it in `sessionsByServer`, and wires its `reportTrigger` event to
    `handleReportTrigger()`. A server missing either prerequisite is skipped with a `console.warn`
    — RCON-only operation (no report automation) stays a valid configuration, not an error.
-   **Known limitation, accepted for now**: this snapshot of `servers` is taken once at startup —
-   a server bound to a chat via `/bindserver` *after* the gateway starts won't get a tailer until
-   the next restart. Revisit (e.g. `/bindserver` starting a tailer on the spot if one doesn't
-   exist yet) if that turns out to matter in practice; not fixed here to keep this change to
-   startup wiring. **Not done**: no signal-handling/graceful-shutdown for the started tailers
+   **Known limitation, fixed 2026-11-03**: the bound chat used to be read once at startup, so
+   `/bindserver` needed a restart. It's now looked up per report, and `/findlog` starts tailers
+   while the bot runs (§3). **Not done**: no signal-handling/graceful-shutdown for the started tailers
    (`startReportTailers` returns them for exactly this, but nothing calls `.stop()`) — matches
    this codebase's existing style (the expiry-poller's `setInterval` isn't cleared on shutdown
    either); revisit together if that ever needs to change.

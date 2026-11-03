@@ -45,6 +45,8 @@ export interface GatewayDeps {
    * `/removeserver` refuse to touch it, since the next restart would undo the change.
    */
   bootstrapServerAlias: string;
+  /** `COD2_LOG_PATH`, which `main.ts` saves on every start, so `/findlog` leaves it alone. */
+  bootstrapLogPath?: string;
   /** IP → country for `/players`, `/bans` and report cards — `NO_COUNTRY_LOOKUP` when off. */
   geoip: CountryLookup;
   /** IP → provider (ISP/hosting company) for `/players` and report cards — `NO_PROVIDER_LOOKUP` when off. */

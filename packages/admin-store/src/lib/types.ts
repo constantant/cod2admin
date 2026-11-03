@@ -34,6 +34,7 @@ export interface UpsertServerInput {
   rconHost: string;
   rconPort: number;
   rconPassword: string;
+  /** Left out: an existing server keeps its path, which `setServerLogPath` may have set. */
   logSourceConfig?: string | null;
 }
 
@@ -86,6 +87,7 @@ export interface AdminStore {
   saveTelegramUser(user: TelegramUser): Promise<void>;
 
   upsertServer(input: UpsertServerInput): Promise<void>;
+  setServerLogPath(alias: string, path: string | null): Promise<void>;
   getServer(alias: string): Promise<ServerConfig | undefined>;
   listServers(): Promise<ServerConfig[]>;
   bindServerToChat(alias: string, chatId: number): Promise<void>;

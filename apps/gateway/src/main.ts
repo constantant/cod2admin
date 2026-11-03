@@ -233,6 +233,7 @@ const deps: GatewayDeps = {
   rconClients,
   createRconClient,
   bootstrapServerAlias: config.serverAlias,
+  bootstrapLogPath: config.logPath,
   geoip: config.geoip.enabled ? geoipDatabase : NO_COUNTRY_LOOKUP,
   provider: config.geoip.enabled ? asnDatabase : NO_PROVIDER_LOOKUP,
   vpn: config.vpnFlag.enabled ? vpnDatabase : NO_VPN_LOOKUP,

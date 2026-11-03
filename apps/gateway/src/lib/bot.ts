@@ -1,4 +1,4 @@
-import { UdpQueryTimeoutError } from '@cod2admin/rcon-client';
+import { decodeText, UdpQueryTimeoutError } from '@cod2admin/rcon-client';
 import { Agent } from 'node:https';
 import { Bot, type Context } from 'grammy';
 import { requireRole } from './auth.js';
@@ -11,6 +11,7 @@ import { banCommand } from './commands/ban.js';
 import { bansCommand } from './commands/bans.js';
 import { bindServerCommand } from './commands/bindserver.js';
 import { claimCommand } from './commands/claim.js';
+import { findLogCommand } from './commands/findlog.js';
 import { helpCommand, helpRuCommand } from './commands/help.js';
 import { kickCommand } from './commands/kick.js';
 import { listAdminsCommand } from './commands/listadmins.js';
@@ -25,6 +26,7 @@ import { rconCommand } from './commands/rcon.js';
 import { removeAdminCommand } from './commands/removeadmin.js';
 import { relaysCommand } from './commands/relays.js';
 import { removeServerCommand } from './commands/removeserver.js';
+import { startReportTailer } from './report-tailers.js';
 import { reportActionCallback, type ReportCallbackContext } from './reports.js';
 import { sayCommand } from './commands/say.js';
 import { serversCommand } from './commands/servers.js';
@@ -199,6 +201,14 @@ export function createBot(
   bot.command('addserver', requireOwner, (ctx) => addServerCommand(ctx, deps));
   bot.command('removeserver', requireOwner, (ctx) =>
     removeServerCommand(ctx, deps),
+  );
+  bot.command('findlog', requireOwner, (ctx) =>
+    findLogCommand(ctx, deps, {
+      startTailer: (server) => {
+        startReportTailer(server, deps, bot, config.textEncoding);
+      },
+      decode: (bytes) => decodeText(bytes, config.textEncoding),
+    }),
   );
   bot.command('relays', requireOwner, (ctx) => relaysCommand(ctx, deps));
   bot.command('vpnnets', requireAdmin, (ctx) => vpnNetsCommand(ctx, deps));

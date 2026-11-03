@@ -92,6 +92,17 @@ describe('DrizzleAdminStore', () => {
       await expect(store.getServer('default')).resolves.toMatchObject({ logSourceConfig: '/path/to/games_mp.log' });
     });
 
+    it('keeps a log path set by setServerLogPath when the server is upserted without one', async () => {
+      await store.upsertServer({ alias: 'default', rconHost: 'h', rconPort: 1, rconPassword: 'pw' });
+      await store.setServerLogPath('default', '/found/games_mp.log');
+
+      await store.upsertServer({ alias: 'default', rconHost: 'h', rconPort: 1, rconPassword: 'new-pw' });
+      await expect(store.getServer('default')).resolves.toMatchObject({ logSourceConfig: '/found/games_mp.log' });
+
+      await store.setServerLogPath('default', null);
+      await expect(store.getServer('default')).resolves.toMatchObject({ logSourceConfig: null });
+    });
+
     it('binds a server to a chat and looks it back up', async () => {
       await store.upsertServer({ alias: 'default', rconHost: '127.0.0.1', rconPort: 28960, rconPassword: 'pw' });
 

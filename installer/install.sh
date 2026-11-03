@@ -615,7 +615,8 @@ wizard_rcon() {
 wizard_log_path() {
   step "Game event log"
   info "Needed for live match reports (!report), player join/leave tracking, etc."
-  info "Leave blank to skip this for now — the bot still works for RCON commands without it."
+  info "Leave blank to skip this for now — the bot still works for RCON commands without it,"
+  info "and the /findlog command in Telegram can look for the log later."
 
   if [ -n "$CONFIG_FILE" ]; then
     config_get COD2_LOG_PATH; COD2_LOG_PATH=$CONFIG_VALUE
