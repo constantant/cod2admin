@@ -15,6 +15,69 @@ const role =
 export const appRoutes: Route[] = [
   { path: '', pathMatch: 'full', redirectTo: 'players' },
   {
+    path: 'dashboard',
+    loadComponent: () =>
+      import('./pages/dashboard/dashboard').then((m) => m.DashboardPage),
+  },
+  {
+    path: 'reports',
+    loadComponent: () =>
+      import('./pages/reports/reports').then((m) => m.ReportsPage),
+  },
+  {
+    path: 'more',
+    loadComponent: () => import('./pages/more/more').then((m) => m.MorePage),
+  },
+  {
+    path: 'notes',
+    loadComponent: () => import('./pages/notes/notes').then((m) => m.NotesPage),
+  },
+  {
+    path: 'servers',
+    loadComponent: () =>
+      import('./pages/servers/servers').then((m) => m.ServersPage),
+  },
+  {
+    path: 'settings',
+    canMatch: [role('admin')],
+    loadComponent: () =>
+      import('./pages/settings/settings').then((m) => m.SettingsPage),
+  },
+  {
+    path: 'vpn',
+    canMatch: [role('admin')],
+    loadComponent: () => import('./pages/vpn/vpn').then((m) => m.VpnPage),
+  },
+  {
+    path: 'presets',
+    canMatch: [role('admin')],
+    loadComponent: () =>
+      import('./pages/presets/presets').then((m) => m.PresetsPage),
+  },
+  {
+    path: 'admins',
+    canMatch: [role('admin')],
+    loadComponent: () =>
+      import('./pages/admins/admins').then((m) => m.AdminsPage),
+  },
+  {
+    path: 'audit',
+    canMatch: [role('owner')],
+    loadComponent: () => import('./pages/audit/audit').then((m) => m.AuditPage),
+  },
+  {
+    path: 'relays',
+    canMatch: [role('owner')],
+    loadComponent: () =>
+      import('./pages/relays/relays').then((m) => m.RelaysPage),
+  },
+  {
+    path: 'update',
+    canMatch: [role('owner')],
+    loadComponent: () =>
+      import('./pages/update/update').then((m) => m.UpdatePage),
+  },
+  {
     path: 'players',
     loadComponent: () =>
       import('./pages/players/players').then((m) => m.PlayersPage),

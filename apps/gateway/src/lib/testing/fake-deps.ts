@@ -3,6 +3,7 @@ import type { GatewayDeps } from '../deps.js';
 import { NO_COUNTRY_LOOKUP, NO_PROVIDER_LOOKUP } from '../geoip.js';
 import { DIRECT_TELEGRAM_ROOT, TelegramRouter } from '../telegram-routes.js';
 import { vi } from 'vitest';
+import { ReportQueue } from '../report-queue.js';
 import { ReportRegistry } from '../reports.js';
 import { UpdateRegistry } from '../update-registry.js';
 import { VpnKicker } from '../vpn-kick.js';
@@ -63,6 +64,7 @@ export function createFakeDeps(): FakeDeps {
       },
       reportRegistry: new ReportRegistry(),
       reportAntiSpam: new ReportAntiSpam<string>(),
+      reportQueue: new ReportQueue(adminStore),
       sessionsByServer: new Map<string, SessionLookup>(),
       logTailers: new Map(),
       updateConfig: {

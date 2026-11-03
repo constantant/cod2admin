@@ -19,6 +19,29 @@
         <c2a-icon name="refresh" />
       </button>
     </div>
+    <div class="level">
+      <button
+        mat-stroked-button
+        [disabled]="switching() !== null"
+        (click)="level('rotate')"
+      >
+        Next map
+      </button>
+      <button
+        mat-stroked-button
+        [disabled]="switching() !== null"
+        (click)="level('restart')"
+      >
+        Restart map
+      </button>
+      <button
+        mat-stroked-button
+        [disabled]="switching() !== null"
+        (click)="level('fastrestart')"
+      >
+        Restart round
+      </button>
+    </div>
   </section>
 
   @if (maps(); as maps) { @if (maps.gametypes.length > 0) {
@@ -71,10 +94,15 @@
     <c2a-icon name="warning" class="custom inline" /> custom map — you'll be
     asked to confirm.
   </p>
-  } @if (maps.rotation.length > 0) {
-  <h2>
-    From the rotation <span class="muted">— map and mode as configured</span>
-  </h2>
+  }
+  <div class="row rotation-head">
+    <h2>
+      From the rotation <span class="muted">— map and mode as configured</span>
+    </h2>
+    <span class="spacer"></span>
+    <button mat-button (click)="editRotation()">Edit</button>
+  </div>
+  @if (maps.rotation.length > 0) {
   <div class="grid">
     @for (entry of maps.rotation; track entry.map + ':' + entry.gametype) {
     <button

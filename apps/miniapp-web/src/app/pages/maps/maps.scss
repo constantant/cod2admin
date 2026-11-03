@@ -71,3 +71,14 @@ h2 {
 mat-chip-listbox {
   display: block;
 }
+
+.level {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.rotation-head h2 {
+  margin-bottom: 8px;
+}

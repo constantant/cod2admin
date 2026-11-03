@@ -10,6 +10,7 @@ import type {
   TelegramRouter,
   TelegramRouteSettings,
 } from './telegram-routes.js';
+import type { ReportQueue } from './report-queue.js';
 import type { ReportRegistry } from './reports.js';
 import type { UpdateRegistry } from './update-registry.js';
 import type { VpnKicker } from './vpn-kick.js';
@@ -70,6 +71,8 @@ export interface GatewayDeps {
    */
   reportRegistry: ReportRegistry;
   reportAntiSpam: ReportAntiSpam<string>;
+  /** Every `!report`, saved — the Mini App's queue (report-queue.ts). */
+  reportQueue: ReportQueue;
   /** Per-server session lookup (a `GameLogTailer` instance) for the `select` button's re-enrichment — keyed like `rconClients`. */
   sessionsByServer: Map<string, SessionLookup>;
   /** The `games_mp.log` tailer of every server with a log path — the Mini App's live chat source. */

@@ -215,6 +215,34 @@ export class RconClient {
     }
   }
 
+  /**
+   * `map_restart`, `fast_restart` or `map_rotate`. Sent **once**, for the same reason as `map()`: a
+   * retry would start the load over. Returns whether the server answered — a level load often
+   * keeps it from answering at all, and a busy server can also drop the command unrun (§2.4 "Rate
+   * limiting"), so `false` means "sent, but check the result".
+   */
+  async levelCommand(
+    command: 'map_restart' | 'fast_restart' | 'map_rotate',
+  ): Promise<boolean> {
+    try {
+      await this.query(`rcon ${this.password} ${command}`, {
+        retries: 0,
+        timeoutMs: this.mapReplyTimeoutMs,
+      });
+      return true;
+    } catch (error) {
+      if (error instanceof UdpQueryTimeoutError) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  /** Sets a cvar, value quoted (see `say()` on why). Safe to retry, like any cvar set. */
+  async setCvar(name: string, value: string): Promise<void> {
+    await this.rcon(`set ${name} "${value.replace(/"/g, '')}"`);
+  }
+
   /** The game mode the server is running (`getinfo`'s `gametype`, e.g. `ctf`), or null if it doesn't say. */
   async getGametype(): Promise<string | null> {
     return (await this.getInfo())['gametype'] ?? null;

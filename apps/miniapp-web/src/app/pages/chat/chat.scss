@@ -115,3 +115,15 @@
   max-width: 420px;
   margin: 0 auto;
 }
+
+.canned {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px 12px 0;
+
+  button {
+    flex: none;
+    max-width: 70vw;
+  }
+}

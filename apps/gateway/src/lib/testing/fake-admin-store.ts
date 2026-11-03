@@ -1,4 +1,4 @@
-import type { Admin, AdminStore } from '@cod2admin/admin-store';
+import type { Admin, AdminStore, Report } from '@cod2admin/admin-store';
 import { vi, type Mock } from 'vitest';
 
 /**
@@ -28,7 +28,43 @@ export interface FakeAdminStore extends AdminStore {
   recordAuditLog: Mock<AdminStore['recordAuditLog']>;
   listAuditLog: Mock<AdminStore['listAuditLog']>;
   listAuditLogForTarget: Mock<AdminStore['listAuditLogForTarget']>;
+  searchAuditLog: Mock<AdminStore['searchAuditLog']>;
+  listAuditActions: Mock<AdminStore['listAuditActions']>;
+  recordReport: Mock<AdminStore['recordReport']>;
+  getReport: Mock<AdminStore['getReport']>;
+  searchReports: Mock<AdminStore['searchReports']>;
+  countOpenReports: Mock<AdminStore['countOpenReports']>;
+  resolveReport: Mock<AdminStore['resolveReport']>;
+  addPlayerNote: Mock<AdminStore['addPlayerNote']>;
+  getPlayerNote: Mock<AdminStore['getPlayerNote']>;
+  searchPlayerNotes: Mock<AdminStore['searchPlayerNotes']>;
+  findPlayerNotes: Mock<AdminStore['findPlayerNotes']>;
+  updatePlayerNote: Mock<AdminStore['updatePlayerNote']>;
+  deletePlayerNote: Mock<AdminStore['deletePlayerNote']>;
+  recordServerSnapshot: Mock<AdminStore['recordServerSnapshot']>;
+  listServerSnapshots: Mock<AdminStore['listServerSnapshots']>;
+  pruneServerSnapshots: Mock<AdminStore['pruneServerSnapshots']>;
   close: Mock<AdminStore['close']>;
+}
+
+export function sampleReport(overrides: Partial<Report> = {}): Report {
+  const at = new Date('2026-11-03T12:00:00Z');
+  return {
+    id: 1,
+    serverAlias: 'default',
+    reporterName: 'Honest',
+    reporterGuid: null,
+    targetName: 'Cheater',
+    reason: 'aimbot',
+    status: 'open',
+    count: 1,
+    createdAt: at,
+    lastReportedAt: at,
+    resolvedBy: null,
+    resolvedAt: null,
+    outcome: null,
+    ...overrides,
+  };
 }
 
 /** Convenience for tests that just need to simulate "this actor is already an admin". */
@@ -61,6 +97,22 @@ export function createFakeAdminStore(overrides: Partial<{ admins: Admin[] }> = {
     recordAuditLog: vi.fn().mockResolvedValue(undefined),
     listAuditLog: vi.fn().mockResolvedValue([]),
     listAuditLogForTarget: vi.fn().mockResolvedValue([]),
+    searchAuditLog: vi.fn().mockResolvedValue([]),
+    listAuditActions: vi.fn().mockResolvedValue([]),
+    recordReport: vi.fn(async () => sampleReport()),
+    getReport: vi.fn().mockResolvedValue(undefined),
+    searchReports: vi.fn().mockResolvedValue([]),
+    countOpenReports: vi.fn().mockResolvedValue(0),
+    resolveReport: vi.fn().mockResolvedValue(undefined),
+    addPlayerNote: vi.fn(),
+    getPlayerNote: vi.fn().mockResolvedValue(undefined),
+    searchPlayerNotes: vi.fn().mockResolvedValue([]),
+    findPlayerNotes: vi.fn().mockResolvedValue([]),
+    updatePlayerNote: vi.fn().mockResolvedValue(undefined),
+    deletePlayerNote: vi.fn().mockResolvedValue(false),
+    recordServerSnapshot: vi.fn().mockResolvedValue(undefined),
+    listServerSnapshots: vi.fn().mockResolvedValue([]),
+    pruneServerSnapshots: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),
   };
 }

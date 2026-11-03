@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { AdminRole } from '@cod2admin/admin-store';
 import { InlineKeyboard } from 'grammy';
 import type { BotContext } from '../bot-context.js';
-import type { GatewayDeps } from '../deps.js';
+import type { GatewayDeps, UpdateFeatureConfig } from '../deps.js';
 import type { GithubRelease } from '../github-releases.js';
 import {
   downloadReleaseAsset,
@@ -122,30 +122,13 @@ export async function updateActionCallback(ctx: UpdateCallbackContext, deps: Gat
   }
 
   const { release } = pending;
-  const { stagingDir, applyUpdateScriptPath } = deps.updateConfig;
-  const tarballPath = path.join(stagingDir, release.gatewayAsset.name);
-  const checksumPath = path.join(stagingDir, release.checksumAsset.name);
-
   await ctx.editMessageText(`Downloading ${release.tagName}…`);
-  try {
-    await downloadReleaseAsset(release.gatewayAsset.downloadUrl, tarballPath);
-    await downloadReleaseAsset(release.checksumAsset.downloadUrl, checksumPath);
-  } catch (error) {
-    await ctx.editMessageText(`Failed to download ${release.tagName}: ${error instanceof Error ? error.message : String(error)}`);
+  const staged = await stageRelease(release, deps.updateConfig, chatId);
+  if (!staged.ok) {
+    await ctx.editMessageText(staged.message);
     await ctx.answerCallbackQuery();
     return;
   }
-
-  const checksumOk = await verifyChecksum(tarballPath, checksumPath);
-  if (!checksumOk) {
-    await Promise.all([rm(tarballPath, { force: true }), rm(checksumPath, { force: true })]);
-    await ctx.editMessageText(`Checksum verification failed for ${release.tagName} — aborting, nothing was applied.`);
-    await ctx.answerCallbackQuery();
-    return;
-  }
-
-  const markerPath = path.join(stagingDir, 'pending-update.env');
-  await writeFile(markerPath, `CHAT_ID=${chatId}\nVERSION=${release.tagName}\n`);
 
   await deps.adminStore.recordAuditLog({
     actorTelegramId: admin.telegramId,
@@ -156,16 +139,52 @@ export async function updateActionCallback(ctx: UpdateCallbackContext, deps: Gat
   });
 
   await ctx.editMessageText(`Applying update to ${release.tagName}… the bot will restart shortly.`);
-  runApplyUpdate(applyUpdateScriptPath, tarballPath, {
+  runApplyUpdate(deps.updateConfig.applyUpdateScriptPath, staged.tarballPath, {
     onProblem: (problem) => {
       void reportApplyProblem(ctx, problem, {
         tagName: release.tagName,
-        command: `${applyUpdateScriptPath} ${tarballPath}`,
-        markerPath,
+        command: `${deps.updateConfig?.applyUpdateScriptPath} ${staged.tarballPath}`,
+        markerPath: staged.markerPath,
       });
     },
   });
   await ctx.answerCallbackQuery();
+}
+
+export type StagedRelease =
+  { ok: true; tarballPath: string; markerPath: string } | { ok: false; message: string };
+
+/**
+ * Downloads a release, verifies its checksum *before* writing anything `apply-update.sh` would act
+ * on, and writes the pending-update marker the new version reports to (update-boot-check.ts).
+ * `chatId` is where that report goes. Shared by `/update` and the Mini App.
+ */
+export async function stageRelease(
+  release: GithubRelease,
+  config: UpdateFeatureConfig,
+  chatId: number,
+): Promise<StagedRelease> {
+  const tarballPath = path.join(config.stagingDir, release.gatewayAsset.name);
+  const checksumPath = path.join(config.stagingDir, release.checksumAsset.name);
+  try {
+    await downloadReleaseAsset(release.gatewayAsset.downloadUrl, tarballPath);
+    await downloadReleaseAsset(release.checksumAsset.downloadUrl, checksumPath);
+  } catch (error) {
+    return {
+      ok: false,
+      message: `Failed to download ${release.tagName}: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+  if (!(await verifyChecksum(tarballPath, checksumPath))) {
+    await Promise.all([rm(tarballPath, { force: true }), rm(checksumPath, { force: true })]);
+    return {
+      ok: false,
+      message: `Checksum verification failed for ${release.tagName} — aborting, nothing was applied.`,
+    };
+  }
+  const markerPath = path.join(config.stagingDir, 'pending-update.env');
+  await writeFile(markerPath, `CHAT_ID=${chatId}\nVERSION=${release.tagName}\n`);
+  return { ok: true, tarballPath, markerPath };
 }
 
 async function reportApplyProblem(
@@ -173,20 +192,26 @@ async function reportApplyProblem(
   problem: ApplyUpdateProblem,
   update: { tagName: string; command: string; markerPath: string },
 ): Promise<void> {
-  const running = getRunningVersion();
-  const runByHand = `To see what happens, run this on the server as root:\n${update.command}`;
-  let text: string;
-  if (problem.kind === 'failed') {
-    // It's over, so the next restart mustn't report on this update as well.
-    await rm(update.markerPath, { force: true });
-    text =
-      `❌ The update to ${update.tagName} didn't run. The bot is still on v${running}.\n\n` +
-      (problem.output ? `${problem.output}\n\n` : '') +
-      runByHand;
-  } else {
-    text = `⚠️ The update to ${update.tagName} hasn't finished after 5 minutes. The bot is still on v${running}.\n\n${runByHand}`;
-  }
+  const text = await settleApplyProblem(problem, update);
   await ctx.editMessageText(text).catch((error: unknown) => {
     console.error('Failed to report an update problem:', error);
   });
+}
+
+/** Words for a failed apply, also used by the Mini App. A finished failure clears the marker, so the next restart doesn't report on this update as well. */
+export async function settleApplyProblem(
+  problem: ApplyUpdateProblem,
+  update: { tagName: string; command: string; markerPath: string },
+): Promise<string> {
+  const running = getRunningVersion();
+  const runByHand = `To see what happens, run this on the server as root:\n${update.command}`;
+  if (problem.kind === 'failed') {
+    await rm(update.markerPath, { force: true });
+    return (
+      `❌ The update to ${update.tagName} didn't run. The bot is still on v${running}.\n\n` +
+      (problem.output ? `${problem.output}\n\n` : '') +
+      runByHand
+    );
+  }
+  return `⚠️ The update to ${update.tagName} hasn't finished after 5 minutes. The bot is still on v${running}.\n\n${runByHand}`;
 }

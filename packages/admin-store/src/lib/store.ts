@@ -1,16 +1,37 @@
-import { and, desc, eq, ilike } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, ilike, lt, lte, ne, or, sql, type SQL } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
-import { adminServers, admins, auditLog, servers, settings, telegramUsers } from './schema.js';
+import {
+  adminServers,
+  admins,
+  auditLog,
+  playerNotes,
+  reports,
+  servers,
+  serverSnapshots,
+  settings,
+  telegramUsers,
+} from './schema.js';
 import { SecretBox } from './secrets.js';
 import type {
+  AddPlayerNoteInput,
   Admin,
   AdminRole,
   AdminStore,
   AuditLogEntry,
+  AuditLogFilter,
   ClaimOwnerResult,
+  PlayerNote,
+  PlayerNoteFilter,
+  PlayerNoteKind,
   RecordAuditLogInput,
+  RecordReportInput,
+  RecordSnapshotInput,
+  Report,
+  ReportFilter,
+  ReportStatus,
   ServerConfig,
+  ServerSnapshot,
   TelegramUser,
   UpsertServerInput,
 } from './types.js';
@@ -35,6 +56,11 @@ const ADMIN_COLUMNS = {
   username: telegramUsers.username,
   firstName: telegramUsers.firstName,
 };
+
+/** `%`, `_` and `\` from a user's search box are literal text, not wildcards. */
+function contains(text: string): string {
+  return `%${text.replace(/[\\%_]/g, '\\$&')}%`;
+}
 
 const AUDIT_LOG_COLUMNS = {
   id: auditLog.id,
@@ -212,6 +238,191 @@ export class DrizzleAdminStore implements AdminStore {
       .where(and(eq(auditLog.serverAlias, serverAlias), ilike(auditLog.target, targetName)))
       .orderBy(desc(auditLog.createdAt))
       .limit(limit);
+  }
+
+  async searchAuditLog(filter: AuditLogFilter): Promise<AuditLogEntry[]> {
+    const conditions: (SQL | undefined)[] = [
+      filter.query
+        ? or(ilike(auditLog.target, contains(filter.query)), ilike(auditLog.reason, contains(filter.query)))
+        : undefined,
+      filter.action ? eq(auditLog.action, filter.action) : undefined,
+      filter.actorTelegramId === undefined ? undefined : eq(auditLog.actorTelegramId, filter.actorTelegramId),
+      filter.serverAlias ? eq(auditLog.serverAlias, filter.serverAlias) : undefined,
+      filter.source ? eq(auditLog.source, filter.source) : undefined,
+      filter.since ? gte(auditLog.createdAt, filter.since) : undefined,
+      filter.until ? lte(auditLog.createdAt, filter.until) : undefined,
+    ];
+    return this.selectAuditLog()
+      .where(and(...conditions))
+      .orderBy(desc(auditLog.createdAt), desc(auditLog.id))
+      .limit(filter.limit)
+      .offset(filter.offset ?? 0);
+  }
+
+  async listAuditActions(): Promise<string[]> {
+    const rows = await this.db.selectDistinct({ action: auditLog.action }).from(auditLog).orderBy(asc(auditLog.action));
+    return rows.map((row) => row.action);
+  }
+
+  async recordReport(input: RecordReportInput): Promise<Report> {
+    const reason = input.reason ?? null;
+    return this.db.transaction(async (tx) => {
+      const [open] = await tx
+        .select({ id: reports.id })
+        .from(reports)
+        .where(
+          and(
+            eq(reports.status, 'open'),
+            eq(reports.serverAlias, input.serverAlias),
+            eq(reports.reporterName, input.reporterName),
+            sql`lower(${reports.targetName}) = lower(${input.targetName})`,
+          ),
+        )
+        .for('update')
+        .limit(1);
+      if (open) {
+        const [updated] = await tx
+          .update(reports)
+          .set({
+            count: sql`${reports.count} + 1`,
+            lastReportedAt: new Date(),
+            ...(reason === null ? {} : { reason }),
+          })
+          .where(eq(reports.id, open.id))
+          .returning();
+        return updated as Report;
+      }
+      const [created] = await tx
+        .insert(reports)
+        .values({
+          serverAlias: input.serverAlias,
+          reporterName: input.reporterName,
+          reporterGuid: input.reporterGuid ?? null,
+          targetName: input.targetName,
+          reason,
+        })
+        .returning();
+      return created as Report;
+    });
+  }
+
+  async getReport(id: number): Promise<Report | undefined> {
+    const [row] = await this.db.select().from(reports).where(eq(reports.id, id));
+    return row;
+  }
+
+  async searchReports(filter: ReportFilter): Promise<Report[]> {
+    return this.db
+      .select()
+      .from(reports)
+      .where(
+        and(
+          filter.resolved ? ne(reports.status, 'open') : eq(reports.status, 'open'),
+          filter.serverAlias ? eq(reports.serverAlias, filter.serverAlias) : undefined,
+        ),
+      )
+      .orderBy(desc(filter.resolved ? reports.resolvedAt : reports.lastReportedAt), desc(reports.id))
+      .limit(filter.limit)
+      .offset(filter.offset ?? 0);
+  }
+
+  async countOpenReports(): Promise<number> {
+    const [row] = await this.db.select({ value: count() }).from(reports).where(eq(reports.status, 'open'));
+    return row?.value ?? 0;
+  }
+
+  async resolveReport(
+    id: number,
+    resolution: { status: Exclude<ReportStatus, 'open'>; resolvedBy: number; outcome?: string | null },
+  ): Promise<Report | undefined> {
+    const [row] = await this.db
+      .update(reports)
+      .set({
+        status: resolution.status,
+        resolvedBy: resolution.resolvedBy,
+        resolvedAt: new Date(),
+        outcome: resolution.outcome ?? null,
+      })
+      // Only an open one: two admins acting at once must not overwrite each other.
+      .where(and(eq(reports.id, id), eq(reports.status, 'open')))
+      .returning();
+    return row;
+  }
+
+  async addPlayerNote(input: AddPlayerNoteInput): Promise<PlayerNote> {
+    const [row] = await this.db.insert(playerNotes).values(input).returning();
+    return row as PlayerNote;
+  }
+
+  async getPlayerNote(id: number): Promise<PlayerNote | undefined> {
+    const [row] = await this.db.select().from(playerNotes).where(eq(playerNotes.id, id));
+    return row;
+  }
+
+  async searchPlayerNotes(filter: PlayerNoteFilter): Promise<PlayerNote[]> {
+    return this.db
+      .select()
+      .from(playerNotes)
+      .where(
+        and(
+          filter.query
+            ? or(ilike(playerNotes.value, contains(filter.query)), ilike(playerNotes.note, contains(filter.query)))
+            : undefined,
+          filter.watchOnly ? eq(playerNotes.watch, true) : undefined,
+        ),
+      )
+      .orderBy(desc(playerNotes.updatedAt), desc(playerNotes.id))
+      .limit(filter.limit)
+      .offset(filter.offset ?? 0);
+  }
+
+  async findPlayerNotes(identities: { kind: PlayerNoteKind; value: string }[]): Promise<PlayerNote[]> {
+    if (identities.length === 0) {
+      return [];
+    }
+    return this.db
+      .select()
+      .from(playerNotes)
+      .where(or(...identities.map(({ kind, value }) => and(eq(playerNotes.kind, kind), eq(playerNotes.value, value)))))
+      .orderBy(desc(playerNotes.updatedAt), desc(playerNotes.id));
+  }
+
+  async updatePlayerNote(id: number, changes: { note?: string; watch?: boolean }): Promise<PlayerNote | undefined> {
+    const [row] = await this.db
+      .update(playerNotes)
+      .set({ ...changes, updatedAt: new Date() })
+      .where(eq(playerNotes.id, id))
+      .returning();
+    return row;
+  }
+
+  async deletePlayerNote(id: number): Promise<boolean> {
+    const deleted = await this.db.delete(playerNotes).where(eq(playerNotes.id, id)).returning({ id: playerNotes.id });
+    return deleted.length > 0;
+  }
+
+  async recordServerSnapshot(input: RecordSnapshotInput): Promise<void> {
+    await this.db.insert(serverSnapshots).values(input);
+  }
+
+  async listServerSnapshots(serverAlias: string, since: Date): Promise<ServerSnapshot[]> {
+    return this.db
+      .select({
+        serverAlias: serverSnapshots.serverAlias,
+        at: serverSnapshots.at,
+        online: serverSnapshots.online,
+        playerCount: serverSnapshots.playerCount,
+        maxClients: serverSnapshots.maxClients,
+        map: serverSnapshots.map,
+        gametype: serverSnapshots.gametype,
+      })
+      .from(serverSnapshots)
+      .where(and(eq(serverSnapshots.serverAlias, serverAlias), gte(serverSnapshots.at, since)))
+      .orderBy(asc(serverSnapshots.at));
+  }
+
+  async pruneServerSnapshots(before: Date): Promise<void> {
+    await this.db.delete(serverSnapshots).where(lt(serverSnapshots.at, before));
   }
 
   async close(): Promise<void> {

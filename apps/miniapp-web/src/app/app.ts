@@ -2,11 +2,13 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   inject,
   type OnInit,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import type { MiniAppRole } from '@cod2admin/miniapp-api';
@@ -23,11 +25,11 @@ interface NavItem {
 }
 
 const NAV: readonly NavItem[] = [
+  { path: '/dashboard', label: 'Home', icon: 'home', minRole: 'moderator' },
   { path: '/players', label: 'Players', icon: 'players', minRole: 'moderator' },
   { path: '/chat', label: 'Chat', icon: 'chat', minRole: 'moderator' },
-  { path: '/maps', label: 'Maps', icon: 'map', minRole: 'admin' },
-  { path: '/bans', label: 'Bans', icon: 'gavel', minRole: 'admin' },
-  { path: '/console', label: 'Console', icon: 'terminal', minRole: 'owner' },
+  { path: '/reports', label: 'Reports', icon: 'flag', minRole: 'moderator' },
+  { path: '/more', label: 'More', icon: 'apps', minRole: 'moderator' },
 ];
 
 @Component({
@@ -49,6 +51,7 @@ export class App implements OnInit {
   protected readonly session = inject(SessionService);
   protected readonly live = inject(LiveService);
   private readonly telegram = inject(TelegramService);
+  private readonly snackBar = inject(MatSnackBar);
 
   protected readonly loading = computed(
     () => !this.session.me() && !this.session.failure(),
@@ -59,6 +62,13 @@ export class App implements OnInit {
       : [],
   );
   protected readonly inTelegram = this.telegram.inTelegram;
+
+  constructor() {
+    const alerts = this.live.alerts.subscribe((message) =>
+      this.snackBar.open(message, 'OK', { duration: 6000 }),
+    );
+    inject(DestroyRef).onDestroy(() => alerts.unsubscribe());
+  }
 
   async ngOnInit(): Promise<void> {
     this.telegram.init();

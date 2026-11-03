@@ -24,6 +24,8 @@ export interface FakeRcon {
   say: Mock<(message: string) => Promise<string>>;
   tell: Mock<(clientId: number, message: string) => Promise<string>>;
   map: Mock<(mapName: string, gametype?: string) => Promise<string>>;
+  levelCommand: Mock<(command: string) => Promise<boolean>>;
+  setCvar: Mock<(name: string, value: string) => Promise<void>>;
   getGametype: Mock<() => Promise<string | null>>;
   getGametypes: Mock<() => Promise<string[]>>;
   getMapRotationEntries: Mock<
@@ -47,6 +49,8 @@ export function createFakeRcon(): FakeRcon {
     say: vi.fn().mockResolvedValue(''),
     tell: vi.fn().mockResolvedValue(''),
     map: vi.fn().mockResolvedValue(''),
+    levelCommand: vi.fn().mockResolvedValue(true),
+    setCvar: vi.fn().mockResolvedValue(undefined),
     getGametype: vi.fn().mockResolvedValue(null),
     getGametypes: vi.fn().mockResolvedValue([]),
     getMapRotationEntries: vi.fn().mockResolvedValue([]),

@@ -9,6 +9,7 @@ import {
   GatewayCardSender,
   handleReportTrigger,
   reportActionCallback,
+  closeReportCard,
   ReportRegistry,
   type ReportCallbackContext,
   type ReportCallbackDeps,
@@ -311,6 +312,53 @@ describe('reportActionCallback', () => {
     // resolve() clears the dedup collapse (a later report won't fold into the ignored card) -
     // it does not reset the reporter's cooldown clock, so this can still legitimately be 'cooldown'.
     expect(antiSpam.check(9, 'Cheatr123').reason).not.toBe('duplicate');
+  });
+
+  it('closes the saved report when a card is ignored', async () => {
+    const { deps, registry } = baseDeps();
+    const resolve = vi.fn().mockResolvedValue(undefined);
+    registry.set('1', { chatId: 1, messageId: 1, serverAlias: 'default', trigger: trigger(), queueId: 42 });
+    const ctx = createFakeCallbackCtx({
+      callbackData: 'report:1:ignore',
+      admin: { telegramId: 7, role: 'admin', username: 'nick' },
+    });
+
+    await reportActionCallback(ctx, { ...deps, reportQueue: { resolve } as never });
+
+    expect(resolve).toHaveBeenCalledWith(42, { status: 'ignored', resolvedBy: 7, outcome: 'Ignored' });
+  });
+
+  it('a card still works when the saved report cannot be closed', async () => {
+    const { deps, registry } = baseDeps();
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    registry.set('1', { chatId: 1, messageId: 1, serverAlias: 'default', trigger: trigger(), queueId: 42 });
+    const ctx = createFakeCallbackCtx({
+      callbackData: 'report:1:ignore',
+      admin: { telegramId: 7, role: 'admin', username: 'nick' },
+    });
+
+    await reportActionCallback(ctx, {
+      ...deps,
+      reportQueue: { resolve: vi.fn().mockRejectedValue(new Error('db down')) } as never,
+    });
+
+    expect(ctx.answerCallbackQuery).toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it('closeReportCard edits the card and forgets it; a report with no card is fine', async () => {
+    const { deps, registry, antiSpam } = baseDeps();
+    registry.set('1', { chatId: 5, messageId: 6, serverAlias: 'default', trigger: trigger(), queueId: 42 });
+    const editMessageText = vi.fn().mockResolvedValue(undefined);
+    const closing = { bot: { api: { editMessageText } } as never, registry, antiSpam };
+
+    await closeReportCard(99, 'x', closing);
+    expect(editMessageText).not.toHaveBeenCalled();
+
+    await closeReportCard(42, 'Done in the app.', closing);
+    expect(editMessageText).toHaveBeenCalledWith(5, 6, 'Done in the app.');
+    expect(registry.get('1')).toBeUndefined();
+    expect(deps).toBeDefined();
   });
 
   it('more-info answers with the stored detail text as an alert, without editing the message', async () => {

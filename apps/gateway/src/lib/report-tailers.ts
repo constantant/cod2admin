@@ -68,14 +68,27 @@ export function startReportTailer(
     );
   }
 
-  const onReport = async (trigger: ReportTrigger): Promise<void> => {
+  const describeIp = (ip: string) =>
+    joinIpLabels(
+      joinCountryAndProvider(
+        describeIpLong(deps.geoip, ip),
+        describeProviderLong(deps.provider, ip),
+      ),
+      describeVpnLong(deps.vpn, ip),
+    );
+
+  /** The card; `undefined` when no chat is bound, so the report only goes to the Mini App's queue. */
+  const sendCard = async (trigger: ReportTrigger) => {
     // Looked up per report: /bindserver and /addserver can change these while the bot runs.
     const chatId = (await deps.adminStore.getServer(alias))?.boundTelegramChatId;
     const rcon = deps.rconClients.get(alias);
-    if (!chatId || !rcon) {
-      return;
+    if (!rcon) {
+      return { kind: 'cooldown' as const, retryAfterMs: 0 };
     }
-    await handleReportTrigger(trigger, {
+    if (!chatId) {
+      return undefined;
+    }
+    return handleReportTrigger(trigger, {
       bot,
       registry: deps.reportRegistry,
       antiSpam: deps.reportAntiSpam,
@@ -85,15 +98,39 @@ export function startReportTailer(
       sessions: tailer,
       adminStore: deps.adminStore,
       banStore: deps.banStore,
-      describeIp: (ip) =>
-        joinIpLabels(
-          joinCountryAndProvider(
-            describeIpLong(deps.geoip, ip),
-            describeProviderLong(deps.provider, ip),
-          ),
-          describeVpnLong(deps.vpn, ip),
-        ),
+      describeIp,
     });
+  };
+
+  const onReport = async (trigger: ReportTrigger): Promise<void> => {
+    let outcome: Awaited<ReturnType<typeof sendCard>>;
+    let sendError: unknown;
+    try {
+      outcome = await sendCard(trigger);
+    } catch (error) {
+      // Telegram may be out of reach (docs/PLAN-russia-access.md); the report still gets saved.
+      sendError = error;
+    }
+    if (outcome?.kind === 'cooldown') {
+      return;
+    }
+    if (!outcome && !sendError) {
+      // No card went through processReportTrigger's flood check, so run the same one here.
+      const { chat, targetName } = trigger;
+      const check = deps.reportAntiSpam.check(chat.num, targetName);
+      if (!check.allowed) {
+        return;
+      }
+      deps.reportAntiSpam.track(chat.num, targetName, 'queue-only');
+    }
+    const report = await deps.reportQueue.record(alias, trigger);
+    const entry = outcome && deps.reportRegistry.get(outcome.cardRef);
+    if (entry) {
+      entry.queueId = report.id;
+    }
+    if (sendError) {
+      throw sendError;
+    }
   };
   tailer.on('reportTrigger', (trigger) => {
     onReport(trigger).catch((error: unknown) => {

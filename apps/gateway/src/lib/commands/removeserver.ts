@@ -23,9 +23,7 @@ export async function removeServerCommand(ctx: BotContext, deps: GatewayDeps): P
     return;
   }
 
-  await deps.adminStore.removeServer(alias);
-  deps.rconClients.delete(alias);
-  stopReportTailer(alias, deps);
+  await forgetServer(alias, deps);
 
   await deps.adminStore.recordAuditLog({
     actorTelegramId: ctx.admin!.telegramId,
@@ -35,4 +33,11 @@ export async function removeServerCommand(ctx: BotContext, deps: GatewayDeps): P
     source: 'telegram_command',
   });
   await ctx.reply(`Server "${alias}" removed.`);
+}
+
+/** Stops managing a server, right away. Also used by the Mini App. */
+export async function forgetServer(alias: string, deps: GatewayDeps): Promise<void> {
+  await deps.adminStore.removeServer(alias);
+  deps.rconClients.delete(alias);
+  stopReportTailer(alias, deps);
 }

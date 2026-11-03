@@ -24,7 +24,7 @@ describe('DrizzleAdminStore', () => {
   });
 
   beforeEach(async () => {
-    await pool.query('TRUNCATE admins, admin_servers, servers, audit_log, settings, telegram_users RESTART IDENTITY CASCADE');
+    await pool.query('TRUNCATE admins, admin_servers, servers, audit_log, settings, telegram_users, reports, player_notes, server_snapshots RESTART IDENTITY CASCADE');
   });
 
   describe('claimOwner', () => {
@@ -224,6 +224,94 @@ describe('DrizzleAdminStore', () => {
 
       expect(entries).toHaveLength(1);
       expect(entries[0]).toMatchObject({ action: 'ban' });
+    });
+  });
+
+  describe('searchAuditLog', () => {
+    const entry = (action: string, target: string, serverAlias = 'a') =>
+      store.recordAuditLog({ actorTelegramId: 1, action, target, serverAlias, source: 'miniapp' });
+
+    it('filters by action, server and text, and treats % as plain text', async () => {
+      await entry('kick', 'Alice');
+      await entry('ban', 'Bob 100%');
+      await entry('ban', 'Carol', 'b');
+
+      const byAction = await store.searchAuditLog({ action: 'ban', limit: 10 });
+      expect(byAction.map((row) => row.target)).toEqual(['Carol', 'Bob 100%']);
+      const byServer = await store.searchAuditLog({ serverAlias: 'b', limit: 10 });
+      expect(byServer.map((row) => row.target)).toEqual(['Carol']);
+      const byText = await store.searchAuditLog({ query: '%', limit: 10 });
+      expect(byText.map((row) => row.target)).toEqual(['Bob 100%']);
+      expect(await store.listAuditActions()).toEqual(['ban', 'kick']);
+    });
+
+    it('pages with limit and offset', async () => {
+      await entry('kick', 'one');
+      await entry('kick', 'two');
+
+      const page = await store.searchAuditLog({ limit: 1, offset: 1 });
+
+      expect(page.map((row) => row.target)).toEqual(['one']);
+    });
+  });
+
+  describe('reports', () => {
+    const input = { serverAlias: 'a', reporterName: 'Honest', targetName: 'Cheater', reason: 'aim' };
+
+    it('counts a repeat on the open report instead of adding a row', async () => {
+      const first = await store.recordReport(input);
+      const second = await store.recordReport({ ...input, targetName: 'CHEATER', reason: 'wallhack' });
+
+      expect(second.id).toBe(first.id);
+      expect(second.count).toBe(2);
+      expect(second.reason).toBe('wallhack');
+      expect(await store.countOpenReports()).toBe(1);
+    });
+
+    it('starts a new report once the last one is closed, and closes a report only once', async () => {
+      const first = await store.recordReport(input);
+      const closed = await store.resolveReport(first.id, { status: 'ignored', resolvedBy: 9, outcome: 'Ignored' });
+      expect(closed).toMatchObject({ status: 'ignored', resolvedBy: 9, outcome: 'Ignored' });
+
+      expect(await store.resolveReport(first.id, { status: 'handled', resolvedBy: 8 })).toBeUndefined();
+      const again = await store.recordReport(input);
+      expect(again.id).not.toBe(first.id);
+      expect((await store.searchReports({ resolved: false, limit: 10 })).map((row) => row.id)).toEqual([again.id]);
+      expect((await store.searchReports({ resolved: true, limit: 10 })).map((row) => row.id)).toEqual([first.id]);
+    });
+  });
+
+  describe('player notes', () => {
+    it('finds notes by exact identity and by search, and edits and deletes them', async () => {
+      const note = await store.addPlayerNote({ kind: 'ip', value: '203.0.113.7', note: 'smurf', watch: true, createdBy: 1 });
+      await store.addPlayerNote({ kind: 'name', value: 'bob', note: 'rude', watch: false, createdBy: 1 });
+
+      const found = await store.findPlayerNotes([{ kind: 'ip', value: '203.0.113.7' }, { kind: 'guid', value: '203.0.113.7' }]);
+      expect(found.map((row) => row.id)).toEqual([note.id]);
+      expect(await store.findPlayerNotes([])).toEqual([]);
+      expect((await store.searchPlayerNotes({ query: 'RUDE', limit: 10 })).map((row) => row.value)).toEqual(['bob']);
+      expect((await store.searchPlayerNotes({ watchOnly: true, limit: 10 })).map((row) => row.id)).toEqual([note.id]);
+
+      const updated = await store.updatePlayerNote(note.id, { watch: false });
+      expect(updated).toMatchObject({ watch: false, note: 'smurf' });
+      expect(await store.deletePlayerNote(note.id)).toBe(true);
+      expect(await store.deletePlayerNote(note.id)).toBe(false);
+    });
+  });
+
+  describe('server snapshots', () => {
+    it('lists a server\'s snapshots oldest first and prunes old ones', async () => {
+      const row = { online: true, playerCount: 3, maxClients: 40, map: 'mp_toujane', gametype: 'ctf' };
+      await store.recordServerSnapshot({ serverAlias: 'a', ...row });
+      await store.recordServerSnapshot({ serverAlias: 'a', ...row, playerCount: 4 });
+      await store.recordServerSnapshot({ serverAlias: 'b', ...row });
+      await pool.query("UPDATE server_snapshots SET at = now() - interval '40 days' WHERE player_count = 3 AND server_alias = 'a'");
+
+      const recent = await store.listServerSnapshots('a', new Date(Date.now() - 86_400_000));
+      expect(recent.map((snapshot) => snapshot.playerCount)).toEqual([4]);
+
+      await store.pruneServerSnapshots(new Date(Date.now() - 30 * 86_400_000));
+      expect(await store.listServerSnapshots('a', new Date(0))).toHaveLength(1);
     });
   });
 });

@@ -1,14 +1,25 @@
 export { migrate } from './lib/migrate.js';
 export { createAdminStore } from './lib/store.js';
 export type {
+  AddPlayerNoteInput,
   Admin,
   AdminRole,
   AdminStore,
   AuditLogEntry,
+  AuditLogFilter,
   AuditSource,
   ClaimOwnerResult,
+  PlayerNote,
+  PlayerNoteFilter,
+  PlayerNoteKind,
   RecordAuditLogInput,
+  RecordReportInput,
+  RecordSnapshotInput,
+  Report,
+  ReportFilter,
+  ReportStatus,
   ServerConfig,
+  ServerSnapshot,
   TelegramUser,
   UpsertServerInput,
 } from './lib/types.js';

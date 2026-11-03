@@ -55,6 +55,23 @@
   color: var(--mat-sys-on-surface-variant);
 }
 
+.badge {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  margin-left: 4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  text-align: center;
+  font: var(--mat-sys-label-small);
+  line-height: 16px;
+  background: var(--mat-sys-error);
+  color: var(--mat-sys-on-error);
+}
+
 // M3 navigation bar.
 .bottom-nav {
   position: fixed;
@@ -80,6 +97,7 @@
   font: var(--mat-sys-label-medium);
 
   .pill {
+    position: relative;
     display: flex;
     justify-content: center;
     width: 56px;

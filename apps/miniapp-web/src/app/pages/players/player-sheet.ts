@@ -11,13 +11,20 @@ import {
   MatBottomSheetRef,
 } from '@angular/material/bottom-sheet';
 import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import type { ModerationKind, PlayerDto } from '@cod2admin/miniapp-api';
+import type {
+  ModerationKind,
+  NoteKind,
+  PlayerDto,
+  PlayerHistoryResponse,
+} from '@cod2admin/miniapp-api';
 import { ApiService } from '../../core/api';
+import { PresetsService } from '../../core/presets';
 import { SessionService } from '../../core/session';
-import { DURATION_CHOICES, flagEmoji } from '../../shared/format';
+import { flagEmoji, formatAgo, formatMinutes } from '../../shared/format';
 import { GameName, plainName } from '../../shared/game-name';
 import { Icon } from '../../shared/icon';
 import { Notify } from '../../shared/notify';
@@ -27,7 +34,7 @@ export interface PlayerSheetData {
   player: PlayerDto;
 }
 
-type Mode = 'menu' | ModerationKind | 'tell';
+type Mode = 'menu' | ModerationKind | 'tell' | 'history';
 
 /**
  * Everything you can do to one connected player (docs/PLAN-miniapp.md §6.1): details, then kick,
@@ -40,6 +47,7 @@ type Mode = 'menu' | ModerationKind | 'tell';
   imports: [
     FormsModule,
     MatButtonModule,
+    MatCheckboxModule,
     MatChipsModule,
     MatFormFieldModule,
     MatInputModule,
@@ -54,19 +62,79 @@ export class PlayerSheet {
   private readonly ref = inject(MatBottomSheetRef<PlayerSheet>);
   private readonly api = inject(ApiService);
   private readonly notify = inject(Notify);
+  private readonly presetsService = inject(PresetsService);
   protected readonly session = inject(SessionService);
 
   protected readonly player = this.data.player;
   protected readonly flag = flagEmoji(this.player.countryCode);
-  protected readonly durations = DURATION_CHOICES;
+  protected readonly presets = this.presetsService.presets;
+  protected readonly durationLabel = formatMinutes;
+  protected readonly ago = formatAgo;
+  protected readonly history = signal<PlayerHistoryResponse | null>(null);
+  protected readonly noteText = signal('');
+  protected readonly noteWatch = signal(false);
   protected readonly mode = signal<Mode>('menu');
   protected readonly busy = signal(false);
   protected readonly reason = signal('');
   protected readonly message = signal('');
-  protected readonly duration = signal(DURATION_CHOICES[0].minutes);
+  protected readonly duration = signal(30);
+
+  constructor() {
+    void this.presetsService.load().then(() => {
+      const [first] = this.presets().durations;
+      if (first) {
+        this.duration.set(first);
+      }
+    });
+  }
 
   protected open(mode: Mode): void {
     this.mode.set(mode);
+    if (mode === 'history' && !this.history()) {
+      void this.loadHistory();
+    }
+  }
+
+  private async loadHistory(): Promise<void> {
+    try {
+      this.history.set(
+        await this.api.playerHistory(this.data.server, this.player),
+      );
+    } catch (error) {
+      this.notify.error(error);
+    }
+  }
+
+  /** On the most certain identity they have: most players' GUID is 0, and anyone can take a name. */
+  protected noteTarget(): { kind: NoteKind; value: string; label: string } {
+    const { guid, ip, name } = this.player;
+    if (guid) {
+      return { kind: 'guid', value: guid, label: `GUID ${guid}` };
+    }
+    if (ip) {
+      return { kind: 'ip', value: ip, label: `IP ${ip}` };
+    }
+    return { kind: 'name', value: name, label: 'their name' };
+  }
+
+  protected async addNote(): Promise<void> {
+    const { kind, value } = this.noteTarget();
+    const note = this.noteText().trim();
+    if (!note) {
+      return;
+    }
+    this.busy.set(true);
+    try {
+      await this.api.addNote({ kind, value, note, watch: this.noteWatch() });
+      this.noteText.set('');
+      this.noteWatch.set(false);
+      this.notify.success('Note added.');
+      await this.loadHistory();
+    } catch (error) {
+      this.notify.error(error);
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   protected async moderate(kind: ModerationKind): Promise<void> {

@@ -1,4 +1,13 @@
-import { flagEmoji, formatAgo, formatSpan } from './format';
+import { flagEmoji, formatAgo, formatMinutes, formatSpan } from './format';
+
+describe('formatMinutes', () => {
+  it('uses the largest unit that fits exactly', () => {
+    expect(formatMinutes(30)).toBe('30m');
+    expect(formatMinutes(120)).toBe('2h');
+    expect(formatMinutes(90)).toBe('90m');
+    expect(formatMinutes(10_080)).toBe('7d');
+  });
+});
 
 describe('flagEmoji', () => {
   it('turns an ISO code into a flag, and gives LAN or junk none', () => {
