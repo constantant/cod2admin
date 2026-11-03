@@ -1,3 +1,16 @@
+## [1.15.0](https://github.com/constantant/cod2admin/releases/tag/v1.15.0) (2026-11-03)
+
+### 🚀 Features
+
+- **gateway:** add /findlog to find and connect a server's game log ([39cd895](https://github.com/constantant/cod2admin/commit/39cd895))
+- **installer:** add a Docker kit for hosts the installer can't run on ([e053d98](https://github.com/constantant/cod2admin/commit/e053d98))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5
+- Claude Opus 5.5 (1M context)
+- kk
+
 ## [1.14.0](https://github.com/constantant/cod2admin/releases/tag/v1.14.0) (2026-10-07)
 
 ### 🚀 Features
