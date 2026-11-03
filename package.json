@@ -5,7 +5,10 @@
   "scripts": {
     "prepare": "husky",
     "release": "bash scripts/release.sh",
-    "release:dry-run": "bash scripts/release.sh --dry-run"
+    "release:dry-run": "bash scripts/release.sh --dry-run",
+    "bot:on": "bash scripts/nas-ctfrussia.sh start",
+    "bot:off": "bash scripts/nas-ctfrussia.sh stop",
+    "bot:status": "bash scripts/nas-ctfrussia.sh status"
   },
   "private": true,
   "devDependencies": {
