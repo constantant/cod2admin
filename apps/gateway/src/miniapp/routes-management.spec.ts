@@ -406,14 +406,30 @@ describe('Mini App management routes', () => {
       expect(fake.rcon.setCvar).not.toHaveBeenCalled();
     });
 
-    it('runs only known level commands, and is honest when the server stays silent', async () => {
+    it('tells from the map whether a silent rotate worked, as a real server never answers it', async () => {
       fake.rcon.levelCommand.mockResolvedValue(false);
+      const rotate = () =>
+        call('POST', '/servers/default/level', ADMIN, { command: 'rotate' });
 
-      const sent = await call('POST', '/servers/default/level', ADMIN, {
-        command: 'rotate',
-      });
+      fake.rcon.getInfo
+        .mockResolvedValueOnce({ mapname: 'mp_a' })
+        .mockResolvedValueOnce({ mapname: 'mp_b' });
+      expect((await rotate()).json().message).toBe('Now on mp_b.');
+
+      fake.rcon.getInfo
+        .mockResolvedValueOnce({ mapname: 'mp_a' })
+        .mockResolvedValueOnce({ mapname: 'mp_a' });
+      expect((await rotate()).json().message).toContain('still on mp_a');
+
+      fake.rcon.getInfo
+        .mockResolvedValueOnce({ mapname: 'mp_a' })
+        .mockRejectedValueOnce(new UdpQueryTimeoutError('x'));
+      expect((await rotate()).json().message).toContain("hasn't come back");
+    });
+
+    it('runs only known level commands', async () => {
+      await call('POST', '/servers/default/level', ADMIN, { command: 'rotate' });
       expect(fake.rcon.levelCommand).toHaveBeenCalledWith('map_rotate');
-      expect(sent.json().message).toContain("didn't answer");
 
       for (const command of ['quit', 'constructor', '__proto__']) {
         expect(

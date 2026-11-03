@@ -89,12 +89,19 @@ Local verification used a harness running the Mini App server with real Postgres
   check until now: any admin could remove or demote the owner.
 - A rotation is read back after it's set; if the server didn't take all of it, the old one goes back.
   It lives in a cvar, so a server restart undoes it, and the UI says so.
-- `levelCommand` reports "sent, no answer" rather than success or failure: a loading server often
-  doesn't reply, and a busy one can drop the command unrun (`PLAN.md` §2.4).
+- `map_restart` and `map_rotate` never answer on a real server (it's loading), and a busy one can
+  drop a command unrun (`PLAN.md` §2.4), so after silence the gateway asks `getinfo`: that waits the
+  load out, and a rotate compares the map before and after.
 
-**Not verified on a real CoD2 server:** `map_rotate`, `map_restart`, `fast_restart`, and setting
-`sv_mapRotation`/`sv_mapRotationCurrent`. M5 was tested with real Postgres and the built app in a
-browser, against a fake UDP game server. Also still not opened from a real Telegram client (above).
+**Verified on the dev CoD2 server (2026-11-03), RCON only:** `fast_restart` (answers), `map_restart`
+and `map_rotate` (run, no answer; the rotate went to the rotation's first map), setting
+`sv_mapRotation` and clearing `sv_mapRotationCurrent`. A rotation over about 1 KB is cut short by the
+server (64 entries, 1218 characters: 50 kept), which is what the read-back catches. A `map_rotate`
+fills `sv_mapRotationCurrent` with the rest of the list.
+
+**Not verified:** the app's pages on a real server. M5's pages were tested with real Postgres and
+the built app in a browser, against a fake UDP game server. Still not opened from a real Telegram
+client (above).
 
 **Not built:** a Telegram message when a watched player joins (the alert needs the app open), and a
 Russian UI (the app is English only).
