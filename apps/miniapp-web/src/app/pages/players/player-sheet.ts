@@ -28,6 +28,7 @@ import { flagEmoji, formatAgo, formatMinutes } from '../../shared/format';
 import { GameName, plainName } from '../../shared/game-name';
 import { Icon } from '../../shared/icon';
 import { Notify } from '../../shared/notify';
+import { t, T } from '../../shared/i18n';
 
 export interface PlayerSheetData {
   server: string;
@@ -45,6 +46,7 @@ type Mode = 'menu' | ModerationKind | 'tell' | 'history';
   selector: 'c2a-player-sheet',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    T,
     FormsModule,
     MatButtonModule,
     MatCheckboxModule,
@@ -68,7 +70,8 @@ export class PlayerSheet {
   protected readonly player = this.data.player;
   protected readonly flag = flagEmoji(this.player.countryCode);
   protected readonly presets = this.presetsService.presets;
-  protected readonly durationLabel = formatMinutes;
+  protected readonly durationLabel = (minutes: number) =>
+    t(formatMinutes(minutes));
   protected readonly ago = formatAgo;
   protected readonly history = signal<PlayerHistoryResponse | null>(null);
   protected readonly noteText = signal('');
@@ -114,7 +117,7 @@ export class PlayerSheet {
     if (ip) {
       return { kind: 'ip', value: ip, label: `IP ${ip}` };
     }
-    return { kind: 'name', value: name, label: 'their name' };
+    return { kind: 'name', value: name, label: t('their name') };
   }
 
   protected async addNote(): Promise<void> {

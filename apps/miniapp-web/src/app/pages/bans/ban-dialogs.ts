@@ -24,6 +24,7 @@ import type {
 import { ApiService } from '../../core/api';
 import { DURATION_CHOICES, formatSpan } from '../../shared/format';
 import { Notify } from '../../shared/notify';
+import { T } from '../../shared/i18n';
 
 /** `keep` leaves the expiry alone, `permanent` clears it, a number sets it that many minutes from now. */
 type ExpiryChoice = 'keep' | 'permanent' | number;
@@ -33,6 +34,7 @@ type ExpiryChoice = 'keep' | 'permanent' | number;
   selector: 'c2a-edit-ban-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    T,
     FormsModule,
     MatDialogModule,
     MatButtonModule,
@@ -41,39 +43,44 @@ type ExpiryChoice = 'keep' | 'permanent' | number;
     MatInputModule,
   ],
   template: `
-    <h2 mat-dialog-title>Edit ban</h2>
+    <h2 mat-dialog-title>{{ 'Edit ban' | t }}</h2>
     <mat-dialog-content>
       <p class="muted">
         {{
-          ban.kind === 'ip'
+          (ban.kind === 'ip'
             ? 'IP ' + ban.ip
             : ban.name + ' (GUID ' + ban.guid + ')'
+          ) | t
         }}
         ·
-        {{ ban.expiresAt ? 'expires in ' + remaining : 'permanent' }}
+        {{ (ban.expiresAt ? 'expires in ' + remaining : 'permanent') | t }}
       </p>
       <mat-form-field class="full-width">
-        <mat-label>Reason</mat-label>
+        <mat-label>{{ 'Reason' | t }}</mat-label>
         <input matInput [(ngModel)]="reason" maxlength="200" />
       </mat-form-field>
-      <div class="label">Expiry</div>
+      <div class="label">{{ 'Expiry' | t }}</div>
       <mat-chip-listbox
-        aria-label="Expiry"
+        [attr.aria-label]="'Expiry' | t"
         [value]="expiry()"
         (change)="expiry.set($event.value ?? 'keep')"
       >
-        <mat-chip-option value="keep">Keep</mat-chip-option>
-        <mat-chip-option value="permanent">Permanent</mat-chip-option>
+        <mat-chip-option value="keep">{{ 'Keep' | t }}</mat-chip-option>
+        <mat-chip-option value="permanent">{{
+          'Permanent' | t
+        }}</mat-chip-option>
         @for (choice of durations; track choice.minutes) {
           <mat-chip-option [value]="choice.minutes"
-            >{{ choice.label }} from now</mat-chip-option
+            >{{ choice.label | t }} {{ 'from now' | t }}</mat-chip-option
           >
         }
       </mat-chip-listbox>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close>Cancel</button>
-      <button mat-flat-button [disabled]="busy()" (click)="save()">Save</button>
+      <button mat-button mat-dialog-close>{{ 'Cancel' | t }}</button>
+      <button mat-flat-button [disabled]="busy()" (click)="save()">
+        {{ 'Save' | t }}
+      </button>
     </mat-dialog-actions>
   `,
   styles: `
@@ -137,6 +144,7 @@ export class EditBanDialog {
   selector: 'c2a-add-ban-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    T,
     FormsModule,
     MatDialogModule,
     MatButtonModule,
@@ -146,7 +154,7 @@ export class EditBanDialog {
     MatInputModule,
   ],
   template: `
-    <h2 mat-dialog-title>Add a ban</h2>
+    <h2 mat-dialog-title>{{ 'Add a ban' | t }}</h2>
     <mat-dialog-content>
       <mat-button-toggle-group
         class="full-width kind"
@@ -154,12 +162,12 @@ export class EditBanDialog {
         [value]="kind()"
         (change)="kind.set($event.value)"
       >
-        <mat-button-toggle value="ip">By IP</mat-button-toggle>
-        <mat-button-toggle value="guid">By GUID</mat-button-toggle>
+        <mat-button-toggle value="ip">{{ 'By IP' | t }}</mat-button-toggle>
+        <mat-button-toggle value="guid">{{ 'By GUID' | t }}</mat-button-toggle>
       </mat-button-toggle-group>
       @if (kind() === 'ip') {
         <mat-form-field class="full-width">
-          <mat-label>IP address</mat-label>
+          <mat-label>{{ 'IP address' | t }}</mat-label>
           <input
             matInput
             [(ngModel)]="ip"
@@ -170,38 +178,41 @@ export class EditBanDialog {
         </mat-form-field>
       } @else {
         <mat-form-field class="full-width">
-          <mat-label>GUID</mat-label>
+          <mat-label>{{ 'GUID' | t }}</mat-label>
           <input matInput [(ngModel)]="guid" autocomplete="off" />
         </mat-form-field>
         <mat-form-field class="full-width">
-          <mat-label>Player name</mat-label>
+          <mat-label>{{ 'Player name' | t }}</mat-label>
           <input matInput [(ngModel)]="name" maxlength="64" />
         </mat-form-field>
       }
       <mat-form-field class="full-width">
-        <mat-label>Reason (optional)</mat-label>
+        <mat-label>{{ 'Reason (optional)' | t }}</mat-label>
         <input matInput [(ngModel)]="reason" maxlength="200" />
       </mat-form-field>
       <mat-chip-listbox
-        aria-label="Length"
+        [attr.aria-label]="'Length' | t"
         [value]="minutes()"
         (change)="minutes.set($event.value ?? null)"
       >
-        <mat-chip-option [value]="null">Permanent</mat-chip-option>
+        <mat-chip-option [value]="null">{{ 'Permanent' | t }}</mat-chip-option>
         @for (choice of durations; track choice.minutes) {
           <mat-chip-option [value]="choice.minutes">{{
-            choice.label
+            choice.label | t
           }}</mat-chip-option>
         }
       </mat-chip-listbox>
       <p class="muted small">
-        Applies on every server. Someone online now is kicked within seconds.
+        {{
+          'Applies on every server. Someone online now is kicked within seconds.'
+            | t
+        }}
       </p>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close>Cancel</button>
+      <button mat-button mat-dialog-close>{{ 'Cancel' | t }}</button>
       <button mat-flat-button [disabled]="busy() || !valid()" (click)="save()">
-        Ban
+        {{ 'Ban' | t }}
       </button>
     </mat-dialog-actions>
   `,

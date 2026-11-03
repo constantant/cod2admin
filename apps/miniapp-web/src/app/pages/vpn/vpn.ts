@@ -17,12 +17,14 @@ import type { VpnResponse } from '@cod2admin/miniapp-api';
 import { ApiService } from '../../core/api';
 import { Icon } from '../../shared/icon';
 import { Notify } from '../../shared/notify';
+import { T } from '../../shared/i18n';
 
 /** VPN rules: `/vpnkick` and `/vpnnets`. Applied at once, on every server. */
 @Component({
   selector: 'c2a-vpn-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    T,
     FormsModule,
     MatButtonModule,
     MatFormFieldModule,
@@ -35,8 +37,10 @@ import { Notify } from '../../shared/notify';
       @if (data(); as data) {
         @if (!data.flagsEnabled) {
           <div class="banner">
-            VPN flags are off on this bot (VPN_FLAG_ENABLED=false), so nobody
-            gets flagged and nobody is kicked.
+            {{
+              'VPN flags are off on this bot (VPN_FLAG_ENABLED=false), so nobody gets flagged and nobody is kicked.'
+                | t
+            }}
           </div>
         }
         <section class="card">
@@ -44,23 +48,24 @@ import { Notify } from '../../shared/notify';
             [checked]="data.kickEnabled"
             [disabled]="busy()"
             (change)="setKick($event)"
-            >Kick players on a VPN</mat-slide-toggle
+            >{{ 'Kick players on a VPN' | t }}</mat-slide-toggle
           >
           <p class="muted small">
-            Players marked 🛡 (VPN, proxy, Tor, hosting or a network below) are
-            kicked on sight on every server, with a message in the game chat.
-            Nobody is banned: a VPN address is shared by strangers.
+            {{
+              'Players marked 🛡 (VPN, proxy, Tor, hosting or a network below) are kicked on sight on every server, with a message in the game chat. Nobody is banned: a VPN address is shared by strangers.'
+                | t
+            }}
           </p>
         </section>
 
-        <h2>Never kicked</h2>
+        <h2>{{ 'Never kicked' | t }}</h2>
         <form class="add" (ngSubmit)="allow()">
           <mat-form-field
             class="grow"
             subscriptSizing="dynamic"
             appearance="outline"
           >
-            <mat-label>GUID or name</mat-label>
+            <mat-label>{{ 'GUID or name' | t }}</mat-label>
             <input matInput name="player" [(ngModel)]="player" />
           </mat-form-field>
           <button
@@ -68,40 +73,42 @@ import { Notify } from '../../shared/notify';
             type="submit"
             [disabled]="busy() || !player().trim()"
           >
-            Add
+            {{ 'Add' | t }}
           </button>
         </form>
-        <p class="muted small">Anyone can take a name; a GUID is safer.</p>
+        <p class="muted small">
+          {{ 'Anyone can take a name; a GUID is safer.' | t }}
+        </p>
         <ul>
           @for (entry of data.exempt; track entry) {
             <li>
               <span class="grow">{{ entry }}</span>
               <button
                 mat-icon-button
-                [attr.aria-label]="'Remove ' + entry"
+                [attr.aria-label]="'Remove ' + entry | t"
                 (click)="unallow(entry)"
               >
                 <c2a-icon name="close" />
               </button>
             </li>
           } @empty {
-            <li class="muted">Nobody is exempt.</li>
+            <li class="muted">{{ 'Nobody is exempt.' | t }}</li>
           }
         </ul>
 
-        <h2>Networks marked as VPN</h2>
+        <h2>{{ 'Networks marked as VPN' | t }}</h2>
         <form class="add" (ngSubmit)="addNetwork()">
           <mat-form-field
             class="grow"
             subscriptSizing="dynamic"
             appearance="outline"
           >
-            <mat-label>Player IP or ASN</mat-label>
+            <mat-label>{{ 'Player IP or ASN' | t }}</mat-label>
             <input
               matInput
               name="network"
               class="mono"
-              placeholder="AS202226"
+              [placeholder]="'AS202226' | t"
               [(ngModel)]="network"
             />
           </mat-form-field>
@@ -110,32 +117,34 @@ import { Notify } from '../../shared/notify';
             type="submit"
             [disabled]="busy() || !network().trim()"
           >
-            Add
+            {{ 'Add' | t }}
           </button>
         </form>
         <p class="muted small">
-          For VPNs the public lists miss: everyone on that provider gets the
-          mark.
+          {{
+            'For VPNs the public lists miss: everyone on that provider gets the mark.'
+              | t
+          }}
         </p>
         <ul>
           @for (entry of data.networks; track entry.asn) {
             <li>
               <span class="grow">
-                <span class="mono">AS{{ entry.asn }}</span>
+                <span class="mono">{{ 'AS' | t }}{{ entry.asn }}</span>
                 @if (entry.name) {
                   <span class="muted"> {{ entry.name }}</span>
                 }
               </span>
               <button
                 mat-icon-button
-                [attr.aria-label]="'Remove AS' + entry.asn"
+                [attr.aria-label]="'Remove AS' + entry.asn | t"
                 (click)="removeNetwork(entry.asn)"
               >
                 <c2a-icon name="close" />
               </button>
             </li>
           } @empty {
-            <li class="muted">None yet.</li>
+            <li class="muted">{{ 'None yet.' | t }}</li>
           }
         </ul>
       }

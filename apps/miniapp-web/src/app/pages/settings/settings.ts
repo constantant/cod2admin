@@ -17,12 +17,14 @@ import { SessionService } from '../../core/session';
 import { Forms } from '../../shared/form-dialog';
 import { Icon } from '../../shared/icon';
 import { Notify } from '../../shared/notify';
+import { T } from '../../shared/i18n';
 
 /** What the server reports about itself; the owner can change a setting from here. */
 @Component({
   selector: 'c2a-settings-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    T,
     FormsModule,
     MatButtonModule,
     MatFormFieldModule,
@@ -44,30 +46,35 @@ import { Notify } from '../../shared/notify';
           <c2a-icon matPrefix name="search" class="prefix" />
           <input
             matInput
-            placeholder="Find a setting"
+            [placeholder]="'Find a setting' | t"
             [ngModel]="filter()"
             (ngModelChange)="filter.set($event)"
           />
         </mat-form-field>
         @if (session.can('owner')) {
-          <button mat-flat-button (click)="edit('', '')">Set…</button>
+          <button mat-flat-button (click)="edit('', '')">
+            {{ 'Set…' | t }}
+          </button>
         }
       </div>
       <p class="muted small">
-        What {{ session.server() }} reports publicly. A change can be undone by
-        a server restart, unless it's in the server's config too.
+        {{ 'What' | t }} {{ session.server() }}
+        {{
+          "reports publicly. A change can be undone by a server restart, unless it's in the server's config too."
+            | t
+        }}
       </p>
       <ul>
         @for (cvar of visible(); track cvar.name) {
           <li>
             <div class="grow">
               <div class="mono name">{{ cvar.name }}</div>
-              <div class="value">{{ cvar.value || '(empty)' }}</div>
+              <div class="value">{{ cvar.value || ('(empty)' | t) }}</div>
             </div>
             @if (session.can('owner')) {
               <button
                 mat-icon-button
-                [attr.aria-label]="'Change ' + cvar.name"
+                [attr.aria-label]="'Change ' + cvar.name | t"
                 (click)="edit(cvar.name, cvar.value)"
               >
                 <c2a-icon name="edit" />
@@ -76,7 +83,7 @@ import { Notify } from '../../shared/notify';
           </li>
         } @empty {
           @if (!loading()) {
-            <li class="muted">Nothing to show.</li>
+            <li class="muted">{{ 'Nothing to show.' | t }}</li>
           }
         }
       </ul>

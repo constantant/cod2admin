@@ -18,6 +18,8 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { firstValueFrom } from 'rxjs';
+import { t } from './i18n';
+import { T } from './i18n';
 
 export interface FormField {
   key: string;
@@ -44,6 +46,7 @@ export type FormValues = Record<string, string | boolean>;
   selector: 'c2a-form-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    T,
     FormsModule,
     MatButtonModule,
     MatCheckboxModule,
@@ -69,7 +72,7 @@ export type FormValues = Record<string, string | boolean>;
               >
                 @for (option of field.options; track option.value) {
                   <mat-option [value]="option.value">{{
-                    option.label
+                    option.label | t
                   }}</mat-option>
                 }
               </mat-select>
@@ -123,7 +126,7 @@ export type FormValues = Record<string, string | boolean>;
       }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close>Cancel</button>
+      <button mat-button mat-dialog-close>{{ 'Cancel' | t }}</button>
       <button
         mat-flat-button
         [disabled]="!valid()"
@@ -163,7 +166,21 @@ export class Forms {
   /** `null` when cancelled. */
   async open(data: FormData): Promise<FormValues | null> {
     const ref = this.dialog.open(FormDialog, {
-      data,
+      data: {
+        ...data,
+        title: t(data.title),
+        message: data.message && t(data.message),
+        confirm: t(data.confirm),
+        fields: data.fields.map((field) => ({
+          ...field,
+          label: t(field.label),
+          hint: field.hint && t(field.hint),
+          options: field.options?.map((option) => ({
+            ...option,
+            label: t(option.label),
+          })),
+        })),
+      },
       autoFocus: false,
       maxWidth: '460px',
       width: '92vw',

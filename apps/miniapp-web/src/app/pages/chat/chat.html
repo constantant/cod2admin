@@ -3,11 +3,11 @@
 } @if (!available()) {
 <div class="page empty">
   <c2a-icon name="chat" class="big" />
-  <p>No chat feed for {{ session.server() }}.</p>
+  <p>{{ 'No chat feed for' | t }} {{ session.server() }}.</p>
   <p class="small">
-    The bot reads chat from the server's games_mp.log, so it has to run on the
-    game server's machine with COD2_LOG_PATH set. A bot that manages the server
-    over RCON only can't see the chat.
+    {{ 'The bot reads chat from the server\'s games_mp.log, so it has to run on
+    the game server\'s machine with COD2_LOG_PATH set. A bot that manages the
+    server over RCON only can\'t see the chat.' | t }}
   </p>
 </div>
 } @else {
@@ -22,9 +22,9 @@
       <span class="time">{{ clock(line) }}</span>
       <span class="body">
         @if (line.channel === 'sayteam') {
-        <span class="tag">team</span>
+        <span class="tag">{{ 'team' | t }}</span>
         } @else if (line.channel === 'tell') {
-        <span class="tag">to {{ plain(line.to ?? '') }}</span>
+        <span class="tag">{{ 'to' | t }} {{ plain(line.to ?? '') }}</span>
         } @if (line.source === 'admin') {
         <span class="author">{{ line.name }}</span>
         } @else {
@@ -36,7 +36,7 @@
       </span>
     </div>
     } @empty { @if (!loading()) {
-    <p class="empty">Nothing said yet.</p>
+    <p class="empty">{{ 'Nothing said yet.' | t }}</p>
     } }
   </div>
 
@@ -54,13 +54,13 @@
       class="to"
       [value]="to()"
       (valueChange)="to.set($event)"
-      aria-label="Send to"
+      [aria-label]="'Send to' | t"
       panelWidth="auto"
     >
-      <mat-option [value]="everyone">Everyone</mat-option>
+      <mat-option [value]="everyone">{{ 'Everyone' | t }}</mat-option>
       @for (player of players(); track player.num) {
       <mat-option [value]="player.num"
-        >{{ plain(player.name) || 'client ' + player.num }}</mat-option
+        >{{ plain(player.name) || ('client ' + player.num | t) }}</mat-option
       >
       }
     </mat-select>
@@ -75,13 +75,13 @@
         [(ngModel)]="draft"
         maxlength="120"
         autocomplete="off"
-        [placeholder]="to() === everyone ? 'Message to everyone' : 'Private message'"
+        [placeholder]="(to() === everyone ? 'Message to everyone' : 'Private message') | t"
       />
     </mat-form-field>
     <button
       mat-icon-button
       type="submit"
-      aria-label="Send"
+      [attr.aria-label]="'Send' | t"
       [disabled]="sending() || !draft().trim()"
     >
       <c2a-icon name="send" />
@@ -89,7 +89,8 @@
   </form>
   } @else {
   <p class="read-only muted">
-    Moderators can read the chat; writing to it needs the admin role.
+    {{ 'Moderators can read the chat; writing to it needs the admin role.' | t
+    }}
   </p>
   }
 </div>

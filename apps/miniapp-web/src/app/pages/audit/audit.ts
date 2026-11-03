@@ -17,6 +17,7 @@ import { ApiService } from '../../core/api';
 import { SessionService } from '../../core/session';
 import { Icon } from '../../shared/icon';
 import { Notify } from '../../shared/notify';
+import { dateLocale, T } from '../../shared/i18n';
 
 const SOURCE_LABELS: Record<AuditSourceDto, string> = {
   telegram_command: 'Chat command',
@@ -30,6 +31,7 @@ const SOURCE_LABELS: Record<AuditSourceDto, string> = {
   selector: 'c2a-audit-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    T,
     FormsModule,
     MatButtonModule,
     MatFormFieldModule,
@@ -51,46 +53,48 @@ const SOURCE_LABELS: Record<AuditSourceDto, string> = {
         <c2a-icon matPrefix name="search" class="prefix" />
         <input
           matInput
-          placeholder="Target or reason"
+          [placeholder]="'Target or reason' | t"
           [ngModel]="query()"
           (ngModelChange)="query.set($event)"
         />
       </mat-form-field>
       <div class="filters">
         <mat-form-field subscriptSizing="dynamic" appearance="outline">
-          <mat-label>Action</mat-label>
+          <mat-label>{{ 'Action' | t }}</mat-label>
           <mat-select [value]="action()" (valueChange)="action.set($event)">
-            <mat-option value="">All</mat-option>
+            <mat-option value="">{{ 'All' | t }}</mat-option>
             @for (name of actions(); track name) {
               <mat-option [value]="name">{{ name }}</mat-option>
             }
           </mat-select>
         </mat-form-field>
         <mat-form-field subscriptSizing="dynamic" appearance="outline">
-          <mat-label>From</mat-label>
+          <mat-label>{{ 'From' | t }}</mat-label>
           <mat-select [value]="source()" (valueChange)="source.set($event)">
-            <mat-option value="">Anywhere</mat-option>
+            <mat-option value="">{{ 'Anywhere' | t }}</mat-option>
             @for (entry of sources; track entry.value) {
-              <mat-option [value]="entry.value">{{ entry.label }}</mat-option>
+              <mat-option [value]="entry.value">{{
+                entry.label | t
+              }}</mat-option>
             }
           </mat-select>
         </mat-form-field>
         <mat-form-field subscriptSizing="dynamic" appearance="outline">
-          <mat-label>Server</mat-label>
+          <mat-label>{{ 'Server' | t }}</mat-label>
           <mat-select [value]="server()" (valueChange)="server.set($event)">
-            <mat-option value="">All</mat-option>
+            <mat-option value="">{{ 'All' | t }}</mat-option>
             @for (entry of session.me()?.servers ?? []; track entry.alias) {
               <mat-option [value]="entry.alias">{{ entry.alias }}</mat-option>
             }
           </mat-select>
         </mat-form-field>
         <mat-form-field subscriptSizing="dynamic" appearance="outline">
-          <mat-label>Period</mat-label>
+          <mat-label>{{ 'Period' | t }}</mat-label>
           <mat-select [value]="days()" (valueChange)="days.set($event)">
-            <mat-option [value]="0">All time</mat-option>
-            <mat-option [value]="1">24 hours</mat-option>
-            <mat-option [value]="7">7 days</mat-option>
-            <mat-option [value]="30">30 days</mat-option>
+            <mat-option [value]="0">{{ 'All time' | t }}</mat-option>
+            <mat-option [value]="1">{{ '24 hours' | t }}</mat-option>
+            <mat-option [value]="7">{{ '7 days' | t }}</mat-option>
+            <mat-option [value]="30">{{ '30 days' | t }}</mat-option>
           </mat-select>
         </mat-form-field>
       </div>
@@ -107,7 +111,7 @@ const SOURCE_LABELS: Record<AuditSourceDto, string> = {
               </span>
               <span class="muted small">
                 {{ entry.actor }} · {{ when(entry.at) }} ·
-                {{ sourceLabel(entry.source) }}
+                {{ sourceLabel(entry.source) | t }}
                 @if (entry.server) {
                   · {{ entry.server }}
                 }
@@ -122,13 +126,13 @@ const SOURCE_LABELS: Record<AuditSourceDto, string> = {
           </li>
         } @empty {
           @if (!loading()) {
-            <li class="empty">Nothing matches.</li>
+            <li class="empty">{{ 'Nothing matches.' | t }}</li>
           }
         }
       </ul>
       @if (more()) {
         <button mat-button class="full-width" (click)="load(true)">
-          Show more
+          {{ 'Show more' | t }}
         </button>
       }
     </div>
@@ -219,7 +223,7 @@ export class AuditPage {
   }
 
   protected when(iso: string): string {
-    return new Date(iso).toLocaleString([], {
+    return new Date(iso).toLocaleString(dateLocale, {
       dateStyle: 'short',
       timeStyle: 'short',
       hourCycle: 'h23',

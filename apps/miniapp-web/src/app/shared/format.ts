@@ -1,3 +1,5 @@
+import { dateLocale, t } from './i18n';
+
 /** Regional-indicator flag for an ISO country code (`RU` → 🇷🇺); `LAN` and unknowns get none. */
 export function flagEmoji(code: string | undefined): string {
   if (!code || !/^[A-Z]{2}$/.test(code)) {
@@ -27,17 +29,17 @@ export function formatSpan(ms: number): string {
 export function formatAgo(iso: string, now: Date = new Date()): string {
   const ms = now.getTime() - new Date(iso).getTime();
   if (ms < 60_000) {
-    return 'just now';
+    return t('just now');
   }
   if (ms > 7 * 86_400_000) {
-    return new Date(iso).toLocaleDateString();
+    return new Date(iso).toLocaleDateString(dateLocale);
   }
-  return `${formatSpan(ms)} ago`;
+  return t(`${formatSpan(ms)} ago`);
 }
 
 /** `14:05` in the viewer's time zone. */
 export function formatClock(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], {
+  return new Date(iso).toLocaleTimeString(dateLocale, {
     hour: '2-digit',
     minute: '2-digit',
     hourCycle: 'h23',

@@ -15,7 +15,9 @@ import type { MiniAppRole } from '@cod2admin/miniapp-api';
 import { LiveService } from './core/live';
 import { SessionService } from './core/session';
 import { TelegramService } from './core/telegram';
+import { t } from './shared/i18n';
 import { Icon, type IconName } from './shared/icon';
+import { T } from './shared/i18n';
 
 interface NavItem {
   path: string;
@@ -36,6 +38,7 @@ const NAV: readonly NavItem[] = [
   selector: 'c2a-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    T,
     RouterOutlet,
     RouterLink,
     RouterLinkActive,
@@ -65,7 +68,7 @@ export class App implements OnInit {
 
   constructor() {
     const alerts = this.live.alerts.subscribe((message) =>
-      this.snackBar.open(message, 'OK', { duration: 6000 }),
+      this.snackBar.open(t(message), t('OK'), { duration: 6000 }),
     );
     inject(DestroyRef).onDestroy(() => alerts.unsubscribe());
   }

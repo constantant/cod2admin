@@ -24,6 +24,7 @@ import { GameName, plainName } from '../../shared/game-name';
 import { Icon } from '../../shared/icon';
 import { Notify } from '../../shared/notify';
 import { openPlayerSheet } from './player-sheet';
+import { T } from '../../shared/i18n';
 
 type SortKey = 'score' | 'name' | 'ping' | 'num';
 
@@ -32,6 +33,7 @@ type SortKey = 'score' | 'name' | 'ping' | 'num';
   selector: 'c2a-players-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    T,
     FormsModule,
     MatButtonModule,
     MatButtonToggleModule,

@@ -25,6 +25,7 @@ import { GameName } from '../../shared/game-name';
 import { Icon } from '../../shared/icon';
 import { Notify } from '../../shared/notify';
 import { AddBanDialog, EditBanDialog } from './ban-dialogs';
+import { T } from '../../shared/i18n';
 
 const SEARCH_DELAY_MS = 300;
 
@@ -42,6 +43,7 @@ function unbanTarget(ban: BanDto): string {
   selector: 'c2a-bans-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    T,
     FormsModule,
     MatButtonModule,
     MatButtonToggleModule,

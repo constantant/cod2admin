@@ -23,7 +23,7 @@ Example: `!report Cheatr123 aimbot`
 - `/players` — detailed player list with IP addresses, their country and provider (🛡 marks a VPN,
   proxy or Tor IP)
 - `/servers` — list of servers this bot manages
-- `/app` — opens the server manager app inside Telegram (players, chat, maps, bans), when the
+- `/app` — opens the server manager app inside Telegram (players, chat, reports, maps, bans, notes and more), when the
   bot's owner turned it on. In a private chat with the bot, the menu button opens it too.
 
 ## Moderator commands
@@ -57,7 +57,8 @@ Example: `!report Cheatr123 aimbot`
   player, `/vpnkick unallow` undoes it, `/vpnkick` shows the state
 - `/addadmin <telegram-id-or-reply> <admin|moderator>` — reply to the person's message, or give
   their numeric Telegram ID; only the owner can grant `admin`, an admin can grant `moderator`
-- `/removeadmin <telegram-id-or-reply>`
+- `/removeadmin <telegram-id-or-reply>` — an admin can remove or change moderators only; nobody can
+  change the owner or themselves (same for `/setrole`)
 - `/setrole <telegram-id-or-reply> <admin|moderator>`
 - `/listadmins` — everyone with access and their role
 

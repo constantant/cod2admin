@@ -6,14 +6,16 @@
     [name]="failure.status === 403 ? 'block' : 'warning'"
     class="gate-icon"
   />
-  <h1>{{ failure.status === 403 ? 'No access' : "Can't open the manager" }}</h1>
-  <p>{{ failure.message }}</p>
+  <h1>
+    {{ (failure.status === 403 ? 'No access' : "Can't open the manager") | t }}
+  </h1>
+  <p>{{ failure.message | t }}</p>
   @if (failure.status !== 403 && failure.status !== 401) {
-  <button mat-flat-button (click)="retry()">Try again</button>
+  <button mat-flat-button (click)="retry()">{{ 'Try again' | t }}</button>
   } @if (!inTelegram && failure.status === 401) {
   <p class="muted small">
-    Opened outside Telegram. For local development, start the bot with
-    MINIAPP_DEV_TELEGRAM_ID.
+    {{ 'Opened outside Telegram. For local development, start the bot with
+    MINIAPP_DEV_TELEGRAM_ID.' | t }}
   </p>
   }
 </main>
@@ -23,7 +25,7 @@
     <span
       class="dot"
       [class.on]="live.connected()"
-      [attr.title]="live.connected() ? 'Live' : 'Reconnecting…'"
+      [attr.title]="(live.connected() ? 'Live' : 'Reconnecting…') | t"
     ></span>
     @if (me.servers.length > 1) {
     <mat-select
@@ -31,7 +33,7 @@
       [value]="session.server()"
       (valueChange)="session.selectServer($event)"
       panelWidth="auto"
-      aria-label="Server"
+      [aria-label]="'Server' | t"
     >
       @for (server of me.servers; track server.alias) {
       <mat-option [value]="server.alias">{{ server.alias }}</mat-option>
@@ -41,7 +43,7 @@
     <span class="server-name">{{ session.server() }}</span>
     }
   </div>
-  <span class="role">{{ me.role }}</span>
+  <span class="role">{{ me.role | t }}</span>
 </header>
 
 <main class="content">
@@ -54,12 +56,12 @@
     <span class="pill">
       <c2a-icon [name]="item.icon" />
       @if (item.path === '/reports' && live.openReports() > 0) {
-      <span class="badge" [attr.aria-label]="live.openReports() + ' open'"
+      <span class="badge" [attr.aria-label]="(live.openReports() + ' open') | t"
         >{{ live.openReports() > 99 ? '99+' : live.openReports() }}</span
       >
       }
     </span>
-    <span class="label">{{ item.label }}</span>
+    <span class="label">{{ item.label | t }}</span>
   </a>
   }
 </nav>

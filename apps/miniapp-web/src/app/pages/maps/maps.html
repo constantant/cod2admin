@@ -3,7 +3,7 @@
 }
 <div class="page">
   <section class="card current">
-    <div class="muted">Now playing</div>
+    <div class="muted">{{ 'Now playing' | t }}</div>
     <div class="row">
       <div class="map-name">
         {{ current() ?? '—' }} @if (maps()?.currentGametype; as gametype) {
@@ -12,7 +12,7 @@
       </div>
       <button
         mat-icon-button
-        aria-label="Reload"
+        [attr.aria-label]="'Reload' | t"
         [disabled]="loading()"
         (click)="load()"
       >
@@ -25,29 +25,29 @@
         [disabled]="switching() !== null"
         (click)="level('rotate')"
       >
-        Next map
+        {{ 'Next map' | t }}
       </button>
       <button
         mat-stroked-button
         [disabled]="switching() !== null"
         (click)="level('restart')"
       >
-        Restart map
+        {{ 'Restart map' | t }}
       </button>
       <button
         mat-stroked-button
         [disabled]="switching() !== null"
         (click)="level('fastrestart')"
       >
-        Restart round
+        {{ 'Restart round' | t }}
       </button>
     </div>
   </section>
 
   @if (maps(); as maps) { @if (maps.gametypes.length > 0) {
-  <h2>Mode</h2>
+  <h2>{{ 'Mode' | t }}</h2>
   <mat-chip-listbox
-    aria-label="Game mode"
+    [attr.aria-label]="'Game mode' | t"
     [value]="mode()"
     (change)="mode.set($event.value ?? mode())"
     hideSingleSelectionIndicator
@@ -59,8 +59,8 @@
   }
 
   <h2>
-    Maps @if (mode(); as gametype) {
-    <span class="muted">— load in {{ label(gametype) }}</span>
+    {{ 'Maps' | t }} @if (mode(); as gametype) {
+    <span class="muted">{{ '— load in' | t }} {{ label(gametype) }}</span>
     }
   </h2>
   @if (maps.maps.length > 12) {
@@ -70,7 +70,7 @@
     appearance="outline"
   >
     <c2a-icon matPrefix name="search" class="prefix" />
-    <input matInput placeholder="Find a map" [(ngModel)]="filter" />
+    <input matInput [placeholder]="'Find a map' | t" [(ngModel)]="filter" />
   </mat-form-field>
   }
   <div class="grid">
@@ -86,21 +86,22 @@
       } {{ map.name }}
     </button>
     } @empty {
-    <p class="muted">{{ emptyText() }}</p>
+    <p class="muted">{{ emptyText() | t }}</p>
     }
   </div>
   @if (hasCustom()) {
   <p class="muted small">
-    <c2a-icon name="warning" class="custom inline" /> custom map — you'll be
-    asked to confirm.
+    <c2a-icon name="warning" class="custom inline" /> {{ 'custom map — you\'ll
+    be asked to confirm.' | t }}
   </p>
   }
   <div class="row rotation-head">
     <h2>
-      From the rotation <span class="muted">— map and mode as configured</span>
+      {{ 'From the rotation' | t }}
+      <span class="muted">{{ '— map and mode as configured' | t }}</span>
     </h2>
     <span class="spacer"></span>
-    <button mat-button (click)="editRotation()">Edit</button>
+    <button mat-button (click)="editRotation()">{{ 'Edit' | t }}</button>
   </div>
   @if (maps.rotation.length > 0) {
   <div class="grid">

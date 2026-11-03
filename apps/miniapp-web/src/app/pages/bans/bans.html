@@ -7,15 +7,15 @@
       hideSingleSelectionIndicator
       [value]="kind()"
       (change)="kind.set($event.value)"
-      aria-label="Ban type"
+      [aria-label]="'Ban type' | t"
     >
-      <mat-button-toggle value="ip">IP bans</mat-button-toggle>
-      <mat-button-toggle value="guid">GUID bans</mat-button-toggle>
+      <mat-button-toggle value="ip">{{ 'IP bans' | t }}</mat-button-toggle>
+      <mat-button-toggle value="guid">{{ 'GUID bans' | t }}</mat-button-toggle>
     </mat-button-toggle-group>
     <mat-slide-toggle
       [checked]="includeLifted()"
       (change)="includeLifted.set($event.checked)"
-      >Show lifted</mat-slide-toggle
+      >{{ 'Show lifted' | t }}</mat-slide-toggle
     >
   </div>
   <mat-form-field
@@ -26,22 +26,22 @@
     <c2a-icon matPrefix name="search" class="prefix" />
     <input
       matInput
-      [placeholder]="kind() === 'ip' ? 'IP or reason' : 'Name or GUID'"
+      [placeholder]="(kind() === 'ip' ? 'IP or reason' : 'Name or GUID') | t"
       [value]="query()"
       (input)="onSearch($any($event.target).value)"
     />
   </mat-form-field>
   @if (kind() === 'ip') {
   <p class="muted hint">
-    Most players have no GUID (GUID 0), so most bans are IP bans.
+    {{ 'Most players have no GUID (GUID 0), so most bans are IP bans.' | t }}
   </p>
   } @if (selectedCount() > 0) {
   <div class="selection card">
-    <span>{{ selectedCount() }} selected</span>
+    <span>{{ selectedCount() }} {{ 'selected' | t }}</span>
     <span class="spacer"></span>
-    <button mat-button (click)="clearSelection()">Clear</button>
+    <button mat-button (click)="clearSelection()">{{ 'Clear' | t }}</button>
     <button mat-flat-button (click)="unbanSelected()">
-      <c2a-icon name="unlock" /> Unban
+      <c2a-icon name="unlock" /> {{ 'Unban' | t }}
     </button>
   </div>
   }
@@ -53,7 +53,7 @@
       <mat-checkbox
         [checked]="selected().has(key(ban))"
         (change)="toggle(ban)"
-        [aria-label]="'Select'"
+        [aria-label]="('Select') | t"
       />
       } @else {
       <span class="checkbox-gap"></span>
@@ -74,24 +74,31 @@
         }
         <div class="muted small">
           <span class="badge" [class.temp]="ban.expiresAt && !ban.liftedAt"
-            >{{ expiry(ban) }}</span
+            >{{ expiry(ban) | t }}</span
           >
-          by {{ ban.bannedBy }} · {{ ago(ban.bannedAt) }} · on {{ ban.server }}
+          {{ 'by' | t }} {{ ban.bannedBy }} · {{ ago(ban.bannedAt) }} {{ '· on'
+          | t }} {{ ban.server }}
         </div>
       </div>
       @if (!ban.liftedAt) {
-      <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Actions">
+      <button
+        mat-icon-button
+        [matMenuTriggerFor]="menu"
+        [attr.aria-label]="'Actions' | t"
+      >
         <c2a-icon name="more" />
       </button>
       <mat-menu #menu="matMenu">
-        <button mat-menu-item (click)="edit(ban)">Edit reason or expiry</button>
-        <button mat-menu-item (click)="unban([ban])">Unban</button>
+        <button mat-menu-item (click)="edit(ban)">
+          {{ 'Edit reason or expiry' | t }}
+        </button>
+        <button mat-menu-item (click)="unban([ban])">{{ 'Unban' | t }}</button>
       </mat-menu>
       }
     </li>
     } @empty { @if (!loading()) {
     <li class="empty">
-      {{ query() ? 'No ban matches "' + query() + '".' : 'No bans.' }}
+      {{ (query() ? 'No ban matches "' + query() + '".' : 'No bans.') | t }}
     </li>
     } }
   </ul>
@@ -99,12 +106,12 @@
   @if (more()) {
   <div class="more">
     <button mat-stroked-button [disabled]="loading()" (click)="load(true)">
-      Load more
+      {{ 'Load more' | t }}
     </button>
   </div>
   }
 </div>
 
-<button mat-fab class="fab" aria-label="Add a ban" (click)="add()">
+<button mat-fab class="fab" [attr.aria-label]="'Add a ban' | t" (click)="add()">
   <c2a-icon name="add" />
 </button>

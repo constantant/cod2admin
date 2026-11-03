@@ -14,6 +14,8 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 import { toApiFailure } from '../core/api';
 import { TelegramService } from '../core/telegram';
+import { t } from './i18n';
+import { T } from './i18n';
 
 export interface ConfirmData {
   title: string;
@@ -25,12 +27,12 @@ export interface ConfirmData {
 @Component({
   selector: 'c2a-confirm-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatDialogModule, MatButtonModule],
+  imports: [T, MatDialogModule, MatButtonModule],
   template: `
     <h2 mat-dialog-title>{{ data.title }}</h2>
     <mat-dialog-content>{{ data.message }}</mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button [mat-dialog-close]="false">Cancel</button>
+      <button mat-button [mat-dialog-close]="false">{{ 'Cancel' | t }}</button>
       <button
         mat-flat-button
         [class.danger]="data.danger"
@@ -60,22 +62,29 @@ export class Notify {
 
   success(message: string): void {
     this.telegram.haptic('success');
-    this.snackBar.open(message, undefined, { duration: 3000 });
+    this.snackBar.open(t(message), undefined, { duration: 3000 });
   }
 
   info(message: string): void {
-    this.snackBar.open(message, 'OK', { duration: 8000 });
+    this.snackBar.open(t(message), t('OK'), { duration: 8000 });
   }
 
   error(error: unknown): void {
     this.telegram.haptic('error');
-    this.snackBar.open(toApiFailure(error).message, 'OK', { duration: 6000 });
+    this.snackBar.open(t(toApiFailure(error).message), t('OK'), {
+      duration: 6000,
+    });
   }
 
   async confirm(data: ConfirmData): Promise<boolean> {
     this.telegram.haptic('warning');
     const ref = this.dialog.open(ConfirmDialog, {
-      data,
+      data: {
+        ...data,
+        title: t(data.title),
+        message: t(data.message),
+        confirm: t(data.confirm),
+      },
       autoFocus: false,
       maxWidth: '420px',
     });

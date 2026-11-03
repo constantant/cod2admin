@@ -10,12 +10,13 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import type { UpdateStatusResponse } from '@cod2admin/miniapp-api';
 import { ApiService } from '../../core/api';
 import { Notify } from '../../shared/notify';
+import { T } from '../../shared/i18n';
 
 /** `/update` (docs/PLAN.md §13). Owner only. The new version's report comes to the owner's chat. */
 @Component({
   selector: 'c2a-update-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatButtonModule, MatProgressBarModule],
+  imports: [T, MatButtonModule, MatProgressBarModule],
   template: `
     @if (loading()) {
       <mat-progress-bar mode="indeterminate" />
@@ -26,38 +27,44 @@ import { Notify } from '../../shared/notify';
           <pre class="banner">{{ data.problem }}</pre>
         }
         <section class="card">
-          <div class="muted">Running</div>
-          <div class="version">v{{ data.running }}</div>
+          <div class="muted">{{ 'Running' | t }}</div>
+          <div class="version">{{ 'v' | t }}{{ data.running }}</div>
           @if (data.checkError) {
             <p class="muted">
-              Couldn't ask GitHub for the latest version: {{ data.checkError }}
+              {{ "Couldn't ask GitHub for the latest version:" | t }}
+              {{ data.checkError }}
             </p>
           } @else if (data.available) {
-            <div class="muted">Available</div>
+            <div class="muted">{{ 'Available' | t }}</div>
             <div class="version">{{ data.latest }}</div>
           } @else {
-            <p class="muted">This is the latest version.</p>
+            <p class="muted">{{ 'This is the latest version.' | t }}</p>
           }
           @if (applying()) {
             <p>
-              Updating. The bot restarts and this app reconnects by itself; the
-              result comes to your chat with the bot.
+              {{
+                'Updating. The bot restarts and this app reconnects by itself; the result comes to your chat with the bot.'
+                  | t
+              }}
             </p>
           } @else if (!data.enabled) {
             <p class="muted">
-              This install can't update itself: re-run install.sh to enable it.
+              {{
+                "This install can't update itself: re-run install.sh to enable it."
+                  | t
+              }}
             </p>
           } @else if (data.available) {
             <button mat-flat-button (click)="apply(data.latest!)">
-              Update to {{ data.latest }}…
+              {{ 'Update to' | t }} {{ data.latest }}…
             </button>
           }
           <button mat-button [disabled]="loading()" (click)="load()">
-            Check again
+            {{ 'Check again' | t }}
           </button>
         </section>
         @if (data.available && data.notes) {
-          <h2>What's new</h2>
+          <h2>{{ "What's new" | t }}</h2>
           <pre class="notes">{{ data.notes }}</pre>
         }
       }

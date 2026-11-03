@@ -11,6 +11,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { PresetsService } from '../../core/presets';
 import { Notify } from '../../shared/notify';
+import { T } from '../../shared/i18n';
 
 const lines = (text: string) =>
   text
@@ -22,31 +23,41 @@ const lines = (text: string) =>
 @Component({
   selector: 'c2a-presets-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, MatButtonModule, MatFormFieldModule, MatInputModule],
+  imports: [
+    T,
+    FormsModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+  ],
   template: `
     <div class="page">
       <p class="muted">
-        One per line. Everyone with access sees the same ones.
+        {{ 'One per line. Everyone with access sees the same ones.' | t }}
       </p>
       <mat-form-field class="full-width">
-        <mat-label>Reasons for kicks and bans</mat-label>
+        <mat-label>{{ 'Reasons for kicks and bans' | t }}</mat-label>
         <textarea matInput rows="5" [(ngModel)]="reasons"></textarea>
       </mat-form-field>
       <mat-form-field class="full-width">
-        <mat-label>Temp-ban lengths, in minutes</mat-label>
+        <mat-label>{{ 'Temp-ban lengths, in minutes' | t }}</mat-label>
         <textarea
           matInput
           rows="5"
           class="mono"
           [(ngModel)]="durations"
         ></textarea>
-        <mat-hint>30 = 30 minutes, 1440 = a day, 10080 = a week</mat-hint>
+        <mat-hint>{{
+          '30 = 30 minutes, 1440 = a day, 10080 = a week' | t
+        }}</mat-hint>
       </mat-form-field>
       <mat-form-field class="full-width messages">
-        <mat-label>Ready-made chat messages</mat-label>
+        <mat-label>{{ 'Ready-made chat messages' | t }}</mat-label>
         <textarea matInput rows="5" [(ngModel)]="messages"></textarea>
       </mat-form-field>
-      <button mat-flat-button [disabled]="busy()" (click)="save()">Save</button>
+      <button mat-flat-button [disabled]="busy()" (click)="save()">
+        {{ 'Save' | t }}
+      </button>
     </div>
   `,
   styles: `
