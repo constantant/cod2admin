@@ -14,6 +14,7 @@ import { loadRouteSettings } from '../lib/commands/relays.js';
 import { forgetServer } from '../lib/commands/removeserver.js';
 import { settleApplyProblem, stageRelease } from '../lib/commands/update.js';
 import { parseAsn } from '../lib/commands/vpnnets.js';
+import { cannotManageReason, mayManageAdmin } from '../lib/admin-rules.js';
 import type { GatewayDeps } from '../lib/deps.js';
 import {
   findGameLog,
@@ -115,17 +116,6 @@ export function parsePresets(value: unknown): Presets {
       .slice(0, MAX_PRESETS),
     messages: presetTexts(messages, DEFAULT_PRESETS.messages),
   };
-}
-
-/**
- * Who may touch whom. Tighter than the chat commands on purpose: an admin manages moderators only,
- * nobody changes the owner, and nobody changes themselves, so a mistyped tap can't lock anyone out.
- */
-function mayManage(actor: MiniAppActor, target: Admin): boolean {
-  if (target.role === 'owner' || target.telegramId === actor.telegramId) {
-    return false;
-  }
-  return actor.role === 'owner' || target.role === 'moderator';
 }
 
 function assignableRoles(actor: MiniAppActor): AdminRole[] {
@@ -254,7 +244,7 @@ export function registerManagementRoutes(
                       by?.firstName,
                     ),
               addedAt: admin.addedAt.toISOString(),
-              manageable: mayManage(request.actor, admin),
+              manageable: mayManageAdmin(request.actor, admin),
             };
           }),
         assignable: assignableRoles(request.actor),
@@ -312,13 +302,11 @@ export function registerManagementRoutes(
         "They're not on the list any more.",
       );
     }
-    if (!mayManage(request.actor, admin)) {
+    if (!mayManageAdmin(request.actor, admin)) {
       throw new ApiProblem(
         403,
         'forbidden',
-        admin.telegramId === request.actor.telegramId
-          ? "You can't change your own role."
-          : `You can't change ${admin.role === 'owner' ? 'the owner' : 'another admin'}.`,
+        cannotManageReason(request.actor, admin),
       );
     }
     return admin;
