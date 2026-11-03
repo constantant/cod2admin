@@ -217,9 +217,10 @@ export class RconClient {
 
   /**
    * `map_restart`, `fast_restart` or `map_rotate`. Sent **once**, for the same reason as `map()`: a
-   * retry would start the load over. Returns whether the server answered — a level load often
-   * keeps it from answering at all, and a busy server can also drop the command unrun (§2.4 "Rate
-   * limiting"), so `false` means "sent, but check the result".
+   * retry would start the load over. Returns whether the server answered. Checked on the dev server
+   * (2026-11-03): `fast_restart` answers; `map_restart` and `map_rotate` run but never do, as it's
+   * loading. A busy server can also drop a command unrun (§2.4 "Rate limiting"), so `false` means
+   * "sent, but check the result".
    */
   async levelCommand(
     command: 'map_restart' | 'fast_restart' | 'map_rotate',

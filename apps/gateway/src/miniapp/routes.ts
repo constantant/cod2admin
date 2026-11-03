@@ -406,17 +406,33 @@ export function registerRoutes(
       if (!level) {
         throw new ApiProblem(400, 'bad_request', 'Unknown command.');
       }
+      const before = await rcon.getInfo().catch(() => null);
       const answered = await rcon.levelCommand(level.command);
+      // On a real server map_restart and map_rotate never answer: it's loading the level. Asking
+      // again waits the load out (like `map()`), and for a rotate says whether the map moved.
+      const after = answered ? null : await rcon.getInfo().catch(() => null);
       await audit(request, {
         action: level.command,
         serverAlias: alias,
-        detailJson: { answered },
+        detailJson: { answered, map: after?.['mapname'] ?? null },
       });
-      return {
-        message: answered
-          ? `${level.done}…`
-          : `Sent, but ${alias} didn't answer: it may be loading, or it may have missed the command. Check the map in a moment.`,
-      };
+      if (answered) {
+        return { message: `${level.done}…` };
+      }
+      if (!after) {
+        return {
+          message: `Sent, but ${alias} hasn't come back yet. Check it in a moment.`,
+        };
+      }
+      if (key === 'rotate') {
+        return {
+          message:
+            after['mapname'] && after['mapname'] !== before?.['mapname']
+              ? `Now on ${after['mapname']}.`
+              : `${alias} is still on ${after['mapname'] ?? 'the same map'}. If the rotation has other maps, try again.`,
+        };
+      }
+      return { message: `${level.done}… ${alias} is back up.` };
     },
   );
 
