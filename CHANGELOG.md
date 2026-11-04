@@ -1,3 +1,14 @@
+## [1.16.1](https://github.com/constantant/cod2admin/releases/tag/v1.16.1) (2026-11-04)
+
+### 🩹 Fixes
+
+- **installer:** make updates finish under systemd and keep the encryption key ([dcbaaaf](https://github.com/constantant/cod2admin/commit/dcbaaaf))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5
+- kk
+
 ## [1.16.0](https://github.com/constantant/cod2admin/releases/tag/v1.16.0) (2026-11-03)
 
 ### 🚀 Features
