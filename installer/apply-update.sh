@@ -69,6 +69,9 @@ if [ -d "$LOCK_DIR" ] || ! mkdir "$LOCK_DIR" 2>/dev/null; then
   fail "Another update is already in progress (found $LOCK_DIR). If that's stale (a previous run crashed), remove it and retry."
 fi
 trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+# sh skips the EXIT trap when a signal kills it, which would leave the lock blocking every later
+# update. A systemd unit without KillMode=process sends this script SIGTERM when it restarts the bot.
+trap 'exit 143' TERM INT HUP
 
 log_line "Applying $TARBALL_NAME (version $VERSION)"
 step "Applying update to v$VERSION"
@@ -105,8 +108,15 @@ ln -sfn "releases/$VERSION" "$CURRENT_LINK"
 step "Restarting the service"
 restart_service
 
-if verify_running; then
-  log_line "Update to v$VERSION succeeded."
+# Only a crash rolls back: 2 means it's running but hasn't reached Telegram yet, see verify_running.
+VERIFY_RC=0
+verify_running || VERIFY_RC=$?
+if [ "$VERIFY_RC" -ne 1 ]; then
+  if [ "$VERIFY_RC" -eq 0 ]; then
+    log_line "Update to v$VERSION succeeded."
+  else
+    log_line "Update to v$VERSION succeeded, but the bot hasn't connected to Telegram yet."
+  fi
   prune_old_releases
   # NOT pending-update.env here - that's read (and removed) by the new process itself on boot,
   # before it ever logs the "started as @..." line verify_running() just matched above, so it
@@ -136,7 +146,9 @@ fi
 if [ -n "$OLD_TARGET" ]; then
   ln -sfn "$OLD_TARGET" "$CURRENT_LINK"
   restart_service
-  if verify_running; then
+  VERIFY_RC=0
+  verify_running || VERIFY_RC=$?
+  if [ "$VERIFY_RC" -ne 1 ]; then
     log_line "Rollback to $OLD_TARGET succeeded."
     warn "Rolled back to the previous version successfully."
   else

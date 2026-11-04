@@ -1304,7 +1304,10 @@ Deliberately small and dumb, since it's the trusted-root part (`installer/apply-
 5. Restarts the service and waits for the "started as @..." line — both via the shared
    `restart_service()`/`verify_running()` in `installer/lib/service.sh` (also used by
    `install.sh`'s `register_service()`), so applying an update never touches the systemd
-   unit/OpenRC init script, only the symlink.
+   unit/OpenRC init script, only the symlink. Since 1.16.1 it only reads what was logged after the
+   restart (an older line used to pass for this start, so a broken update was never rolled back),
+   and only a crash counts as failure: a bot that's running but hasn't reached Telegram within 60
+   seconds keeps the new version, since a slow route isn't a bad release.
 6. **On failure**: captures the `staging/pending-update.env` marker's chat id and deletes the
    marker _before_ rolling back (not after — see §13.3 step 6's note on why: the **old** version
    is about to restart too, and its own boot-time check has no way to tell a failed-update restart
@@ -1328,6 +1331,17 @@ Deliberately small and dumb, since it's the trusted-root part (`installer/apply-
 downloading the release, checksum verification, writing the pending-update marker, and the
 gateway-side boot check that posts the Telegram success message. This script only applies an
 already-staged, already-trusted tarball.
+
+**Found 2026-11-04: `/update` under systemd.** The script is the bot's child, so it's in the unit's
+cgroup, and `detached` doesn't take it out. With the default `KillMode=control-group`, its own
+`systemctl restart` kills it: no check, no clean-up, and a stale `update.lock` that refuses every
+later update. The NAS instances run without systemd, which is why live tests never showed this. The
+unit now sets `KillMode=process`, and the script removes its lock on SIGTERM.
+
+`/update` can't deliver these fixes, since it never replaces `bin/` or the unit. That's on purpose:
+the service user can stage any tarball, so if a tarball could replace `bin/apply-update.sh`, the
+service user could run code as root. Existing installs need the one-time steps in
+`installer/README.md`.
 
 ### 13.5 Installer layout changes (implemented 2026-09-07)
 

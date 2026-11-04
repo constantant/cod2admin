@@ -644,13 +644,29 @@ wizard_server_alias() {
   fi
 }
 
+# Keeps the key of an existing install: saved RCON passwords are encrypted with it, so a new key
+# would make every server added with /addserver unreadable. migrate_legacy_layout has moved a
+# pre-§13.5 install's .env to the backup folder by the time this runs.
 generate_secrets() {
+  for _old_env in "$INSTALL_DIR/.env" "${INSTALL_DIR}.pre-migration-backup/.env"; do
+    [ -f "$_old_env" ] || continue
+    SECRETS_ENCRYPTION_KEY=$(grep '^SECRETS_ENCRYPTION_KEY=' "$_old_env" | tail -n1 | cut -d= -f2-)
+    if [ -n "$SECRETS_ENCRYPTION_KEY" ]; then
+      info "Keeping the existing encryption key from $_old_env"
+      return 0
+    fi
+  done
   SECRETS_ENCRYPTION_KEY=$(node "$TMP_DIR/gen-secret.mjs")
 }
 
 write_env() {
   step "Writing configuration"
   _env="$INSTALL_DIR/.env"
+  if [ -f "$_env" ]; then
+    _env_backup="$_env.bak-$(date +%Y%m%d-%H%M%S)"
+    cp -p "$_env" "$_env_backup"
+    info "Saved the previous settings as $_env_backup"
+  fi
   {
     printf 'TELEGRAM_BOT_TOKEN=%s\n' "$TELEGRAM_BOT_TOKEN"
     [ -n "$OWNER_TELEGRAM_ID" ] && printf 'OWNER_TELEGRAM_ID=%s\n' "$OWNER_TELEGRAM_ID"
@@ -702,6 +718,9 @@ EnvironmentFile=$INSTALL_DIR/.env
 ExecStart=$_node $CURRENT_LINK/dist/main.js
 Restart=on-failure
 RestartSec=3
+# Stop only the bot on a restart. apply-update.sh is the bot's child and restarts this very unit:
+# the default KillMode would kill it mid-update and leave update.lock behind.
+KillMode=process
 
 [Install]
 WantedBy=multi-user.target
@@ -783,8 +802,8 @@ check_existing_install() {
 # $INSTALL_DIR, no versioned releases/current symlink, per pre-§13.5 install.sh) and moves it out
 # of the way so install_app() below can build the new layout fresh. Doesn't bother preserving the
 # old .env by hand - write_env() below always regenerates it in full from this run's wizard
-# answers regardless (that was already true before this layout existed; re-running install.sh has
-# never read back a prior .env). Admin/ban data lives in Postgres, untouched by any of this.
+# answers regardless. The one value read back from it is the encryption key (generate_secrets).
+# Admin/ban data lives in Postgres, untouched by any of this.
 migrate_legacy_layout() {
   [ -f "$INSTALL_DIR/.env" ] || return 0
   [ -L "$CURRENT_LINK" ] && return 0

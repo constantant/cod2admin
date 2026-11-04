@@ -145,6 +145,33 @@ fixes that without opening any port:
 Running `sudo ./install.sh` again on a machine that already has cod2admin installed lets you
 reconfigure it (change the Telegram token, RCON details, etc.) without losing your existing
 admin list, ban history, or audit log — those live in the database, untouched by reconfiguration.
+Saved RCON passwords keep working too, because it keeps the existing encryption key (versions before
+1.16.1 replaced it, so don't reconfigure with those).
+
+`.env` is rewritten from your answers, so any setting the installer doesn't ask about, such as
+`GEOIP_CITY_ENABLED`, is dropped. The previous file is saved next to it as `.env.bak-<date>`: copy
+back whatever you had added.
+
+## If `/update` starts but never finishes on systemd
+
+Installs from before 1.16.1 can have this problem: restarting the bot also stops the update script,
+which leaves `update.lock` behind and blocks every later update. `/update` doesn't replace the update
+script or the service settings, so fix this once by hand, as root, without reinstalling. Your
+database and `.env` aren't touched:
+
+```sh
+cd /opt/cod2admin
+curl -fL -o /tmp/cod2admin-installer.tar.gz https://github.com/constantant/cod2admin/releases/download/v1.16.1/cod2admin-1.16.1.tar.gz
+tar -xzf /tmp/cod2admin-installer.tar.gz -C /tmp
+cp /tmp/cod2admin-1.16.1/apply-update.sh bin/apply-update.sh
+cp /tmp/cod2admin-1.16.1/lib/service.sh bin/lib/service.sh
+mkdir -p /etc/systemd/system/cod2admin.service.d
+printf '[Service]\nKillMode=process\n' > /etc/systemd/system/cod2admin.service.d/self-update.conf
+systemctl daemon-reload
+pgrep -f '[a]pply-update.sh' >/dev/null || rmdir update.lock
+```
+
+The last line prints an error if there was no lock, which is fine.
 
 ## Advanced: unattended installs
 

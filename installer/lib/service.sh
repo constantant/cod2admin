@@ -36,6 +36,37 @@ detect_init_system() {
   fi
 }
 
+# ── Log position ─────────────────────────────────────────────────────────────────────────────
+
+# Where the log stood just before the last restart_service(), so verify_running() only reads what
+# the restarted process wrote. Both logs outlive restarts: an earlier "started as @..." line in them
+# would otherwise pass for this start.
+VERIFY_SINCE="1970-01-01 00:00:00"
+VERIFY_LOG_OFFSET=0
+
+mark_log_position() {
+  VERIFY_SINCE=$(date '+%Y-%m-%d %H:%M:%S')
+  VERIFY_LOG_OFFSET=0
+  if [ -f "$INSTALL_DIR/cod2admin.log" ]; then
+    VERIFY_LOG_OFFSET=$(wc -c < "$INSTALL_DIR/cod2admin.log" | tr -d ' ')
+  fi
+}
+
+log_since_restart() {
+  case $INIT_SYSTEM in
+    systemd)
+      journalctl -u cod2admin --no-pager --since "$VERIFY_SINCE"
+      ;;
+    openrc|none)
+      [ -f "$INSTALL_DIR/cod2admin.log" ] || return 0
+      _size=$(wc -c < "$INSTALL_DIR/cod2admin.log" | tr -d ' ')
+      # Smaller than before means the file was replaced, so all of it is new.
+      [ "$_size" -ge "$VERIFY_LOG_OFFSET" ] || VERIFY_LOG_OFFSET=0
+      tail -c +$((VERIFY_LOG_OFFSET + 1)) "$INSTALL_DIR/cod2admin.log"
+      ;;
+  esac
+}
+
 # ── Restart (no unit-file writes) ────────────────────────────────────────────────────────────
 
 # (Re)starts an already-registered cod2admin service. Does not write or regenerate unit/init
@@ -44,6 +75,7 @@ detect_init_system() {
 # unit file (it only repoints the $INSTALL_DIR/current symlink the unit already points at).
 restart_service() {
   detect_init_system
+  mark_log_position
   case $INIT_SYSTEM in
     systemd)
       systemctl restart cod2admin
@@ -103,21 +135,23 @@ EOF
 
 # ── Startup verification ─────────────────────────────────────────────────────────────────────
 
-# Waits for the service to log "cod2admin gateway started as @..." via whichever log source
-# INIT_SYSTEM implies. Returns 0 on success, 1 on failure/timeout - deliberately does NOT call
-# die() or exit: install.sh's first-time install has nothing to roll back to and can die()
+# Waits for the restarted service to log "cod2admin gateway started as @...". Deliberately does NOT
+# call die() or exit: install.sh's first-time install has nothing to roll back to and can die()
 # immediately at its own call site, but apply-update.sh needs to catch a failure and roll back
-# instead of exiting. Sets VERIFY_LAST_OUTPUT to the log output seen, either way.
-verify_running() {
-  _log_cmd=""
-  case $INIT_SYSTEM in
-    systemd) _log_cmd="journalctl -u cod2admin --no-pager -n 200" ;;
-    openrc|none) _log_cmd="cat $INSTALL_DIR/cod2admin.log" ;;
-  esac
+# instead of exiting. Sets VERIFY_LAST_OUTPUT to the log output seen, either way. Returns:
+#   0  it started
+#   1  it crashed
+#   2  it's still running, but hasn't connected to Telegram yet
+#
+# Only a crash counts as failure. That line needs Telegram, and a slow or blocked route can hold it
+# back for a long time (docs/PLAN-russia-access.md), and a working bot can log the word "error" on
+# the way there, so neither of those says the new version is bad.
+VERIFY_TIMEOUT_SECONDS=60
 
+verify_running() {
   _tries=0
   while true; do
-    _out=$(eval "$_log_cmd" 2>/dev/null || true)
+    _out=$(log_since_restart 2>/dev/null || true)
     VERIFY_LAST_OUTPUT="$_out"
     if printf '%s' "$_out" | grep -q 'cod2admin gateway started as @'; then
       success "$(printf '%s' "$_out" | grep 'cod2admin gateway started as @' | tail -n1)"
@@ -127,19 +161,26 @@ verify_running() {
       fi
       return 0
     fi
-    if printf '%s' "$_out" | grep -qi 'error\|Missing required env var'; then
+    # "Node.js v20..." ends what node prints for an uncaught error; the respawn line is supervise.sh's.
+    if service_crashed || printf '%s' "$_out" | grep -qE 'Node\.js v[0-9]|Missing required env var|exited - respawning'; then
       warn "The service failed to start. Recent output:"
-      printf '%s\n' "$_out" >&2
+      printf '%s\n' "$_out" | tail -n 50 >&2
       return 1
     fi
     _tries=$((_tries + 1))
-    if [ "$_tries" -ge 20 ]; then
-      warn "Timed out waiting for cod2admin to start. Recent output:"
-      printf '%s\n' "$_out" >&2
-      return 1
+    if [ "$_tries" -ge "$VERIFY_TIMEOUT_SECONDS" ]; then
+      warn "cod2admin is running, but hasn't connected to Telegram after ${VERIFY_TIMEOUT_SECONDS}s. Recent output:"
+      printf '%s\n' "$_out" | tail -n 50 >&2
+      return 2
     fi
     sleep 1
   done
+}
+
+# Under systemd, Restart=on-failure shows a crashed service as "activating" until its next try.
+service_crashed() {
+  [ "$INIT_SYSTEM" = systemd ] || return 1
+  [ "$(systemctl is-active cod2admin 2>/dev/null || true)" != active ]
 }
 
 # ── Release pruning ──────────────────────────────────────────────────────────────────────────
