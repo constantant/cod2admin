@@ -32,7 +32,7 @@
       class="server-select"
       [value]="session.server()"
       (valueChange)="session.selectServer($event)"
-      panelWidth="auto"
+      [panelWidth]="null"
       [aria-label]="'Server' | t"
     >
       @for (server of me.servers; track server.alias) {

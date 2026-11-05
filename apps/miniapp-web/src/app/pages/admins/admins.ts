@@ -64,7 +64,7 @@ const ROLE_HELP: Record<MiniAppRole, string> = {
                 <mat-select
                   class="role"
                   [aria-label]="'Role' | t"
-                  panelWidth="auto"
+                  [panelWidth]="null"
                   [value]="admin.role"
                   (valueChange)="setRole(admin, $event)"
                 >
