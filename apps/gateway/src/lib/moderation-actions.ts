@@ -114,6 +114,7 @@ export async function executeModerationAction(
   await options.banStore.recordIpBan({
     serverAlias: options.serverAlias,
     ip: target.ip,
+    name: target.name,
     reason,
     bannedBy: options.actorTelegramId,
     expiresAt,

@@ -21,7 +21,7 @@ describe('bansCommand', () => {
       },
     ]);
     banStore.listActiveIpBans.mockResolvedValue([
-      { id: 2, serverAlias: 'other', ip: '1.2.3.4', reason: null, bannedBy: 1, bannedAt: new Date(), expiresAt: null, unbannedAt: null },
+      { id: 2, serverAlias: 'other', ip: '1.2.3.4', name: null, reason: null, bannedBy: 1, bannedAt: new Date(), expiresAt: null, unbannedAt: null },
     ]);
     const ctx = createFakeCtx({ match: '', admin: { telegramId: 1, role: 'admin' } });
 
@@ -69,6 +69,7 @@ describe('long /bans', () => {
     id: 100 + i,
     serverAlias: 'ctf2',
     ip: `5.9.10.${i}`,
+    name: null,
     reason: null,
     bannedBy: 213238280,
     bannedAt: new Date(NOW.getTime() - (i + 10) * 3_600_000),

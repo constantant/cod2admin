@@ -650,6 +650,7 @@ describe('Mini App server', () => {
           id: 4,
           serverAlias: 'default',
           ip: '1.2.3.4',
+          name: 'Griefer',
           reason: 'x',
           bannedBy: 0,
           bannedAt: new Date(),
@@ -669,6 +670,7 @@ describe('Mini App server', () => {
         expect.objectContaining({
           kind: 'ip',
           ip: '1.2.3.4',
+          name: 'Griefer',
           bannedBy: 'bot (automatic)',
         }),
       ]);

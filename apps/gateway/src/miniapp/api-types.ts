@@ -133,7 +133,7 @@ export interface BanDto {
   server: string;
   /** GUID bans only. */
   guid: string | null;
-  /** GUID bans: the player's name then. IP bans have none. */
+  /** The player's name then. IP bans may have none: manual ones, and those older than the column. */
   name: string | null;
   /** IP bans only. */
   ip: string | null;

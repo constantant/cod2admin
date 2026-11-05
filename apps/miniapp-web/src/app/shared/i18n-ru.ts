@@ -290,7 +290,7 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
   'IP bans': 'Баны по IP',
   'GUID bans': 'Баны по GUID',
   'Show lifted': 'Показывать снятые',
-  'IP or reason': 'IP или причина',
+  'Name, IP or reason': 'Имя, IP или причина',
   'Name or GUID': 'Имя или GUID',
   'Most players have no GUID (GUID 0), so most bans are IP bans.':
     'У большинства игроков нет GUID (GUID 0), поэтому почти все баны идут по IP.',

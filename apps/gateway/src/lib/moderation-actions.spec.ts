@@ -96,7 +96,7 @@ describe('executeModerationAction', () => {
     expect(rcon.banClient).not.toHaveBeenCalled();
     expect(rcon.kick).toHaveBeenCalledWith('Cheatr123');
     expect(banStore.recordIpBan).toHaveBeenCalledWith(
-      expect.objectContaining({ serverAlias: 'default', ip: '1.2.3.4', expiresAt: null }),
+      expect.objectContaining({ serverAlias: 'default', ip: '1.2.3.4', name: 'Cheatr123', expiresAt: null }),
     );
     // The in-game broadcast stays a plain player-facing verb even on the fallback path — no
     // "GUID unavailable" jargon in a chat announcement; that detail is for the admin-facing label only.

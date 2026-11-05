@@ -26,7 +26,7 @@
     <c2a-icon matPrefix name="search" class="prefix" />
     <input
       matInput
-      [placeholder]="(kind() === 'ip' ? 'IP or reason' : 'Name or GUID') | t"
+      [placeholder]="(kind() === 'ip' ? 'Name, IP or reason' : 'Name or GUID') | t"
       [value]="query()"
       (input)="onSearch($any($event.target).value)"
     />
@@ -60,7 +60,9 @@
       }
       <div class="main">
         <div class="who">
-          @if (ban.kind === 'ip') {
+          @if (ban.kind === 'ip') { @if (ban.name) {
+          <c2a-game-name [name]="ban.name" />
+          }
           <span class="mono">{{ ban.ip }}</span>
           @if (ban.countryCode) {
           <span class="muted">{{ flag(ban) }} {{ ban.location }}</span>

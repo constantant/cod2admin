@@ -54,6 +54,7 @@ export class DrizzleBanStore implements BanStore {
     await this.db.insert(banIps).values({
       serverAlias: input.serverAlias,
       ip: input.ip,
+      name: input.name ?? null,
       reason: input.reason ?? null,
       bannedBy: input.bannedBy,
       expiresAt: input.expiresAt,
@@ -189,7 +190,11 @@ export class DrizzleBanStore implements BanStore {
         and(
           filter.includeLifted ? undefined : isNull(banIps.unbannedAt),
           pattern
-            ? or(ilike(banIps.ip, pattern), ilike(banIps.reason, pattern))
+            ? or(
+                ilike(banIps.ip, pattern),
+                ilike(banIps.name, pattern),
+                ilike(banIps.reason, pattern),
+              )
             : undefined,
         ),
       )

@@ -84,7 +84,7 @@ export function toIpBanDto(
     id: ban.id,
     server: ban.serverAlias,
     guid: null,
-    name: null,
+    name: ban.name,
     ip: ban.ip,
     ...(countryCode ? { countryCode } : {}),
     ...(location ? { location } : {}),

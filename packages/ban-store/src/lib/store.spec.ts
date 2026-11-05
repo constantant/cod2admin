@@ -392,10 +392,11 @@ describe('DrizzleBanStore', () => {
       ).resolves.toEqual([]);
     });
 
-    it('searchIpBans matches the IP or the reason', async () => {
+    it('searchIpBans matches the IP, the name or the reason', async () => {
       await store.recordIpBan({
         serverAlias: 'default',
         ip: '10.0.0.5',
+        name: 'Griefer',
         reason: 'wallhack',
         bannedBy: 1,
         expiresAt: null,
@@ -414,6 +415,11 @@ describe('DrizzleBanStore', () => {
       await expect(
         store.searchIpBans({ query: 'WALL', limit: 10 }),
       ).resolves.toEqual([expect.objectContaining({ ip: '10.0.0.5' })]);
+      await expect(
+        store.searchIpBans({ query: 'grief', limit: 10 }),
+      ).resolves.toEqual([
+        expect.objectContaining({ ip: '10.0.0.5', name: 'Griefer' }),
+      ]);
       await expect(store.searchIpBans({ limit: 10 })).resolves.toHaveLength(2);
     });
 

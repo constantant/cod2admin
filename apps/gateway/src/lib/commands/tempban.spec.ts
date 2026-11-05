@@ -30,6 +30,7 @@ describe('tempbanCommand', () => {
     expect(banStore.recordIpBan).toHaveBeenCalledWith({
       serverAlias: 'default',
       ip: '1.2.3.4',
+      name: 'Griefer',
       reason: null,
       bannedBy: 1,
       expiresAt: new Date('2026-01-01T00:30:00.000Z'),

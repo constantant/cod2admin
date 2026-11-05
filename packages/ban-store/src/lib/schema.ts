@@ -36,6 +36,8 @@ export const banIps = pgTable('ban_ips', {
   id: serial('id').primaryKey(),
   serverAlias: text('server_alias').notNull(),
   ip: text('ip').notNull(),
+  /** The player's name when banned. Null for a manual ban of a bare IP, and for bans older than this column. */
+  name: text('name'),
   reason: text('reason'),
   bannedBy: bigint('banned_by', { mode: 'number' }).notNull(),
   bannedAt: timestamp('banned_at', { withTimezone: true }).notNull().defaultNow(),

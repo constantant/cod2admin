@@ -9,6 +9,7 @@ function sampleBan(overrides: Partial<BanIp> = {}): BanIp {
     id: 1,
     serverAlias: 'default',
     ip: '1.2.3.4',
+    name: null,
     reason: null,
     bannedBy: 1,
     bannedAt: new Date(),

@@ -28,6 +28,8 @@ export interface BanIp {
   /** The server the ban was issued on. The ban itself applies to every server (see `BanStore`). */
   serverAlias: string;
   ip: string;
+  /** The player's name when banned. Null for a manual ban of a bare IP, and for bans older than this column. */
+  name: string | null;
   reason: string | null;
   bannedBy: number;
   bannedAt: Date;
@@ -39,6 +41,8 @@ export interface BanIp {
 export interface RecordIpBanInput {
   serverAlias: string;
   ip: string;
+  /** Left out when banning a bare IP with no player attached. */
+  name?: string | null;
   reason?: string | null;
   bannedBy: number;
   /** Null for a permanent IP ban (docs/PLAN.md §7 — ban_ips supports both). */

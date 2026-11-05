@@ -1,0 +1,1 @@
+ALTER TABLE "ban_ips" ADD COLUMN "name" text;
