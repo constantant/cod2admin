@@ -1,3 +1,22 @@
+## [1.17.0](https://github.com/constantant/cod2admin/releases/tag/v1.17.0) (2026-11-05)
+
+### 🚀 Features
+
+- **ban-store:** keep and show player names on IP bans ([#8](https://github.com/constantant/cod2admin/issues/8))
+- **ban-store:** fill in names on existing IP bans and show them in /bans ([275d407](https://github.com/constantant/cod2admin/commit/275d407))
+- **gateway:** add chat mutes the bot enforces from the log ([#7](https://github.com/constantant/cod2admin/issues/7))
+
+### 🩹 Fixes
+
+- **gateway:** don't punish muted players for quick messages ([71a79cd](https://github.com/constantant/cod2admin/commit/71a79cd))
+- **miniapp-web:** show full player names in the chat recipient list ([#9](https://github.com/constantant/cod2admin/issues/9))
+- **miniapp-web:** stop clipping the server and role dropdowns ([bbd6052](https://github.com/constantant/cod2admin/commit/bbd6052))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5
+- kk
+
 ## [1.16.1](https://github.com/constantant/cod2admin/releases/tag/v1.16.1) (2026-11-04)
 
 ### 🩹 Fixes
