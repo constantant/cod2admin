@@ -49,9 +49,14 @@ export class MuteEnforcer {
   constructor(private readonly options: MuteEnforcerOptions) {}
 
   async handle(chat: ChatEvent): Promise<void> {
-    // A muted player can still report someone, and a message with no text is nothing to punish.
+    // A muted player can still report someone. Quick messages (the voice-command menu) are logged
+    // as chat, e.g. `^TQUICKMESSAGE_BRITISH_TAUNT2B`, but nobody typed them: fixed lines, not abuse.
     const text = chat.message.replace(/^[\x00-\x1f]+/, '').trim();
-    if (!text || detectReportTrigger(chat)) {
+    if (
+      !text ||
+      text.startsWith('QUICKMESSAGE_') ||
+      detectReportTrigger(chat)
+    ) {
       return;
     }
     const mutes = await this.options.banStore.listActiveMutes();

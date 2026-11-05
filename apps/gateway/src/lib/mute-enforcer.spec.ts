@@ -115,8 +115,9 @@ describe('MuteEnforcer', () => {
     expect(rcon.kick).not.toHaveBeenCalled();
   });
 
-  it("doesn't count a !report or an empty message", async () => {
+  it("doesn't count a !report, a quick message or an empty message", async () => {
     await enforcer.handle(chat('!report Griefer aimbot'));
+    await enforcer.handle(chat('\x14QUICKMESSAGE_BRITISH_TAUNT2B'));
     await enforcer.handle(chat('\x15  '));
 
     expect(rcon.tell).not.toHaveBeenCalled();
