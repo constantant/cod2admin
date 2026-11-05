@@ -55,7 +55,7 @@
       [value]="to()"
       (valueChange)="to.set($event)"
       [aria-label]="'Send to' | t"
-      panelWidth="auto"
+      [panelWidth]="null"
     >
       <mat-option [value]="everyone">{{ 'Everyone' | t }}</mat-option>
       @for (player of players(); track player.num) {
