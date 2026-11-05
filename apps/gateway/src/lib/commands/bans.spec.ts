@@ -21,7 +21,7 @@ describe('bansCommand', () => {
       },
     ]);
     banStore.listActiveIpBans.mockResolvedValue([
-      { id: 2, serverAlias: 'other', ip: '1.2.3.4', name: null, reason: null, bannedBy: 1, bannedAt: new Date(), expiresAt: null, unbannedAt: null },
+      { id: 2, serverAlias: 'other', ip: '1.2.3.4', name: 'Griefer', reason: null, bannedBy: 1, bannedAt: new Date(), expiresAt: null, unbannedAt: null },
     ]);
     const ctx = createFakeCtx({ match: '', admin: { telegramId: 1, role: 'admin' } });
 
@@ -37,7 +37,7 @@ describe('bansCommand', () => {
         'GUID123 — Cheater (aimbot) — permanent — banned on default',
         '',
         'IP bans:',
-        '1.2.3.4 — permanent — banned on other',
+        '1.2.3.4 — Griefer — permanent — banned on other',
       ].join('\n'),
     );
   });

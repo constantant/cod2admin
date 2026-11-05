@@ -16,7 +16,8 @@ function formatGuidBan(ban: Ban): string {
 function formatIpBan(ban: BanIp, geoip: CountryLookup): string {
   const reason = ban.reason ? ` (${ban.reason})` : '';
   const country = describeIpShort(geoip, ban.ip);
-  return `${ban.ip}${country ? ` ${country}` : ''}${reason} — ${formatExpiry(ban.expiresAt)} — banned on ${ban.serverAlias}`;
+  const name = ban.name ? ` — ${ban.name}` : '';
+  return `${ban.ip}${country ? ` ${country}` : ''}${name}${reason} — ${formatExpiry(ban.expiresAt)} — banned on ${ban.serverAlias}`;
 }
 
 export function formatBansMessage(guidBans: Ban[], ipBans: BanIp[], geoip: CountryLookup = NO_COUNTRY_LOOKUP): string {
@@ -71,7 +72,9 @@ export function formatBansReport(guidBans: Ban[], ipBans: BanIp[], geoip: Countr
     return [
       entry.kind === 'guid' ? 'GUID' : 'IP',
       entry.kind === 'guid' ? (entry.ban.guid ?? 'unknown') : entry.ban.ip,
-      entry.kind === 'guid' ? entry.ban.name : describeIpLong(geoip, entry.ban.ip),
+      entry.kind === 'guid'
+        ? entry.ban.name
+        : [entry.ban.name, describeIpLong(geoip, entry.ban.ip)].filter(Boolean).join(' — '),
       ban.reason,
       ban.bannedAt.toISOString().slice(0, 16).replace('T', ' '),
       ban.expiresAt ? ban.expiresAt.toISOString().slice(0, 16).replace('T', ' ') : 'permanent',
