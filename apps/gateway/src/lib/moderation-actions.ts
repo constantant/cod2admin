@@ -56,7 +56,10 @@ export async function executeModerationAction(
 ): Promise<ModerationActionResult> {
   const reason = options.reason ? sanitizeRconArg(options.reason) : null;
 
-  async function recordAudit(action: string, detailJson?: Record<string, unknown>): Promise<void> {
+  async function recordAudit(
+    action: string,
+    detailJson?: Record<string, unknown>,
+  ): Promise<void> {
     await options.adminStore.recordAuditLog({
       actorTelegramId: options.actorTelegramId,
       action,
@@ -76,7 +79,8 @@ export async function executeModerationAction(
   }
 
   const durationMs = options.durationMs ?? DEFAULT_TEMPBAN_MS;
-  const expiresAt = kind === 'tempban' ? new Date(Date.now() + durationMs) : null;
+  const expiresAt =
+    kind === 'tempban' ? new Date(Date.now() + durationMs) : null;
 
   if (hasUsableGuid(target.guid)) {
     // Only a permanent ban goes into ban.txt, and only when `unbanUser` can take it back out
@@ -85,7 +89,9 @@ export async function executeModerationAction(
     // Any reply from `banClient` means it may not have dropped the player (e.g. "already banned"),
     // so they're kicked too; a kick for a player who's already gone does no harm.
     const bannedNatively =
-      kind === 'ban' && isBanFileSafeName(target.name) && !(await options.rcon.banClient(target.num)).trim();
+      kind === 'ban' &&
+      isBanFileSafeName(target.name) &&
+      !(await options.rcon.banClient(target.num)).trim();
     if (!bannedNatively) {
       await options.rcon.kick(target.name);
     }
@@ -100,15 +106,25 @@ export async function executeModerationAction(
     const label = kind === 'tempban' ? 'Temp-banned' : 'Banned';
     // Broadcast uses a plain player-facing verb, not the (admin-facing) detailed label below —
     // players don't need "GUID unavailable" jargon in an in-game chat announcement.
-    await broadcastModerationAction(options.rcon, target.name, kind === 'tempban' ? 'temp-banned' : 'banned');
+    await broadcastModerationAction(
+      options.rcon,
+      target.name,
+      kind === 'tempban' ? 'temp-banned' : 'banned',
+    );
     await recordAudit(kind, { guid: target.guid });
-    return { label, ipFallback: false, durationMs: kind === 'tempban' ? durationMs : undefined };
+    return {
+      label,
+      ipFallback: false,
+      durationMs: kind === 'tempban' ? durationMs : undefined,
+    };
   }
 
   // GUID-0/unknown fallback (docs/PLAN.md §2.4/§5 step 7): the game binary can't ban by IP
   // natively, so kick immediately and let the poller enforce the IP block going forward.
   if (!target.ip) {
-    throw new ModerationActionError(`Cannot ${kind} ${target.name}: no GUID and no known IP to fall back to.`);
+    throw new ModerationActionError(
+      `Cannot ${kind} ${target.name}: no GUID and no known IP to fall back to.`,
+    );
   }
   await options.rcon.kick(target.name);
   await options.banStore.recordIpBan({
@@ -119,8 +135,19 @@ export async function executeModerationAction(
     bannedBy: options.actorTelegramId,
     expiresAt,
   });
-  const label = kind === 'tempban' ? 'IP temp-banned (GUID unavailable)' : 'IP-banned (GUID unavailable)';
-  await broadcastModerationAction(options.rcon, target.name, kind === 'tempban' ? 'temp-banned' : 'banned');
+  const label =
+    kind === 'tempban'
+      ? 'IP temp-banned (GUID unavailable)'
+      : 'IP-banned (GUID unavailable)';
+  await broadcastModerationAction(
+    options.rcon,
+    target.name,
+    kind === 'tempban' ? 'temp-banned' : 'banned',
+  );
   await recordAudit(kind, { ip: target.ip });
-  return { label, ipFallback: true, durationMs: kind === 'tempban' ? durationMs : undefined };
+  return {
+    label,
+    ipFallback: true,
+    durationMs: kind === 'tempban' ? durationMs : undefined,
+  };
 }

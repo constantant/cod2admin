@@ -294,7 +294,8 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
   Mute: 'Заглушить',
   Unmute: 'Снять',
   'Muted players': 'Заглушённые игроки',
-  'A warning, then kicks for chatting': 'За сообщения в чате: предупреждение, затем кик',
+  'A warning, then kicks for chatting':
+    'За сообщения в чате: предупреждение, затем кик',
   'Until lifted': 'Пока не снимут',
   'No muted players.': 'Заглушённых игроков нет.',
   "The game can't block chat, so their messages still appear. The first gets them a private warning, each one after that a kick. Applies on every server whose chat the bot can read.":

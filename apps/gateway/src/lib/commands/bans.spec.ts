@@ -21,9 +21,22 @@ describe('bansCommand', () => {
       },
     ]);
     banStore.listActiveIpBans.mockResolvedValue([
-      { id: 2, serverAlias: 'other', ip: '1.2.3.4', name: 'Griefer', reason: null, bannedBy: 1, bannedAt: new Date(), expiresAt: null, unbannedAt: null },
+      {
+        id: 2,
+        serverAlias: 'other',
+        ip: '1.2.3.4',
+        name: 'Griefer',
+        reason: null,
+        bannedBy: 1,
+        bannedAt: new Date(),
+        expiresAt: null,
+        unbannedAt: null,
+      },
     ]);
-    const ctx = createFakeCtx({ match: '', admin: { telegramId: 1, role: 'admin' } });
+    const ctx = createFakeCtx({
+      match: '',
+      admin: { telegramId: 1, role: 'admin' },
+    });
 
     await bansCommand(ctx, deps);
 
@@ -44,7 +57,10 @@ describe('bansCommand', () => {
 
   it('reports no active bans', async () => {
     const { deps } = createFakeDeps();
-    const ctx = createFakeCtx({ match: '', admin: { telegramId: 1, role: 'admin' } });
+    const ctx = createFakeCtx({
+      match: '',
+      admin: { telegramId: 1, role: 'admin' },
+    });
 
     await bansCommand(ctx, deps);
 
@@ -90,11 +106,20 @@ describe('long /bans', () => {
   });
 
   it('lists every ban in the report, newest first, escaping reasons', () => {
-    const report = formatBansReport(guidBans, ipBans, { lookup: () => ({ code: 'DE', name: 'Germany' }) }, NOW);
-    const rows = report.split('\n').filter((line) => /^\| (GUID|IP) \|/.test(line));
+    const report = formatBansReport(
+      guidBans,
+      ipBans,
+      { lookup: () => ({ code: 'DE', name: 'Germany' }) },
+      NOW,
+    );
+    const rows = report
+      .split('\n')
+      .filter((line) => /^\| (GUID|IP) \|/.test(line));
 
     expect(rows).toHaveLength(14);
-    expect(rows[0]).toBe('| GUID | 700000 | Cheater0 | aim\\|bot | 2026-10-07 10:00 | permanent | 213238280 | ctfrussia |');
+    expect(rows[0]).toBe(
+      '| GUID | 700000 | Cheater0 | aim\\|bot | 2026-10-07 10:00 | permanent | 213238280 | ctfrussia |',
+    );
     expect(rows[13]).toContain('| IP | 5.9.10.9 | 🇩🇪 Germany |');
     expect(report).toContain('DB-IP.com');
   });
@@ -103,7 +128,10 @@ describe('long /bans', () => {
     const { deps, banStore } = createFakeDeps();
     banStore.listActiveBans.mockResolvedValue(guidBans);
     banStore.listActiveIpBans.mockResolvedValue(ipBans);
-    const ctx = createFakeCtx({ match: '', admin: { telegramId: 1, role: 'admin' } });
+    const ctx = createFakeCtx({
+      match: '',
+      admin: { telegramId: 1, role: 'admin' },
+    });
 
     await bansCommand(ctx, deps);
 

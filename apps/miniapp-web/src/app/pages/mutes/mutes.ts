@@ -25,7 +25,10 @@ import { Notify } from '../../shared/notify';
     <div class="page">
       <h2>{{ 'Muted players' | t }}</h2>
       <p class="muted small">
-        {{ "The game can't block chat, so their messages still appear. The first gets them a private warning, each one after that a kick. Applies on every server whose chat the bot can read." | t }}
+        {{
+          "The game can't block chat, so their messages still appear. The first gets them a private warning, each one after that a kick. Applies on every server whose chat the bot can read."
+            | t
+        }}
       </p>
       <ul class="mutes">
         @for (mute of items(); track mute.id) {

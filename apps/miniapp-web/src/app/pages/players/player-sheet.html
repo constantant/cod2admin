@@ -137,7 +137,9 @@
 </div>
 } @default { @if (mode() === 'mute') {
 <p class="muted small">
-  {{ "The game can't block chat, so their messages still appear. The first gets them a private warning, each one after that a kick. Applies on every server whose chat the bot can read." | t }}
+  {{ "The game can't block chat, so their messages still appear. The first gets
+  them a private warning, each one after that a kick. Applies on every server
+  whose chat the bot can read." | t }}
 </p>
 } @if (mode() === 'tempban' || mode() === 'mute') {
 <mat-chip-listbox
@@ -174,8 +176,8 @@
     [disabled]="busy()"
     (click)="mode() === 'mute' ? mute() : moderate($any(mode()))"
   >
-    {{ (mode() === 'kick' ? 'Kick' : mode() === 'ban' ? 'Ban…' : mode() === 'mute' ? 'Mute' : 'Temp ban') | t
-    }}
+    {{ (mode() === 'kick' ? 'Kick' : mode() === 'ban' ? 'Ban…' : mode() ===
+    'mute' ? 'Mute' : 'Temp ban') | t }}
   </button>
 </div>
 } }

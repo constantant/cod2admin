@@ -20,8 +20,14 @@ describe('tempbanCommand', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
     const { deps, rcon, banStore, adminStore } = createFakeDeps();
-    rcon.status.mockResolvedValue({ raw: '', players: [{ num: 3, score: 0, ping: 0, name: 'Griefer', ip: '1.2.3.4' }] });
-    const ctx = createFakeCtx({ match: '3', admin: { telegramId: 1, role: 'admin' } });
+    rcon.status.mockResolvedValue({
+      raw: '',
+      players: [{ num: 3, score: 0, ping: 0, name: 'Griefer', ip: '1.2.3.4' }],
+    });
+    const ctx = createFakeCtx({
+      match: '3',
+      admin: { telegramId: 1, role: 'admin' },
+    });
 
     await tempbanCommand(ctx, deps);
 
@@ -35,32 +41,63 @@ describe('tempbanCommand', () => {
       bannedBy: 1,
       expiresAt: new Date('2026-01-01T00:30:00.000Z'),
     });
-    expect(rcon.say).toHaveBeenCalledWith('Griefer was temp-banned by an admin');
-    expect(adminStore.recordAuditLog).toHaveBeenCalledWith(expect.objectContaining({ action: 'tempban', target: 'Griefer' }));
-    expect(ctx.reply).toHaveBeenCalledWith("IP temp-banned (GUID unavailable) Griefer for 30m.");
+    expect(rcon.say).toHaveBeenCalledWith(
+      'Griefer was temp-banned by an admin',
+    );
+    expect(adminStore.recordAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'tempban', target: 'Griefer' }),
+    );
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'IP temp-banned (GUID unavailable) Griefer for 30m.',
+    );
   });
 
   it('temp-bans via the GUID path when status() reports one: kicks, and leaves ban.txt to permanent bans', async () => {
     const { deps, rcon, banStore } = createFakeDeps();
-    rcon.status.mockResolvedValue({ raw: '', players: [{ num: 3, score: 0, ping: 0, name: 'Griefer', guid: 'realguid', ip: '1.2.3.4' }] });
-    const ctx = createFakeCtx({ match: '3', admin: { telegramId: 1, role: 'admin' } });
+    rcon.status.mockResolvedValue({
+      raw: '',
+      players: [
+        {
+          num: 3,
+          score: 0,
+          ping: 0,
+          name: 'Griefer',
+          guid: 'realguid',
+          ip: '1.2.3.4',
+        },
+      ],
+    });
+    const ctx = createFakeCtx({
+      match: '3',
+      admin: { telegramId: 1, role: 'admin' },
+    });
 
     await tempbanCommand(ctx, deps);
 
     expect(rcon.banClient).not.toHaveBeenCalled();
     expect(rcon.kick).toHaveBeenCalledWith('Griefer');
-    expect(banStore.recordBan).toHaveBeenCalledWith(expect.objectContaining({ guid: 'realguid', name: 'Griefer' }));
+    expect(banStore.recordBan).toHaveBeenCalledWith(
+      expect.objectContaining({ guid: 'realguid', name: 'Griefer' }),
+    );
     expect(ctx.reply).toHaveBeenCalledWith('Temp-banned Griefer for 30m.');
   });
 
   it('parses an explicit duration and reason', async () => {
     const { deps, rcon, banStore } = createFakeDeps();
-    rcon.status.mockResolvedValue({ raw: '', players: [{ num: 3, score: 0, ping: 0, name: 'Griefer', ip: '1.2.3.4' }] });
-    const ctx = createFakeCtx({ match: '3 2h teamkilling', admin: { telegramId: 1, role: 'admin' } });
+    rcon.status.mockResolvedValue({
+      raw: '',
+      players: [{ num: 3, score: 0, ping: 0, name: 'Griefer', ip: '1.2.3.4' }],
+    });
+    const ctx = createFakeCtx({
+      match: '3 2h teamkilling',
+      admin: { telegramId: 1, role: 'admin' },
+    });
 
     await tempbanCommand(ctx, deps);
 
-    expect(banStore.recordIpBan).toHaveBeenCalledWith(expect.objectContaining({ reason: 'teamkilling' }));
+    expect(banStore.recordIpBan).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'teamkilling' }),
+    );
     const [[callArg]] = banStore.recordIpBan.mock.calls;
     const durationMs = (callArg.expiresAt as Date).getTime() - Date.now();
     expect(Math.round(durationMs / 3_600_000)).toBe(2);
@@ -68,33 +105,51 @@ describe('tempbanCommand', () => {
 
   it('treats a non-duration second token as the start of the reason (default duration)', async () => {
     const { deps, rcon, banStore } = createFakeDeps();
-    rcon.status.mockResolvedValue({ raw: '', players: [{ num: 3, score: 0, ping: 0, name: 'Griefer', ip: '1.2.3.4' }] });
-    const ctx = createFakeCtx({ match: '3 teamkilling repeatedly', admin: { telegramId: 1, role: 'admin' } });
+    rcon.status.mockResolvedValue({
+      raw: '',
+      players: [{ num: 3, score: 0, ping: 0, name: 'Griefer', ip: '1.2.3.4' }],
+    });
+    const ctx = createFakeCtx({
+      match: '3 teamkilling repeatedly',
+      admin: { telegramId: 1, role: 'admin' },
+    });
 
     await tempbanCommand(ctx, deps);
 
-    expect(banStore.recordIpBan).toHaveBeenCalledWith(expect.objectContaining({ reason: 'teamkilling repeatedly' }));
+    expect(banStore.recordIpBan).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'teamkilling repeatedly' }),
+    );
   });
 
   it('refuses when the client id is not currently connected', async () => {
     const { deps, rcon, banStore } = createFakeDeps();
     rcon.status.mockResolvedValue({ raw: '', players: [] });
-    const ctx = createFakeCtx({ match: '3', admin: { telegramId: 1, role: 'admin' } });
+    const ctx = createFakeCtx({
+      match: '3',
+      admin: { telegramId: 1, role: 'admin' },
+    });
 
     await tempbanCommand(ctx, deps);
 
     expect(rcon.kick).not.toHaveBeenCalled();
     expect(banStore.recordIpBan).not.toHaveBeenCalled();
-    expect(ctx.reply).toHaveBeenCalledWith('Client 3 is not currently connected — cannot temp-ban.');
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'Client 3 is not currently connected — cannot temp-ban.',
+    );
   });
 
   it('prompts for usage when the client id is missing or not a number', async () => {
     const { deps, rcon } = createFakeDeps();
-    const ctx = createFakeCtx({ match: 'not-a-number', admin: { telegramId: 1, role: 'admin' } });
+    const ctx = createFakeCtx({
+      match: 'not-a-number',
+      admin: { telegramId: 1, role: 'admin' },
+    });
 
     await tempbanCommand(ctx, deps);
 
     expect(rcon.status).not.toHaveBeenCalled();
-    expect(ctx.reply).toHaveBeenCalledWith('Usage: /tempban <client id> [duration] [reason] [--server <alias>]');
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'Usage: /tempban <client id> [duration] [reason] [--server <alias>]',
+    );
   });
 });

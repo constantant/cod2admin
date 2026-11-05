@@ -1,8 +1,19 @@
 import type { Ban, BanIp } from '@cod2admin/ban-store';
 import type { BotContext } from '../bot-context.js';
 import type { GatewayDeps } from '../deps.js';
-import { describeIpLong, describeIpShort, NO_COUNTRY_LOOKUP, type CountryLookup } from '../geoip.js';
-import { markdownTable, replyWithReport, reportDocument, reportFileName, type LongReply } from '../long-reply.js';
+import {
+  describeIpLong,
+  describeIpShort,
+  NO_COUNTRY_LOOKUP,
+  type CountryLookup,
+} from '../geoip.js';
+import {
+  markdownTable,
+  replyWithReport,
+  reportDocument,
+  reportFileName,
+  type LongReply,
+} from '../long-reply.js';
 
 function formatExpiry(expiresAt: Date | null): string {
   return expiresAt ? `expires ${expiresAt.toISOString()}` : 'permanent';
@@ -20,17 +31,25 @@ function formatIpBan(ban: BanIp, geoip: CountryLookup): string {
   return `${ban.ip}${country ? ` ${country}` : ''}${name}${reason} — ${formatExpiry(ban.expiresAt)} — banned on ${ban.serverAlias}`;
 }
 
-export function formatBansMessage(guidBans: Ban[], ipBans: BanIp[], geoip: CountryLookup = NO_COUNTRY_LOOKUP): string {
+export function formatBansMessage(
+  guidBans: Ban[],
+  ipBans: BanIp[],
+  geoip: CountryLookup = NO_COUNTRY_LOOKUP,
+): string {
   if (guidBans.length === 0 && ipBans.length === 0) {
     return 'No active bans.';
   }
 
   const sections: string[] = ['Active bans (they apply on all servers):'];
   if (guidBans.length > 0) {
-    sections.push(['GUID bans:', ...guidBans.map((ban) => formatGuidBan(ban))].join('\n'));
+    sections.push(
+      ['GUID bans:', ...guidBans.map((ban) => formatGuidBan(ban))].join('\n'),
+    );
   }
   if (ipBans.length > 0) {
-    sections.push(['IP bans:', ...ipBans.map((ban) => formatIpBan(ban, geoip))].join('\n'));
+    sections.push(
+      ['IP bans:', ...ipBans.map((ban) => formatIpBan(ban, geoip))].join('\n'),
+    );
   }
   return sections.join('\n\n');
 }
@@ -48,7 +67,11 @@ function newestFirst(guidBans: Ban[], ipBans: BanIp[]): AnyBan[] {
 }
 
 /** The short `/bans` for a long list: counts, then the newest few. */
-export function formatBansSummary(guidBans: Ban[], ipBans: BanIp[], geoip: CountryLookup = NO_COUNTRY_LOOKUP): string {
+export function formatBansSummary(
+  guidBans: Ban[],
+  ipBans: BanIp[],
+  geoip: CountryLookup = NO_COUNTRY_LOOKUP,
+): string {
   const all = newestFirst(guidBans, ipBans);
   const permanent = all.filter((entry) => entry.ban.expiresAt === null).length;
   const lines = [
@@ -58,7 +81,11 @@ export function formatBansSummary(guidBans: Ban[], ipBans: BanIp[], geoip: Count
     `Newest ${Math.min(SUMMARY_NEWEST, all.length)}:`,
     ...all
       .slice(0, SUMMARY_NEWEST)
-      .map((entry) => (entry.kind === 'guid' ? formatGuidBan(entry.ban) : formatIpBan(entry.ban, geoip))),
+      .map((entry) =>
+        entry.kind === 'guid'
+          ? formatGuidBan(entry.ban)
+          : formatIpBan(entry.ban, geoip),
+      ),
     '',
     'Every ban, with reason and who issued it, in the attached file.',
   ];
@@ -66,7 +93,12 @@ export function formatBansSummary(guidBans: Ban[], ipBans: BanIp[], geoip: Count
 }
 
 /** The attached `/bans` report: every active ban, newest first. */
-export function formatBansReport(guidBans: Ban[], ipBans: BanIp[], geoip: CountryLookup, now: Date): string {
+export function formatBansReport(
+  guidBans: Ban[],
+  ipBans: BanIp[],
+  geoip: CountryLookup,
+  now: Date,
+): string {
   const rows = newestFirst(guidBans, ipBans).map((entry) => {
     const { ban } = entry;
     return [
@@ -74,24 +106,49 @@ export function formatBansReport(guidBans: Ban[], ipBans: BanIp[], geoip: Countr
       entry.kind === 'guid' ? (entry.ban.guid ?? 'unknown') : entry.ban.ip,
       entry.kind === 'guid'
         ? entry.ban.name
-        : [entry.ban.name, describeIpLong(geoip, entry.ban.ip)].filter(Boolean).join(' — '),
+        : [entry.ban.name, describeIpLong(geoip, entry.ban.ip)]
+            .filter(Boolean)
+            .join(' — '),
       ban.reason,
       ban.bannedAt.toISOString().slice(0, 16).replace('T', ' '),
-      ban.expiresAt ? ban.expiresAt.toISOString().slice(0, 16).replace('T', ' ') : 'permanent',
+      ban.expiresAt
+        ? ban.expiresAt.toISOString().slice(0, 16).replace('T', ' ')
+        : 'permanent',
       ban.bannedBy,
       ban.serverAlias,
     ];
   });
   return reportDocument({
     title: 'Active bans',
-    meta: [`GUID bans: ${guidBans.length}`, `IP bans: ${ipBans.length}`, 'Bans apply on every server this bot manages.'],
-    body: markdownTable(['Type', 'GUID / IP', 'Name / location', 'Reason', 'Banned (UTC)', 'Expires (UTC)', 'By (Telegram ID)', 'Issued on'], rows),
+    meta: [
+      `GUID bans: ${guidBans.length}`,
+      `IP bans: ${ipBans.length}`,
+      'Bans apply on every server this bot manages.',
+    ],
+    body: markdownTable(
+      [
+        'Type',
+        'GUID / IP',
+        'Name / location',
+        'Reason',
+        'Banned (UTC)',
+        'Expires (UTC)',
+        'By (Telegram ID)',
+        'Issued on',
+      ],
+      rows,
+    ),
     now,
     credits: ipBans.length > 0,
   });
 }
 
-export function buildBansReply(guidBans: Ban[], ipBans: BanIp[], geoip: CountryLookup, now: Date = new Date()): LongReply {
+export function buildBansReply(
+  guidBans: Ban[],
+  ipBans: BanIp[],
+  geoip: CountryLookup,
+  now: Date = new Date(),
+): LongReply {
   return {
     full: formatBansMessage(guidBans, ipBans, geoip),
     summary: formatBansSummary(guidBans, ipBans, geoip),
@@ -107,8 +164,14 @@ export function buildBansReply(guidBans: Ban[], ipBans: BanIp[], geoip: CountryL
  * A row leaves this list once its `expiresAt` passes (poller-driven) or `/unban` stamps its
  * `unbannedAt` — the row itself stays around as ban *history* (docs/PLAN.md §5 step 3).
  */
-export async function bansCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
-  const [guidBans, ipBans] = await Promise.all([deps.banStore.listActiveBans(), deps.banStore.listActiveIpBans()]);
+export async function bansCommand(
+  ctx: BotContext,
+  deps: GatewayDeps,
+): Promise<void> {
+  const [guidBans, ipBans] = await Promise.all([
+    deps.banStore.listActiveBans(),
+    deps.banStore.listActiveIpBans(),
+  ]);
 
   await replyWithReport(ctx, buildBansReply(guidBans, ipBans, deps.geoip));
 }

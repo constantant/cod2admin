@@ -16,7 +16,9 @@ export const bans = pgTable('bans', {
   name: text('name').notNull(),
   reason: text('reason'),
   bannedBy: bigint('banned_by', { mode: 'number' }).notNull(),
-  bannedAt: timestamp('banned_at', { withTimezone: true }).notNull().defaultNow(),
+  bannedAt: timestamp('banned_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   /**
    * Set by `/unban` (via `unbanByGuid`) once the row's target has been explicitly unbanned —
@@ -58,7 +60,9 @@ export const banIps = pgTable('ban_ips', {
   name: text('name'),
   reason: text('reason'),
   bannedBy: bigint('banned_by', { mode: 'number' }).notNull(),
-  bannedAt: timestamp('banned_at', { withTimezone: true }).notNull().defaultNow(),
+  bannedAt: timestamp('banned_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   /** Set by `/unban <ip>` (via `unbanIp`) once explicitly lifted — same purpose as `bans.unbannedAt`. */
   unbannedAt: timestamp('unbanned_at', { withTimezone: true }),

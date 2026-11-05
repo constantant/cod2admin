@@ -38,12 +38,7 @@ import type {
 } from './api-types.js';
 import { ApiProblem } from './api-problem.js';
 import { actorLabel, type MiniAppActor } from './auth.js';
-import {
-  toGuidBanDto,
-  toIpBanDto,
-  toMuteDto,
-  type AdminNames,
-} from './dto.js';
+import { toGuidBanDto, toIpBanDto, toMuteDto, type AdminNames } from './dto.js';
 import { registerInsightRoutes } from './routes-insight.js';
 import { registerManagementRoutes } from './routes-management.js';
 import type { MiniAppState } from './state.js';
