@@ -4,6 +4,9 @@ import { vi, type Mock } from 'vitest';
 export interface FakeBanStore extends BanStore {
   recordBan: Mock<BanStore['recordBan']>;
   recordIpBan: Mock<BanStore['recordIpBan']>;
+  recordMute: Mock<BanStore['recordMute']>;
+  listActiveMutes: Mock<BanStore['listActiveMutes']>;
+  unmute: Mock<BanStore['unmute']>;
   listActiveIpBans: Mock<BanStore['listActiveIpBans']>;
   listExpiredIpBans: Mock<BanStore['listExpiredIpBans']>;
   expireIpBan: Mock<BanStore['expireIpBan']>;
@@ -34,6 +37,9 @@ export function createFakeBanStore(
   return {
     recordBan: vi.fn().mockResolvedValue(undefined),
     recordIpBan: vi.fn().mockResolvedValue(undefined),
+    recordMute: vi.fn().mockResolvedValue(undefined),
+    listActiveMutes: vi.fn().mockResolvedValue([]),
+    unmute: vi.fn().mockResolvedValue(undefined),
     listActiveIpBans: vi.fn().mockResolvedValue(overrides.active ?? []),
     listExpiredIpBans: vi.fn().mockResolvedValue([]),
     expireIpBan: vi.fn().mockResolvedValue(undefined),

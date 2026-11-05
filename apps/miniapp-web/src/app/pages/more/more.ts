@@ -35,6 +35,13 @@ const LINKS: readonly Link[] = [
     minRole: 'admin',
   },
   {
+    path: '/mutes',
+    label: 'Muted players',
+    hint: 'A warning, then kicks for chatting',
+    icon: 'mute',
+    minRole: 'moderator',
+  },
+  {
     path: '/notes',
     label: 'Notes & watchlist',
     hint: 'Keep an eye on a player',

@@ -10,6 +10,7 @@ import {
   joinCountryAndProvider,
 } from './geoip.js';
 import { describeVpnLong, joinIpLabels } from './vpn-ranges.js';
+import { MuteEnforcer } from './mute-enforcer.js';
 import { handleReportTrigger } from './reports.js';
 
 /**
@@ -139,6 +140,17 @@ export function startReportTailer(
         `Failed to handle a !report trigger for server "${alias}":`,
         error,
       );
+    });
+  });
+  const mutes = new MuteEnforcer({
+    serverAlias: alias,
+    rcon: () => deps.rconClients.get(alias),
+    banStore: deps.banStore,
+    adminStore: deps.adminStore,
+  });
+  tailer.on('chat', (chat) => {
+    mutes.handle(chat).catch((error: unknown) => {
+      console.error(`Failed to enforce a mute on server "${alias}":`, error);
     });
   });
   tailer.on('error', (error) => {

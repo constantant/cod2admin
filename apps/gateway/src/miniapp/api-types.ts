@@ -59,7 +59,7 @@ export interface ModerationRequest {
   /** The name the admin saw in the slot — the action is refused if the slot now holds someone else. */
   name: string;
   reason?: string;
-  /** `tempban` only. Default 30 minutes, like the report card's button. */
+  /** `tempban`: default 30 minutes, like the report card's button. Mute: none means until lifted. */
   durationMinutes?: number;
 }
 
@@ -189,6 +189,24 @@ export type AddBanRequest = {
   reason?: string;
   durationMinutes?: number | null;
 } & ({ kind: 'ip'; ip: string } | { kind: 'guid'; guid: string; name: string });
+
+/** A chat mute. It applies on every server; `server` is where it was issued. */
+export interface MuteDto {
+  id: number;
+  server: string;
+  name: string;
+  guid: string | null;
+  ip: string | null;
+  reason: string | null;
+  mutedBy: string;
+  mutedAt: string;
+  /** `null`: until someone lifts it. */
+  expiresAt: string | null;
+}
+
+export interface MutesResponse {
+  items: MuteDto[];
+}
 
 export interface ApiError {
   error: string;

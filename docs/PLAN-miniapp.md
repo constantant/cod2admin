@@ -315,6 +315,15 @@ map/getMapRotation` are implemented) — it would go through the raw `rcon()` pa
   visible "IP ban (no GUID)" badge) rather than leaving it implicit the way chat-command output
   does.
 
+### 6.3.1 Chat mutes (issue #7, 2026-11-05)
+
+A player's sheet has **Mute** (moderator and up, only on a server with a chat feed), **More → Muted
+players** lists and lifts them. Mutes live in `ban-store`'s `mutes` table and apply on every server
+with a chat feed, matched by real GUID or IP like bans. The game can't block chat, so
+`apps/gateway/src/lib/mute-enforcer.ts` reacts to the log: a private warning for the first message,
+a kick for each later one (audit action `mute_kick`). `!report` doesn't count. Not tried on a real
+server yet, including whether in-game quick messages show up as chat lines and so count too.
+
 ### 6.4 Suggested additions (not asked for, worth considering for later phases)
 
 - **Server dashboard**: current map, uptime, player-count history — needs a lightweight

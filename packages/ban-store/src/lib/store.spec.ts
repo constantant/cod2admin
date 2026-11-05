@@ -24,7 +24,7 @@ describe('DrizzleBanStore', () => {
   });
 
   beforeEach(async () => {
-    await pool.query('TRUNCATE bans, ban_ips RESTART IDENTITY CASCADE');
+    await pool.query('TRUNCATE bans, ban_ips, mutes RESTART IDENTITY CASCADE');
   });
 
   it('records a permanent (GUID-path) ban with no expiry and an unknown guid', async () => {
@@ -390,6 +390,43 @@ describe('DrizzleBanStore', () => {
       await expect(
         store.searchBans({ query: '%', limit: 10 }),
       ).resolves.toEqual([]);
+    });
+
+    it('lists active mutes until they expire or are lifted', async () => {
+      const lifted = await store.recordMute({
+        serverAlias: 'default',
+        name: 'Spammer',
+        ip: '1.2.3.4',
+        mutedBy: 1,
+        expiresAt: null,
+      });
+      await store.recordMute({
+        serverAlias: 'default',
+        name: 'Expired',
+        mutedBy: 1,
+        expiresAt: new Date(Date.now() - 1000),
+      });
+      await store.recordMute({
+        serverAlias: 'other',
+        name: 'Rude',
+        guid: 'abc',
+        mutedBy: 1,
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+
+      expect((await store.listActiveMutes()).map((m) => m.name)).toEqual([
+        'Rude',
+        'Spammer',
+      ]);
+
+      await expect(store.unmute(lifted.id)).resolves.toMatchObject({
+        name: 'Spammer',
+        unmutedAt: expect.any(Date),
+      });
+      await expect(store.unmute(lifted.id)).resolves.toBeUndefined();
+      expect((await store.listActiveMutes()).map((m) => m.name)).toEqual([
+        'Rude',
+      ]);
     });
 
     it('searchIpBans matches the IP, the name or the reason', async () => {

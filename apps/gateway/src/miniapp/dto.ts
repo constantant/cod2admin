@@ -1,10 +1,10 @@
-import type { Ban, BanIp } from '@cod2admin/ban-store';
+import type { Ban, BanIp, Mute } from '@cod2admin/ban-store';
 import type { StatusPlayer } from '@cod2admin/rcon-client';
 import type { GatewayDeps } from '../lib/deps.js';
 import { describeProviderLong, formatCountryLong } from '../lib/geoip.js';
 import { formatTelegramUser } from '../lib/telegram-user.js';
 import { describeVpnShort } from '../lib/vpn-ranges.js';
-import type { BanDto, PlayerDto } from './api-types.js';
+import type { BanDto, MuteDto, PlayerDto } from './api-types.js';
 
 type IpLookups = Pick<GatewayDeps, 'geoip' | 'provider' | 'vpn'>;
 
@@ -55,6 +55,20 @@ export type AdminNames = Map<
 function bannedBy(telegramId: number, names: AdminNames): string {
   const known = names.get(telegramId);
   return formatTelegramUser(telegramId, known?.username, known?.firstName);
+}
+
+export function toMuteDto(mute: Mute, names: AdminNames): MuteDto {
+  return {
+    id: mute.id,
+    server: mute.serverAlias,
+    name: mute.name,
+    guid: mute.guid,
+    ip: mute.ip,
+    reason: mute.reason,
+    mutedBy: bannedBy(mute.mutedBy, names),
+    mutedAt: mute.mutedAt.toISOString(),
+    expiresAt: mute.expiresAt?.toISOString() ?? null,
+  };
 }
 
 export function toGuidBanDto(ban: Ban, names: AdminNames): BanDto {

@@ -10,6 +10,7 @@ import {
   type ModerationActionKind,
 } from '../lib/moderation-actions.js';
 import { displayName } from '../lib/commands/players.js';
+import { findMute, usableGuid } from '../lib/mute-enforcer.js';
 import { sanitizeRconArg } from '../lib/sanitize.js';
 import { isIpv4, liftBan } from '../lib/unban-actions.js';
 import { getRunningVersion } from '../lib/version.js';
@@ -25,6 +26,7 @@ import type {
   MapsResponse,
   MeResponse,
   ModerationRequest,
+  MutesResponse,
   RotationRequest,
   SayRequest,
   StatusResponse,
@@ -36,7 +38,12 @@ import type {
 } from './api-types.js';
 import { ApiProblem } from './api-problem.js';
 import { actorLabel, type MiniAppActor } from './auth.js';
-import { toGuidBanDto, toIpBanDto, type AdminNames } from './dto.js';
+import {
+  toGuidBanDto,
+  toIpBanDto,
+  toMuteDto,
+  type AdminNames,
+} from './dto.js';
 import { registerInsightRoutes } from './routes-insight.js';
 import { registerManagementRoutes } from './routes-management.js';
 import type { MiniAppState } from './state.js';
@@ -294,6 +301,99 @@ export function registerRoutes(
       },
     );
   }
+
+  // ── Mutes (issue #7) — global, like bans ────────────────────────────────────────────────
+
+  app.post(
+    '/servers/:server/players/:num/mute',
+    { config: { minRole: 'moderator', action: true } },
+    async (
+      request: FastifyRequest<{
+        Params: { server: string; num: string };
+        Body: ModerationRequest;
+      }>,
+      reply: FastifyReply,
+    ): Promise<ActionResponse> => {
+      const alias = request.params.server;
+      const rcon = serverParam(state, alias);
+      if (!deps.logTailers.has(alias)) {
+        throw new ApiProblem(
+          409,
+          'no_chat_feed',
+          "A mute works by reading the chat, and the bot can't read this server's log.",
+        );
+      }
+      const num = Number(request.params.num);
+      const body = request.body ?? ({} as ModerationRequest);
+      const duration = durationMs(body.durationMinutes);
+      const { players } = await rcon.status();
+      const player = players.find((candidate) => candidate.num === num);
+      if (!player || player.name !== body.name) {
+        throw new ApiProblem(
+          409,
+          'player_changed',
+          "That player isn't connected any more.",
+        );
+      }
+      if (findMute(await deps.banStore.listActiveMutes(), player)) {
+        throw new ApiProblem(
+          409,
+          'already_muted',
+          `${displayName(player)} is already muted.`,
+        );
+      }
+      const reason = optionalReason(body.reason);
+      await deps.banStore.recordMute({
+        serverAlias: alias,
+        name: player.name,
+        guid: usableGuid(player.guid),
+        ip: player.ip ?? null,
+        reason,
+        mutedBy: request.actor.telegramId,
+        expiresAt: duration ? new Date(Date.now() + duration) : null,
+      });
+      await audit(request, {
+        action: 'mute',
+        target: player.name,
+        serverAlias: alias,
+        reason,
+        detailJson: { ip: player.ip ?? null, guid: player.guid ?? null },
+      });
+      reply.code(201);
+      const forHowLong = duration ? ` for ${formatDuration(duration)}` : '';
+      return { message: `Muted ${displayName(player)}${forHowLong}.` };
+    },
+  );
+
+  app.get(
+    '/mutes',
+    { config: { minRole: 'moderator' } },
+    async (): Promise<MutesResponse> => {
+      const names = await adminNames(deps);
+      return {
+        items: (await deps.banStore.listActiveMutes()).map((mute) =>
+          toMuteDto(mute, names),
+        ),
+      };
+    },
+  );
+
+  app.post(
+    '/mutes/:id/unmute',
+    { config: { minRole: 'moderator', action: true } },
+    async (request: Params<{ id: string }>): Promise<ActionResponse> => {
+      const mute = await deps.banStore.unmute(Number(request.params.id));
+      if (!mute) {
+        throw new ApiProblem(404, 'not_found', 'That mute is already gone.');
+      }
+      await audit(request, {
+        action: 'unmute',
+        target: mute.name,
+        serverAlias: mute.serverAlias,
+      });
+      return { message: 'Unmuted.' };
+    },
+  );
 
   // ── Maps (§6.1) ──────────────────────────────────────────────────────────────────────────
 

@@ -14,6 +14,7 @@ import type {
   AuditResponse,
   BanKind,
   BansResponse,
+  MutesResponse,
   ChangeMapRequest,
   ChatResponse,
   ConsoleResponse,
@@ -188,6 +189,22 @@ export class ApiService {
   unban(targets: string[]) {
     return this.call<UnbanResponse>(
       this.http.post('/api/bans/unban', { targets }),
+    );
+  }
+
+  mute(alias: string, num: number, body: ModerationRequest) {
+    return this.call<ActionResponse>(
+      this.http.post(`${server(alias)}/players/${num}/mute`, body),
+    );
+  }
+
+  mutes() {
+    return this.call<MutesResponse>(this.http.get('/api/mutes'));
+  }
+
+  unmute(id: number) {
+    return this.call<ActionResponse>(
+      this.http.post(`/api/mutes/${id}/unmute`, {}),
     );
   }
 

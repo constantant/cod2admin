@@ -291,6 +291,14 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
   'GUID bans': 'Баны по GUID',
   'Show lifted': 'Показывать снятые',
   'Name, IP or reason': 'Имя, IP или причина',
+  Mute: 'Заглушить',
+  Unmute: 'Снять',
+  'Muted players': 'Заглушённые игроки',
+  'A warning, then kicks for chatting': 'За сообщения в чате: предупреждение, затем кик',
+  'Until lifted': 'Пока не снимут',
+  'No muted players.': 'Заглушённых игроков нет.',
+  "The game can't block chat, so their messages still appear. The first gets them a private warning, each one after that a kick. Applies on every server whose chat the bot can read.":
+    'Игра не умеет блокировать чат, поэтому сообщения игрока всё равно появятся. За первое он получит личное предупреждение, за каждое следующее — кик. Действует на всех серверах, чат которых бот может читать.',
   'Name or GUID': 'Имя или GUID',
   'Most players have no GUID (GUID 0), so most bans are IP bans.':
     'У большинства игроков нет GUID (GUID 0), поэтому почти все баны идут по IP.',

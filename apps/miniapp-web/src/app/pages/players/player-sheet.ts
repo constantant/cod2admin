@@ -35,7 +35,7 @@ export interface PlayerSheetData {
   player: PlayerDto;
 }
 
-type Mode = 'menu' | ModerationKind | 'tell' | 'history';
+type Mode = 'menu' | ModerationKind | 'mute' | 'tell' | 'history';
 
 /**
  * Everything you can do to one connected player (docs/PLAN-miniapp.md §6.1): details, then kick,
@@ -160,6 +160,16 @@ export class PlayerSheet {
         name: this.player.name,
         reason: this.reason().trim() || undefined,
         durationMinutes: kind === 'tempban' ? this.duration() : undefined,
+      }),
+    );
+  }
+
+  protected async mute(): Promise<void> {
+    await this.run(() =>
+      this.api.mute(this.data.server, this.player.num, {
+        name: this.player.name,
+        reason: this.reason().trim() || undefined,
+        durationMinutes: this.duration() || undefined,
       }),
     );
   }

@@ -11,7 +11,7 @@ import {
 } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
-import { banIps, bans } from './schema.js';
+import { banIps, bans, mutes } from './schema.js';
 import type {
   Ban,
   BanChanges,
@@ -19,7 +19,9 @@ import type {
   BanSearchFilter,
   BanStore,
   RecordBanInput,
+  Mute,
   RecordIpBanInput,
+  RecordMuteInput,
 } from './types.js';
 
 /** `ILIKE` pattern for a case-insensitive substring search, with the user's `%`/`_` taken literally. */
@@ -236,6 +238,44 @@ export class DrizzleBanStore implements BanStore {
       .update(banIps)
       .set(changes)
       .where(eq(banIps.id, id))
+      .returning();
+    return row;
+  }
+
+  async recordMute(input: RecordMuteInput): Promise<Mute> {
+    const [row] = await this.db
+      .insert(mutes)
+      .values({
+        serverAlias: input.serverAlias,
+        name: input.name,
+        guid: input.guid ?? null,
+        ip: input.ip ?? null,
+        reason: input.reason ?? null,
+        mutedBy: input.mutedBy,
+        expiresAt: input.expiresAt,
+      })
+      .returning();
+    return row;
+  }
+
+  async listActiveMutes(): Promise<Mute[]> {
+    return this.db
+      .select()
+      .from(mutes)
+      .where(
+        and(
+          isNull(mutes.unmutedAt),
+          or(isNull(mutes.expiresAt), gt(mutes.expiresAt, new Date())),
+        ),
+      )
+      .orderBy(desc(mutes.mutedAt), desc(mutes.id));
+  }
+
+  async unmute(id: number): Promise<Mute | undefined> {
+    const [row] = await this.db
+      .update(mutes)
+      .set({ unmutedAt: new Date() })
+      .where(and(eq(mutes.id, id), isNull(mutes.unmutedAt)))
       .returning();
     return row;
   }

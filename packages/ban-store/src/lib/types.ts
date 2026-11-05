@@ -57,6 +57,32 @@ export interface BanSearchFilter {
   offset?: number;
 }
 
+/** A chat mute (issue #7): applies on every server; see `mutes` in schema.ts. */
+export interface Mute {
+  id: number;
+  serverAlias: string;
+  name: string;
+  /** A real GUID only, never GUID 0. */
+  guid: string | null;
+  ip: string | null;
+  reason: string | null;
+  mutedBy: number;
+  mutedAt: Date;
+  expiresAt: Date | null;
+  unmutedAt: Date | null;
+}
+
+export interface RecordMuteInput {
+  serverAlias: string;
+  name: string;
+  guid?: string | null;
+  ip?: string | null;
+  reason?: string | null;
+  mutedBy: number;
+  /** Null until someone lifts it. */
+  expiresAt: Date | null;
+}
+
 /** Fields the Mini App can edit on an existing ban — omitted ones stay as they are. */
 export interface BanChanges {
   reason?: string | null;
@@ -117,13 +143,19 @@ export interface BanStore {
    * Expired temp bans aren't there either way: the expiry sweep deletes them.
    */
   searchBans(filter: BanSearchFilter): Promise<Ban[]>;
-  /** Same as `searchBans`, for `ban_ips` — `query` matches the IP or the reason. */
+  /** Same as `searchBans`, for `ban_ips` — `query` matches the IP, the name or the reason. */
   searchIpBans(filter: BanSearchFilter): Promise<BanIp[]>;
   getBan(id: number): Promise<Ban | undefined>;
   getIpBan(id: number): Promise<BanIp | undefined>;
   /** Edits the reason and/or expiry (`null` = permanent) of a ban; `undefined` if no such row. */
   updateBan(id: number, changes: BanChanges): Promise<Ban | undefined>;
   updateIpBan(id: number, changes: BanChanges): Promise<BanIp | undefined>;
+
+  recordMute(input: RecordMuteInput): Promise<Mute>;
+  /** Not lifted and not expired, newest first. */
+  listActiveMutes(): Promise<Mute[]>;
+  /** Lifts an active mute; `undefined` if there's no such active mute. */
+  unmute(id: number): Promise<Mute | undefined>;
 
   close(): Promise<void>;
 }

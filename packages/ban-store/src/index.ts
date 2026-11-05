@@ -11,6 +11,8 @@ export type {
   BanIp,
   BanSearchFilter,
   BanStore,
+  Mute,
   RecordBanInput,
   RecordIpBanInput,
+  RecordMuteInput,
 } from './lib/types.js';

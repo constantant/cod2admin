@@ -408,10 +408,11 @@ Roles, stored in `admin-store`:
   manage per-server access, and view the full audit log.
 - **Admin** — kick/ban/unban/tempban, map/server control, sees report cards, can act on them.
 - **Moderator** — kick/tempban only (no permanent ban, no server/map control) — useful for
-  trusted community members who triage reports without full authority. (Chat **mute** was
-  considered but dropped from v1: vanilla CoD2 RCON has no native per-player mute, and faking
-  one server-side would need a GSC chat hook — see the Phase 4 note in §9 if this becomes a
-  priority.)
+  trusted community members who triage reports without full authority. (Chat **mute**: vanilla CoD2 RCON has no native per-player mute, and truly
+  blocking a message would need a GSC chat hook — see the Phase 4 note in §9. Since 2026-11-05
+  the Mini App has a mute the bot enforces from the log instead (`mute-enforcer.ts`): the message
+  still appears, the player gets a private warning, then a kick for each later message. It needs
+  a chat feed, so it does nothing on an RCON-only server. No Telegram command yet.)
 - Commands (owner/admin only, enforced by a grammy middleware checking `admin-store`):
   - `/addadmin <reply-or-@user> <role>`
   - `/removeadmin <@user>`
@@ -992,8 +993,8 @@ what each one changed are in `CHANGELOG.md`.
 - **Phase 4 — nice-to-haves** (borrow from RCM) _(only the country label is done)_: GeoIP-enriched player info on report cards,
   proxy/VPN auto-kick list, bad-nickname auto-kicker, `!getss`-style screenshot capture if an
   anticheat hook is available, periodic stats digest posted to the Telegram group, and
-  investigate a GSC-hook-based chat **mute** for Moderators (§4) if CoD2x exposes one — dropped
-  from v1 since vanilla RCON has no native per-player mute.
+  investigate a GSC-hook-based chat **mute** for Moderators (§4) if CoD2x exposes one, to actually
+  block messages — vanilla RCON has no native per-player mute, so today's mute (§4) only warns and kicks.
 - **Ops: self-updating from Telegram** _(done 2026-09-07)_ — see §13. Operational tooling around the installer
   (§12), not a bot feature — independent of the phases above; doesn't block, and isn't blocked
   by, Phase 3/4.

@@ -271,6 +271,110 @@ describe('Mini App server', () => {
       );
     });
 
+    describe('mutes', () => {
+      const mute = (overrides = {}) => ({
+        id: 9,
+        serverAlias: 'default',
+        name: '^1Cheater',
+        guid: null,
+        ip: '1.2.3.4',
+        reason: null,
+        mutedBy: 3,
+        mutedAt: new Date(),
+        expiresAt: null,
+        unmutedAt: null,
+        ...overrides,
+      });
+      const muteRequest = (server: Awaited<ReturnType<typeof start>>) =>
+        server.inject({
+          method: 'POST',
+          url: '/api/servers/default/players/3/mute',
+          headers: { authorization: authHeader(3) },
+          payload: { name: '^1Cheater', durationMinutes: 60 },
+        });
+
+      it('lets a moderator mute a player and audit-logs it', async () => {
+        const fake = setup();
+        fake.deps.logTailers.set('default', {} as never);
+        const server = await start(fake);
+
+        const response = await muteRequest(server);
+
+        expect(response.statusCode).toBe(201);
+        expect(fake.banStore.recordMute).toHaveBeenCalledWith(
+          expect.objectContaining({
+            serverAlias: 'default',
+            name: '^1Cheater',
+            mutedBy: 3,
+            expiresAt: expect.any(Date),
+          }),
+        );
+        expect(fake.adminStore.recordAuditLog).toHaveBeenCalledWith(
+          expect.objectContaining({ action: 'mute', target: '^1Cheater' }),
+        );
+      });
+
+      it("refuses a server whose chat the bot can't read", async () => {
+        const fake = setup();
+        const server = await start(fake);
+
+        const response = await muteRequest(server);
+
+        expect(response.statusCode).toBe(409);
+        expect(response.json().error).toBe('no_chat_feed');
+        expect(fake.banStore.recordMute).not.toHaveBeenCalled();
+      });
+
+      it('refuses to mute someone twice', async () => {
+        const fake = setup();
+        fake.deps.logTailers.set('default', {} as never);
+        fake.rcon.status.mockResolvedValue({
+          raw: '',
+          players: [{ ...PLAYER, guid: undefined, ip: '1.2.3.4' }],
+        });
+        fake.banStore.listActiveMutes.mockResolvedValue([mute()]);
+        const server = await start(fake);
+
+        const response = await muteRequest(server);
+
+        expect(response.statusCode).toBe(409);
+        expect(response.json().error).toBe('already_muted');
+      });
+
+      it('lists and lifts mutes', async () => {
+        const fake = setup();
+        fake.banStore.listActiveMutes.mockResolvedValue([mute()]);
+        fake.banStore.unmute.mockResolvedValueOnce(mute());
+        const server = await start(fake);
+        const headers = { authorization: authHeader(3) };
+
+        const list = await server.inject({
+          method: 'GET',
+          url: '/api/mutes',
+          headers,
+        });
+        const lifted = await server.inject({
+          method: 'POST',
+          url: '/api/mutes/9/unmute',
+          headers,
+        });
+        const again = await server.inject({
+          method: 'POST',
+          url: '/api/mutes/9/unmute',
+          headers,
+        });
+
+        expect(list.json().items).toEqual([
+          expect.objectContaining({ id: 9, name: '^1Cheater', ip: '1.2.3.4' }),
+        ]);
+        expect(lifted.statusCode).toBe(200);
+        expect(fake.adminStore.recordAuditLog).toHaveBeenCalledWith(
+          expect.objectContaining({ action: 'unmute', target: '^1Cheater' }),
+        );
+        expect(again.statusCode).toBe(404);
+      });
+    });
+
     it('temp-bans a GUID-0 player by IP for the chosen duration', async () => {
       const fake = setup();
       const server = await start(fake);

@@ -33,7 +33,11 @@
   <button mat-stroked-button (click)="open('tempban')">
     <c2a-icon name="timer" /> {{ 'Temp ban' | t }}
   </button>
-  @if (session.can('admin')) {
+  @if (session.serverInfo()?.chat) {
+  <button mat-stroked-button (click)="open('mute')">
+    <c2a-icon name="mute" /> {{ 'Mute' | t }}
+  </button>
+  } @if (session.can('admin')) {
   <button mat-stroked-button class="danger" (click)="open('ban')">
     <c2a-icon name="block" /> {{ 'Ban' | t }}
   </button>
@@ -131,7 +135,11 @@
 <div class="buttons">
   <button mat-button (click)="open('menu')">{{ 'Back' | t }}</button>
 </div>
-} @default { @if (mode() === 'tempban') {
+} @default { @if (mode() === 'mute') {
+<p class="muted small">
+  {{ "The game can't block chat, so their messages still appear. The first gets them a private warning, each one after that a kick. Applies on every server whose chat the bot can read." | t }}
+</p>
+} @if (mode() === 'tempban' || mode() === 'mute') {
 <mat-chip-listbox
   [attr.aria-label]="'Duration' | t"
   [value]="duration()"
@@ -142,6 +150,8 @@
   <mat-chip-option [value]="minutes"
     >{{ durationLabel(minutes) }}</mat-chip-option
   >
+  } @if (mode() === 'mute') {
+  <mat-chip-option [value]="0">{{ 'Until lifted' | t }}</mat-chip-option>
   }
 </mat-chip-listbox>
 }
@@ -162,9 +172,9 @@
     mat-flat-button
     [class.danger-fill]="mode() === 'ban'"
     [disabled]="busy()"
-    (click)="moderate($any(mode()))"
+    (click)="mode() === 'mute' ? mute() : moderate($any(mode()))"
   >
-    {{ (mode() === 'kick' ? 'Kick' : mode() === 'ban' ? 'Ban…' : 'Temp ban') | t
+    {{ (mode() === 'kick' ? 'Kick' : mode() === 'ban' ? 'Ban…' : mode() === 'mute' ? 'Mute' : 'Temp ban') | t
     }}
   </button>
 </div>

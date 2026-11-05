@@ -28,6 +28,24 @@ export const bans = pgTable('bans', {
 });
 
 /**
+ * Chat mutes (issue #7). CoD2 can't stop a player's message reaching the chat, so the gateway enforces
+ * these from the log (apps/gateway/src/lib/mute-enforcer.ts): a warning, then kicks. Like bans they
+ * apply on every server, and `serverAlias` only records where one was issued.
+ */
+export const mutes = pgTable('mutes', {
+  id: serial('id').primaryKey(),
+  serverAlias: text('server_alias').notNull(),
+  name: text('name').notNull(),
+  guid: text('guid'),
+  ip: text('ip'),
+  reason: text('reason'),
+  mutedBy: bigint('muted_by', { mode: 'number' }).notNull(),
+  mutedAt: timestamp('muted_at', { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  unmutedAt: timestamp('unmuted_at', { withTimezone: true }),
+});
+
+/**
  * IP-based bans (docs/PLAN.md §7) — the *only* mechanism `/tempban` uses in Phase 2. Enforced
  * purely by the gateway's poller (kick-on-sight + row expiry); no native rcon "unban" call is ever
  * needed since these were never written to ban.txt in the first place.
