@@ -41,7 +41,7 @@ describe('VpnKicker', () => {
     await kicker.sweep(deps);
 
     expect(rcon.kick).toHaveBeenCalledTimes(1);
-    expect(rcon.kick).toHaveBeenCalledWith('const^7');
+    expect(rcon.kick).toHaveBeenCalledWith(0, 'const^7');
     expect(rcon.say).toHaveBeenCalledWith('const kicked: VPN/proxy is not allowed here. Turn it off to play.');
     expect(adminStore.recordAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({

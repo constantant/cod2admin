@@ -59,7 +59,7 @@ describe('runBanEnforcementSweep', () => {
       new Map([['default', asRconClient(rconFake)]]),
     );
 
-    expect(rconFake.kick).toHaveBeenCalledWith('Cheater');
+    expect(rconFake.kick).toHaveBeenCalledWith(3, 'Cheater');
   });
 
   it('does not kick a connected player whose IP is not banned', async () => {
@@ -112,7 +112,10 @@ describe('runBanEnforcementSweep', () => {
       ]),
     );
 
-    expect(rconB.kick.mock.calls).toEqual([['ByIp'], ['ByGuid']]);
+    expect(rconB.kick.mock.calls).toEqual([
+      [1, 'ByIp'],
+      [2, 'ByGuid'],
+    ]);
   });
 
   it('never matches GUID 0, which many unrelated players share', async () => {
@@ -166,7 +169,7 @@ describe('runBanEnforcementSweep', () => {
     );
 
     expect(onError).toHaveBeenCalledWith('down', failure);
-    expect(healthy.kick).toHaveBeenCalledWith('Cheater');
+    expect(healthy.kick).toHaveBeenCalledWith(1, 'Cheater');
   });
 
   it('expires rows whose expiry has passed, with no rcon call needed', async () => {

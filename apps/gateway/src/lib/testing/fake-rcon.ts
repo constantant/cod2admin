@@ -18,7 +18,7 @@ export interface FakeRcon {
   >;
   status: Mock<() => Promise<ServerStatus>>;
   rcon: Mock<(command: string) => Promise<string>>;
-  kick: Mock<(clientIdOrName: string | number) => Promise<string>>;
+  kick: Mock<(clientIdOrName: string | number, nameIfSlot?: string) => Promise<string>>;
   banClient: Mock<(clientId: number) => Promise<string>>;
   unbanUser: Mock<(name: string) => Promise<number>>;
   say: Mock<(message: string) => Promise<string>>;

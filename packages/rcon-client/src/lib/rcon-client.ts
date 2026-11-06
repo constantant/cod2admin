@@ -29,6 +29,9 @@ const DEFAULT_MIN_SEND_INTERVAL_MS = 100;
 // `map` gets one longer attempt instead of retries - see `map()`.
 const DEFAULT_MAP_REPLY_TIMEOUT_MS = 3000;
 const KICK_FAILURE_PATTERN = /^Usage:|is not on the server/i;
+// A build that has no `clientkick` says so; anything else (including an empty
+// success, or "client is not active") must not fall through to a name kick.
+const UNKNOWN_COMMAND_PATTERN = /unknown command|unknown cmd/i;
 
 /**
  * Pure TS client for the Quake3/CoD out-of-band UDP RCON protocol (docs/PLAN.md §2.4/§3.1).
@@ -107,19 +110,33 @@ export class RconClient {
   }
 
   /**
-   * Confirmed empirically against a real server: its `kick` console command tokenizes plain
-   * ASCII names unquoted, but a name containing non-ASCII bytes (e.g. Cyrillic) only resolves
-   * when quoted — the opposite quoting fails a *different* way for each case (a generic "Usage:"
-   * message for non-ASCII unquoted, "is not on the server" for ASCII quoted), so rather than
-   * guess from the name's content, retry with the other quoting style if the first attempt's
-   * response looks like one of those known failure shapes.
+   * Drops a connected player.
+   *
+   * A numeric argument is the `num` column from `status`, sent as `clientkick`. `kick <slot>`
+   * does not work on this game (`Player N is not on the server`), and `kick <name>` only matches
+   * the raw name, color codes included. The name `status` parsing keeps has those codes removed,
+   * so a colored name is never dropped and a GUID-0 ban (the game will not drop those itself)
+   * leaves him in the server. `nameIfSlot` is used only when this build answers that `clientkick`
+   * is an unknown command.
+   *
+   * A string argument is a name. Confirmed on a real server: plain ASCII names tokenize unquoted,
+   * but a name containing non-ASCII bytes (Cyrillic) only resolves when quoted. The opposite
+   * quoting fails a different way for each case (`Usage:` unquoted, "is not on the server"
+   * quoted), so retry the other quoting if the first reply looks like one of those.
    */
-  async kick(clientIdOrName: string | number): Promise<string> {
+  async kick(clientIdOrName: string | number, nameIfSlot?: string): Promise<string> {
+    if (typeof clientIdOrName === 'number') {
+      const bySlot = await this.rcon(`clientkick ${clientIdOrName}`);
+      if (!UNKNOWN_COMMAND_PATTERN.test(bySlot)) {
+        return bySlot;
+      }
+      if (nameIfSlot) {
+        return this.kick(nameIfSlot);
+      }
+      return this.rcon(`kick ${clientIdOrName}`);
+    }
     const result = await this.rcon(`kick ${clientIdOrName}`);
-    if (
-      typeof clientIdOrName === 'string' &&
-      KICK_FAILURE_PATTERN.test(result)
-    ) {
+    if (KICK_FAILURE_PATTERN.test(result)) {
       return this.rcon(`kick "${clientIdOrName}"`);
     }
     return result;

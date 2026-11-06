@@ -104,7 +104,7 @@ describe('RconClient', () => {
 
     const result = await client.kick(3);
 
-    expect(received).toBe('rcon secret kick 3');
+    expect(received).toBe('rcon secret clientkick 3');
     expect(result).toBe('Kicked player 3\n');
   });
 
@@ -431,11 +431,11 @@ describe('RconClient', () => {
       expect(received).toEqual(['rcon secret kick name']);
     });
 
-    it('never retries for a numeric client id', async () => {
+    it('kicks a slot with clientkick, and does not also send kick', async () => {
       const received: string[] = [];
       peer = await createMockPeer((payload, respond) => {
         received.push(payload);
-        respond('print\nUsage: kick <player name>\nkick all = kick everyone\n');
+        respond('print\n');
       });
       const client = new RconClient({
         host: '127.0.0.1',
@@ -443,9 +443,33 @@ describe('RconClient', () => {
         password: 'secret',
       });
 
-      await client.kick(3);
+      await client.kick(3, '^1Cheater');
 
-      expect(received).toEqual(['rcon secret kick 3']);
+      expect(received).toEqual(['rcon secret clientkick 3']);
+    });
+
+    it('falls back to a name kick when the server has no clientkick', async () => {
+      const received: string[] = [];
+      peer = await createMockPeer((payload, respond) => {
+        received.push(payload);
+        if (payload === 'rcon secret clientkick 3') {
+          respond('print\nUnknown command "clientkick"\n');
+        } else {
+          respond('print\n0:name EXE_PLAYERKICKED\n');
+        }
+      });
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'secret',
+      });
+
+      await client.kick(3, 'name');
+
+      expect(received).toEqual([
+        'rcon secret clientkick 3',
+        'rcon secret kick name',
+      ]);
     });
   });
 

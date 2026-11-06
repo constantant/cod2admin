@@ -5,7 +5,7 @@ import type { Ban, BanIp, BanStore } from '../types.js';
 /** Test-only stand-in for `RconClient` — see the equivalent helper in `apps/gateway`. */
 export interface FakeRcon {
   status: Mock<() => Promise<ServerStatus>>;
-  kick: Mock<(clientIdOrName: string | number) => Promise<string>>;
+  kick: Mock<(clientIdOrName: string | number, nameIfSlot?: string) => Promise<string>>;
 }
 
 export function createFakeRcon(): FakeRcon {

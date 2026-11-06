@@ -78,7 +78,7 @@ export class MuteEnforcer {
       await rcon.tell(player.num, MUTE_WARNING);
       return;
     }
-    await rcon.kick(sanitizeRconArg(player.name));
+    await rcon.kick(player.num, sanitizeRconArg(player.name));
     await this.options.adminStore.recordAuditLog({
       actorTelegramId: 0,
       action: 'mute_kick',

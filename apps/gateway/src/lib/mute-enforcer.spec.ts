@@ -96,7 +96,7 @@ describe('MuteEnforcer', () => {
     await enforcer.handle(chat('three'));
     expect(rcon.tell).toHaveBeenCalledTimes(1);
     expect(rcon.kick).toHaveBeenCalledTimes(2);
-    expect(rcon.kick).toHaveBeenCalledWith('NewName');
+    expect(rcon.kick).toHaveBeenCalledWith(3, 'NewName');
     expect(adminStore.recordAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'mute_kick',

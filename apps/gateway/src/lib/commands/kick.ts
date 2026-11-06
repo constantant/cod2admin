@@ -7,10 +7,8 @@ import { sanitizeRconArg } from '../sanitize.js';
 /**
  * `/kick <client id or name> [--server <alias>]` — same rcon call as the report-card button (§6).
  *
- * This server's `kick` rcon command only accepts a player's **name**, not the numeric slot
- * `status`/`/players` shows (confirmed empirically — `kick 0` replies "Player 0 is not on the
- * server" while `kick const`, unquoted, actually kicks). A numeric target is resolved to a name
- * via `status()` first; a non-numeric target is assumed to already be a name and passed through.
+ * A numeric target is checked against `status()` so we don't `clientkick` an empty slot. A name
+ * is passed through; `RconClient#kick` quotes it if the first attempt misses.
  */
 export async function kickCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
   const { alias: serverAlias, rest } = extractServerFlag(matchText(ctx));

@@ -29,7 +29,7 @@ describe('banCommand', () => {
     await banCommand(ctx, deps);
 
     expect(rcon.banClient).not.toHaveBeenCalled();
-    expect(rcon.kick).toHaveBeenCalledWith('Cheater');
+    expect(rcon.kick).toHaveBeenCalledWith(2, 'Cheater');
     expect(banStore.recordIpBan).toHaveBeenCalledWith(expect.objectContaining({ ip: '1.2.3.4' }));
     expect(ctx.reply).toHaveBeenCalledWith('IP-banned (GUID unavailable) Cheater.');
   });

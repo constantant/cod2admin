@@ -34,7 +34,7 @@ describe('executeModerationAction', () => {
     const result = await executeModerationAction('kick', target(), options);
 
     expect(result).toEqual({ label: 'Kicked', ipFallback: false });
-    expect(rcon.kick).toHaveBeenCalledWith('Cheatr123');
+    expect(rcon.kick).toHaveBeenCalledWith(2, 'Cheatr123');
     expect(rcon.say).toHaveBeenCalledWith('Cheatr123 was kicked by an admin');
     expect(banStore.recordBan).not.toHaveBeenCalled();
     expect(banStore.recordIpBan).not.toHaveBeenCalled();
@@ -81,7 +81,7 @@ describe('executeModerationAction', () => {
 
     await executeModerationAction('ban', target({ guid: '123' }), options);
 
-    expect(rcon.kick).toHaveBeenCalledWith('Cheatr123');
+    expect(rcon.kick).toHaveBeenCalledWith(2, 'Cheatr123');
     expect(banStore.recordBan).toHaveBeenCalledWith(
       expect.objectContaining({ guid: '123' }),
     );
@@ -97,7 +97,7 @@ describe('executeModerationAction', () => {
     );
 
     expect(rcon.banClient).not.toHaveBeenCalled();
-    expect(rcon.kick).toHaveBeenCalledWith('Вика');
+    expect(rcon.kick).toHaveBeenCalledWith(2, 'Вика');
     expect(banStore.recordBan).toHaveBeenCalledWith(
       expect.objectContaining({ guid: 'realguid', expiresAt: null }),
     );
@@ -115,7 +115,7 @@ describe('executeModerationAction', () => {
     expect(result.label).toBe('Temp-banned');
     expect(result.durationMs).toBe(60_000);
     expect(rcon.banClient).not.toHaveBeenCalled();
-    expect(rcon.kick).toHaveBeenCalledWith('Cheatr123');
+    expect(rcon.kick).toHaveBeenCalledWith(2, 'Cheatr123');
     const call = banStore.recordBan.mock.calls[0][0];
     expect(call.expiresAt).toBeInstanceOf(Date);
     expect((call.expiresAt as Date).getTime()).toBeGreaterThan(Date.now());
@@ -136,7 +136,7 @@ describe('executeModerationAction', () => {
       durationMs: undefined,
     });
     expect(rcon.banClient).not.toHaveBeenCalled();
-    expect(rcon.kick).toHaveBeenCalledWith('Cheatr123');
+    expect(rcon.kick).toHaveBeenCalledWith(2, 'Cheatr123');
     expect(banStore.recordIpBan).toHaveBeenCalledWith(
       expect.objectContaining({
         serverAlias: 'default',
@@ -159,7 +159,7 @@ describe('executeModerationAction', () => {
       options,
     );
 
-    expect(rcon.kick).toHaveBeenCalledWith('Cheatr123');
+    expect(rcon.kick).toHaveBeenCalledWith(2, 'Cheatr123');
   });
 
   it('temp-bans via the IP fallback with expiresAt set', async () => {

@@ -38,6 +38,17 @@ export class ModerationActionError extends Error {}
 
 const DEFAULT_TEMPBAN_MS = 30 * 60_000;
 
+/**
+ * `clientkick` by the status slot. A negative `num` is a name-only `/kick` (the player was not
+ * on the list we just read), which has to go through `kick <name>`.
+ */
+function dropPlayer(rcon: RconClient, target: ModerationTarget): Promise<string> {
+  if (target.num >= 0) {
+    return rcon.kick(target.num, target.name);
+  }
+  return rcon.kick(target.name);
+}
+
 function hasUsableGuid(guid: string | null | undefined): guid is string {
   return !!guid && guid !== '0';
 }
@@ -72,7 +83,7 @@ export async function executeModerationAction(
   }
 
   if (kind === 'kick') {
-    await options.rcon.kick(target.name);
+    await dropPlayer(options.rcon, target);
     await broadcastModerationAction(options.rcon, target.name, 'kicked');
     await recordAudit('kick');
     return { label: 'Kicked', ipFallback: false };
@@ -93,7 +104,7 @@ export async function executeModerationAction(
       isBanFileSafeName(target.name) &&
       !(await options.rcon.banClient(target.num)).trim();
     if (!bannedNatively) {
-      await options.rcon.kick(target.name);
+      await dropPlayer(options.rcon, target);
     }
     await options.banStore.recordBan({
       serverAlias: options.serverAlias,
@@ -126,7 +137,7 @@ export async function executeModerationAction(
       `Cannot ${kind} ${target.name}: no GUID and no known IP to fall back to.`,
     );
   }
-  await options.rcon.kick(target.name);
+  await dropPlayer(options.rcon, target);
   await options.banStore.recordIpBan({
     serverAlias: options.serverAlias,
     ip: target.ip,

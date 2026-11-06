@@ -260,7 +260,7 @@ describe('Mini App server', () => {
       });
 
       expect(response.json()).toEqual({ message: 'Kicked Cheater.' });
-      expect(fake.rcon.kick).toHaveBeenCalledWith('^1Cheater');
+      expect(fake.rcon.kick).toHaveBeenCalledWith(3, '^1Cheater');
       expect(fake.adminStore.recordAuditLog).toHaveBeenCalledWith(
         expect.objectContaining({
           action: 'kick',

@@ -51,9 +51,9 @@ export async function runBanEnforcementSweep(
           const ipBanned = !!player.ip && bannedIps.has(player.ip);
           const guidBanned = isUsableGuid(player.guid) && bannedGuids.has(player.guid);
           if (ipBanned || guidBanned) {
-            // Some servers' `kick` rcon command only accepts a player's name, not the numeric
-            // slot `status` reports (confirmed empirically — see apps/gateway's kick.ts).
-            await rcon.kick(player.name);
+            // `kick <name>` misses anyone whose name has color codes (the parsed name has them
+            // stripped). `clientkick` uses the status slot and does not look at the name.
+            await rcon.kick(player.num, player.name);
           }
         }
       } catch (error) {

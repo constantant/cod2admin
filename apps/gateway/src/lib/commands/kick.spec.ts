@@ -4,14 +4,14 @@ import { createFakeDeps } from '../testing/fake-deps.js';
 import { kickCommand } from './kick.js';
 
 describe('kickCommand', () => {
-  it('resolves a numeric client id to a name before kicking (this server only accepts names)', async () => {
+  it('kicks a numeric client id by slot', async () => {
     const { deps, rcon, adminStore } = createFakeDeps();
     rcon.status.mockResolvedValue({ raw: '', players: [{ num: 3, score: 0, ping: 0, name: 'PlayerThree' }] });
     const ctx = createFakeCtx({ match: '3', admin: { telegramId: 1, role: 'admin' } });
 
     await kickCommand(ctx, deps);
 
-    expect(rcon.kick).toHaveBeenCalledWith('PlayerThree');
+    expect(rcon.kick).toHaveBeenCalledWith(3, 'PlayerThree');
     expect(rcon.say).toHaveBeenCalledWith('PlayerThree was kicked by an admin');
     expect(adminStore.recordAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'kick', target: 'PlayerThree', serverAlias: 'default' }),

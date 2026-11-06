@@ -123,7 +123,7 @@ export class VpnKicker {
       this.lastAnnounced.set(key, this.now());
       await rcon.say(sanitizeRconArg(`${name} kicked: ${KIND_TEXT[kind]} is not allowed here. Turn it off to play.`));
     }
-    await rcon.kick(sanitizeRconArg(player.name));
+    await rcon.kick(player.num, sanitizeRconArg(player.name));
     if (announce) {
       await deps.adminStore.recordAuditLog({
         actorTelegramId: 0,

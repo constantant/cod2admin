@@ -32,7 +32,7 @@ describe('tempbanCommand', () => {
     await tempbanCommand(ctx, deps);
 
     expect(rcon.banClient).not.toHaveBeenCalled();
-    expect(rcon.kick).toHaveBeenCalledWith('Griefer');
+    expect(rcon.kick).toHaveBeenCalledWith(3, 'Griefer');
     expect(banStore.recordIpBan).toHaveBeenCalledWith({
       serverAlias: 'default',
       ip: '1.2.3.4',
@@ -75,7 +75,7 @@ describe('tempbanCommand', () => {
     await tempbanCommand(ctx, deps);
 
     expect(rcon.banClient).not.toHaveBeenCalled();
-    expect(rcon.kick).toHaveBeenCalledWith('Griefer');
+    expect(rcon.kick).toHaveBeenCalledWith(3, 'Griefer');
     expect(banStore.recordBan).toHaveBeenCalledWith(
       expect.objectContaining({ guid: 'realguid', name: 'Griefer' }),
     );

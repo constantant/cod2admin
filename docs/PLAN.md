@@ -109,16 +109,17 @@ dedicated servers:
     server build should be assumed capable of this, not just this one, since it stems from the
     game engine's own formatting, not our parser (fixed: `status-parser.ts` now derives
     everything after `name` from the line's actual remaining text rather than trusting the
-    header/separator's byte offsets literally); (b) `kick` only accepts a player's **name**, not
-    the numeric slot `status` reports — passing a slot number gets a silent-looking
-    "Player N is not on the server" reply; (c) that same `kick` needs the name **unquoted** for
-    plain ASCII names but **quoted** for names containing non-ASCII bytes (e.g. Cyrillic) —
-    the opposite quoting fails each case differently. `RconClient#kick` now resolves numeric
-    input by looking up the name via `status()` first, and automatically retries with quotes if
-    the first attempt's response looks like either failure shape, rather than guessing from the
-    name's content. (The numeric-slot lookup lives in the gateway's `/kick`,
-    `apps/gateway/src/lib/commands/kick.ts`; `RconClient#kick` itself only does the quoting
-    retry.)
+    header/separator's byte offsets literally); (b) `kick <slot>` replies "Player N is not on
+    the server". The slot command is `clientkick <num>` (the same `num` column `banClient`
+    uses). `kick <name>` matches the **raw** name, color codes included, and the parsed name
+    has those codes removed, so a colored name is never dropped. That left GUID-0 players
+    (the game's `banClient` refuses them and does not drop them) sitting on the server after
+    an IP ban, and the enforcement sweep retried the same failing `kick`. Since 2026-11-06
+    `RconClient#kick(slot, name)` sends `clientkick` and falls back to `kick <name>` only when
+    the server says `clientkick` is an unknown command; (c) that name fallback needs the name
+    **unquoted** for plain ASCII and **quoted** for non-ASCII bytes (e.g. Cyrillic) — the
+    opposite quoting fails each case differently, so the fallback retries the other quoting
+    if the reply looks like `Usage:` or "is not on the server".
   - **Bug found during the 2026-09-06 GUID re-check, fixed same day:** `status()`'s parsed
     `port` field went negative for high port numbers (e.g. a real `address` of
     `172.18.0.1:52931` came back as `ip: "172.18.0.1", port: -12605` — `65536 - 12605 = 52931`).
