@@ -1,3 +1,13 @@
+## [1.17.1](https://github.com/constantant/cod2admin/releases/tag/v1.17.1) (2026-11-06)
+
+### 🩹 Fixes
+
+- **rcon-client:** drop players with clientkick so IP bans remove them ([0299c74](https://github.com/constantant/cod2admin/commit/0299c74))
+
+### ❤️ Thank You
+
+- kk
+
 ## [1.17.0](https://github.com/constantant/cod2admin/releases/tag/v1.17.0) (2026-11-05)
 
 ### 🚀 Features
