@@ -4,11 +4,41 @@
  * Dates travel as ISO strings.
  */
 
-export type MiniAppRole = 'owner' | 'admin' | 'moderator';
+/**
+ * What a staff member may do. Keep this list identical to `PERMISSIONS` in
+ * `@cod2admin/admin-store` — the gateway checks they match.
+ */
+export const PERMISSIONS = [
+  'kick',
+  'tempban',
+  'mute',
+  'ban',
+  'say',
+  'maps',
+  'presets',
+  'vpn',
+  'cvars.read',
+  'cvars.write',
+  'servers.view',
+  'servers.assign',
+  'servers.manage',
+  'notes.manage',
+  'admins.manage',
+  'audit',
+  'rcon',
+  'update',
+  'relays',
+  'logs',
+] as const;
+
+export type Permission = (typeof PERMISSIONS)[number];
 
 export interface MeResponse {
   user: { id: number; username: string | null; firstName: string | null };
-  role: MiniAppRole;
+  /** The bootstrap account. Has every permission, and cannot be edited. */
+  isOwner: boolean;
+  /** What this person can do. The owner gets the whole catalog. */
+  permissions: Permission[];
   version: string;
   servers: ServerSummary[];
   /** The server to open first: `/setdefault`'s, else the one from `.env`. */
@@ -219,7 +249,7 @@ export type LiveClientMessage =
 
 /** Server → client over `/api/ws`. */
 export type LiveServerMessage =
-  | { type: 'ready'; role: MiniAppRole }
+  | { type: 'ready'; isOwner: boolean; permissions: Permission[] }
   | { type: 'status'; status: StatusResponse }
   | { type: 'statusError'; server: string; message: string }
   | { type: 'chat'; server: string; line: ChatLineDto }
@@ -269,7 +299,7 @@ export interface ServerDto {
   gametype: string | null;
   players: number;
   maxClients: number | null;
-  /** Admin and owner only — a moderator sees what's on, not how the bot reaches it. */
+  /** Present with `servers.view`. The password is never included. */
   connection?: {
     host: string;
     port: number;
@@ -325,7 +355,12 @@ export interface SetCvarRequest {
 
 export interface AdminDto {
   telegramId: number;
-  role: MiniAppRole;
+  isOwner: boolean;
+  /**
+   * Stored grants. For the owner this is the whole catalog: `is_owner` implies every
+   * permission, and the row itself has none.
+   */
+  permissions: Permission[];
   username: string | null;
   firstName: string | null;
   addedBy: string | null;
@@ -334,15 +369,27 @@ export interface AdminDto {
   manageable: boolean;
 }
 
+/** A button that ticks boxes. Nothing named role is stored. */
+export interface PermissionTemplate {
+  id: 'moderator' | 'admin';
+  permissions: Permission[];
+}
+
 export interface AdminsResponse {
   admins: AdminDto[];
-  /** The roles the person asking may hand out. */
-  assignable: MiniAppRole[];
+  catalog: Permission[];
+  templates: PermissionTemplate[];
+  /** Only the owner may turn these on or off for someone else. */
+  ownerGranted: Permission[];
 }
 
 export interface AddAdminRequest {
   telegramId: number;
-  role: MiniAppRole;
+  permissions: Permission[];
+}
+
+export interface UpdateAdminRequest {
+  permissions: Permission[];
 }
 
 // ── Audit log ───────────────────────────────────────────────────────────────────────────────

@@ -14,11 +14,6 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
-export const adminRoleEnum = pgEnum('admin_role', [
-  'owner',
-  'admin',
-  'moderator',
-]);
 export const auditSourceEnum = pgEnum('audit_source', [
   'telegram_button',
   'telegram_command',
@@ -33,23 +28,38 @@ export const reportStatusEnum = pgEnum('report_status', [
 ]);
 export const noteKindEnum = pgEnum('player_note_kind', ['guid', 'ip', 'name']);
 
-/** docs/PLAN.md §4/§7 — one row per Telegram admin. At most one `owner` row, ever. */
+/** docs/PLAN.md §4/§7 — one row per Telegram admin. At most one owner, ever. */
 export const admins = pgTable(
   'admins',
   {
     telegramId: bigint('telegram_id', { mode: 'number' }).primaryKey(),
-    role: adminRoleEnum('role').notNull(),
+    /** The bootstrap account. Implies every permission, and cannot be edited. */
+    isOwner: boolean('is_owner').notNull().default(false),
     addedBy: bigint('added_by', { mode: 'number' }),
     addedAt: timestamp('added_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
-    // Race-safe "at most one owner" per §4 — a DB-level partial unique index, not just an
+    // Race-safe "at most one owner" — a DB-level partial unique index, not just an
     // application check-then-insert, so two people racing /claim can't both succeed.
     uniqueIndex('admins_one_owner_idx')
-      .on(table.role)
-      .where(sql`${table.role} = 'owner'`),
+      .on(table.isOwner)
+      .where(sql`${table.isOwner} = true`),
+  ],
+);
+
+/** Permissions granted to a non-owner. The owner has none of these rows; `is_owner` covers them. */
+export const adminPermissions = pgTable(
+  'admin_permissions',
+  {
+    telegramId: bigint('telegram_id', { mode: 'number' })
+      .notNull()
+      .references(() => admins.telegramId, { onDelete: 'cascade' }),
+    permission: text('permission').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.telegramId, table.permission] }),
   ],
 );
 

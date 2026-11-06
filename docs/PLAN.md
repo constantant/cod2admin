@@ -12,7 +12,7 @@ dedicated servers:
 - **In-game report automation**: a player types `!report <name> <reason>` in game chat, and
   admins on Telegram instantly get a card with everything they need to act — no need to
   alt-tab into the server console.
-- Multi-admin system with roles, managed entirely from Telegram (no config-file editing to
+- Multi-admin system with permissions, managed entirely from Telegram (no config-file editing to
   add/remove an admin).
 - Designed to run inside the existing Nx workspace as a small set of apps/libs.
 
@@ -394,40 +394,51 @@ and the 30-minute check for a better Telegram route (`docs/PLAN-russia-access.md
   Since the gateway already runs on the game server host (§6), Postgres can run alongside it
   (local instance or a small managed instance) — no need to default to SQLite first.
 
-## 4. Admin & role management (all via Telegram, no config-file edits)
+## 4. Admin & permission management (all via Telegram, no config-file edits)
 
-Roles, stored in `admin-store`:
+Staff is a row in `admins` plus a set of permission ids. There is no stored role (since
+2026-11-07; people who already had a role were seeded with the matching set).
 
-- **Owner** — bootstrapped once, via **either** an env var (`OWNER_TELEGRAM_ID`, checked and
+- **Owner** — one row, bootstrapped once, via **either** an env var (`OWNER_TELEGRAM_ID`, checked and
   inserted into `admin-store` on first startup) **or** a one-time `/claim <secret>` command
   matching a secret printed in the gateway's startup logs — whichever happens first wins.
   `/claim` is a no-op (and gets an explicit "owner already set" reply) the moment any row with
-  role `Owner` exists in `admin-store` — it is not a standing command, so a second person
-  can't claim ownership later. Enforced via a DB-level unique constraint/transaction on
-  `role = 'Owner'`, not just an application-level check-then-insert, so two people racing
-  `/claim` at the same instant can't both succeed. Owners can add/remove admins of any role,
-  manage per-server access, and view the full audit log.
-- **Admin** — kick/ban/unban/tempban, map/server control, sees report cards, can act on them.
-- **Moderator** — kick/tempban only (no permanent ban, no server/map control) — useful for
-  trusted community members who triage reports without full authority. (Chat **mute**: vanilla CoD2 RCON has no native per-player mute, and truly
-  blocking a message would need a GSC chat hook — see the Phase 4 note in §9. Since 2026-11-05
-  the Mini App has a mute the bot enforces from the log instead (`mute-enforcer.ts`): the message
-  still appears, the player gets a private warning, then a kick for each later message. It needs
-  a chat feed, so it does nothing on an RCON-only server. No Telegram command yet.)
-- Commands (owner/admin only, enforced by a grammy middleware checking `admin-store`):
-  - `/addadmin <reply-or-@user> <role>`
+  `is_owner` exists — it is not a standing command, so a second person
+  can't claim ownership later. Enforced by a partial unique index on `is_owner`, not just an
+  application-level check-then-insert, so two people racing `/claim` at the same instant can't
+  both succeed. The owner has every permission, including ones added in a later release, without
+  a permission row. Nobody can edit or remove the owner, and nobody can edit themselves.
+- **Permissions** (`packages/admin-store/src/lib/permissions.ts`) are not a rank: holding `ban`
+  does not imply `maps`. Anyone in `admins` can read live state (status, players, chat, reports,
+  notes, mutes, the server list). `/addadmin` adds someone with no permissions. `/permit` replaces
+  their set. Two checklist templates only tick boxes, and nothing named role is saved:
+  Moderator is `kick`, `tempban`, `mute`; Admin is those plus `ban`, `say`, `maps`, `presets`,
+  `vpn`, `cvars.read`, `servers.view`, `servers.assign`, `notes.manage`, `admins.manage`.
+  Chat **mute** (the `mute` permission, Mini App only): vanilla CoD2 RCON has no native per-player
+  mute, and truly blocking a message would need a GSC chat hook — see the Phase 4 note in §9.
+  Since 2026-11-05 the Mini App has a mute the bot enforces from the log instead
+  (`mute-enforcer.ts`): the message still appears, the player gets a private warning, then a kick
+  for each later message. It needs a chat feed, so it does nothing on an RCON-only server. No
+  Telegram command yet.
+- Commands (need `admins.manage`, enforced by middleware checking `admin-store`):
+  - `/addadmin <reply-or-@user>` — can read, cannot kick or ban until `/permit`
   - `/removeadmin <@user>`
-  - `/listadmins`
-  - `/setrole <@user> <role>`
-- Every privileged action (kick/ban/unban/role change) is written to an **audit log** table
+  - `/listadmins` — each person's permission ids; the owner is listed as owner
+  - `/permit <reply-or-@user> kick,tempban,mute` — replaces that person's set
+- A person with `admins.manage` may change anyone except the owner and themselves, and only to
+  permissions they themselves hold. `rcon` and `update` are the exception: the owner can give
+  them and take them away, and nobody else can pass them on, even someone who holds them.
+  Leaving either id out of `/permit` does not remove one the owner already gave. The owner can
+  turn `admins.manage` off. `cvars.write`, `servers.manage`, `audit`, `relays`, and `logs`
+  (`/findlog`) follow the ordinary rule: only someone who holds one can give it.
+- Every privileged action (kick/ban/unban/permission change) is written to an **audit log** table
   (who, what, target, reason, timestamp, source = telegram button / telegram command / auto)
-  and a `/auditlog [n]` command lets an owner review recent actions.
-- Adding servers (implemented 2026-10-04): the owner runs
-  `/addserver <alias> <host:port> <password>` in a private chat. The bot deletes that message
+  and `/auditlog [n]` (the `audit` permission) reviews recent actions.
+- Adding servers (implemented 2026-10-04, `servers.manage`): `/addserver <alias> <host:port> <password>` in a private chat. The bot deletes that message
   (it contains the password), checks the server answers `rcon status` with that password, and
   only then saves it and starts using it, with no restart. In a group the command is refused,
   and the bot tries to delete the message there too. `/removeserver <alias>` takes a server
-  out. `/setdefault <alias>` sets `servers.is_default`, which a partial unique index limits to
+  out. `/setdefault <alias>` (`servers.assign`, same as `/bindserver`) sets `servers.is_default`, which a partial unique index limits to
   one row. Commands without `--server` use the chat's bound server first, then the default,
   then the only server if there's just one. The server from `.env` is saved again on every
   start, so neither command touches it. Adding the first extra server makes the `.env` server
@@ -436,8 +447,8 @@ Roles, stored in `admin-store`:
   table); `/servers` lists configured servers, most commands take an optional
   `--server <alias>` (default = the group chat's bound server, one Telegram group per
   server, configured via `/bindserver <alias>` in that group). **Scoping is access-only, not
-  per-server role** — `admins.role` is one global value per Telegram ID, so an admin can be
-  granted or denied a given server, but can't be e.g. Moderator on one server and Admin on
+  per-server permissions** — the permission set is one global list per Telegram ID, so a person
+  can be granted or denied a given server, but can't hold `kick` on one server and `ban` on
   another. Acceptable for now (single-operator/small-team use case); revisit if multi-tenant
   usage with different trust levels per server actually comes up.
 
@@ -877,7 +888,8 @@ deps, bot)` (`apps/gateway/src/lib/report-tailers.ts`) right after `createBot`. 
 
 ## 7. Data model (sketch)
 
-- `admins(telegram_id, role, added_by, added_at)`
+- `admins(telegram_id, is_owner, added_by, added_at)` — at most one `is_owner`. Permissions for
+  everyone else are rows in `admin_permissions(telegram_id, permission)` (§4).
 - `admin_servers(telegram_id, server_alias)`
 - `servers(alias, rcon_host, rcon_port, rcon_password_encrypted, log_source_config,
 bound_telegram_chat_id, is_default)` — `is_default` is `/setdefault`'s target (§4).
@@ -1124,8 +1136,8 @@ actually looks like against this server config).
   `Ban` and `Temp Ban` route through `ban_ips` and the expiry-poller actually kicks/unbans on
   schedule (§5 step 7).
 - Moderation broadcast (`rcon say ...`) is visible in-game on every kick/ban/tempban (§5 step 6).
-- `/addadmin`, `/setrole`, `/removeadmin`, `/auditlog` — role management and audit trail.
-- `/rcon <raw command>` — owner-only, and confirm it's the one path where argument sanitization
+- `/addadmin`, `/permit`, `/removeadmin`, `/auditlog` — staff permissions and the audit trail.
+- `/rcon <raw command>` — the `rcon` permission, and confirm it's the one path where argument sanitization
   (§8) is intentionally skipped.
 
 ### 11.4 CI wiring

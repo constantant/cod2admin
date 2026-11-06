@@ -7,7 +7,7 @@ import { CUSTOM_MAP_WARNING, STOCK_MAPS } from './maps.js';
 const MAX_SUGGESTIONS = 5;
 
 /**
- * `/map <name> [mode] [--server <alias>]` — map control, admin-role-gated (docs/PLAN.md §6). The name is
+ * `/map <name> [mode] [--server <alias>]` — map control, `maps` permission (docs/PLAN.md §6). The name is
  * checked against the maps installed on the server (`dir maps/mp d3dbsp`), case-insensitively, so
  * a typo gets suggestions instead of a failed map change. If the server can't list its maps, the
  * name is sent as typed, as before. A mode (`ctf`, `tdm`, ...) switches the game mode too; it must

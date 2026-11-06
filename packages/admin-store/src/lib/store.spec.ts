@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { migrate } from './migrate.js';
+import { PermissionError } from './permissions.js';
 import { createAdminStore } from './store.js';
 import type { AdminStore } from './types.js';
 
@@ -27,7 +28,7 @@ describe('DrizzleAdminStore', () => {
 
   beforeEach(async () => {
     await pool.query(
-      'TRUNCATE admins, admin_servers, servers, audit_log, settings, telegram_users, reports, player_notes, server_snapshots RESTART IDENTITY CASCADE',
+      'TRUNCATE admin_permissions, admins, admin_servers, servers, audit_log, settings, telegram_users, reports, player_notes, server_snapshots RESTART IDENTITY CASCADE',
     );
   });
 
@@ -36,7 +37,8 @@ describe('DrizzleAdminStore', () => {
       await expect(store.claimOwner(111)).resolves.toBe('claimed');
       await expect(store.getAdmin(111)).resolves.toMatchObject({
         telegramId: 111,
-        role: 'owner',
+        isOwner: true,
+        permissions: [],
       });
     });
 
@@ -48,26 +50,41 @@ describe('DrizzleAdminStore', () => {
   });
 
   describe('admin management', () => {
-    it('adds, lists, updates the role of, and removes an admin', async () => {
+    it('adds, lists, replaces permissions, and removes an admin', async () => {
       await store.claimOwner(1);
-      await store.addAdmin(2, 'moderator', 1);
+      await store.addAdmin(2, ['kick', 'tempban', 'mute'], 1);
 
       await expect(store.listAdmins()).resolves.toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ telegramId: 1, role: 'owner' }),
+          expect.objectContaining({
+            telegramId: 1,
+            isOwner: true,
+            permissions: [],
+          }),
           expect.objectContaining({
             telegramId: 2,
-            role: 'moderator',
+            isOwner: false,
+            permissions: ['kick', 'tempban', 'mute'],
             addedBy: 1,
           }),
         ]),
       );
 
-      await store.setRole(2, 'admin');
-      await expect(store.getAdmin(2)).resolves.toMatchObject({ role: 'admin' });
+      await store.setPermissions(2, ['kick', 'ban']);
+      await expect(store.getAdmin(2)).resolves.toMatchObject({
+        isOwner: false,
+        permissions: ['kick', 'ban'],
+      });
+
+      await expect(
+        store.setPermissions(2, ['not-a-permission' as 'kick']),
+      ).rejects.toBeInstanceOf(PermissionError);
 
       await store.removeAdmin(2);
       await expect(store.getAdmin(2)).resolves.toBeUndefined();
+      await expect(
+        pool.query('SELECT * FROM admin_permissions WHERE telegram_id = 2'),
+      ).resolves.toMatchObject({ rowCount: 0 });
     });
   });
 
@@ -279,7 +296,7 @@ describe('DrizzleAdminStore', () => {
 
       await expect(store.getAdmin(1)).resolves.toMatchObject({
         telegramId: 1,
-        role: 'owner',
+        isOwner: true,
         username: 'new_nick',
         firstName: 'Kostya',
       });
@@ -289,7 +306,7 @@ describe('DrizzleAdminStore', () => {
     });
 
     it('names the actor of audit log entries, even after the admin was removed', async () => {
-      await store.addAdmin(2, 'moderator', 1);
+      await store.addAdmin(2, ['kick'], 1);
       await store.saveTelegramUser({
         telegramId: 2,
         username: null,

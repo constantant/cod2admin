@@ -12,6 +12,7 @@ const SAME_IN_RUSSIAN = new Set([
   'AS',
   'AS202226',
   'GUID',
+  'ID',
   'IP',
   'v',
   '· ID',
@@ -67,9 +68,15 @@ describe('translate', () => {
     );
     expect(translate('30m', 'ru')).toBe('30м');
     expect(translate('2h 30m ago', 'ru')).toBe('2ч 30м назад');
-    expect(
-      translate("This needs the admin role — you're moderator.", 'ru'),
-    ).toBe('Нужна роль «админ», у вас «модератор».');
+    expect(translate('This needs the ban permission.', 'ru')).toBe(
+      'Нужно право «Бан».',
+    );
+    expect(translate('This needs the cvars.read permission.', 'ru')).toBe(
+      'Нужно право «Смотреть настройки».',
+    );
+    expect(translate("You can't grant servers.manage.", 'ru')).toBe(
+      'Вы не можете выдать право «Добавлять и убирать серверы».',
+    );
   });
 
   it.each([

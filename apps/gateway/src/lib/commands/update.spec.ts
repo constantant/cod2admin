@@ -1,24 +1,46 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import { createFakeCtx } from '../testing/fake-ctx.js';
 import { createFakeDeps } from '../testing/fake-deps.js';
 import { sampleRelease } from '../testing/fake-github-release-client.js';
+import { OWNER_ACCESS } from '../testing/fake-admin-store.js';
 import { getRunningVersion } from '../version.js';
-import { formatConfirmMessage, updateActionCallback, updateCommand, type UpdateCallbackContext } from './update.js';
+import {
+  formatConfirmMessage,
+  updateActionCallback,
+  updateCommand,
+  type UpdateCallbackContext,
+} from './update.js';
 
 vi.mock('../update-apply.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../update-apply.js')>();
-  return { ...actual, downloadReleaseAsset: vi.fn(), verifyChecksum: vi.fn(), runApplyUpdate: vi.fn() };
+  return {
+    ...actual,
+    downloadReleaseAsset: vi.fn(),
+    verifyChecksum: vi.fn(),
+    runApplyUpdate: vi.fn(),
+  };
 });
-const { downloadReleaseAsset, verifyChecksum, runApplyUpdate } = await import('../update-apply.js');
+const { downloadReleaseAsset, verifyChecksum, runApplyUpdate } =
+  await import('../update-apply.js');
 
-function createFakeCallbackCtx(overrides: Partial<UpdateCallbackContext> = {}): UpdateCallbackContext {
+function createFakeCallbackCtx(
+  overrides: Partial<UpdateCallbackContext> = {},
+): UpdateCallbackContext {
   return {
     from: { id: 1 },
     chat: { id: 100 },
-    admin: { telegramId: 1, role: 'owner' },
+    admin: { telegramId: 1, ...OWNER_ACCESS },
     callbackData: '',
     editMessageText: vi.fn().mockResolvedValue(undefined),
     answerCallbackQuery: vi.fn().mockResolvedValue(undefined),
@@ -40,22 +62,30 @@ describe('updateCommand', () => {
 
     await updateCommand(ctx, deps);
 
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining("isn't available"));
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining("isn't available"),
+    );
   });
 
   it('replies "already up to date" when the latest tag is not newer', async () => {
     const { deps, githubReleaseClient } = createFakeDeps();
-    githubReleaseClient.getLatestRelease.mockResolvedValue(sampleRelease({ tagName: `v${getRunningVersion()}` }));
+    githubReleaseClient.getLatestRelease.mockResolvedValue(
+      sampleRelease({ tagName: `v${getRunningVersion()}` }),
+    );
     const ctx = createFakeCtx();
 
     await updateCommand(ctx, deps);
 
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('up to date'));
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('up to date'),
+    );
   });
 
   it('posts a confirm/cancel card and registers the pending update when a newer version exists', async () => {
     const { deps, githubReleaseClient } = createFakeDeps();
-    githubReleaseClient.getLatestRelease.mockResolvedValue(sampleRelease({ tagName: 'v999.0.0' }));
+    githubReleaseClient.getLatestRelease.mockResolvedValue(
+      sampleRelease({ tagName: 'v999.0.0' }),
+    );
     const ctx = createFakeCtx();
 
     await updateCommand(ctx, deps);
@@ -70,7 +100,10 @@ describe('updateCommand', () => {
 
 describe('formatConfirmMessage', () => {
   it('mentions the target version, running version, and rollback behavior', () => {
-    const text = formatConfirmMessage(sampleRelease({ tagName: 'v0.0.5' }), '0.0.4');
+    const text = formatConfirmMessage(
+      sampleRelease({ tagName: 'v0.0.5' }),
+      '0.0.4',
+    );
     expect(text).toContain('v0.0.5');
     expect(text).toContain('0.0.4');
     expect(text).toContain('roll');
@@ -96,12 +129,16 @@ describe('updateActionCallback', () => {
 
     await updateActionCallback(ctx, deps);
 
-    expect(ctx.answerCallbackQuery).toHaveBeenCalledWith(expect.objectContaining({ show_alert: true }));
+    expect(ctx.answerCallbackQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ show_alert: true }),
+    );
   });
 
   it('answers when the callback data is unrecognized', async () => {
     const { deps } = createFakeDeps();
-    const ctx = createFakeCallbackCtx({ callbackData: 'not-an-update-callback' });
+    const ctx = createFakeCallbackCtx({
+      callbackData: 'not-an-update-callback',
+    });
 
     await updateActionCallback(ctx, deps);
 
@@ -115,7 +152,9 @@ describe('updateActionCallback', () => {
 
     await updateActionCallback(ctx, deps);
 
-    expect(ctx.answerCallbackQuery).toHaveBeenCalledWith(expect.objectContaining({ text: expect.stringContaining('expired') }));
+    expect(ctx.answerCallbackQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ text: expect.stringContaining('expired') }),
+    );
   });
 
   it('cancel clears the registry entry and edits the message, without downloading anything', async () => {
@@ -125,28 +164,40 @@ describe('updateActionCallback', () => {
 
     await updateActionCallback(ctx, deps);
 
-    expect(ctx.editMessageText).toHaveBeenCalledWith(expect.stringContaining('cancelled'));
+    expect(ctx.editMessageText).toHaveBeenCalledWith(
+      expect.stringContaining('cancelled'),
+    );
     expect(deps.updateRegistry.get('1')).toBeUndefined();
     expect(downloadReleaseAsset).not.toHaveBeenCalled();
   });
 
   it('confirm downloads both assets, verifies the checksum, writes the marker, audit-logs, and applies', async () => {
     const { deps, adminStore } = createFakeDeps();
-    deps.updateConfig = { stagingDir, applyUpdateScriptPath: join(stagingDir, '..', 'bin', 'apply-update.sh') };
+    deps.updateConfig = {
+      stagingDir,
+      applyUpdateScriptPath: join(stagingDir, '..', 'bin', 'apply-update.sh'),
+    };
     const release = sampleRelease();
     deps.updateRegistry.set('1', { release });
     const ctx = createFakeCallbackCtx({ callbackData: 'update:1:confirm' });
 
     await updateActionCallback(ctx, deps);
 
-    expect(downloadReleaseAsset).toHaveBeenCalledWith(release.gatewayAsset.downloadUrl, expect.stringContaining(release.gatewayAsset.name));
+    expect(downloadReleaseAsset).toHaveBeenCalledWith(
+      release.gatewayAsset.downloadUrl,
+      expect.stringContaining(release.gatewayAsset.name),
+    );
     expect(downloadReleaseAsset).toHaveBeenCalledWith(
       release.checksumAsset.downloadUrl,
       expect.stringContaining(release.checksumAsset.name),
     );
     expect(verifyChecksum).toHaveBeenCalled();
     expect(adminStore.recordAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'update', target: release.tagName, source: 'telegram_command' }),
+      expect.objectContaining({
+        action: 'update',
+        target: release.tagName,
+        source: 'telegram_command',
+      }),
     );
     expect(runApplyUpdate).toHaveBeenCalledWith(
       deps.updateConfig?.applyUpdateScriptPath,
@@ -154,15 +205,18 @@ describe('updateActionCallback', () => {
       expect.objectContaining({ onProblem: expect.any(Function) }),
     );
     expect(deps.updateRegistry.get('1')).toBeUndefined();
-    await expect(readFile(join(stagingDir, 'pending-update.env'), 'utf8')).resolves.toBe(
-      `CHAT_ID=100\nVERSION=${release.tagName}\n`,
-    );
+    await expect(
+      readFile(join(stagingDir, 'pending-update.env'), 'utf8'),
+    ).resolves.toBe(`CHAT_ID=100\nVERSION=${release.tagName}\n`);
   });
 
   describe('when applying the update goes wrong', () => {
     const confirm = async () => {
       const { deps } = createFakeDeps();
-      deps.updateConfig = { stagingDir, applyUpdateScriptPath: '/opt/cod2admin/bin/apply-update.sh' };
+      deps.updateConfig = {
+        stagingDir,
+        applyUpdateScriptPath: '/opt/cod2admin/bin/apply-update.sh',
+      };
       const release = sampleRelease();
       deps.updateRegistry.set('1', { release });
       const ctx = createFakeCallbackCtx({ callbackData: 'update:1:confirm' });
@@ -185,7 +239,9 @@ describe('updateActionCallback', () => {
       expect(text).toContain(`didn't run`);
       expect(text).toContain(release.tagName);
       expect(text).toContain('/opt/cod2admin/bin/apply-update.sh');
-      await expect(readFile(join(stagingDir, 'pending-update.env'))).rejects.toThrow();
+      await expect(
+        readFile(join(stagingDir, 'pending-update.env')),
+      ).rejects.toThrow();
     });
 
     it('keeps the marker on a timeout, since the update may still finish', async () => {
@@ -198,7 +254,9 @@ describe('updateActionCallback', () => {
           expect.stringContaining("hasn't finished after 5 minutes"),
         ),
       );
-      await expect(readFile(join(stagingDir, 'pending-update.env'))).resolves.toBeDefined();
+      await expect(
+        readFile(join(stagingDir, 'pending-update.env')),
+      ).resolves.toBeDefined();
     });
   });
 
@@ -210,20 +268,26 @@ describe('updateActionCallback', () => {
 
     await updateActionCallback(ctx, deps);
 
-    expect(ctx.editMessageText).toHaveBeenCalledWith(expect.stringContaining('Checksum verification failed'));
+    expect(ctx.editMessageText).toHaveBeenCalledWith(
+      expect.stringContaining('Checksum verification failed'),
+    );
     expect(adminStore.recordAuditLog).not.toHaveBeenCalled();
     expect(runApplyUpdate).not.toHaveBeenCalled();
   });
 
   it('confirm reports a download failure without applying anything', async () => {
-    vi.mocked(downloadReleaseAsset).mockRejectedValue(new Error('network down'));
+    vi.mocked(downloadReleaseAsset).mockRejectedValue(
+      new Error('network down'),
+    );
     const { deps, adminStore } = createFakeDeps();
     deps.updateRegistry.set('1', { release: sampleRelease() });
     const ctx = createFakeCallbackCtx({ callbackData: 'update:1:confirm' });
 
     await updateActionCallback(ctx, deps);
 
-    expect(ctx.editMessageText).toHaveBeenCalledWith(expect.stringContaining('Failed to download'));
+    expect(ctx.editMessageText).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to download'),
+    );
     expect(adminStore.recordAuditLog).not.toHaveBeenCalled();
     expect(runApplyUpdate).not.toHaveBeenCalled();
   });

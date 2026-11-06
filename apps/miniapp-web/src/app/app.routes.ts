@@ -1,15 +1,15 @@
 import { inject } from '@angular/core';
 import { type CanMatchFn, Route } from '@angular/router';
-import type { MiniAppRole } from '@cod2admin/miniapp-api';
+import type { Permission } from '@cod2admin/miniapp-api';
 import { SessionService } from './core/session';
 
-/** Hides a page from roles that can't use it — the gateway enforces the same gates (§8). */
-const role =
-  (minRole: MiniAppRole): CanMatchFn =>
+/** Hides a page from staff who lack the permission — the gateway enforces the same gates. */
+const allow =
+  (permission: Permission): CanMatchFn =>
   async () => {
     const session = inject(SessionService);
     await session.loaded;
-    return session.can(minRole);
+    return session.can(permission);
   };
 
 export const appRoutes: Route[] = [
@@ -43,41 +43,41 @@ export const appRoutes: Route[] = [
   },
   {
     path: 'settings',
-    canMatch: [role('admin')],
+    canMatch: [allow('cvars.read')],
     loadComponent: () =>
       import('./pages/settings/settings').then((m) => m.SettingsPage),
   },
   {
     path: 'vpn',
-    canMatch: [role('admin')],
+    canMatch: [allow('vpn')],
     loadComponent: () => import('./pages/vpn/vpn').then((m) => m.VpnPage),
   },
   {
     path: 'presets',
-    canMatch: [role('admin')],
+    canMatch: [allow('presets')],
     loadComponent: () =>
       import('./pages/presets/presets').then((m) => m.PresetsPage),
   },
   {
     path: 'admins',
-    canMatch: [role('admin')],
+    canMatch: [allow('admins.manage')],
     loadComponent: () =>
       import('./pages/admins/admins').then((m) => m.AdminsPage),
   },
   {
     path: 'audit',
-    canMatch: [role('owner')],
+    canMatch: [allow('audit')],
     loadComponent: () => import('./pages/audit/audit').then((m) => m.AuditPage),
   },
   {
     path: 'relays',
-    canMatch: [role('owner')],
+    canMatch: [allow('relays')],
     loadComponent: () =>
       import('./pages/relays/relays').then((m) => m.RelaysPage),
   },
   {
     path: 'update',
-    canMatch: [role('owner')],
+    canMatch: [allow('update')],
     loadComponent: () =>
       import('./pages/update/update').then((m) => m.UpdatePage),
   },
@@ -92,17 +92,17 @@ export const appRoutes: Route[] = [
   },
   {
     path: 'maps',
-    canMatch: [role('admin')],
+    canMatch: [allow('maps')],
     loadComponent: () => import('./pages/maps/maps').then((m) => m.MapsPage),
   },
   {
     path: 'bans',
-    canMatch: [role('admin')],
+    canMatch: [allow('ban')],
     loadComponent: () => import('./pages/bans/bans').then((m) => m.BansPage),
   },
   {
     path: 'console',
-    canMatch: [role('owner')],
+    canMatch: [allow('rcon')],
     loadComponent: () =>
       import('./pages/console/console').then((m) => m.ConsolePage),
   },

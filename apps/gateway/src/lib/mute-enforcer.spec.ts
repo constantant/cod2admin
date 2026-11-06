@@ -2,9 +2,9 @@ import type { Mute } from '@cod2admin/ban-store';
 import type { ChatEvent } from '@cod2admin/log-tailer';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { findMute, MUTE_WARNING, MuteEnforcer } from './mute-enforcer.js';
-import { createFakeAdminStore } from './testing/fake-admin-store.js';
 import { createFakeBanStore } from './testing/fake-ban-store.js';
 import { asRconClient, createFakeRcon } from './testing/fake-rcon.js';
+import { createFakeAdminStore } from './testing/fake-admin-store.js';
 
 function mute(overrides: Partial<Mute> = {}): Mute {
   return {

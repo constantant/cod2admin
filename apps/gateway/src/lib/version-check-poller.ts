@@ -5,13 +5,22 @@ import { getRunningVersion, isNewerVersion } from './version.js';
 
 const DEFAULT_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6h (docs/PLAN.md §13.2) - a version check doesn't need expiry-poller.ts's ~10s cadence.
 
-async function findOwnerTelegramId(adminStore: AdminStore): Promise<number | undefined> {
+async function findOwnerTelegramId(
+  adminStore: AdminStore,
+): Promise<number | undefined> {
   const admins = await adminStore.listAdmins();
-  return admins.find((admin) => admin.role === 'owner')?.telegramId;
+  return admins.find((admin) => admin.isOwner)?.telegramId;
 }
 
-export function formatNewVersionMessage(tagName: string, runningVersion: string, notes: string): string {
-  const lines = [`A new cod2admin version is available: ${tagName} (currently running ${runningVersion}).`, 'Run /update to install it.'];
+export function formatNewVersionMessage(
+  tagName: string,
+  runningVersion: string,
+  notes: string,
+): string {
+  const lines = [
+    `A new cod2admin version is available: ${tagName} (currently running ${runningVersion}).`,
+    'Run /update to install it.',
+  ];
   const trimmedNotes = notes.trim();
   if (trimmedNotes) {
     lines.push('', trimmedNotes);
@@ -26,7 +35,10 @@ export function formatNewVersionMessage(tagName: string, runningVersion: string,
  * is only updated after a successful send, so a transient Telegram failure gets retried on the
  * next tick rather than permanently suppressing the notification.
  */
-export async function checkForNewVersion(deps: GatewayDeps, bot: Bot): Promise<void> {
+export async function checkForNewVersion(
+  deps: GatewayDeps,
+  bot: Bot,
+): Promise<void> {
   if (!deps.updateConfig) {
     return;
   }
@@ -42,7 +54,10 @@ export async function checkForNewVersion(deps: GatewayDeps, bot: Bot): Promise<v
   if (ownerTelegramId === undefined) {
     return; // no owner claimed yet - nobody to notify
   }
-  await bot.api.sendMessage(ownerTelegramId, formatNewVersionMessage(release.tagName, runningVersion, release.notes));
+  await bot.api.sendMessage(
+    ownerTelegramId,
+    formatNewVersionMessage(release.tagName, runningVersion, release.notes),
+  );
   deps.lastNotifiedTag = release.tagName;
 }
 
@@ -52,7 +67,11 @@ export async function checkForNewVersion(deps: GatewayDeps, bot: Bot): Promise<v
  * `checkForNewVersion`'s own early return, but avoids scheduling a timer that would just fire and
  * bail forever.
  */
-export function startVersionCheckPoller(deps: GatewayDeps, bot: Bot, intervalMs = DEFAULT_INTERVAL_MS): NodeJS.Timeout | undefined {
+export function startVersionCheckPoller(
+  deps: GatewayDeps,
+  bot: Bot,
+  intervalMs = DEFAULT_INTERVAL_MS,
+): NodeJS.Timeout | undefined {
   if (!deps.updateConfig) {
     return undefined;
   }

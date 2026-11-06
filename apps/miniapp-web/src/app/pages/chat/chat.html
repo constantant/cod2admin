@@ -40,7 +40,7 @@
     } }
   </div>
 
-  @if (session.can('admin')) { @if (presets().messages.length > 0) {
+  @if (session.can('say')) { @if (presets().messages.length > 0) {
   <div class="canned">
     @for (preset of presets().messages; track preset) {
     <button type="button" mat-stroked-button (click)="draft.set(preset)">
@@ -89,8 +89,7 @@
   </form>
   } @else {
   <p class="read-only muted">
-    {{ 'Moderators can read the chat; writing to it needs the admin role.' | t
-    }}
+    {{ 'You can read the chat. Writing to it needs the say permission.' | t }}
   </p>
   }
 </div>

@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createFakeCtx } from '../testing/fake-ctx.js';
 import { createFakeDeps } from '../testing/fake-deps.js';
+import { ADMIN_ACCESS } from '../testing/fake-admin-store.js';
 import { VPN_KICK_SETTING_KEY } from '../vpn-kick.js';
 import { VpnRangeDatabase } from '../vpn-ranges.js';
 import { vpnKickCommand } from './vpnkick.js';
 
-const ADMIN = { telegramId: 7, role: 'admin' as const };
+const ADMIN = { telegramId: 7, ...ADMIN_ACCESS };
 
 function setup() {
   const fake = createFakeDeps();
@@ -37,9 +38,16 @@ describe('vpnKickCommand', () => {
 
     await vpnKickCommand(ctx('on'), deps);
     expect(deps.vpnKick.settings.enabled).toBe(true);
-    expect(adminStore.setSetting).toHaveBeenLastCalledWith(VPN_KICK_SETTING_KEY, { enabled: true, exempt: [] });
+    expect(adminStore.setSetting).toHaveBeenLastCalledWith(
+      VPN_KICK_SETTING_KEY,
+      { enabled: true, exempt: [] },
+    );
     expect(adminStore.recordAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'vpnkick', actorTelegramId: 7, detailJson: { enabled: true } }),
+      expect.objectContaining({
+        action: 'vpnkick',
+        actorTelegramId: 7,
+        detailJson: { enabled: true },
+      }),
     );
 
     const off = ctx('OFF');
@@ -58,7 +66,10 @@ describe('vpnKickCommand', () => {
 
     await vpnKickCommand(ctx('allow 716922'), deps);
     expect(deps.vpnKick.settings.exempt).toEqual(['const', '716922']);
-    expect(adminStore.setSetting).toHaveBeenLastCalledWith(VPN_KICK_SETTING_KEY, { enabled: false, exempt: ['const', '716922'] });
+    expect(adminStore.setSetting).toHaveBeenLastCalledWith(
+      VPN_KICK_SETTING_KEY,
+      { enabled: false, exempt: ['const', '716922'] },
+    );
 
     const list = ctx('');
     await vpnKickCommand(list, deps);

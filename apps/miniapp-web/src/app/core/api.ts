@@ -25,11 +25,11 @@ import type {
   LogResponse,
   MapsResponse,
   MeResponse,
-  MiniAppRole,
   ModerationKind,
   ModerationRequest,
   NoteDto,
   NotesResponse,
+  Permission,
   PlayerHistoryResponse,
   Presets,
   RelaysResponse,
@@ -42,6 +42,7 @@ import type {
   StatusResponse,
   TellRequest,
   UnbanResponse,
+  UpdateAdminRequest,
   UpdateBanRequest,
   UpdateBanResponse,
   UpdateNoteRequest,
@@ -323,9 +324,10 @@ export class ApiService {
     return this.call<ActionResponse>(this.http.post('/api/admins', body));
   }
 
-  setAdminRole(id: number, role: MiniAppRole) {
+  setAdminPermissions(id: number, permissions: Permission[]) {
+    const body: UpdateAdminRequest = { permissions };
     return this.call<ActionResponse>(
-      this.http.patch(`/api/admins/${id}`, { role }),
+      this.http.patch(`/api/admins/${id}`, body),
     );
   }
 

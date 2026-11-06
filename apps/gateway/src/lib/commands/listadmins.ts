@@ -4,7 +4,12 @@ import type { GatewayDeps } from '../deps.js';
 import { formatTelegramUser } from '../telegram-user.js';
 
 function formatAdminLine(admin: Admin): string {
-  return `${formatTelegramUser(admin.telegramId, admin.username, admin.firstName)} — ${admin.role}`;
+  const access = admin.isOwner
+    ? 'owner'
+    : admin.permissions.length > 0
+      ? admin.permissions.join(', ')
+      : 'none';
+  return `${formatTelegramUser(admin.telegramId, admin.username, admin.firstName)} — ${access}`;
 }
 
 export function formatAdminsMessage(admins: Admin[]): string {
@@ -15,7 +20,10 @@ export function formatAdminsMessage(admins: Admin[]): string {
 }
 
 /** `/listadmins` (docs/PLAN.md §4). */
-export async function listAdminsCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
+export async function listAdminsCommand(
+  ctx: BotContext,
+  deps: GatewayDeps,
+): Promise<void> {
   const admins = await deps.adminStore.listAdmins();
   await ctx.reply(formatAdminsMessage(admins));
 }

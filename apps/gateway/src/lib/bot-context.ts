@@ -1,4 +1,4 @@
-import type { AdminRole } from '@cod2admin/admin-store';
+import type { Permission } from '@cod2admin/admin-store';
 import type { InputFile } from 'grammy';
 
 /**
@@ -7,6 +7,15 @@ import type { InputFile } from 'grammy';
  * §11.2 — "grammy supports constructing fake Context/Update objects directly", but a plain
  * object satisfying this interface is simpler still) instead of a real bot/API instance.
  */
+/** Who `requireStaff` / `requirePermission` (auth.ts) resolved. `permissions` is the stored list — empty for the owner. */
+export interface ActingAdmin {
+  telegramId: number;
+  isOwner: boolean;
+  permissions: readonly Permission[];
+  username?: string;
+  firstName?: string;
+}
+
 export interface BotContext {
   from?: { id: number; username?: string; first_name?: string };
   /** `type` is "private" | "group" | "supergroup" | "channel" on real updates. */
@@ -15,14 +24,17 @@ export interface BotContext {
   match?: string | number | RegExpMatchArray;
   /** The Telegram ID of whoever's message this command replied to, if any (e.g. /addadmin). */
   replyToUserId?: number;
-  /** Set by `requireRole` (auth.ts) once the actor is looked up — undefined before that runs. */
-  admin?: { telegramId: number; role: AdminRole; username?: string; firstName?: string };
+  /** Set by `requireStaff` / `requirePermission` (auth.ts) once the actor is looked up — undefined before that runs. */
+  admin?: ActingAdmin;
   reply(text: string, other?: unknown): Promise<unknown>;
   /**
    * Sends a file — grammy's `ctx.replyWithDocument()`, used by long-reply.ts for reports. Optional
    * so hand-built contexts can omit it; without it a long reply falls back to its summary.
    */
-  replyWithDocument?(document: InputFile, other?: { caption?: string }): Promise<unknown>;
+  replyWithDocument?(
+    document: InputFile,
+    other?: { caption?: string },
+  ): Promise<unknown>;
   /** Deletes the message that triggered this update — grammy's `ctx.deleteMessage()`. */
   deleteMessage?(): Promise<unknown>;
 }

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createFakeCtx } from '../testing/fake-ctx.js';
 import { createFakeDeps } from '../testing/fake-deps.js';
+import { ADMIN_ACCESS } from '../testing/fake-admin-store.js';
 import { formatDuration, tempbanCommand } from './tempban.js';
 
 describe('formatDuration', () => {
@@ -26,7 +27,7 @@ describe('tempbanCommand', () => {
     });
     const ctx = createFakeCtx({
       match: '3',
-      admin: { telegramId: 1, role: 'admin' },
+      admin: { telegramId: 1, ...ADMIN_ACCESS },
     });
 
     await tempbanCommand(ctx, deps);
@@ -69,7 +70,7 @@ describe('tempbanCommand', () => {
     });
     const ctx = createFakeCtx({
       match: '3',
-      admin: { telegramId: 1, role: 'admin' },
+      admin: { telegramId: 1, ...ADMIN_ACCESS },
     });
 
     await tempbanCommand(ctx, deps);
@@ -90,7 +91,7 @@ describe('tempbanCommand', () => {
     });
     const ctx = createFakeCtx({
       match: '3 2h teamkilling',
-      admin: { telegramId: 1, role: 'admin' },
+      admin: { telegramId: 1, ...ADMIN_ACCESS },
     });
 
     await tempbanCommand(ctx, deps);
@@ -111,7 +112,7 @@ describe('tempbanCommand', () => {
     });
     const ctx = createFakeCtx({
       match: '3 teamkilling repeatedly',
-      admin: { telegramId: 1, role: 'admin' },
+      admin: { telegramId: 1, ...ADMIN_ACCESS },
     });
 
     await tempbanCommand(ctx, deps);
@@ -126,7 +127,7 @@ describe('tempbanCommand', () => {
     rcon.status.mockResolvedValue({ raw: '', players: [] });
     const ctx = createFakeCtx({
       match: '3',
-      admin: { telegramId: 1, role: 'admin' },
+      admin: { telegramId: 1, ...ADMIN_ACCESS },
     });
 
     await tempbanCommand(ctx, deps);
@@ -142,7 +143,7 @@ describe('tempbanCommand', () => {
     const { deps, rcon } = createFakeDeps();
     const ctx = createFakeCtx({
       match: 'not-a-number',
-      admin: { telegramId: 1, role: 'admin' },
+      admin: { telegramId: 1, ...ADMIN_ACCESS },
     });
 
     await tempbanCommand(ctx, deps);

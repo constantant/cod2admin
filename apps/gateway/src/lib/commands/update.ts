@@ -1,8 +1,7 @@
 import { rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { AdminRole } from '@cod2admin/admin-store';
 import { InlineKeyboard } from 'grammy';
-import type { BotContext } from '../bot-context.js';
+import type { ActingAdmin, BotContext } from '../bot-context.js';
 import type { GatewayDeps, UpdateFeatureConfig } from '../deps.js';
 import type { GithubRelease } from '../github-releases.js';
 import {
@@ -84,7 +83,7 @@ export async function updateCommand(
 export interface UpdateCallbackContext {
   from?: { id: number };
   chat?: { id: number };
-  admin?: { telegramId: number; role: AdminRole };
+  admin?: ActingAdmin;
   callbackData: string;
   editMessageText(text: string, other?: unknown): Promise<unknown>;
   answerCallbackQuery(other?: {

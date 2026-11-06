@@ -27,20 +27,23 @@
 
 @switch (mode()) { @case ('menu') {
 <div class="actions">
+  @if (session.can('kick')) {
   <button mat-stroked-button (click)="open('kick')">
     <c2a-icon name="kick" /> {{ 'Kick' | t }}
   </button>
+  } @if (session.can('tempban')) {
   <button mat-stroked-button (click)="open('tempban')">
     <c2a-icon name="timer" /> {{ 'Temp ban' | t }}
   </button>
-  @if (session.serverInfo()?.chat) {
+  } @if (session.serverInfo()?.chat && session.can('mute')) {
   <button mat-stroked-button (click)="open('mute')">
     <c2a-icon name="mute" /> {{ 'Mute' | t }}
   </button>
-  } @if (session.can('admin')) {
+  } @if (session.can('ban')) {
   <button mat-stroked-button class="danger" (click)="open('ban')">
     <c2a-icon name="block" /> {{ 'Ban' | t }}
   </button>
+  } @if (session.can('say')) {
   <button mat-stroked-button (click)="open('tell')">
     <c2a-icon name="whisper" /> {{ 'Message' | t }}
   </button>

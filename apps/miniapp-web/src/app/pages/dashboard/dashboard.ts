@@ -182,7 +182,7 @@ import { dateLocale, t, T } from '../../shared/i18n';
           }
         }
 
-        @if (session.can('admin')) {
+        @if (session.can('cvars.read')) {
           <a mat-button routerLink="/settings">
             <c2a-icon name="tune" /> {{ 'All server settings' | t }}
           </a>

@@ -11,7 +11,6 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import type { MiniAppRole } from '@cod2admin/miniapp-api';
 import { LiveService } from './core/live';
 import { SessionService } from './core/session';
 import { TelegramService } from './core/telegram';
@@ -23,15 +22,14 @@ interface NavItem {
   path: string;
   label: string;
   icon: IconName;
-  minRole: MiniAppRole;
 }
 
 const NAV: readonly NavItem[] = [
-  { path: '/dashboard', label: 'Home', icon: 'home', minRole: 'moderator' },
-  { path: '/players', label: 'Players', icon: 'players', minRole: 'moderator' },
-  { path: '/chat', label: 'Chat', icon: 'chat', minRole: 'moderator' },
-  { path: '/reports', label: 'Reports', icon: 'flag', minRole: 'moderator' },
-  { path: '/more', label: 'More', icon: 'apps', minRole: 'moderator' },
+  { path: '/dashboard', label: 'Home', icon: 'home' },
+  { path: '/players', label: 'Players', icon: 'players' },
+  { path: '/chat', label: 'Chat', icon: 'chat' },
+  { path: '/reports', label: 'Reports', icon: 'flag' },
+  { path: '/more', label: 'More', icon: 'apps' },
 ];
 
 @Component({
@@ -59,11 +57,7 @@ export class App implements OnInit {
   protected readonly loading = computed(
     () => !this.session.me() && !this.session.failure(),
   );
-  protected readonly nav = computed(() =>
-    this.session.me()
-      ? NAV.filter((item) => this.session.can(item.minRole))
-      : [],
-  );
+  protected readonly nav = computed(() => (this.session.me() ? NAV : []));
   protected readonly inTelegram = this.telegram.inTelegram;
 
   constructor() {

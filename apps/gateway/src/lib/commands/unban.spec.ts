@@ -3,9 +3,10 @@ import { createFakeCtx } from '../testing/fake-ctx.js';
 import { sampleGuidBan } from '../testing/fake-ban-store.js';
 import { createFakeDeps } from '../testing/fake-deps.js';
 import { asRconClient, createFakeRcon } from '../testing/fake-rcon.js';
+import { ADMIN_ACCESS } from '../testing/fake-admin-store.js';
 import { unbanCommand } from './unban.js';
 
-const ADMIN = { telegramId: 1, role: 'admin' as const };
+const ADMIN = { telegramId: 1, ...ADMIN_ACCESS };
 
 describe('unbanCommand', () => {
   it('lifts a GUID ban: clears it from the store, removes it by name from the issuing server ban.txt, and audit-logs it', async () => {
@@ -26,9 +27,15 @@ describe('unbanCommand', () => {
     expect(other.unbanUser).not.toHaveBeenCalled();
     expect(banStore.unbanIp).not.toHaveBeenCalled();
     expect(adminStore.recordAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'unban', target: 'GUID123', serverAlias: null }),
+      expect.objectContaining({
+        action: 'unban',
+        target: 'GUID123',
+        serverAlias: null,
+      }),
     );
-    expect(ctx.reply).toHaveBeenCalledWith('Unbanned GUID GUID123 on all servers.');
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'Unbanned GUID GUID123 on all servers.',
+    );
   });
 
   it('skips ban.txt for temp bans and names that were never written there', async () => {
@@ -45,18 +52,24 @@ describe('unbanCommand', () => {
     await unbanCommand(ctx, deps);
 
     expect(rcon.unbanUser).not.toHaveBeenCalled();
-    expect(ctx.reply).toHaveBeenCalledWith('Unbanned GUID GUID123 on all servers.');
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'Unbanned GUID GUID123 on all servers.',
+    );
   });
 
   it('retries ban.txt from the ban history even once the bot has already lifted the ban', async () => {
     const { deps, rcon, banStore } = createFakeDeps();
-    banStore.listBansByGuid.mockResolvedValue([sampleGuidBan({ unbannedAt: new Date() })]);
+    banStore.listBansByGuid.mockResolvedValue([
+      sampleGuidBan({ unbannedAt: new Date() }),
+    ]);
     const ctx = createFakeCtx({ match: 'GUID123', admin: ADMIN });
 
     await unbanCommand(ctx, deps);
 
     expect(rcon.unbanUser).toHaveBeenCalledWith('Cheater');
-    expect(ctx.reply).toHaveBeenCalledWith('No active ban for GUID GUID123 was recorded by the bot.');
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'No active ban for GUID GUID123 was recorded by the bot.',
+    );
   });
 
   it('names a server that did not answer, so the admin knows to retry', async () => {
@@ -71,7 +84,9 @@ describe('unbanCommand', () => {
 
     await unbanCommand(ctx, deps);
 
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining("down didn't answer"));
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining("down didn't answer"),
+    );
   });
 
   it('says so when ban.txt had no entry for a ban it just lifted', async () => {
@@ -98,8 +113,12 @@ describe('unbanCommand', () => {
     expect(rcon.unbanUser).not.toHaveBeenCalled();
     expect(banStore.unbanIp).toHaveBeenCalledWith('1.2.3.4');
     expect(banStore.unbanByGuid).not.toHaveBeenCalled();
-    expect(adminStore.recordAuditLog).toHaveBeenCalledWith(expect.objectContaining({ action: 'unban', target: '1.2.3.4' }));
-    expect(ctx.reply).toHaveBeenCalledWith('Unbanned IP 1.2.3.4 on all servers.');
+    expect(adminStore.recordAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'unban', target: '1.2.3.4' }),
+    );
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'Unbanned IP 1.2.3.4 on all servers.',
+    );
   });
 
   it('says so when the bot had no active ban recorded for the target', async () => {
@@ -109,7 +128,9 @@ describe('unbanCommand', () => {
 
     await unbanCommand(ctx, deps);
 
-    expect(ctx.reply).toHaveBeenCalledWith('No active ban for IP 1.2.3.4 was recorded by the bot.');
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'No active ban for IP 1.2.3.4 was recorded by the bot.',
+    );
   });
 
   it('ignores a --server flag, since bans are global', async () => {

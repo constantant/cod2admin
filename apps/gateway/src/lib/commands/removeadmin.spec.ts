@@ -1,33 +1,38 @@
 import { describe, expect, it } from 'vitest';
 import { createFakeCtx } from '../testing/fake-ctx.js';
 import { createFakeDeps } from '../testing/fake-deps.js';
-import { sampleAdmin } from '../testing/fake-admin-store.js';
+import {
+  ADMIN_ACCESS,
+  MODERATOR_ACCESS,
+  OWNER_ACCESS,
+  sampleAdmin,
+} from '../testing/fake-admin-store.js';
 import { removeAdminCommand } from './removeadmin.js';
 
-/** 1 owner, 2 and 4 admins, 555 and 777 moderators. */
+/** 1 owner, 2 and 4 on the admin template, 555 and 777 on the moderator template. */
 function withTargets() {
   const fake = createFakeDeps();
   fake.adminStore.getAdmin.mockImplementation(async (telegramId) => {
-    const role =
+    const access =
       telegramId === 1
-        ? 'owner'
+        ? OWNER_ACCESS
         : telegramId === 2 || telegramId === 4
-          ? 'admin'
+          ? ADMIN_ACCESS
           : telegramId === 555 || telegramId === 777
-            ? 'moderator'
+            ? MODERATOR_ACCESS
             : undefined;
-    return role ? sampleAdmin({ telegramId, role }) : undefined;
+    return access ? sampleAdmin({ telegramId, ...access }) : undefined;
   });
   return fake;
 }
 
+const OWNER = { telegramId: 1, ...OWNER_ACCESS };
+const ADMIN = { telegramId: 2, ...ADMIN_ACCESS };
+
 describe('removeAdminCommand', () => {
   it('removes an admin by raw telegram id', async () => {
     const { deps, adminStore } = withTargets();
-    const ctx = createFakeCtx({
-      match: '555',
-      admin: { telegramId: 1, role: 'owner' },
-    });
+    const ctx = createFakeCtx({ match: '555', admin: OWNER });
 
     await removeAdminCommand(ctx, deps);
 
@@ -40,7 +45,7 @@ describe('removeAdminCommand', () => {
     const ctx = createFakeCtx({
       match: '',
       replyToUserId: 777,
-      admin: { telegramId: 1, role: 'owner' },
+      admin: OWNER,
     });
 
     await removeAdminCommand(ctx, deps);
@@ -50,10 +55,7 @@ describe('removeAdminCommand', () => {
 
   it('prompts for usage when no target is given', async () => {
     const { deps, adminStore } = withTargets();
-    const ctx = createFakeCtx({
-      match: '',
-      admin: { telegramId: 1, role: 'owner' },
-    });
+    const ctx = createFakeCtx({ match: '', admin: OWNER });
 
     await removeAdminCommand(ctx, deps);
 
@@ -64,56 +66,48 @@ describe('removeAdminCommand', () => {
   });
 
   it.each([
-    ['the owner, as an admin', 2, 'admin', 1, "You can't change the owner."],
-    [
-      'another admin, as an admin',
-      2,
-      'admin',
-      4,
-      "You can't change another admin.",
-    ],
-    ['themselves', 2, 'admin', 2, "You can't change your own role."],
+    ['the owner, as an admin', ADMIN, 1, "You can't change the owner."],
+    ['themselves', ADMIN, 2, "You can't change your own permissions."],
     [
       'themselves, as the owner',
+      OWNER,
       1,
-      'owner',
-      1,
-      "You can't change your own role.",
+      "You can't change your own permissions.",
     ],
-  ] as const)(
-    'refuses to change %s',
-    async (_who, actorId, role, targetId, reply) => {
-      const { deps, adminStore } = withTargets();
-      const ctx = createFakeCtx({
-        match: `${targetId}`,
-        admin: { telegramId: actorId, role },
-      });
+  ] as const)('refuses to change %s', async (_who, actor, targetId, reply) => {
+    const { deps, adminStore } = withTargets();
+    const ctx = createFakeCtx({
+      match: `${targetId}`,
+      admin: actor,
+    });
 
-      await removeAdminCommand(ctx, deps);
+    await removeAdminCommand(ctx, deps);
 
-      expect(adminStore.removeAdmin).not.toHaveBeenCalled();
-      expect(ctx.reply).toHaveBeenCalledWith(reply);
-    },
-  );
+    expect(adminStore.removeAdmin).not.toHaveBeenCalled();
+    expect(ctx.reply).toHaveBeenCalledWith(reply);
+  });
 
   it('says so when the target is not an admin', async () => {
     const { deps, adminStore } = withTargets();
-    const ctx = createFakeCtx({
-      match: `999`,
-      admin: { telegramId: 1, role: 'owner' },
-    });
+    const ctx = createFakeCtx({ match: '999', admin: OWNER });
 
     await removeAdminCommand(ctx, deps);
 
     expect(adminStore.removeAdmin).not.toHaveBeenCalled();
   });
 
-  it('lets an admin change a moderator', async () => {
+  it('lets an admin remove another admin', async () => {
     const { deps, adminStore } = withTargets();
-    const ctx = createFakeCtx({
-      match: `555`,
-      admin: { telegramId: 2, role: 'admin' },
-    });
+    const ctx = createFakeCtx({ match: '4', admin: ADMIN });
+
+    await removeAdminCommand(ctx, deps);
+
+    expect(adminStore.removeAdmin).toHaveBeenCalledWith(4);
+  });
+
+  it('lets an admin remove a moderator', async () => {
+    const { deps, adminStore } = withTargets();
+    const ctx = createFakeCtx({ match: '555', admin: ADMIN });
 
     await removeAdminCommand(ctx, deps);
 

@@ -1,31 +1,45 @@
 import type { Bot } from 'grammy';
 import { describe, expect, it, vi } from 'vitest';
-import { sampleAdmin } from './testing/fake-admin-store.js';
 import { createFakeDeps } from './testing/fake-deps.js';
 import { sampleRelease } from './testing/fake-github-release-client.js';
-import { checkForNewVersion, formatNewVersionMessage } from './version-check-poller.js';
+import { sampleAdmin, OWNER_ACCESS } from './testing/fake-admin-store.js';
+import {
+  checkForNewVersion,
+  formatNewVersionMessage,
+} from './version-check-poller.js';
 import { getRunningVersion } from './version.js';
 
 function fakeBot(): Bot {
-  return { api: { sendMessage: vi.fn().mockResolvedValue(undefined) } } as unknown as Bot;
+  return {
+    api: { sendMessage: vi.fn().mockResolvedValue(undefined) },
+  } as unknown as Bot;
 }
 
 describe('checkForNewVersion', () => {
   it('DMs the owner when a newer tag exists', async () => {
     const { deps, adminStore, githubReleaseClient } = createFakeDeps();
-    adminStore.listAdmins.mockResolvedValue([sampleAdmin({ telegramId: 42, role: 'owner' })]);
-    githubReleaseClient.getLatestRelease.mockResolvedValue(sampleRelease({ tagName: 'v999.0.0' }));
+    adminStore.listAdmins.mockResolvedValue([
+      sampleAdmin({ telegramId: 42, ...OWNER_ACCESS }),
+    ]);
+    githubReleaseClient.getLatestRelease.mockResolvedValue(
+      sampleRelease({ tagName: 'v999.0.0' }),
+    );
     const bot = fakeBot();
 
     await checkForNewVersion(deps, bot);
 
-    expect(bot.api.sendMessage).toHaveBeenCalledWith(42, expect.stringContaining('v999.0.0'));
+    expect(bot.api.sendMessage).toHaveBeenCalledWith(
+      42,
+      expect.stringContaining('v999.0.0'),
+    );
     expect(deps.lastNotifiedTag).toBe('v999.0.0');
   });
 
   it('stays quiet when the latest tag is not newer than the running version', async () => {
     const { deps, githubReleaseClient } = createFakeDeps();
-    githubReleaseClient.getLatestRelease.mockResolvedValue(sampleRelease({ tagName: `v${getRunningVersion()}` }));
+    githubReleaseClient.getLatestRelease.mockResolvedValue(
+      sampleRelease({ tagName: `v${getRunningVersion()}` }),
+    );
     const bot = fakeBot();
 
     await checkForNewVersion(deps, bot);
@@ -35,8 +49,12 @@ describe('checkForNewVersion', () => {
 
   it('does not re-notify the same tag twice', async () => {
     const { deps, adminStore, githubReleaseClient } = createFakeDeps();
-    adminStore.listAdmins.mockResolvedValue([sampleAdmin({ telegramId: 42, role: 'owner' })]);
-    githubReleaseClient.getLatestRelease.mockResolvedValue(sampleRelease({ tagName: 'v999.0.0' }));
+    adminStore.listAdmins.mockResolvedValue([
+      sampleAdmin({ telegramId: 42, ...OWNER_ACCESS }),
+    ]);
+    githubReleaseClient.getLatestRelease.mockResolvedValue(
+      sampleRelease({ tagName: 'v999.0.0' }),
+    );
     const bot = fakeBot();
 
     await checkForNewVersion(deps, bot);
@@ -48,7 +66,9 @@ describe('checkForNewVersion', () => {
   it('does nothing when no owner has been claimed yet', async () => {
     const { deps, adminStore, githubReleaseClient } = createFakeDeps();
     adminStore.listAdmins.mockResolvedValue([]);
-    githubReleaseClient.getLatestRelease.mockResolvedValue(sampleRelease({ tagName: 'v999.0.0' }));
+    githubReleaseClient.getLatestRelease.mockResolvedValue(
+      sampleRelease({ tagName: 'v999.0.0' }),
+    );
     const bot = fakeBot();
 
     await checkForNewVersion(deps, bot);

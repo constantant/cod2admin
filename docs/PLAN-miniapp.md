@@ -1,7 +1,7 @@
 # CoD2 Admin — Telegram Mini App Server Manager
 
 Status: Phases M1–M5 and the installer HTTPS step implemented (M5: 2026-11-03, see §0) ·
-Owner: kk · Last updated: 2026-11-03
+Owner: kk · Last updated: 2026-11-07
 
 ## 0. Implementation status (2026-10-07)
 
@@ -11,8 +11,8 @@ HTTPS URL — see "Not verified yet" below).
 - **M1 — foundations.** `apps/miniapp-web` (Angular 22, standalone + zoneless, Angular Material 3
   via `mat.theme()`; Telegram's `--tg-theme-*` colours mapped onto the M3 system tokens) and
   `apps/gateway/src/miniapp/` (Fastify + `@fastify/websocket` + `@fastify/static`).
-  `initData` HMAC validation (`init-data.ts`, 24h max age) → `admin-store` role (`auth.ts`); a
-  Telegram user without a role gets a 403 naming their ID, never a read-only session.
+  `initData` HMAC validation (`init-data.ts`, 24h max age) → a row in `admins` (`auth.ts`); a
+  Telegram user who is not staff gets a 403 naming their ID, never a read-only session.
   Off unless `MINIAPP_PORT` is set; `MINIAPP_URL` makes the bot set its menu button to the app;
   `/app` sends the button in a private chat. The gateway serves the built app itself (shipped
   in the release tarball as `miniapp/`), so the app and its API are one origin — no CORS.
@@ -21,7 +21,7 @@ HTTPS URL — see "Not verified yet" below).
   `executeModerationAction` with audit `source: 'miniapp'` (new enum value, migration
   `0004_audit_source_miniapp`). Actions name the player the admin saw: if the slot changed hands,
   the gateway answers 409 instead of acting on someone else. Map page (rotation + other installed
-  maps, custom-map confirmation), owner-only raw console.
+  maps, custom-map confirmation), raw console for the `rcon` permission.
 - **M3 — live chat.** `ChatFeed` subscribes to the `GameLogTailer` that `!report` uses (now
   started for every server with a log path, not only ones with a bound chat), backfills from the
   log's tail (`GameLogTailer.readRecentChat`), and records admin-sent lines (the game doesn't log
@@ -62,8 +62,8 @@ Local verification used a harness running the Mini App server with real Postgres
 
 **M5 and chat-command parity (2026-11-03), built and tested locally, not yet released:**
 
-- **Navigation:** Home, Players, Chat, Reports (with a badge) and More, which lists the rest for the
-  person's role. Maps, Bans and Console moved under More.
+- **Navigation:** Home, Players, Chat, Reports (with a badge) and More, which lists the rest this
+  person has permissions for. Maps, Bans and Console moved under More.
 - **Dashboard:** live state plus 24h/7d/30d history (peak, average, uptime, most-played maps).
   `server_snapshots` gets one public `getstatus` per server per minute, 30 days kept. The poller only
   runs when the Mini App is on, so other installs send the server no extra queries.
@@ -72,21 +72,23 @@ Local verification used a harness running the Mini App server with real Postgres
   place closes it in the other (Telegram cards until the bot restarts: the card registry is in
   memory). Open apps get new reports over `/api/ws`, as a badge, a snackbar and a haptic buzz.
 - **Notes and watchlist:** `player_notes`, on a GUID, IP or name. Players are marked live, and a
-  watched player joining alerts whoever has the app open. Authors and admins can edit a note.
+  watched player joining alerts whoever has the app open. The author, or anyone with `notes.manage`, can edit a note.
   The player sheet shows notes, bans and past actions.
 - **Presets:** one-tap reasons, temp-ban lengths and chat lines (settings key `miniapp.presets`).
 - **Management:** audit log search, admins, servers (`/addserver`, `/removeserver`, `/setdefault`,
   `/findlog`), VPN rules, Telegram routes and self-update. `/claim` and `/bindserver` stay in chat:
-  the first runs before anyone has a role, the second binds the chat it's sent in.
+  the first runs before anyone is staff, the second binds the chat it's sent in.
 - **Beyond the chat bot:** next map, map restart, round restart (`RconClient.levelCommand`, sent
-  once for the same reason as `map()`), rotation editor, and server cvars (admins read, the owner
-  writes; `rcon_password` is refused, since it would cut the bot off).
+  once for the same reason as `map()`), rotation editor, and server cvars (`cvars.read` to view,
+  `cvars.write` to change; `rcon_password` is refused, since it would cut the bot off).
 
 **Decided while building M5:**
 
-- Managing admins: an admin manages moderators only, and nobody changes the owner or themselves.
-  One rule (`lib/admin-rules.ts`) for the app and for `/removeadmin` and `/setrole`, which had no such
-  check until now: any admin could remove or demote the owner.
+- Managing staff (updated 2026-11-07, permissions replaced the role ladder): someone with
+  `admins.manage` may replace the set of anyone except the owner and themselves, and only with
+  permissions they hold. `rcon` and `update` stay with the owner to give or take; holding them
+  does not let you pass them on. One rule (`lib/admin-rules.ts`) for the app and for
+  `/removeadmin` and `/permit`.
 - A rotation is read back after it's set; if the server didn't take all of it, the old one goes back.
   It lives in a cvar, so a server restart undoes it, and the UI says so.
 - `map_restart` and `map_rotate` never answer on a real server (it's loading), and a busy one can
@@ -136,7 +138,7 @@ Scope for v1:
 This is a companion plan, not a replacement. Reused as-is:
 
 - `packages/rcon-client` — same RCON connections, same rate-limiting/backoff.
-- `packages/admin-store` / `packages/ban-store` — same roles, same ban records, same audit log
+- `packages/admin-store` / `packages/ban-store` — same staff and permissions, same ban records, same audit log
   table (Mini App actions get their own `source` tag in the audit log — see §7).
 - `packages/log-tailer` — already tails `games_mp.log` for the `!report` trigger (PLAN.md §5);
   the Mini App's live chat view (§6.2) is a second consumer of the same parsed event stream,
@@ -185,8 +187,8 @@ Requirements imposed by Telegram, not by us:
 - Auth is **not** a login screen: Telegram injects a signed `initData` string (HMAC-SHA256 over
   the user's Telegram identity, keyed with the bot token) into the page at launch. The backend
   validates that signature server-side on every request and maps the resulting Telegram user ID
-  onto the existing `admin-store` role (§8) — nobody without an existing admin/moderator role in
-  `admin-store` gets a functioning session, regardless of what the Mini App UI shows them.
+  onto an existing `admins` row (§8) — nobody who is not already staff gets a functioning session,
+  regardless of what the Mini App UI shows them.
 
 **Since this is per-adopter, self-installed software, the hosting story needs to work as a
 generic installer step, not a one-off choice made once.** The good news: `docs/PLAN.md` §10
@@ -273,7 +275,7 @@ other, and both write to the same audit log (tagged by `source`, §8).
 - **Auth**: no session/password. Every request carries the raw Telegram `initData` (per
   Telegram's own recommended `Authorization: tma <initData>` pattern); a gateway middleware
   validates the HMAC signature and freshness (reject stale `auth_date`), then looks up the
-  Telegram user ID in `admin-store` for a role — same roles as the chat bot (§8).
+  Telegram user ID in `admin-store` for a staff row and its permissions — the same check as the chat bot (§8).
 - **Real-time transport**: WebSocket, for two things — pushing new chat lines as `log-tailer`
   parses them (§6.2), and pushing live player-count/status changes to an open dashboard (§6.4)
   without polling. Cloudflare Tunnel and Caddy both proxy WebSocket natively, so this doesn't
@@ -289,7 +291,7 @@ other, and both write to the same audit log (tagged by `source`, §8).
   chat bot's inline buttons already call (PLAN.md §5, §6) — same GUID-0/IP-fallback handling
   (PLAN.md §2.4, §5.6), same in-game broadcast on action (PLAN.md §5 step 6).
 - Map control: current map display, map list, one-tap map change.
-- Raw RCON console (owner-role only) for anything not covered by a dedicated control — same
+- Raw RCON console (the `rcon` permission) for anything not covered by a dedicated control — same
   trust boundary as `/rcon` in the chat bot.
 
 ### 6.2 In-game chat
@@ -341,7 +343,7 @@ chat, as `QUICKMESSAGE_...`, per the dev server's `games_mp.log`). Not tried on 
 - **Audit log viewer**: `admin-store`'s audit log already exists (PLAN.md §7) but is only
   queryable via `/auditlog` in chat — a searchable/filterable table view (by admin, action type,
   date range, server) is a natural Mini App feature with zero new backend data model.
-- **Admin & role management UI**: visual equivalent of `/addadmin`/`/setrole`/`/listadmins`, plus
+- **Staff permissions UI**: visual equivalent of `/addadmin`/`/permit`/`/listadmins`, plus
   a multi-server switcher (tab per server bound via `/bindserver`) instead of one bot chat per
   server.
 - **Player watchlist / moderator notes**: free-text notes attached to a GUID/IP/name, separate
@@ -374,9 +376,9 @@ exist since M5 (`admin-store` migration `0005_reports_notes_snapshots`).
 - **Auth boundary**: `initData` HMAC validation (§5) is the _only_ gate — no separate
   username/password, no long-lived tokens to leak. Reject any request with a missing/invalid/
   stale (`auth_date` too old) signature before it reaches any handler.
-- **Authorization**: same roles as the chat bot (`admin-store` — owner/admin/moderator,
-  PLAN.md §4) — a Telegram user with no role in `admin-store` gets a valid-looking but
-  empty/read-only Mini App, never elevated access through a different code path.
+- **Authorization**: the same permissions as the chat bot (`admin-store`, PLAN.md §4). A Telegram
+  user with no row in `admins` gets a 403, never a session. Each route asks for one permission id
+  (or only that the caller is staff, for live reads).
 - **Exposure surface**: only the Mini App's HTTP(S)/WS port is internet-facing, via whichever
   tunnel/proxy §3 lands on. RCON stays UDP/local-only exactly as in `docs/PLAN.md` §8 — the Mini
   App backend talks to `rcon-client` in-process, never proxies raw RCON traffic to the browser.
@@ -396,12 +398,12 @@ Phase 2). The multi-server switcher is a Phase M5 item, not built in from the st
   env-selected — no server switcher yet). Goal: prove the Telegram-launch → auth → real gateway
   data round-trip end to end, before building out features.
 - **Phase M2 — RCON management UI** (§6.1): player table, kick/ban/unban/tempban, map control,
-  owner-only raw console. Still single-server.
+  raw console for the `rcon` permission. Still single-server.
 - **Phase M3 — live chat** (§6.2): WebSocket push from `log-tailer`, chat view + say/tell.
 - **Phase M4 — ban management UI** (§6.3): browse/search/edit bans and IP bans.
 - **Phase M5 — nice-to-haves** (§6.4): multi-server switcher (tab per server bound via
   `/bindserver`, matching the chat bot's existing multi-server support) plus pick from dashboard,
-  report queue view, audit log viewer, role management UI, watchlist, quick-action presets —
+  report queue view, audit log viewer, staff permissions UI, watchlist, quick-action presets —
   independently orderable, none blocks the others.
 - **Ops — installer HTTPS step** (§3): add the Caddy + domain/nip.io automation to `install.sh`
   (mirroring how PLAN.md §13's self-update tooling was added as an independent installer track),

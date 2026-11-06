@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createFakeCtx } from '../testing/fake-ctx.js';
 import { createFakeDeps } from '../testing/fake-deps.js';
+import { ADMIN_ACCESS } from '../testing/fake-admin-store.js';
 import { mapCommand } from './map.js';
 
 describe('mapCommand', () => {
@@ -8,7 +9,7 @@ describe('mapCommand', () => {
     const { deps, rcon, adminStore } = createFakeDeps();
     const ctx = createFakeCtx({
       match: 'mp_toujane',
-      admin: { telegramId: 1, role: 'admin' },
+      admin: { telegramId: 1, ...ADMIN_ACCESS },
     });
 
     await mapCommand(ctx, deps);
@@ -24,7 +25,7 @@ describe('mapCommand', () => {
     const { deps, rcon } = createFakeDeps();
     const ctx = createFakeCtx({
       match: '',
-      admin: { telegramId: 1, role: 'admin' },
+      admin: { telegramId: 1, ...ADMIN_ACCESS },
     });
 
     await mapCommand(ctx, deps);
@@ -37,7 +38,7 @@ describe('mapCommand', () => {
 });
 
 describe('mapCommand with the installed map list', () => {
-  const ADMIN = { telegramId: 1, role: 'admin' as const };
+  const ADMIN = { telegramId: 1, ...ADMIN_ACCESS };
 
   it('uses the installed name for a case-insensitive match', async () => {
     const { deps, rcon } = createFakeDeps();

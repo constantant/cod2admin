@@ -21,7 +21,7 @@ import type {
   ResolveReportRequest,
   UpdateNoteRequest,
 } from './api-types.js';
-import { actorLabel, hasRole, type MiniAppActor } from './auth.js';
+import { actorLabel, hasPermission, type MiniAppActor } from './auth.js';
 import { summarizeSnapshots } from './dashboard.js';
 import { toGuidBanDto, toIpBanDto, type AdminNames } from './dto.js';
 import { adminNames, serverParam } from './routes.js';
@@ -84,7 +84,9 @@ function toNoteDto(
     note: note.note,
     watch: note.watch,
     author: userLabel(note.createdBy, names) ?? '',
-    editable: note.createdBy === actor.telegramId || hasRole(actor, 'admin'),
+    editable:
+      note.createdBy === actor.telegramId ||
+      hasPermission(actor, 'notes.manage'),
     updatedAt: note.updatedAt.toISOString(),
   };
 }
@@ -358,7 +360,7 @@ export function registerInsightRoutes(
     },
   );
 
-  /** A note its author wrote, or any note for an admin. */
+  /** A note its author wrote, or any note for someone with `notes.manage`. */
   async function editableNote(
     request: FastifyRequest<{ Params: { id: string } }>,
   ) {
@@ -371,12 +373,12 @@ export function registerInsightRoutes(
     }
     if (
       note.createdBy !== request.actor.telegramId &&
-      !hasRole(request.actor, 'admin')
+      !hasPermission(request.actor, 'notes.manage')
     ) {
       throw new ApiProblem(
         403,
         'forbidden',
-        "Only its author or an admin can change someone's note.",
+        'Only its author can change this note, unless you have the notes.manage permission.',
       );
     }
     return note;

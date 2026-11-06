@@ -1,7 +1,8 @@
+import type { Permission } from '@cod2admin/admin-store';
 import { decodeText, UdpQueryTimeoutError } from '@cod2admin/rcon-client';
 import { Agent } from 'node:https';
 import { Bot, type Context } from 'grammy';
-import { requireRole } from './auth.js';
+import { requirePermission, requireStaff } from './auth.js';
 import type { BotContext } from './bot-context.js';
 import { addAdminCommand } from './commands/addadmin.js';
 import { appCommand } from './commands/app.js';
@@ -21,6 +22,7 @@ import {
   mapsSelectCallback,
   type MapsCallbackContext,
 } from './commands/maps.js';
+import { permitCommand } from './commands/permit.js';
 import { playersCommand } from './commands/players.js';
 import { rconCommand } from './commands/rcon.js';
 import { removeAdminCommand } from './commands/removeadmin.js';
@@ -31,7 +33,6 @@ import { reportActionCallback, type ReportCallbackContext } from './reports.js';
 import { sayCommand } from './commands/say.js';
 import { serversCommand } from './commands/servers.js';
 import { setDefaultCommand } from './commands/setdefault.js';
-import { setRoleCommand } from './commands/setrole.js';
 import {
   STATUS_REFRESH_CALLBACK_DATA,
   statusCommand,
@@ -57,14 +58,13 @@ import { describeVpnLong, joinIpLabels } from './vpn-ranges.js';
 import { failoverTransformer, probeRoute } from './telegram-routes.js';
 
 /**
- * Phase 2 Telegram bot (docs/PLAN.md §9): role-gated (owner/admin/moderator), multi-server,
- * audited. Role gates per §4: owner-only for /auditlog and /rcon; owner+admin for admin
- * management, /ban, /unban, /bans, /map, /bindserver, /say; any role for read-only/low-risk actions.
- * /claim has no gate — it must work before any admin exists.
+ * Phase 2 Telegram bot (docs/PLAN.md §9): permission-gated, multi-server, audited. Each command
+ * below names the permission it needs; a few are any staff member. /claim has no gate — it must
+ * work before any admin exists.
  */
 /**
  * The Bot API has no reliable way to resolve `@username` to an ID without that user having
- * started the bot, so `/addadmin`/`/removeadmin`/`/setrole` resolve their target via "reply to
+ * started the bot, so `/addadmin`/`/removeadmin`/`/permit` resolve their target via "reply to
  * their message" instead (docs/PLAN.md §4's "reply-or-@user") — this reads that off grammy's
  * real `Context`, which `BotContext` deliberately doesn't expose (grammy-agnostic by design).
  */
@@ -153,56 +153,58 @@ export function createBot(
     ),
   );
 
-  const requireOwner = requireRole('owner', deps.adminStore);
-  const requireAdmin = requireRole('admin', deps.adminStore);
-  const requireAny = requireRole('moderator', deps.adminStore);
+  const staff = requireStaff(deps.adminStore);
+  const allow = (permission: Permission) =>
+    requirePermission(permission, deps.adminStore);
 
   bot.command('claim', (ctx) => claimCommand(ctx, deps, claimSecret));
   bot.command('help', (ctx) => helpCommand(ctx, deps));
   bot.command('help_ru', (ctx) => helpRuCommand(ctx, deps));
 
-  bot.command('app', requireAny, (ctx) =>
+  bot.command('app', staff, (ctx) =>
     appCommand(ctx, config.miniapp.url, bot.botInfo.username),
   );
-  bot.command('status', requireAny, (ctx) => statusCommand(ctx, deps));
-  bot.command('players', requireAny, (ctx) => playersCommand(ctx, deps));
-  bot.command('kick', requireAny, (ctx) => kickCommand(ctx, deps));
-  bot.command('tempban', requireAny, (ctx) => tempbanCommand(ctx, deps));
-  bot.command('servers', requireAny, (ctx) => serversCommand(ctx, deps));
+  bot.command('status', staff, (ctx) => statusCommand(ctx, deps));
+  bot.command('players', staff, (ctx) => playersCommand(ctx, deps));
+  bot.command('servers', staff, (ctx) => serversCommand(ctx, deps));
 
-  bot.command('ban', requireAdmin, (ctx) => banCommand(ctx, deps));
-  bot.command('unban', requireAdmin, (ctx) => unbanCommand(ctx, deps));
-  bot.command('bans', requireAdmin, (ctx) => bansCommand(ctx, deps));
-  bot.command('map', requireAdmin, (ctx) => mapCommand(ctx, deps));
-  bot.command('maps', requireAdmin, (ctx) => mapsCommand(ctx, deps));
-  bot.command('say', requireAdmin, (ctx) => sayCommand(ctx, deps));
-  bot.command('bindserver', requireAdmin, (ctx) =>
+  bot.command('kick', allow('kick'), (ctx) => kickCommand(ctx, deps));
+  bot.command('tempban', allow('tempban'), (ctx) => tempbanCommand(ctx, deps));
+  bot.command('ban', allow('ban'), (ctx) => banCommand(ctx, deps));
+  bot.command('unban', allow('ban'), (ctx) => unbanCommand(ctx, deps));
+  bot.command('bans', allow('ban'), (ctx) => bansCommand(ctx, deps));
+  bot.command('map', allow('maps'), (ctx) => mapCommand(ctx, deps));
+  bot.command('maps', allow('maps'), (ctx) => mapsCommand(ctx, deps));
+  bot.command('say', allow('say'), (ctx) => sayCommand(ctx, deps));
+  bot.command('bindserver', allow('servers.assign'), (ctx) =>
     bindServerCommand(ctx, deps),
   );
-  bot.command('setdefault', requireAdmin, (ctx) =>
+  bot.command('setdefault', allow('servers.assign'), (ctx) =>
     setDefaultCommand(ctx, deps),
   );
-  bot.command('addadmin', requireAdmin, (ctx) =>
+  bot.command('addadmin', allow('admins.manage'), (ctx) =>
     addAdminCommand(withReplyToUserId(ctx), deps),
   );
-  bot.command('removeadmin', requireAdmin, (ctx) =>
+  bot.command('removeadmin', allow('admins.manage'), (ctx) =>
     removeAdminCommand(withReplyToUserId(ctx), deps),
   );
-  bot.command('setrole', requireAdmin, (ctx) =>
-    setRoleCommand(withReplyToUserId(ctx), deps),
+  bot.command('permit', allow('admins.manage'), (ctx) =>
+    permitCommand(withReplyToUserId(ctx), deps),
   );
-  bot.command('listadmins', requireAdmin, (ctx) =>
+  bot.command('listadmins', allow('admins.manage'), (ctx) =>
     listAdminsCommand(ctx, deps),
   );
 
-  bot.command('auditlog', requireOwner, (ctx) => auditLogCommand(ctx, deps));
-  bot.command('rcon', requireOwner, (ctx) => rconCommand(ctx, deps));
-  bot.command('update', requireOwner, (ctx) => updateCommand(ctx, deps));
-  bot.command('addserver', requireOwner, (ctx) => addServerCommand(ctx, deps));
-  bot.command('removeserver', requireOwner, (ctx) =>
+  bot.command('auditlog', allow('audit'), (ctx) => auditLogCommand(ctx, deps));
+  bot.command('rcon', allow('rcon'), (ctx) => rconCommand(ctx, deps));
+  bot.command('update', allow('update'), (ctx) => updateCommand(ctx, deps));
+  bot.command('addserver', allow('servers.manage'), (ctx) =>
+    addServerCommand(ctx, deps),
+  );
+  bot.command('removeserver', allow('servers.manage'), (ctx) =>
     removeServerCommand(ctx, deps),
   );
-  bot.command('findlog', requireOwner, (ctx) =>
+  bot.command('findlog', allow('logs'), (ctx) =>
     findLogCommand(ctx, deps, {
       startTailer: (server) => {
         startReportTailer(server, deps, bot, config.textEncoding);
@@ -210,20 +212,20 @@ export function createBot(
       decode: (bytes) => decodeText(bytes, config.textEncoding),
     }),
   );
-  bot.command('relays', requireOwner, (ctx) => relaysCommand(ctx, deps));
-  bot.command('vpnnets', requireAdmin, (ctx) => vpnNetsCommand(ctx, deps));
-  bot.command('vpnkick', requireAdmin, (ctx) => vpnKickCommand(ctx, deps));
+  bot.command('relays', allow('relays'), (ctx) => relaysCommand(ctx, deps));
+  bot.command('vpnnets', allow('vpn'), (ctx) => vpnNetsCommand(ctx, deps));
+  bot.command('vpnkick', allow('vpn'), (ctx) => vpnKickCommand(ctx, deps));
 
-  bot.callbackQuery(STATUS_REFRESH_CALLBACK_DATA, requireAny, (ctx) =>
+  bot.callbackQuery(STATUS_REFRESH_CALLBACK_DATA, staff, (ctx) =>
     statusRefreshCallback(ctx, deps),
   );
-  bot.callbackQuery(/^map(ask|no)?:/, requireAdmin, (ctx) =>
+  bot.callbackQuery(/^map(ask|no)?:/, allow('maps'), (ctx) =>
     mapsSelectCallback(toMapsCallbackContext(ctx), deps),
   );
-  bot.callbackQuery(/^update:/, requireOwner, (ctx) =>
+  bot.callbackQuery(/^update:/, allow('update'), (ctx) =>
     updateActionCallback(toUpdateCallbackContext(ctx), deps),
   );
-  bot.callbackQuery(/^report:/, requireAny, (ctx) =>
+  bot.callbackQuery(/^report:/, staff, (ctx) =>
     reportActionCallback(toReportCallbackContext(ctx), {
       bot,
       registry: deps.reportRegistry,

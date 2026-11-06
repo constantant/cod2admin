@@ -6,6 +6,7 @@ import {
   eq,
   gte,
   ilike,
+  inArray,
   lt,
   lte,
   ne,
@@ -16,6 +17,12 @@ import {
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import {
+  isPermission,
+  PermissionError,
+  type Permission,
+} from './permissions.js';
+import {
+  adminPermissions,
   adminServers,
   admins,
   auditLog,
@@ -30,7 +37,6 @@ import { SecretBox } from './secrets.js';
 import type {
   AddPlayerNoteInput,
   Admin,
-  AdminRole,
   AdminStore,
   AuditLogEntry,
   AuditLogFilter,
@@ -53,6 +59,37 @@ import type {
 const POSTGRES_UNIQUE_VIOLATION = '23505';
 
 /** drizzle-orm wraps the raw pg error (which carries `.code`) as `.cause`, not on itself. */
+type AdminRow = {
+  telegramId: number;
+  isOwner: boolean;
+  addedBy: number | null;
+  addedAt: Date;
+  username: string | null;
+  firstName: string | null;
+};
+
+async function replacePermissions(
+  tx: Pick<NodePgDatabase, 'delete' | 'insert'>,
+  telegramId: number,
+  permissions: readonly Permission[],
+): Promise<void> {
+  const unique = [...new Set(permissions)];
+  for (const permission of unique) {
+    if (!isPermission(permission)) {
+      throw new PermissionError(`Unknown permission: ${permission}`);
+    }
+  }
+  await tx
+    .delete(adminPermissions)
+    .where(eq(adminPermissions.telegramId, telegramId));
+  if (unique.length === 0) {
+    return;
+  }
+  await tx
+    .insert(adminPermissions)
+    .values(unique.map((permission) => ({ telegramId, permission })));
+}
+
 function isUniqueViolation(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) {
     return false;
@@ -66,7 +103,7 @@ function isUniqueViolation(error: unknown): boolean {
 /** Admin rows with their remembered Telegram names, if any (left join — names are optional). */
 const ADMIN_COLUMNS = {
   telegramId: admins.telegramId,
-  role: admins.role,
+  isOwner: admins.isOwner,
   addedBy: admins.addedBy,
   addedAt: admins.addedAt,
   username: telegramUsers.username,
@@ -107,14 +144,18 @@ export class DrizzleAdminStore implements AdminStore {
     const [row] = await this.selectAdmins().where(
       eq(admins.telegramId, telegramId),
     );
-    return row;
+    if (!row) {
+      return undefined;
+    }
+    const [admin] = await this.withPermissions([row]);
+    return admin;
   }
 
   async claimOwner(telegramId: number): Promise<ClaimOwnerResult> {
     try {
       await this.db
         .insert(admins)
-        .values({ telegramId, role: 'owner', addedBy: null });
+        .values({ telegramId, isOwner: true, addedBy: null });
       return 'claimed';
     } catch (error) {
       if (isUniqueViolation(error)) {
@@ -126,25 +167,30 @@ export class DrizzleAdminStore implements AdminStore {
 
   async addAdmin(
     telegramId: number,
-    role: AdminRole,
+    permissions: readonly Permission[],
     addedBy: number,
   ): Promise<void> {
-    await this.db.insert(admins).values({ telegramId, role, addedBy });
+    await this.db.transaction(async (tx) => {
+      await tx.insert(admins).values({ telegramId, isOwner: false, addedBy });
+      await replacePermissions(tx, telegramId, permissions);
+    });
   }
 
   async removeAdmin(telegramId: number): Promise<void> {
     await this.db.delete(admins).where(eq(admins.telegramId, telegramId));
   }
 
-  async setRole(telegramId: number, role: AdminRole): Promise<void> {
-    await this.db
-      .update(admins)
-      .set({ role })
-      .where(eq(admins.telegramId, telegramId));
+  async setPermissions(
+    telegramId: number,
+    permissions: readonly Permission[],
+  ): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await replacePermissions(tx, telegramId, permissions);
+    });
   }
 
   async listAdmins(): Promise<Admin[]> {
-    return this.selectAdmins();
+    return this.withPermissions(await this.selectAdmins());
   }
 
   async saveTelegramUser(user: TelegramUser): Promise<void> {
@@ -554,6 +600,39 @@ export class DrizzleAdminStore implements AdminStore {
 
   async close(): Promise<void> {
     await this.pool.end();
+  }
+
+  private async withPermissions(
+    rows: AdminRow[],
+  ): Promise<Admin[]> {
+    if (rows.length === 0) {
+      return [];
+    }
+    const grants = await this.db
+      .select({
+        telegramId: adminPermissions.telegramId,
+        permission: adminPermissions.permission,
+      })
+      .from(adminPermissions)
+      .where(
+        inArray(
+          adminPermissions.telegramId,
+          rows.map((row) => row.telegramId),
+        ),
+      );
+    const byId = new Map<number, Permission[]>();
+    for (const grant of grants) {
+      if (!isPermission(grant.permission)) {
+        continue;
+      }
+      const list = byId.get(grant.telegramId) ?? [];
+      list.push(grant.permission);
+      byId.set(grant.telegramId, list);
+    }
+    return rows.map((row) => ({
+      ...row,
+      permissions: row.isOwner ? [] : (byId.get(row.telegramId) ?? []),
+    }));
   }
 
   private selectAdmins() {

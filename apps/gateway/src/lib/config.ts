@@ -1,5 +1,5 @@
 /**
- * Phase 2 config (docs/PLAN.md §9): admin-store/ban-store on Postgres, roles instead of a
+ * Phase 2 config (docs/PLAN.md §9): admin-store/ban-store on Postgres, permissions instead of a
  * single hardcoded owner check, multi-server via the `servers` table. `ownerTelegramId` is now
  * optional — the owner can also be established via `/claim` (§4) if the env var isn't set.
  * `rcon`/`serverAlias` seed the one `servers` row the gateway bootstraps on first startup.

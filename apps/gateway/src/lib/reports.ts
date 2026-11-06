@@ -1,4 +1,8 @@
-import type { AdminRole, AdminStore } from '@cod2admin/admin-store';
+import {
+  hasPermission,
+  type AdminStore,
+  type Permission,
+} from '@cod2admin/admin-store';
 import type { BanStore } from '@cod2admin/ban-store';
 import type { ReportTrigger } from '@cod2admin/log-tailer';
 import {
@@ -18,6 +22,7 @@ import {
 } from '@cod2admin/report-pipeline';
 import type { RconClient } from '@cod2admin/rcon-client';
 import { Bot, InlineKeyboard } from 'grammy';
+import type { ActingAdmin } from './bot-context.js';
 import {
   executeModerationAction,
   ModerationActionError,
@@ -26,11 +31,6 @@ import type { ReportQueue } from './report-queue.js';
 import { formatTelegramUser } from './telegram-user.js';
 
 const CALLBACK_PREFIX = 'report:';
-const ROLE_RANK: Record<AdminRole, number> = {
-  moderator: 1,
-  admin: 2,
-  owner: 3,
-};
 
 function encodeCallbackData(
   reportId: string,
@@ -268,12 +268,7 @@ export async function closeReportCard(
 /** Structural subset of grammy's callback-query `Context` (mirrors `BotContext`'s own approach). */
 export interface ReportCallbackContext {
   from?: { id: number };
-  admin?: {
-    telegramId: number;
-    role: AdminRole;
-    username?: string;
-    firstName?: string;
-  };
+  admin?: ActingAdmin;
   callbackData: string;
   editMessageText(text: string, other?: unknown): Promise<unknown>;
   answerCallbackQuery(other?: {
@@ -315,8 +310,16 @@ async function closeQueuedReport(
     });
 }
 
-function requiresAdmin(action: ReportCardAction): boolean {
-  return action.kind === 'ban';
+/** Kick, temp-ban and ban each need that permission. Resolve and ignore stay any staff. */
+function actionPermission(action: ReportCardAction): Permission | undefined {
+  if (
+    action.kind === 'kick' ||
+    action.kind === 'tempban' ||
+    action.kind === 'ban'
+  ) {
+    return action.kind;
+  }
+  return undefined;
 }
 
 /**
@@ -349,12 +352,10 @@ export async function reportActionCallback(
     await ctx.answerCallbackQuery({ text: 'Not authorized.' });
     return;
   }
-  if (
-    requiresAdmin(decoded.action) &&
-    ROLE_RANK[admin.role] < ROLE_RANK['admin']
-  ) {
+  const needed = actionPermission(decoded.action);
+  if (needed && !hasPermission(admin, needed)) {
     await ctx.answerCallbackQuery({
-      text: 'Admin role required for Ban.',
+      text: `The ${needed} permission is required.`,
       show_alert: true,
     });
     return;

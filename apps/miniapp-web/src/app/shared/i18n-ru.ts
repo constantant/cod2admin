@@ -20,17 +20,35 @@ function ruCount(
   return units === 1 ? one : units >= 2 && units <= 4 ? few : many;
 }
 
-const ROLES: Readonly<Record<string, string>> = {
-  owner: 'владелец',
-  admin: 'админ',
-  moderator: 'модератор',
+/** Permission id → the same Russian as the checklist label. */
+const PERMISSION_RU: Readonly<Record<string, string>> = {
+  kick: 'Кик',
+  tempban: 'Врем. бан',
+  mute: 'Заглушить',
+  ban: 'Бан',
+  say: 'Сказать',
+  maps: 'Карты',
+  presets: 'Шаблоны',
+  vpn: 'VPN',
+  'cvars.read': 'Смотреть настройки',
+  'cvars.write': 'Менять настройки',
+  'servers.view': 'Видеть адреса серверов',
+  'servers.assign': 'Назначать серверы',
+  'servers.manage': 'Добавлять и убирать серверы',
+  'notes.manage': 'Править чужие заметки',
+  'admins.manage': 'Управлять составом',
+  audit: 'Журнал действий',
+  rcon: 'Консоль',
+  update: 'Обновить бота',
+  relays: 'Маршруты до Telegram',
+  logs: 'Найти журнал игры',
 };
+const permissionRu = (id: string) => PERMISSION_RU[id] ?? id;
 const REQUIRED: Readonly<Record<string, string>> = {
   'A map name': 'имя карты',
   'A message': 'сообщение',
   "The player's name": 'имя игрока',
 };
-const role = (name: string) => ROLES[name] ?? name;
 const players = (count: string) =>
   `${count} ${ruCount(Number(count), 'игрок', 'игрока', 'игроков')}`;
 
@@ -62,7 +80,7 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
   'Kick VPN players, exceptions, networks': 'Кик за VPN, исключения, сети',
   'One-tap reasons, lengths and messages':
     'Причины, сроки и сообщения в одно нажатие',
-  'Who has access, and their roles': 'У кого есть доступ и какие роли',
+  'Who has access, and what they can do': 'У кого есть доступ и что они могут',
   'Who did what': 'Кто что делал',
   'Raw RCON commands': 'Команды RCON напрямую',
   'How the bot reaches Telegram': 'Как бот подключается к Telegram',
@@ -195,8 +213,8 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
   'Send to': 'Кому',
   Everyone: 'Всем',
   'Message to everyone': 'Сообщение всем',
-  'Moderators can read the chat; writing to it needs the admin role.':
-    'Модераторы могут читать чат; писать в него могут только админы.',
+  'You can read the chat. Writing to it needs the say permission.':
+    'Чат можно читать. Чтобы писать в него, нужно право «Сказать».',
   'That player has left — pick someone else.':
     'Этот игрок вышел. Выберите другого.',
 
@@ -344,13 +362,23 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
 
   // Admins
   'Add someone': 'Добавить человека',
-  'Admins manage moderators; only the owner can change admins.':
-    'Админы управляют модераторами; менять админов может только владелец.',
-  Everything: 'Всё',
-  'Bans, maps, chat, moderators': 'Баны, карты, чат, модераторы',
-  'Kicks and temp bans': 'Кики и временные баны',
+  Moderator: 'Модератор',
+  Admin: 'Админ',
+  none: 'нет',
+  Say: 'Сказать',
+  VPN: 'VPN',
+  'View settings': 'Смотреть настройки',
+  'Change settings': 'Менять настройки',
+  'View server addresses': 'Видеть адреса серверов',
+  'Assign servers': 'Назначать серверы',
+  'Add and remove servers': 'Добавлять и убирать серверы',
+  "Edit others' notes": 'Править чужие заметки',
+  'Manage staff': 'Управлять составом',
+  'Update the bot': 'Обновить бота',
+  'Find the game log': 'Найти журнал игры',
+  'Only the owner can grant the console and bot update.':
+    'Консоль и обновление бота может выдать только владелец.',
   '· added by': '· добавил',
-  Role: 'Роль',
   "Hasn't opened the bot yet": 'Ещё не открывал бота',
   'They can find their Telegram ID by opening this app: it shows it when they have no access.':
     'Свой ID в Telegram человек увидит, открыв это приложение: оно покажет его, если доступа нет.',
@@ -519,9 +547,10 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
     'Заполните имя, адрес, порт и пароль. Пробелов в них быть не должно.',
   "Only its author or an admin can change someone's note.":
     'Чужую заметку может менять только её автор или админ.',
-  'Only the owner can grant the admin role.':
-    'Роль админа может выдать только владелец.',
-  'Pick the admin or moderator role.': 'Выберите роль админа или модератора.',
+  'Only the owner can grant rcon.':
+    'Право «Консоль» может выдать только владелец.',
+  'Only the owner can grant update.':
+    'Право «Обновить бота» может выдать только владелец.',
   "Self-update isn't available on this install — re-run install.sh to enable it.":
     'На этой установке самообновление недоступно. Чтобы включить, запустите install.sh ещё раз.',
   'Someone else has dealt with this report already.':
@@ -542,7 +571,7 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
     'Журнал этого сервера задан в конфиге бота. Чтобы управлять им здесь, уберите COD2_LOG_PATH из .env и перезапустите бота.',
   'Type a command (up to 512 characters).':
     'Введите команду (до 512 символов).',
-  "You can't change your own role.": 'Свою роль менять нельзя.',
+  "You can't change your own permissions.": 'Свои права менять нельзя.',
   "You can't change the owner.": 'Владельца менять нельзя.',
   "You can't change another admin.": 'Другого админа менять нельзя.',
 };
@@ -719,16 +748,23 @@ export const RU_PATTERNS: readonly [RegExp, (...groups: string[]) => string][] =
         `${alias} не ответил, поэтому его ban.txt может блокировать игрока и после окончания бана. Если игрок не сможет зайти, разбаньте его.`,
     ],
 
-    // Admins and roles
-    [
-      /^Added (\d+) as (\w+)\.$/,
-      (id, name) => `${id} добавлен, роль: ${role(name)}.`,
-    ],
-    [/^Role changed to (\w+)\.$/, (name) => `Роль изменена: ${role(name)}.`],
+    // Admins and permissions
     [/^(\d+) is on the list already\.$/, (id) => `${id} уже есть в списке.`],
     [
-      /^This needs the (\w+) role — you're (\w+)\.$/,
-      (need, have) => `Нужна роль «${role(need)}», у вас «${role(have)}».`,
+      /^This needs the (.+) permission\.$/,
+      (id) => `Нужно право «${permissionRu(id)}».`,
+    ],
+    [
+      /^Only the owner can grant ([a-z0-9.]+)\.$/,
+      (id) => `Право «${permissionRu(id)}» может выдать только владелец.`,
+    ],
+    [
+      /^You can't grant ([a-z0-9.]+)\.$/,
+      (id) => `Вы не можете выдать право «${permissionRu(id)}».`,
+    ],
+    [
+      /^Unknown permission: ([a-z0-9.]+)\.$/,
+      (id) => `Неизвестное право: «${permissionRu(id)}».`,
     ],
     [
       /^You're not an admin of this bot\. Ask the owner to add you \(your Telegram ID is (\d+)\)\.$/,

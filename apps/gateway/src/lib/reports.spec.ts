@@ -15,6 +15,7 @@ import {
   type ReportCallbackDeps,
 } from './reports.js';
 import { createFakeDeps } from './testing/fake-deps.js';
+import { ADMIN_ACCESS, MODERATOR_ACCESS } from './testing/fake-admin-store.js';
 
 vi.mock('./moderation-actions.js', async (importOriginal) => {
   const actual =
@@ -64,7 +65,7 @@ function createFakeCallbackCtx(
 ): ReportCallbackContext {
   return {
     from: { id: 1 },
-    admin: { telegramId: 1, role: 'admin' },
+    admin: { telegramId: 1, ...ADMIN_ACCESS },
     callbackData: '',
     editMessageText: vi.fn().mockResolvedValue(undefined),
     answerCallbackQuery: vi.fn().mockResolvedValue(undefined),
@@ -292,7 +293,7 @@ describe('reportActionCallback', () => {
     expect(executeModerationAction).not.toHaveBeenCalled();
   });
 
-  it('requires the admin role for Ban (moderator is refused)', async () => {
+  it('requires the ban permission (moderator-shaped caller is refused)', async () => {
     const { deps, registry } = baseDeps();
     registry.set('1', {
       chatId: 1,
@@ -307,7 +308,7 @@ describe('reportActionCallback', () => {
       },
     });
     const ctx = createFakeCallbackCtx({
-      admin: { telegramId: 1, role: 'moderator' },
+      admin: { telegramId: 1, ...MODERATOR_ACCESS },
       callbackData: 'report:1:ban',
     });
 
@@ -315,7 +316,7 @@ describe('reportActionCallback', () => {
 
     expect(ctx.answerCallbackQuery).toHaveBeenCalledWith(
       expect.objectContaining({
-        text: expect.stringContaining('Admin role required'),
+        text: 'The ban permission is required.',
       }),
     );
     expect(executeModerationAction).not.toHaveBeenCalled();
@@ -339,7 +340,7 @@ describe('reportActionCallback', () => {
       },
     });
     const ctx = createFakeCallbackCtx({
-      admin: { telegramId: 1, role: 'moderator' },
+      admin: { telegramId: 1, ...MODERATOR_ACCESS },
       callbackData: 'report:1:kick',
     });
 
@@ -439,7 +440,7 @@ describe('reportActionCallback', () => {
     });
     const ctx = createFakeCallbackCtx({
       callbackData: 'report:1:ignore',
-      admin: { telegramId: 1, role: 'admin', username: 'nick' },
+      admin: { telegramId: 1, ...ADMIN_ACCESS, username: 'nick' },
     });
 
     await reportActionCallback(ctx, deps);
@@ -465,7 +466,7 @@ describe('reportActionCallback', () => {
     });
     const ctx = createFakeCallbackCtx({
       callbackData: 'report:1:ignore',
-      admin: { telegramId: 7, role: 'admin', username: 'nick' },
+      admin: { telegramId: 7, ...ADMIN_ACCESS, username: 'nick' },
     });
 
     await reportActionCallback(ctx, {
@@ -494,7 +495,7 @@ describe('reportActionCallback', () => {
     });
     const ctx = createFakeCallbackCtx({
       callbackData: 'report:1:ignore',
-      admin: { telegramId: 7, role: 'admin', username: 'nick' },
+      admin: { telegramId: 7, ...ADMIN_ACCESS, username: 'nick' },
     });
 
     await reportActionCallback(ctx, {

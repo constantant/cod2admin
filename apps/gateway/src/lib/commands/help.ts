@@ -1,14 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import type { AdminRole } from '@cod2admin/admin-store';
+import { hasPermission, type Permission } from '@cod2admin/admin-store';
 import { InputFile } from 'grammy';
 import type { BotContext } from '../bot-context.js';
 import type { GatewayDeps } from '../deps.js';
 
 /**
- * `/help` and `/help_ru`: a short message with only the commands the caller's role uses most, and
- * the full guide (docs/BOT-HELP*.md) attached as a Markdown file. Until v1.9.1 the whole guide was
- * sent as chat messages — two long ones by then, too much to scroll past in a group.
+ * `/help` and `/help_ru`: a short message with only the commands the caller can use, and the full
+ * guide (docs/BOT-HELP*.md) attached as a Markdown file. Until v1.9.1 the whole guide was sent as
+ * chat messages — two long ones by then, too much to scroll past in a group.
  *
  * The guides live as real .md files, not inline strings — same reasoning as admin-store/ban-store
  * shipping their drizzle migrations alongside dist (docs/PLAN.md's "resolve relative to package
@@ -23,83 +23,78 @@ const HELP_RU_PATH = fileURLToPath(
 );
 
 export type HelpLanguage = 'en' | 'ru';
-/** `player` — anyone without a role: they only need `!report`. */
-export type HelpAudience = AdminRole | 'player';
 
-const ROLE_RANK: Record<HelpAudience, number> = {
-  player: 0,
-  moderator: 1,
-  admin: 2,
-  owner: 3,
-};
+/** `player` — anyone who isn't staff: they only need `!report`. */
+export type HelpAudience =
+  'player' | { isOwner: boolean; permissions: readonly Permission[] };
 
 interface HelpLine {
-  minRole: HelpAudience;
+  /** Absent: any staff member, whatever else they hold. */
+  permission?: Permission;
   en: string;
   ru: string;
 }
 
-/** The most-used commands, cheapest role first. Everything else is in the attached guide. */
+/** The most-used commands. Everything else is in the attached guide. */
 const SHORT_HELP_LINES: readonly HelpLine[] = [
   {
-    minRole: 'moderator',
     en: '/app — the server manager app',
     ru: '/app — приложение для управления сервером',
   },
   {
-    minRole: 'moderator',
     en: '/status — server, map, player count',
     ru: '/status — сервер, карта, число игроков',
   },
   {
-    minRole: 'moderator',
     en: '/players — who is on, with country and 🛡 VPN marks',
     ru: '/players — кто играет, страна и метка 🛡 VPN',
   },
-  { minRole: 'moderator', en: '/kick <id or name>', ru: '/kick <id или имя>' },
+  { permission: 'kick', en: '/kick <id or name>', ru: '/kick <id или имя>' },
   {
-    minRole: 'moderator',
+    permission: 'tempban',
     en: '/tempban <id> [30m|2h|7d] [reason]',
     ru: '/tempban <id> [30m|2h|7d] [причина]',
   },
   {
-    minRole: 'admin',
+    permission: 'ban',
     en: '/ban <id> [reason] — permanent',
     ru: '/ban <id> [причина] — навсегда',
   },
   {
-    minRole: 'admin',
+    permission: 'ban',
     en: '/unban <guid or ip>, /bans — active bans',
     ru: '/unban <guid или ip>, /bans — активные баны',
   },
   {
-    minRole: 'admin',
+    permission: 'maps',
     en: '/maps — switch map with buttons',
     ru: '/maps — смена карты кнопками',
   },
   {
-    minRole: 'admin',
+    permission: 'say',
     en: '/say <message> — to the game chat',
     ru: '/say <сообщение> — в игровой чат',
   },
   {
-    minRole: 'owner',
+    permission: 'audit',
     en: '/auditlog [n] — who did what',
     ru: '/auditlog [n] — кто что делал',
   },
   {
-    minRole: 'owner',
+    permission: 'update',
     en: '/update — install a new bot version',
     ru: '/update — поставить новую версию бота',
+  },
+  {
+    permission: 'admins.manage',
+    en: '/permit <id or reply> [kick, ban, …]',
+    ru: '/permit <id или ответ> [kick, ban, …]',
   },
 ];
 
 const TEXT = {
   en: {
-    title: (audience: HelpAudience) =>
-      audience === 'player'
-        ? 'cod2admin bot'
-        : `cod2admin bot — your role: ${audience}`,
+    title: 'cod2admin bot',
     report: [
       'Report a player from the in-game chat:',
       '!report <name> <reason>  e.g. !report Cheatr123 aimbot',
@@ -111,10 +106,7 @@ const TEXT = {
     fileName: 'cod2admin-help.md',
   },
   ru: {
-    title: (audience: HelpAudience) =>
-      audience === 'player'
-        ? 'cod2admin бот'
-        : `cod2admin бот — ваша роль: ${audience}`,
+    title: 'cod2admin бот',
     report: [
       'Пожаловаться на игрока из игрового чата:',
       '!report <имя> <причина>  например !report Cheatr123 aimbot',
@@ -127,22 +119,20 @@ const TEXT = {
   },
 } as const;
 
-/** The short `/help` text for one role — plain text, no Markdown, so Telegram can't reject it. */
+/** The short `/help` text — plain text, no Markdown, so Telegram can't reject it. */
 export function formatShortHelp(
   audience: HelpAudience,
   language: HelpLanguage,
 ): string {
   const text = TEXT[language];
   if (audience === 'player') {
-    return [text.title(audience), '', ...text.report, '', text.footer].join(
-      '\n',
-    );
+    return [text.title, '', ...text.report, '', text.footer].join('\n');
   }
   const commands = SHORT_HELP_LINES.filter(
-    (line) => ROLE_RANK[line.minRole] <= ROLE_RANK[audience],
+    (line) => !line.permission || hasPermission(audience, line.permission),
   ).map((line) => line[language]);
   return [
-    text.title(audience),
+    text.title,
     '',
     ...commands,
     text.reportShort,
@@ -162,7 +152,7 @@ async function sendHelp(
     telegramId === undefined
       ? undefined
       : await deps.adminStore.getAdmin(telegramId);
-  const short = formatShortHelp(admin?.role ?? 'player', language);
+  const short = formatShortHelp(admin ?? 'player', language);
   if (!ctx.replyWithDocument) {
     await ctx.reply(short);
     return;
@@ -177,7 +167,7 @@ async function sendHelp(
   );
 }
 
-/** `/help` — no role gate (players need it for !report); the short part depends on the caller's role. */
+/** `/help` — no permission gate (players need it for !report); the short part depends on the caller. */
 export async function helpCommand(
   ctx: BotContext,
   deps: Pick<GatewayDeps, 'adminStore'>,

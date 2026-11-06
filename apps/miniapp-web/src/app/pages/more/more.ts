@@ -5,7 +5,7 @@ import {
   inject,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import type { MiniAppRole } from '@cod2admin/miniapp-api';
+import type { Permission } from '@cod2admin/miniapp-api';
 import { SessionService } from '../../core/session';
 import { language, setLanguage, type Language } from '../../shared/i18n';
 import { Icon, type IconName } from '../../shared/icon';
@@ -16,7 +16,8 @@ interface Link {
   label: string;
   hint: string;
   icon: IconName;
-  minRole: MiniAppRole;
+  /** Absent: any staff member. */
+  permission?: Permission;
 }
 
 const LINKS: readonly Link[] = [
@@ -25,95 +26,92 @@ const LINKS: readonly Link[] = [
     label: 'Maps',
     hint: 'Switch map, restart, edit the rotation',
     icon: 'map',
-    minRole: 'admin',
+    permission: 'maps',
   },
   {
     path: '/bans',
     label: 'Bans',
     hint: 'Browse, edit, lift, add',
     icon: 'gavel',
-    minRole: 'admin',
+    permission: 'ban',
   },
   {
     path: '/mutes',
     label: 'Muted players',
     hint: 'A warning, then kicks for chatting',
     icon: 'mute',
-    minRole: 'moderator',
   },
   {
     path: '/notes',
     label: 'Notes & watchlist',
     hint: 'Keep an eye on a player',
     icon: 'eye',
-    minRole: 'moderator',
   },
   {
     path: '/servers',
     label: 'Servers',
     hint: 'Every server the bot manages',
     icon: 'dns',
-    minRole: 'moderator',
   },
   {
     path: '/settings',
     label: 'Server settings',
     hint: 'What the server reports',
     icon: 'tune',
-    minRole: 'admin',
+    permission: 'cvars.read',
   },
   {
     path: '/vpn',
     label: 'VPN rules',
     hint: 'Kick VPN players, exceptions, networks',
     icon: 'shield',
-    minRole: 'admin',
+    permission: 'vpn',
   },
   {
     path: '/presets',
     label: 'Presets',
     hint: 'One-tap reasons, lengths and messages',
     icon: 'bolt',
-    minRole: 'admin',
+    permission: 'presets',
   },
   {
     path: '/admins',
     label: 'Admins',
-    hint: 'Who has access, and their roles',
+    hint: 'Who has access, and what they can do',
     icon: 'badge',
-    minRole: 'admin',
+    permission: 'admins.manage',
   },
   {
     path: '/audit',
     label: 'Audit log',
     hint: 'Who did what',
     icon: 'history',
-    minRole: 'owner',
+    permission: 'audit',
   },
   {
     path: '/console',
     label: 'Console',
     hint: 'Raw RCON commands',
     icon: 'terminal',
-    minRole: 'owner',
+    permission: 'rcon',
   },
   {
     path: '/relays',
     label: 'Telegram routes',
     hint: 'How the bot reaches Telegram',
     icon: 'route',
-    minRole: 'owner',
+    permission: 'relays',
   },
   {
     path: '/update',
     label: 'Bot update',
     hint: 'Install a new version',
     icon: 'download',
-    minRole: 'owner',
+    permission: 'update',
   },
 ];
 
-/** Everything that doesn't fit in the bottom bar, for this person's role. */
+/** Everything that doesn't fit in the bottom bar, for what this person may do. */
 @Component({
   selector: 'c2a-more-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -141,9 +139,7 @@ const LINKS: readonly Link[] = [
       </div>
       @if (session.me(); as me) {
         <p class="muted about">
-          {{ me.user.username ? '@' + me.user.username : me.user.firstName }} ·
-          {{ me.role | t }} {{ '· ID' | t }} {{ me.user.id }} {{ '· bot v' | t
-          }}{{ me.version }}
+          {{ 'ID' | t }} {{ me.user.id }} {{ '· bot v' | t }}{{ me.version }}
         </p>
       }
     </div>
@@ -212,6 +208,6 @@ export class MorePage {
     }
   }
   protected readonly links = computed(() =>
-    LINKS.filter((link) => this.session.can(link.minRole)),
+    LINKS.filter((link) => this.session.can(link.permission)),
   );
 }

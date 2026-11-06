@@ -1,7 +1,11 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { AdminRole } from '@cod2admin/admin-store';
+import {
+  ADMIN_PERMISSIONS,
+  MODERATOR_PERMISSIONS,
+  PERMISSIONS,
+} from '@cod2admin/admin-store';
 import type { ChatEvent } from '@cod2admin/log-tailer';
 import {
   UdpQueryTimeoutError,
@@ -11,7 +15,12 @@ import type { FastifyInstance } from 'fastify';
 // Brings in the type of `injectWS`, which the plugin adds to every Fastify instance.
 import type {} from '@fastify/websocket';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { sampleAdmin } from '../lib/testing/fake-admin-store.js';
+import {
+  ADMIN_ACCESS,
+  MODERATOR_ACCESS,
+  OWNER_ACCESS,
+  sampleAdmin,
+} from '../lib/testing/fake-admin-store.js';
 import { sampleGuidBan } from '../lib/testing/fake-ban-store.js';
 import { createFakeDeps, type FakeDeps } from '../lib/testing/fake-deps.js';
 import type { LiveServerMessage } from './api-types.js';
@@ -39,14 +48,24 @@ function authHeader(telegramId: number, username = 'kim'): string {
   return `tma ${initData}`;
 }
 
+const STAFF = {
+  owner: OWNER_ACCESS,
+  admin: ADMIN_ACCESS,
+  moderator: MODERATOR_ACCESS,
+} as const;
+
 function setup(
-  roles: Record<number, AdminRole> = { 1: 'owner', 2: 'admin', 3: 'moderator' },
+  shapes: Record<number, keyof typeof STAFF> = {
+    1: 'owner',
+    2: 'admin',
+    3: 'moderator',
+  },
 ) {
   const fake = createFakeDeps();
-  const admins = Object.entries(roles).map(([id, role]) =>
+  const admins = Object.entries(shapes).map(([id, shape]) =>
     sampleAdmin({
       telegramId: Number(id),
-      role,
+      ...STAFF[shape],
       username: 'kim',
       firstName: 'Kim',
     }),
@@ -134,7 +153,7 @@ describe('Mini App server', () => {
       });
     });
 
-    it('returns the admin, their role and the servers', async () => {
+    it('returns the admin, their permissions and the servers', async () => {
       const fake = setup();
       fake.deps.logTailers.set('default', {
         on: vi.fn(),
@@ -151,7 +170,8 @@ describe('Mini App server', () => {
       expect(response.statusCode).toBe(200);
       expect(response.json()).toEqual({
         user: { id: 2, username: 'kim', firstName: 'Kim' },
-        role: 'admin',
+        isOwner: false,
+        permissions: [...ADMIN_PERMISSIONS],
         version: expect.any(String),
         servers: [{ alias: 'default', chat: true }],
         defaultServer: 'default',
@@ -165,11 +185,14 @@ describe('Mini App server', () => {
       const response = await server.inject({ method: 'GET', url: '/api/me' });
 
       expect(response.json()).toEqual(
-        expect.objectContaining({ role: 'owner' }),
+        expect.objectContaining({
+          isOwner: true,
+          permissions: [...PERMISSIONS],
+        }),
       );
     });
 
-    it("gates routes by the same roles as the chat commands: a moderator can't ban or open the console", async () => {
+    it("gates routes by permission: a moderator-shaped caller can't ban or open the console", async () => {
       const fake = setup();
       const server = await start(fake);
       const headers = { authorization: authHeader(3) };
@@ -188,7 +211,11 @@ describe('Mini App server', () => {
       });
 
       expect(ban.statusCode).toBe(403);
+      expect(ban.json().message).toBe('This needs the ban permission.');
       expect(consoleCall.statusCode).toBe(403);
+      expect(consoleCall.json().message).toBe(
+        'This needs the rcon permission.',
+      );
       expect(fake.rcon.kick).not.toHaveBeenCalled();
       expect(fake.rcon.rcon).not.toHaveBeenCalled();
     });
@@ -978,7 +1005,8 @@ describe('Mini App server', () => {
       );
       expect(await waitFor('ready')).toEqual({
         type: 'ready',
-        role: 'moderator',
+        isOwner: false,
+        permissions: [...MODERATOR_PERMISSIONS],
       });
 
       ws.send(JSON.stringify({ type: 'subscribe', server: 'default' }));

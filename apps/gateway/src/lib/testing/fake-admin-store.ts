@@ -1,4 +1,11 @@
-import type { Admin, AdminStore, Report } from '@cod2admin/admin-store';
+import {
+  ADMIN_PERMISSIONS,
+  MODERATOR_PERMISSIONS,
+  type Admin,
+  type AdminStore,
+  type Permission,
+  type Report,
+} from '@cod2admin/admin-store';
 import { vi, type Mock } from 'vitest';
 
 /**
@@ -10,7 +17,7 @@ export interface FakeAdminStore extends AdminStore {
   claimOwner: Mock<AdminStore['claimOwner']>;
   addAdmin: Mock<AdminStore['addAdmin']>;
   removeAdmin: Mock<AdminStore['removeAdmin']>;
-  setRole: Mock<AdminStore['setRole']>;
+  setPermissions: Mock<AdminStore['setPermissions']>;
   listAdmins: Mock<AdminStore['listAdmins']>;
   saveTelegramUser: Mock<AdminStore['saveTelegramUser']>;
   upsertServer: Mock<AdminStore['upsertServer']>;
@@ -67,16 +74,36 @@ export function sampleReport(overrides: Partial<Report> = {}): Report {
   };
 }
 
-/** Convenience for tests that just need to simulate "this actor is already an admin". */
+/** Stored shape of the owner. `hasPermission` is true for every id. */
+export const OWNER_ACCESS = {
+  isOwner: true,
+  permissions: [] as Permission[],
+};
+
+/** What the old admin role could do — a template, not a rank. */
+export const ADMIN_ACCESS = {
+  isOwner: false,
+  permissions: [...ADMIN_PERMISSIONS] as Permission[],
+};
+
+/** What the old moderator role could do. */
+export const MODERATOR_ACCESS = {
+  isOwner: false,
+  permissions: [...MODERATOR_PERMISSIONS] as Permission[],
+};
+
+/** Convenience for tests that just need to simulate "this actor is already an admin". Defaults to the owner. */
 export function sampleAdmin(overrides: Partial<Admin> = {}): Admin {
+  const { permissions, ...rest } = overrides;
   return {
     telegramId: 1,
-    role: 'owner',
+    isOwner: true,
     addedBy: null,
     addedAt: new Date(),
     username: null,
     firstName: null,
-    ...overrides,
+    ...rest,
+    permissions: [...(permissions ?? [])],
   };
 }
 
@@ -91,7 +118,7 @@ export function createFakeAdminStore(
     claimOwner: vi.fn().mockResolvedValue('claimed'),
     addAdmin: vi.fn().mockResolvedValue(undefined),
     removeAdmin: vi.fn().mockResolvedValue(undefined),
-    setRole: vi.fn().mockResolvedValue(undefined),
+    setPermissions: vi.fn().mockResolvedValue(undefined),
     listAdmins: vi.fn().mockResolvedValue(admins),
     saveTelegramUser: vi.fn().mockResolvedValue(undefined),
     upsertServer: vi.fn().mockResolvedValue(undefined),

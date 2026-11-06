@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createFakeCtx } from '../testing/fake-ctx.js';
 import { createFakeDeps } from '../testing/fake-deps.js';
+import { ADMIN_ACCESS } from '../testing/fake-admin-store.js';
 import type { Ban, BanIp } from '@cod2admin/ban-store';
 import { bansCommand, formatBansReport, formatBansSummary } from './bans.js';
 
@@ -35,7 +36,7 @@ describe('bansCommand', () => {
     ]);
     const ctx = createFakeCtx({
       match: '',
-      admin: { telegramId: 1, role: 'admin' },
+      admin: { telegramId: 1, ...ADMIN_ACCESS },
     });
 
     await bansCommand(ctx, deps);
@@ -59,7 +60,7 @@ describe('bansCommand', () => {
     const { deps } = createFakeDeps();
     const ctx = createFakeCtx({
       match: '',
-      admin: { telegramId: 1, role: 'admin' },
+      admin: { telegramId: 1, ...ADMIN_ACCESS },
     });
 
     await bansCommand(ctx, deps);
@@ -130,7 +131,7 @@ describe('long /bans', () => {
     banStore.listActiveIpBans.mockResolvedValue(ipBans);
     const ctx = createFakeCtx({
       match: '',
-      admin: { telegramId: 1, role: 'admin' },
+      admin: { telegramId: 1, ...ADMIN_ACCESS },
     });
 
     await bansCommand(ctx, deps);

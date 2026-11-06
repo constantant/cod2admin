@@ -1,4 +1,15 @@
-import type { Admin, AdminRole, AuditSource } from '@cod2admin/admin-store';
+import {
+  ADMIN_PERMISSIONS,
+  effectivePermissions,
+  MODERATOR_PERMISSIONS,
+  OWNER_GRANTED_PERMISSIONS,
+  PERMISSIONS,
+  PermissionError,
+  resolvePermissionGrant,
+  type Admin,
+  type AuditSource,
+  type Permission,
+} from '@cod2admin/admin-store';
 import { stripColorCodes } from '@cod2admin/rcon-client';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
@@ -61,7 +72,7 @@ import type {
   UpdateStatusResponse,
   VpnResponse,
 } from './api-types.js';
-import { hasRole, type MiniAppActor } from './auth.js';
+import { hasPermission, type MiniAppActor } from './auth.js';
 import { adminNames, serverParam } from './routes.js';
 import { toAuditEntryDto } from './routes-insight.js';
 import type { MiniAppState } from './state.js';
@@ -118,32 +129,50 @@ export function parsePresets(value: unknown): Presets {
   };
 }
 
-function assignableRoles(actor: MiniAppActor): AdminRole[] {
-  return actor.role === 'owner' ? ['admin', 'moderator'] : ['moderator'];
-}
-
-function parseRole(actor: MiniAppActor, role: unknown): AdminRole {
-  if (role === 'admin' && actor.role !== 'owner') {
-    throw new ApiProblem(
-      403,
-      'forbidden',
-      'Only the owner can grant the admin role.',
-    );
-  }
-  if (role !== 'admin' && role !== 'moderator') {
+function permissionList(value: unknown): string[] {
+  if (
+    !Array.isArray(value) ||
+    value.some((entry) => typeof entry !== 'string')
+  ) {
     throw new ApiProblem(
       400,
       'bad_request',
-      'Pick the admin or moderator role.',
+      'permissions must be a list of permission ids.',
     );
   }
-  return role;
+  return value;
+}
+
+/** `resolvePermissionGrant`, with unknown ids as 400 and grant refusals as 403. */
+function grantedPermissions(
+  actor: MiniAppActor,
+  targetPermissions: readonly Permission[],
+  requested: readonly string[],
+): Permission[] {
+  try {
+    return resolvePermissionGrant({
+      actorIsOwner: actor.isOwner,
+      actorPermissions: actor.permissions,
+      targetPermissions,
+      requested,
+    });
+  } catch (error) {
+    if (error instanceof PermissionError) {
+      const unknown = error.message.startsWith('Unknown permission:');
+      throw new ApiProblem(
+        unknown ? 400 : 403,
+        unknown ? 'bad_request' : 'forbidden',
+        error.message,
+      );
+    }
+    throw error;
+  }
 }
 
 /**
  * The rest of the chat bot's management commands, as an API: audit log, admins, servers, VPN
- * rules, Telegram routes, self-update, plus presets and cvars. Same role gates as the commands
- * (docs/PLAN.md §4), and the same stores, so a change made here shows there at once.
+ * rules, Telegram routes, self-update, plus presets and cvars. Same permission gates as the
+ * commands, and the same stores, so a change made here shows there at once.
  */
 export function registerManagementRoutes(
   app: FastifyInstance,
@@ -170,7 +199,7 @@ export function registerManagementRoutes(
 
   app.get(
     '/audit',
-    { config: { minRole: 'owner' } },
+    { config: { permission: 'audit' } },
     async (
       request: FastifyRequest<{
         Querystring: {
@@ -215,24 +244,25 @@ export function registerManagementRoutes(
 
   app.get(
     '/admins',
-    { config: { minRole: 'admin' } },
+    { config: { permission: 'admins.manage' } },
     async (request): Promise<AdminsResponse> => {
       const admins = await deps.adminStore.listAdmins();
       const names = await adminNames(deps);
-      const rank: Record<AdminRole, number> = {
-        owner: 0,
-        admin: 1,
-        moderator: 2,
-      };
       return {
         admins: [...admins]
-          .sort((a, b) => rank[a.role] - rank[b.role])
+          .sort((a, b) => {
+            if (a.isOwner !== b.isOwner) {
+              return a.isOwner ? -1 : 1;
+            }
+            return a.telegramId - b.telegramId;
+          })
           .map((admin) => {
             const by =
               admin.addedBy === null ? undefined : names.get(admin.addedBy);
             return {
               telegramId: admin.telegramId,
-              role: admin.role,
+              isOwner: admin.isOwner,
+              permissions: effectivePermissions(admin),
               username: admin.username,
               firstName: admin.firstName,
               addedBy:
@@ -247,14 +277,19 @@ export function registerManagementRoutes(
               manageable: mayManageAdmin(request.actor, admin),
             };
           }),
-        assignable: assignableRoles(request.actor),
+        catalog: [...PERMISSIONS],
+        templates: [
+          { id: 'moderator', permissions: [...MODERATOR_PERMISSIONS] },
+          { id: 'admin', permissions: [...ADMIN_PERMISSIONS] },
+        ],
+        ownerGranted: [...OWNER_GRANTED_PERMISSIONS],
       };
     },
   );
 
   app.post(
     '/admins',
-    { config: { minRole: 'admin', action: true } },
+    { config: { permission: 'admins.manage', action: true } },
     async (
       request: FastifyRequest<{ Body: AddAdminRequest }>,
       reply,
@@ -267,26 +302,30 @@ export function registerManagementRoutes(
           'Enter their numeric Telegram ID. They can see it by opening this app.',
         );
       }
-      const role = parseRole(request.actor, request.body.role);
+      const permissions = grantedPermissions(
+        request.actor,
+        [],
+        permissionList(request.body?.permissions),
+      );
       if (await deps.adminStore.getAdmin(telegramId)) {
         throw new ApiProblem(
           409,
           'already_admin',
-          `${telegramId} is on the list already.`,
+          `${telegramId} is already staff.`,
         );
       }
       await deps.adminStore.addAdmin(
         telegramId,
-        role,
+        permissions,
         request.actor.telegramId,
       );
       await audit(request, {
         action: 'addadmin',
         target: String(telegramId),
-        reason: role,
+        reason: permissions.join(','),
       });
       reply.code(201);
-      return { message: `Added ${telegramId} as ${role}.` };
+      return { message: `Added ${telegramId}.` };
     },
   );
 
@@ -314,28 +353,36 @@ export function registerManagementRoutes(
 
   app.patch(
     '/admins/:id',
-    { config: { minRole: 'admin', action: true } },
+    { config: { permission: 'admins.manage', action: true } },
     async (
       request: FastifyRequest<{
         Params: { id: string };
-        Body: { role?: string };
+        Body: { permissions?: string[] };
       }>,
     ): Promise<ActionResponse> => {
       const admin = await manageableAdmin(request);
-      const role = parseRole(request.actor, request.body?.role);
-      await deps.adminStore.setRole(admin.telegramId, role);
+      const permissions = grantedPermissions(
+        request.actor,
+        admin.permissions,
+        permissionList(request.body?.permissions),
+      );
+      await deps.adminStore.setPermissions(admin.telegramId, permissions);
       await audit(request, {
-        action: 'setrole',
+        action: 'permit',
         target: String(admin.telegramId),
-        reason: role,
+        reason: permissions.join(','),
       });
-      return { message: `Role changed to ${role}.` };
+      return {
+        message: permissions.length
+          ? `Permissions set to ${permissions.join(', ')}.`
+          : 'Permissions cleared.',
+      };
     },
   );
 
   app.delete(
     '/admins/:id',
-    { config: { minRole: 'admin', action: true } },
+    { config: { permission: 'admins.manage', action: true } },
     async (
       request: FastifyRequest<{ Params: { id: string } }>,
     ): Promise<ActionResponse> => {
@@ -357,7 +404,7 @@ export function registerManagementRoutes(
       deps.adminStore.getDefaultServer(),
     ]);
     const byAlias = new Map(configs.map((config) => [config.alias, config]));
-    const showConnection = hasRole(request.actor, 'admin');
+    const showConnection = hasPermission(request.actor, 'servers.view');
     const servers = await Promise.all(
       [...deps.rconClients].map(async ([alias, rcon]) => {
         const live = await rcon.getStatus().catch(() => null);
@@ -398,7 +445,7 @@ export function registerManagementRoutes(
 
   app.post(
     '/servers',
-    { config: { minRole: 'owner', action: true } },
+    { config: { permission: 'servers.manage', action: true } },
     async (
       request: FastifyRequest<{ Body: AddServerRequest }>,
       reply,
@@ -462,7 +509,7 @@ export function registerManagementRoutes(
 
   app.delete(
     '/servers/:server',
-    { config: { minRole: 'owner', action: true } },
+    { config: { permission: 'servers.manage', action: true } },
     async (
       request: FastifyRequest<{ Params: { server: string } }>,
     ): Promise<ActionResponse> => {
@@ -487,7 +534,7 @@ export function registerManagementRoutes(
 
   app.post(
     '/servers/:server/default',
-    { config: { minRole: 'admin', action: true } },
+    { config: { permission: 'servers.assign', action: true } },
     async (
       request: FastifyRequest<{ Params: { server: string } }>,
     ): Promise<ActionResponse> => {
@@ -505,7 +552,7 @@ export function registerManagementRoutes(
 
   app.post(
     '/servers/:server/log',
-    { config: { minRole: 'owner', action: true } },
+    { config: { permission: 'servers.manage', action: true } },
     async (
       request: FastifyRequest<{
         Params: { server: string };
@@ -605,7 +652,7 @@ export function registerManagementRoutes(
 
   app.get(
     '/servers/:server/cvars',
-    { config: { minRole: 'admin' } },
+    { config: { permission: 'cvars.read' } },
     async (
       request: FastifyRequest<{ Params: { server: string } }>,
     ): Promise<CvarsResponse> => {
@@ -623,7 +670,7 @@ export function registerManagementRoutes(
 
   app.post(
     '/servers/:server/cvars',
-    { config: { minRole: 'owner', action: true } },
+    { config: { permission: 'cvars.write', action: true } },
     async (
       request: FastifyRequest<{
         Params: { server: string };
@@ -674,7 +721,7 @@ export function registerManagementRoutes(
 
   app.put(
     '/presets',
-    { config: { minRole: 'admin', action: true } },
+    { config: { permission: 'presets', action: true } },
     async (request: FastifyRequest<{ Body: Presets }>): Promise<Presets> => {
       const presets = parsePresets(request.body);
       await deps.adminStore.setSetting(PRESETS_SETTING_KEY, presets);
@@ -718,11 +765,11 @@ export function registerManagementRoutes(
     await audit(request, { action: 'vpnnets', detailJson });
   };
 
-  app.get('/vpn', { config: { minRole: 'admin' } }, vpnResponse);
+  app.get('/vpn', { config: { permission: 'vpn' } }, vpnResponse);
 
   app.put(
     '/vpn/kick',
-    { config: { minRole: 'admin', action: true } },
+    { config: { permission: 'vpn', action: true } },
     async (
       request: FastifyRequest<{ Body: { enabled?: boolean } }>,
     ): Promise<VpnResponse> => {
@@ -749,7 +796,7 @@ export function registerManagementRoutes(
 
   app.post(
     '/vpn/exempt',
-    { config: { minRole: 'admin', action: true } },
+    { config: { permission: 'vpn', action: true } },
     async (
       request: FastifyRequest<{ Body: { player?: string } }>,
     ): Promise<VpnResponse> => {
@@ -769,7 +816,7 @@ export function registerManagementRoutes(
 
   app.post(
     '/vpn/exempt/remove',
-    { config: { minRole: 'admin', action: true } },
+    { config: { permission: 'vpn', action: true } },
     async (
       request: FastifyRequest<{ Body: { player?: string } }>,
     ): Promise<VpnResponse> => {
@@ -789,7 +836,7 @@ export function registerManagementRoutes(
 
   app.post(
     '/vpn/networks',
-    { config: { minRole: 'admin', action: true } },
+    { config: { permission: 'vpn', action: true } },
     async (
       request: FastifyRequest<{ Body: { value?: string } }>,
     ): Promise<VpnResponse> => {
@@ -838,7 +885,7 @@ export function registerManagementRoutes(
 
   app.delete(
     '/vpn/networks/:asn',
-    { config: { minRole: 'admin', action: true } },
+    { config: { permission: 'vpn', action: true } },
     async (
       request: FastifyRequest<{ Params: { asn: string } }>,
     ): Promise<VpnResponse> => {
@@ -883,11 +930,11 @@ export function registerManagementRoutes(
     await audit(request, { action: 'relays', detailJson });
   };
 
-  app.get('/relays', { config: { minRole: 'owner' } }, relaysResponse);
+  app.get('/relays', { config: { permission: 'relays' } }, relaysResponse);
 
   app.post(
     '/relays/test',
-    { config: { minRole: 'owner', action: true } },
+    { config: { permission: 'relays', action: true } },
     async (): Promise<RelayTestResponse> => {
       const { settings } = await loadRouteSettings(deps);
       const routes = routesFrom(settings);
@@ -910,7 +957,7 @@ export function registerManagementRoutes(
 
   app.post(
     '/relays',
-    { config: { minRole: 'owner', action: true } },
+    { config: { permission: 'relays', action: true } },
     async (
       request: FastifyRequest<{ Body: { url?: string } }>,
     ): Promise<RelaysResponse> => {
@@ -948,7 +995,7 @@ export function registerManagementRoutes(
 
   app.post(
     '/relays/remove',
-    { config: { minRole: 'owner', action: true } },
+    { config: { permission: 'relays', action: true } },
     async (
       request: FastifyRequest<{ Body: { url?: string } }>,
     ): Promise<RelaysResponse> => {
@@ -972,7 +1019,7 @@ export function registerManagementRoutes(
 
   app.put(
     '/relays/direct',
-    { config: { minRole: 'owner', action: true } },
+    { config: { permission: 'relays', action: true } },
     async (
       request: FastifyRequest<{ Body: { direct?: boolean } }>,
     ): Promise<RelaysResponse> => {
@@ -995,7 +1042,7 @@ export function registerManagementRoutes(
 
   app.post(
     '/relays/reset',
-    { config: { minRole: 'owner', action: true } },
+    { config: { permission: 'relays', action: true } },
     async (request): Promise<RelaysResponse> => {
       await deps.adminStore.deleteSetting(ROUTES_SETTING_KEY);
       deps.telegramRoutes.router.setRoutes(
@@ -1010,7 +1057,7 @@ export function registerManagementRoutes(
 
   app.get(
     '/update',
-    { config: { minRole: 'owner' } },
+    { config: { permission: 'update' } },
     async (): Promise<UpdateStatusResponse> => {
       const running = getRunningVersion();
       const base = {
@@ -1041,7 +1088,7 @@ export function registerManagementRoutes(
 
   app.post(
     '/update',
-    { config: { minRole: 'owner', action: true } },
+    { config: { permission: 'update', action: true } },
     async (
       request: FastifyRequest<{ Body: ApplyUpdateRequest }>,
     ): Promise<ActionResponse> => {

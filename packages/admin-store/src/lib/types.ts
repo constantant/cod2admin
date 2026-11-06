@@ -1,8 +1,16 @@
-export type AdminRole = 'owner' | 'admin' | 'moderator';
+import type { Permission } from './permissions.js';
+
+export type { Permission } from './permissions.js';
 
 export interface Admin {
   telegramId: number;
-  role: AdminRole;
+  /** The one account `/claim` or `OWNER_TELEGRAM_ID` created. Has every permission. */
+  isOwner: boolean;
+  /**
+   * Ids this person was granted. Empty for the owner — `isOwner` is what grants them,
+   * so a new permission does not need a row.
+   */
+  permissions: Permission[];
   addedBy: number | null;
   addedAt: Date;
   /** Last-seen Telegram @username (without the @) — null until they use the bot, or if they have none. */
@@ -168,9 +176,18 @@ export interface AdminStore {
   getAdmin(telegramId: number): Promise<Admin | undefined>;
   /** Race-safe per §4 — backed by a DB-level unique constraint, not check-then-insert. */
   claimOwner(telegramId: number): Promise<ClaimOwnerResult>;
-  addAdmin(telegramId: number, role: AdminRole, addedBy: number): Promise<void>;
+  /** Adds a non-owner. Pass an empty list when they should only be able to read. */
+  addAdmin(
+    telegramId: number,
+    permissions: readonly Permission[],
+    addedBy: number,
+  ): Promise<void>;
   removeAdmin(telegramId: number): Promise<void>;
-  setRole(telegramId: number, role: AdminRole): Promise<void>;
+  /** Replaces the stored grants. Does not accept the owner; callers refuse that first. */
+  setPermissions(
+    telegramId: number,
+    permissions: readonly Permission[],
+  ): Promise<void>;
   listAdmins(): Promise<Admin[]>;
   /** Upserts a user's last-seen @username/first name (shown instead of bare IDs). */
   saveTelegramUser(user: TelegramUser): Promise<void>;

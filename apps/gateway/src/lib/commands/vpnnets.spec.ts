@@ -1,17 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createFakeCtx } from '../testing/fake-ctx.js';
 import { createFakeDeps } from '../testing/fake-deps.js';
+import { ADMIN_ACCESS } from '../testing/fake-admin-store.js';
 import { VPN_NETWORKS_SETTING_KEY, VpnRangeDatabase } from '../vpn-ranges.js';
 import { vpnNetsCommand } from './vpnnets.js';
 
-const ADMIN = { telegramId: 7, role: 'admin' as const };
+const ADMIN = { telegramId: 7, ...ADMIN_ACCESS };
 const VPN_IP = '2.27.5.10';
 
 function setup(stored?: unknown) {
   const fake = createFakeDeps();
   fake.adminStore.getSetting.mockResolvedValue(stored);
   fake.deps.provider = {
-    lookup: (ip) => (ip === VPN_IP ? 'Emil Vitukhnovskii trading as Great Flower' : undefined),
+    lookup: (ip) =>
+      ip === VPN_IP ? 'Emil Vitukhnovskii trading as Great Flower' : undefined,
     asn: (ip) => (ip === VPN_IP ? 202226 : undefined),
   };
   const vpn = new VpnRangeDatabase((ip) => fake.deps.provider.asn(ip));
@@ -29,7 +31,10 @@ function replyText(c: ReturnType<typeof ctx>): string {
 
 describe('vpnNetsCommand', () => {
   it('lists the saved networks with their provider names', async () => {
-    const { deps } = setup([{ asn: 202226, name: 'Great Flower' }, { asn: 9009 }]);
+    const { deps } = setup([
+      { asn: 202226, name: 'Great Flower' },
+      { asn: 9009 },
+    ]);
     const c = ctx('');
 
     await vpnNetsCommand(c, deps);
@@ -54,23 +59,36 @@ describe('vpnNetsCommand', () => {
 
     await vpnNetsCommand(c, deps);
 
-    expect(adminStore.setSetting).toHaveBeenCalledWith(VPN_NETWORKS_SETTING_KEY, [
-      { asn: 202226, name: 'Emil Vitukhnovskii trading as Great Flower' },
-    ]);
+    expect(adminStore.setSetting).toHaveBeenCalledWith(
+      VPN_NETWORKS_SETTING_KEY,
+      [{ asn: 202226, name: 'Emil Vitukhnovskii trading as Great Flower' }],
+    );
     expect(vpn.lookup(VPN_IP)).toBe('provider');
     expect(adminStore.recordAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'vpnnets', actorTelegramId: 7, detailJson: { add: 202226 } }),
+      expect.objectContaining({
+        action: 'vpnnets',
+        actorTelegramId: 7,
+        detailJson: { add: 202226 },
+      }),
     );
-    expect(replyText(c)).toBe('Players on AS202226 — Emil Vitukhnovskii trading as Great Flower are now shown as 🛡 VPN.');
+    expect(replyText(c)).toBe(
+      'Players on AS202226 — Emil Vitukhnovskii trading as Great Flower are now shown as 🛡 VPN.',
+    );
   });
 
-  it.each(['AS202226', 'as202226', '202226'])('adds a network by ASN written as %s', async (arg) => {
-    const { deps, adminStore } = setup([{ asn: 9009 }]);
+  it.each(['AS202226', 'as202226', '202226'])(
+    'adds a network by ASN written as %s',
+    async (arg) => {
+      const { deps, adminStore } = setup([{ asn: 9009 }]);
 
-    await vpnNetsCommand(ctx(`add ${arg}`), deps);
+      await vpnNetsCommand(ctx(`add ${arg}`), deps);
 
-    expect(adminStore.setSetting).toHaveBeenCalledWith(VPN_NETWORKS_SETTING_KEY, [{ asn: 9009 }, { asn: 202226 }]);
-  });
+      expect(adminStore.setSetting).toHaveBeenCalledWith(
+        VPN_NETWORKS_SETTING_KEY,
+        [{ asn: 9009 }, { asn: 202226 }],
+      );
+    },
+  );
 
   it('refuses duplicates, unknown IPs and junk without saving', async () => {
     for (const [match, expected] of [
@@ -91,13 +109,19 @@ describe('vpnNetsCommand', () => {
   });
 
   it('removes a network and stops flagging it', async () => {
-    const { deps, adminStore, vpn } = setup([{ asn: 202226, name: 'Great Flower' }, { asn: 9009 }]);
+    const { deps, adminStore, vpn } = setup([
+      { asn: 202226, name: 'Great Flower' },
+      { asn: 9009 },
+    ]);
     vpn.setNetworks([202226, 9009]);
     const c = ctx('remove AS202226');
 
     await vpnNetsCommand(c, deps);
 
-    expect(adminStore.setSetting).toHaveBeenCalledWith(VPN_NETWORKS_SETTING_KEY, [{ asn: 9009 }]);
+    expect(adminStore.setSetting).toHaveBeenCalledWith(
+      VPN_NETWORKS_SETTING_KEY,
+      [{ asn: 9009 }],
+    );
     expect(vpn.lookup(VPN_IP)).toBeUndefined();
     expect(replyText(c)).toBe('AS202226 is no longer marked as VPN.');
   });

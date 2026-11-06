@@ -20,7 +20,10 @@ function markerValue(markerContents: string, key: string): string | undefined {
 }
 
 function parseChatId(markerContents: string): number | undefined {
-  const value = Number.parseInt(markerValue(markerContents, 'CHAT_ID') ?? '', 10);
+  const value = Number.parseInt(
+    markerValue(markerContents, 'CHAT_ID') ?? '',
+    10,
+  );
   return Number.isNaN(value) ? undefined : value;
 }
 
@@ -70,7 +73,10 @@ export async function checkPendingUpdateOnBoot(
   if (!deps.updateConfig) {
     return;
   }
-  const markerPath = path.join(deps.updateConfig.stagingDir, 'pending-update.env');
+  const markerPath = path.join(
+    deps.updateConfig.stagingDir,
+    'pending-update.env',
+  );
 
   let contents: string;
   try {
@@ -98,7 +104,9 @@ async function sendWithRetries(
   for (let attempt = 0; attempt <= delays.length; attempt += 1) {
     try {
       // grammy declares its own AbortSignal type; the standard one works at runtime.
-      const signal = AbortSignal.timeout(timeoutMs) as unknown as Parameters<Bot['api']['sendMessage']>[3];
+      const signal = AbortSignal.timeout(timeoutMs) as unknown as Parameters<
+        Bot['api']['sendMessage']
+      >[3];
       await bot.api.sendMessage(chatId, text, undefined, signal);
       return true;
     } catch (error) {
@@ -129,18 +137,28 @@ async function reportRolledBackUpdate(
   if (!deps.updateConfig) {
     return;
   }
-  const logPath = path.join(path.dirname(deps.updateConfig.stagingDir), 'update.log');
+  const logPath = path.join(
+    path.dirname(deps.updateConfig.stagingDir),
+    'update.log',
+  );
   const lines = await readFile(logPath, 'utf8').then(
     (text) => text.split('\n'),
     () => [],
   );
-  const latestStart = lines.map((line) => line.includes(' Applying ')).lastIndexOf(true);
+  const latestStart = lines
+    .map((line) => line.includes(' Applying '))
+    .lastIndexOf(true);
   const latest = lines.slice(Math.max(latestStart, 0));
   const failure = latest.find((line) => /Update to \S+ FAILED/.test(line));
-  if (!failure || (await deps.adminStore.getSetting(REPORTED_FAILURE_SETTING_KEY)) === failure) {
+  if (
+    !failure ||
+    (await deps.adminStore.getSetting(REPORTED_FAILURE_SETTING_KEY)) === failure
+  ) {
     return;
   }
-  const owner = (await deps.adminStore.listAdmins()).find((admin) => admin.role === 'owner');
+  const owner = (await deps.adminStore.listAdmins()).find(
+    (admin) => admin.isOwner,
+  );
   if (!owner) {
     return;
   }

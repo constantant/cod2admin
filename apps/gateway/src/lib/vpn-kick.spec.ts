@@ -1,14 +1,25 @@
 import type { StatusPlayer } from '@cod2admin/rcon-client';
 import { describe, expect, it, vi } from 'vitest';
-import { createFakeAdminStore } from './testing/fake-admin-store.js';
 import { asRconClient, createFakeRcon } from './testing/fake-rcon.js';
-import { normalizeExempt, parseVpnKickSettings, VpnKicker } from './vpn-kick.js';
+import { createFakeAdminStore } from './testing/fake-admin-store.js';
+import {
+  normalizeExempt,
+  parseVpnKickSettings,
+  VpnKicker,
+} from './vpn-kick.js';
 import type { VpnKind } from './vpn-ranges.js';
 
 const VPN_IP = '185.93.105.43';
 const PLAYERS: StatusPlayer[] = [
   { num: 0, score: 1, ping: 50, name: 'const^7', ip: VPN_IP, guid: '0' },
-  { num: 1, score: 9, ping: 60, name: 'Regular', ip: '188.19.61.1', guid: '716922' },
+  {
+    num: 1,
+    score: 9,
+    ping: 60,
+    name: 'Regular',
+    ip: '188.19.61.1',
+    guid: '716922',
+  },
 ];
 
 function setup(kinds: Record<string, VpnKind> = { [VPN_IP]: 'hosting' }) {
@@ -22,7 +33,13 @@ function setup(kinds: Record<string, VpnKind> = { [VPN_IP]: 'hosting' }) {
     rconClients: new Map([['ctfrussia', asRconClient(rcon)]]),
     adminStore,
   };
-  return { rcon, adminStore, kicker, deps, advance: (ms: number) => (now += ms) };
+  return {
+    rcon,
+    adminStore,
+    kicker,
+    deps,
+    advance: (ms: number) => (now += ms),
+  };
 }
 
 describe('VpnKicker', () => {
@@ -42,7 +59,9 @@ describe('VpnKicker', () => {
 
     expect(rcon.kick).toHaveBeenCalledTimes(1);
     expect(rcon.kick).toHaveBeenCalledWith(0, 'const^7');
-    expect(rcon.say).toHaveBeenCalledWith('const kicked: VPN/proxy is not allowed here. Turn it off to play.');
+    expect(rcon.say).toHaveBeenCalledWith(
+      'const kicked: VPN/proxy is not allowed here. Turn it off to play.',
+    );
     expect(adminStore.recordAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'vpn_kick',
@@ -71,7 +90,10 @@ describe('VpnKicker', () => {
   });
 
   it('never kicks exempt players, by GUID or by colour-stripped name', async () => {
-    const { rcon, kicker, deps } = setup({ [VPN_IP]: 'vpn', '188.19.61.1': 'hosting' });
+    const { rcon, kicker, deps } = setup({
+      [VPN_IP]: 'vpn',
+      '188.19.61.1': 'hosting',
+    });
     kicker.setSettings({ enabled: true, exempt: ['716922', 'const'] });
 
     await kicker.sweep(deps);
@@ -88,21 +110,34 @@ describe('VpnKicker', () => {
       ['ctfrussia', asRconClient(rcon)],
     ]);
     kicker.setSettings({ enabled: true, exempt: [] });
-    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const error = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
 
     await kicker.sweep(deps);
 
     expect(rcon.kick).toHaveBeenCalledTimes(1);
-    expect(error).toHaveBeenCalledWith(expect.stringContaining('"broken"'), expect.any(Error));
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining('"broken"'),
+      expect.any(Error),
+    );
     error.mockRestore();
   });
 });
 
 describe('settings helpers', () => {
   it('parses stored settings defensively', () => {
-    expect(parseVpnKickSettings({ enabled: true, exempt: ['716922', 3, ''] })).toEqual({ enabled: true, exempt: ['716922'] });
-    expect(parseVpnKickSettings({ enabled: 'yes' })).toEqual({ enabled: false, exempt: [] });
-    expect(parseVpnKickSettings(undefined)).toEqual({ enabled: false, exempt: [] });
+    expect(
+      parseVpnKickSettings({ enabled: true, exempt: ['716922', 3, ''] }),
+    ).toEqual({ enabled: true, exempt: ['716922'] });
+    expect(parseVpnKickSettings({ enabled: 'yes' })).toEqual({
+      enabled: false,
+      exempt: [],
+    });
+    expect(parseVpnKickSettings(undefined)).toEqual({
+      enabled: false,
+      exempt: [],
+    });
   });
 
   it('stores a GUID as-is and a name lower-cased without colour codes', () => {

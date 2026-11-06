@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { createFakeCtx } from '../testing/fake-ctx.js';
 import { createFakeDeps } from '../testing/fake-deps.js';
 import { asRconClient, createFakeRcon } from '../testing/fake-rcon.js';
+import { OWNER_ACCESS } from '../testing/fake-admin-store.js';
 import { removeServerCommand } from './removeserver.js';
 
-const OWNER = { telegramId: 1, role: 'owner' as const };
+const OWNER = { telegramId: 1, ...OWNER_ACCESS };
 
 describe('removeServerCommand', () => {
   it('removes an added server from the store and from the live client map', async () => {
@@ -16,7 +17,9 @@ describe('removeServerCommand', () => {
 
     expect(adminStore.removeServer).toHaveBeenCalledWith('ctf2');
     expect(deps.rconClients.has('ctf2')).toBe(false);
-    expect(adminStore.recordAuditLog).toHaveBeenCalledWith(expect.objectContaining({ action: 'removeserver', target: 'ctf2' }));
+    expect(adminStore.recordAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'removeserver', target: 'ctf2' }),
+    );
     expect(ctx.reply).toHaveBeenCalledWith('Server "ctf2" removed.');
   });
 
@@ -28,7 +31,9 @@ describe('removeServerCommand', () => {
 
     expect(adminStore.removeServer).not.toHaveBeenCalled();
     expect(deps.rconClients.has('default')).toBe(true);
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('comes from the bot\'s config file'));
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining("comes from the bot's config file"),
+    );
   });
 
   it('rejects an unknown alias and shows usage when none is given', async () => {
@@ -40,7 +45,9 @@ describe('removeServerCommand', () => {
     await removeServerCommand(empty, deps);
 
     expect(adminStore.removeServer).not.toHaveBeenCalled();
-    expect(unknown.reply).toHaveBeenCalledWith(expect.stringContaining('Unknown server "nope"'));
+    expect(unknown.reply).toHaveBeenCalledWith(
+      expect.stringContaining('Unknown server "nope"'),
+    );
     expect(empty.reply).toHaveBeenCalledWith('Usage: /removeserver <alias>');
   });
 });

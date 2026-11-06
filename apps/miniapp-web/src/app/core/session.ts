@@ -1,12 +1,7 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
-import type { MeResponse, MiniAppRole } from '@cod2admin/miniapp-api';
+import type { MeResponse, Permission } from '@cod2admin/miniapp-api';
 import { ApiService, toApiFailure, type ApiFailure } from './api';
 
-const ROLE_RANK: Record<MiniAppRole, number> = {
-  moderator: 1,
-  admin: 2,
-  owner: 3,
-};
 const SERVER_KEY = 'cod2admin.server';
 
 function readStoredServer(): string | null {
@@ -36,7 +31,6 @@ export class SessionService {
   readonly me = signal<MeResponse | null>(null);
   readonly failure = signal<ApiFailure | null>(null);
   readonly server = signal<string>('');
-  readonly role = computed(() => this.me()?.role ?? null);
   readonly serverInfo = computed(
     () =>
       this.me()?.servers.find(
@@ -67,8 +61,15 @@ export class SessionService {
     storeServer(alias);
   }
 
-  can(minRole: MiniAppRole): boolean {
-    const role = this.role();
-    return role !== null && ROLE_RANK[role] >= ROLE_RANK[minRole];
+  /**
+   * No id: any staff member (a loaded session). Otherwise, whether `me.permissions`
+   * includes it — the owner already has every id, so this does not look at `isOwner`.
+   */
+  can(permission?: Permission): boolean {
+    const me = this.me();
+    return (
+      me !== null &&
+      (permission === undefined || me.permissions.includes(permission))
+    );
   }
 }

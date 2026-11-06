@@ -1,10 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DIRECT_TELEGRAM_ROOT, ROUTES_SETTING_KEY } from '../telegram-routes.js';
+import {
+  DIRECT_TELEGRAM_ROOT,
+  ROUTES_SETTING_KEY,
+} from '../telegram-routes.js';
 import { createFakeCtx } from '../testing/fake-ctx.js';
 import { createFakeDeps } from '../testing/fake-deps.js';
+import { OWNER_ACCESS } from '../testing/fake-admin-store.js';
 import { relaysCommand } from './relays.js';
 
-const OWNER = { telegramId: 1, role: 'owner' as const };
+const OWNER = { telegramId: 1, ...OWNER_ACCESS };
 const RELAY = 'https://a.deno.dev';
 
 function setup(stored?: unknown) {
@@ -27,7 +31,9 @@ describe('relaysCommand', () => {
     await relaysCommand(c, deps);
 
     const text = vi.mocked(c.reply).mock.calls[0][0];
-    expect(text).toContain('Connected to Telegram via: direct (api.telegram.org)');
+    expect(text).toContain(
+      'Connected to Telegram via: direct (api.telegram.org)',
+    );
     expect(text).toContain('1. direct (api.telegram.org)  ← in use');
     expect(text).toContain(`2. ${RELAY}`);
     expect(text).toContain('These are the defaults.');
@@ -39,34 +45,57 @@ describe('relaysCommand', () => {
 
     await relaysCommand(c, deps);
 
-    expect(deps.telegramRoutes.probe).toHaveBeenCalledWith('https://new.workers.dev');
+    expect(deps.telegramRoutes.probe).toHaveBeenCalledWith(
+      'https://new.workers.dev',
+    );
     expect(adminStore.setSetting).toHaveBeenCalledWith(ROUTES_SETTING_KEY, {
       direct: true,
       relays: [RELAY, 'https://new.workers.dev'],
     });
-    expect(deps.telegramRoutes.router.all).toEqual([DIRECT_TELEGRAM_ROOT, RELAY, 'https://new.workers.dev']);
-    expect(adminStore.recordAuditLog).toHaveBeenCalledWith(expect.objectContaining({ action: 'relays' }));
-    expect(c.reply).toHaveBeenCalledWith(expect.stringContaining('Added https://new.workers.dev'));
+    expect(deps.telegramRoutes.router.all).toEqual([
+      DIRECT_TELEGRAM_ROOT,
+      RELAY,
+      'https://new.workers.dev',
+    ]);
+    expect(adminStore.recordAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'relays' }),
+    );
+    expect(c.reply).toHaveBeenCalledWith(
+      expect.stringContaining('Added https://new.workers.dev'),
+    );
   });
 
-  it('refuses a relay that can\'t reach Telegram', async () => {
+  it("refuses a relay that can't reach Telegram", async () => {
     const { deps, adminStore } = setup();
-    deps.telegramRoutes.probe = async () => ({ ok: false, error: 'no answer within 10s' });
+    deps.telegramRoutes.probe = async () => ({
+      ok: false,
+      error: 'no answer within 10s',
+    });
     const c = ctx('add https://broken.example');
 
     await relaysCommand(c, deps);
 
     expect(adminStore.setSetting).not.toHaveBeenCalled();
-    expect(c.reply).toHaveBeenCalledWith(expect.stringContaining("Couldn't reach Telegram through https://broken.example"));
+    expect(c.reply).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "Couldn't reach Telegram through https://broken.example",
+      ),
+    );
   });
 
   it('removes a relay by its number in the list', async () => {
-    const { deps, adminStore } = setup({ direct: true, relays: [RELAY, 'https://b.workers.dev'] });
+    const { deps, adminStore } = setup({
+      direct: true,
+      relays: [RELAY, 'https://b.workers.dev'],
+    });
     const c = ctx('remove 2');
 
     await relaysCommand(c, deps);
 
-    expect(adminStore.setSetting).toHaveBeenCalledWith(ROUTES_SETTING_KEY, { direct: true, relays: ['https://b.workers.dev'] });
+    expect(adminStore.setSetting).toHaveBeenCalledWith(ROUTES_SETTING_KEY, {
+      direct: true,
+      relays: ['https://b.workers.dev'],
+    });
   });
 
   it('never leaves the bot without a route', async () => {
@@ -74,10 +103,15 @@ describe('relaysCommand', () => {
 
     const remove = ctx(`remove ${RELAY}`);
     await relaysCommand(remove, deps);
-    expect(remove.reply).toHaveBeenCalledWith(expect.stringContaining('only route left'));
+    expect(remove.reply).toHaveBeenCalledWith(
+      expect.stringContaining('only route left'),
+    );
 
     const noRelays = setup({ direct: true, relays: [] });
-    noRelays.adminStore.getSetting.mockResolvedValue({ direct: true, relays: [] });
+    noRelays.adminStore.getSetting.mockResolvedValue({
+      direct: true,
+      relays: [],
+    });
     const directOff = ctx('direct off');
     await relaysCommand(directOff, noRelays.deps);
     expect(adminStore.setSetting).not.toHaveBeenCalled();
@@ -88,18 +122,27 @@ describe('relaysCommand', () => {
 
     await relaysCommand(ctx('direct off'), deps);
 
-    expect(adminStore.setSetting).toHaveBeenCalledWith(ROUTES_SETTING_KEY, { direct: false, relays: [RELAY] });
+    expect(adminStore.setSetting).toHaveBeenCalledWith(ROUTES_SETTING_KEY, {
+      direct: false,
+      relays: [RELAY],
+    });
     expect(deps.telegramRoutes.router.all).toEqual([RELAY]);
   });
 
   it('resets to the defaults', async () => {
-    const { deps, adminStore } = setup({ direct: false, relays: ['https://b.workers.dev'] });
+    const { deps, adminStore } = setup({
+      direct: false,
+      relays: ['https://b.workers.dev'],
+    });
     deps.telegramRoutes.router.setRoutes(['https://b.workers.dev']);
 
     await relaysCommand(ctx('reset'), deps);
 
     expect(adminStore.deleteSetting).toHaveBeenCalledWith(ROUTES_SETTING_KEY);
-    expect(deps.telegramRoutes.router.all).toEqual([DIRECT_TELEGRAM_ROOT, RELAY]);
+    expect(deps.telegramRoutes.router.all).toEqual([
+      DIRECT_TELEGRAM_ROOT,
+      RELAY,
+    ]);
   });
 
   it('tests every route', async () => {
@@ -109,7 +152,11 @@ describe('relaysCommand', () => {
     await relaysCommand(c, deps);
 
     expect(c.reply).toHaveBeenCalledWith(
-      ['Route check:', '1. direct (api.telegram.org) — ✅ 50 ms', `2. ${RELAY} — ✅ 50 ms`].join('\n'),
+      [
+        'Route check:',
+        '1. direct (api.telegram.org) — ✅ 50 ms',
+        `2. ${RELAY} — ✅ 50 ms`,
+      ].join('\n'),
     );
   });
 });

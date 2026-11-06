@@ -6,9 +6,10 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeCtx } from '../testing/fake-ctx.js';
 import { createFakeDeps } from '../testing/fake-deps.js';
+import { OWNER_ACCESS } from '../testing/fake-admin-store.js';
 import { findLogCommand, type FindLogEnv } from './findlog.js';
 
-const OWNER = { telegramId: 1, role: 'owner' as const };
+const OWNER = { telegramId: 1, ...OWNER_ACCESS };
 const LIVE = { sv_hostname: 'CTF', mapname: 'mp_toujane', g_gametype: 'ctf' };
 const LOG =
   '  0:00 InitGame: \\g_gametype\\ctf\\mapname\\mp_toujane\\sv_hostname\\CTF\n';
@@ -55,12 +56,17 @@ describe('findLogCommand', () => {
 
     await findLogCommand(ctx, deps, env);
 
-    expect(adminStore.setServerLogPath).toHaveBeenCalledWith('default', logPath);
+    expect(adminStore.setServerLogPath).toHaveBeenCalledWith(
+      'default',
+      logPath,
+    );
     expect(env.startTailer).toHaveBeenCalledWith(saved);
     expect(adminStore.recordAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'setlogpath', target: logPath }),
     );
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('/bindserver default'));
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('/bindserver default'),
+    );
   });
 
   it('replaces a tailer that is already running', async () => {
@@ -73,7 +79,9 @@ describe('findLogCommand', () => {
     await findLogCommand(ctx, deps, env);
 
     expect(stop).toHaveBeenCalledOnce();
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('go to the bound chat'));
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('go to the bound chat'),
+    );
   });
 
   it("refuses a file that isn't this server's log", async () => {
@@ -87,7 +95,9 @@ describe('findLogCommand', () => {
     await findLogCommand(ctx, deps, env);
 
     expect(adminStore.setServerLogPath).not.toHaveBeenCalled();
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('different server name'));
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('different server name'),
+    );
   });
 
   it('refuses a file with no map start or one it cannot read', async () => {
@@ -95,28 +105,42 @@ describe('findLogCommand', () => {
     const notLog = join(dir, 'notes.txt');
     await writeFile(notLog, 'secret\n');
     const notes = createFakeCtx({ match: notLog, admin: OWNER });
-    const missing = createFakeCtx({ match: join(dir, 'nope.log'), admin: OWNER });
+    const missing = createFakeCtx({
+      match: join(dir, 'nope.log'),
+      admin: OWNER,
+    });
 
     await findLogCommand(notes, deps, env);
     await findLogCommand(missing, deps, env);
 
     expect(adminStore.setServerLogPath).not.toHaveBeenCalled();
-    expect(notes.reply).toHaveBeenCalledWith(expect.stringContaining("isn't a CoD2 game log"));
-    expect(missing.reply).toHaveBeenCalledWith(expect.stringContaining('no such file'));
+    expect(notes.reply).toHaveBeenCalledWith(
+      expect.stringContaining("isn't a CoD2 game log"),
+    );
+    expect(missing.reply).toHaveBeenCalledWith(
+      expect.stringContaining('no such file'),
+    );
   });
 
   // Root can read any file, so this can't fail the way it needs to when tests run as root.
-  it.skipIf(process.getuid?.() === 0)('explains how to give access when the file exists but is unreadable', async () => {
-    const { deps, adminStore, env } = setup();
-    await chmod(logPath, 0o000);
-    const ctx = createFakeCtx({ match: logPath, admin: OWNER });
+  it.skipIf(process.getuid?.() === 0)(
+    'explains how to give access when the file exists but is unreadable',
+    async () => {
+      const { deps, adminStore, env } = setup();
+      await chmod(logPath, 0o000);
+      const ctx = createFakeCtx({ match: logPath, admin: OWNER });
 
-    await findLogCommand(ctx, deps, env);
+      await findLogCommand(ctx, deps, env);
 
-    expect(adminStore.setServerLogPath).not.toHaveBeenCalled();
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('allowed to open'));
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('/findlog again'));
-  });
+      expect(adminStore.setServerLogPath).not.toHaveBeenCalled();
+      expect(ctx.reply).toHaveBeenCalledWith(
+        expect.stringContaining('allowed to open'),
+      );
+      expect(ctx.reply).toHaveBeenCalledWith(
+        expect.stringContaining('/findlog again'),
+      );
+    },
+  );
 
   it('leaves a path from COD2_LOG_PATH alone', async () => {
     const { deps, adminStore, env } = setup();
@@ -126,7 +150,9 @@ describe('findLogCommand', () => {
     await findLogCommand(ctx, deps, env);
 
     expect(adminStore.setServerLogPath).not.toHaveBeenCalled();
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('remove COD2_LOG_PATH'));
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('remove COD2_LOG_PATH'),
+    );
   });
 
   it('turns log reading off', async () => {
@@ -150,6 +176,8 @@ describe('findLogCommand', () => {
     await findLogCommand(ctx, deps, env);
 
     expect(adminStore.setServerLogPath).not.toHaveBeenCalled();
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('Usage: /findlog'));
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('Usage: /findlog'),
+    );
   });
 });

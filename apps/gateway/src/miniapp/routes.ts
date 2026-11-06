@@ -1,4 +1,4 @@
-import type { AdminRole } from '@cod2admin/admin-store';
+import { effectivePermissions } from '@cod2admin/admin-store';
 import type { Ban, BanChanges, BanIp } from '@cod2admin/ban-store';
 import { isBanFileSafeName } from '@cod2admin/rcon-client';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -26,6 +26,7 @@ import type {
   MapsResponse,
   MeResponse,
   ModerationRequest,
+  Permission,
   MutesResponse,
   RotationRequest,
   SayRequest,
@@ -45,8 +46,8 @@ import type { MiniAppState } from './state.js';
 
 declare module 'fastify' {
   interface FastifyContextConfig {
-    /** The least role a route needs (docs/PLAN.md §4 — the same gates as the chat commands). */
-    minRole?: AdminRole;
+    /** Set when the route needs a permission. Absent: any staff member. */
+    permission?: Permission;
     /** Counts against the per-user action limit (state.ts). */
     action?: boolean;
   }
@@ -203,7 +204,8 @@ export function registerRoutes(
         username: actor.username,
         firstName: actor.firstName,
       },
-      role: actor.role,
+      isOwner: actor.isOwner,
+      permissions: effectivePermissions(actor),
       version: getRunningVersion(),
       servers: [...deps.rconClients.keys()].map((alias) => ({
         alias,
@@ -234,10 +236,7 @@ export function registerRoutes(
     app.post(
       `/servers/:server/players/:num/${kind}`,
       {
-        config: {
-          minRole: kind === 'ban' ? 'admin' : 'moderator',
-          action: true,
-        },
+        config: { permission: kind, action: true },
       },
       async (
         request: FastifyRequest<{
@@ -301,7 +300,7 @@ export function registerRoutes(
 
   app.post(
     '/servers/:server/players/:num/mute',
-    { config: { minRole: 'moderator', action: true } },
+    { config: { permission: 'mute', action: true } },
     async (
       request: FastifyRequest<{
         Params: { server: string; num: string };
@@ -360,22 +359,18 @@ export function registerRoutes(
     },
   );
 
-  app.get(
-    '/mutes',
-    { config: { minRole: 'moderator' } },
-    async (): Promise<MutesResponse> => {
-      const names = await adminNames(deps);
-      return {
-        items: (await deps.banStore.listActiveMutes()).map((mute) =>
-          toMuteDto(mute, names),
-        ),
-      };
-    },
-  );
+  app.get('/mutes', async (): Promise<MutesResponse> => {
+    const names = await adminNames(deps);
+    return {
+      items: (await deps.banStore.listActiveMutes()).map((mute) =>
+        toMuteDto(mute, names),
+      ),
+    };
+  });
 
   app.post(
     '/mutes/:id/unmute',
-    { config: { minRole: 'moderator', action: true } },
+    { config: { permission: 'mute', action: true } },
     async (request: Params<{ id: string }>): Promise<ActionResponse> => {
       const mute = await deps.banStore.unmute(Number(request.params.id));
       if (!mute) {
@@ -394,7 +389,7 @@ export function registerRoutes(
 
   app.get(
     '/servers/:server/maps',
-    { config: { minRole: 'admin' } },
+    { config: { permission: 'maps' } },
     async (request: Params<{ server: string }>): Promise<MapsResponse> => {
       const rcon = serverParam(state, request.params.server);
       const listOrNothing = (what: string) => (error: unknown) => {
@@ -432,7 +427,7 @@ export function registerRoutes(
 
   app.post(
     '/servers/:server/map',
-    { config: { minRole: 'admin', action: true } },
+    { config: { permission: 'maps', action: true } },
     async (
       request: FastifyRequest<{
         Params: { server: string };
@@ -485,7 +480,7 @@ export function registerRoutes(
 
   app.post(
     '/servers/:server/level',
-    { config: { minRole: 'admin', action: true } },
+    { config: { permission: 'maps', action: true } },
     async (
       request: FastifyRequest<{
         Params: { server: string };
@@ -533,7 +528,7 @@ export function registerRoutes(
 
   app.put(
     '/servers/:server/rotation',
-    { config: { minRole: 'admin', action: true } },
+    { config: { permission: 'maps', action: true } },
     async (
       request: FastifyRequest<{
         Params: { server: string };
@@ -573,7 +568,7 @@ export function registerRoutes(
 
   app.post(
     '/servers/:server/console',
-    { config: { minRole: 'owner', action: true } },
+    { config: { permission: 'rcon', action: true } },
     async (
       request: FastifyRequest<{
         Params: { server: string };
@@ -620,7 +615,7 @@ export function registerRoutes(
 
   app.post(
     '/servers/:server/say',
-    { config: { minRole: 'admin', action: true } },
+    { config: { permission: 'say', action: true } },
     async (
       request: FastifyRequest<{ Params: { server: string }; Body: SayRequest }>,
     ): Promise<ActionResponse> => {
@@ -645,7 +640,7 @@ export function registerRoutes(
 
   app.post(
     '/servers/:server/tell',
-    { config: { minRole: 'admin', action: true } },
+    { config: { permission: 'say', action: true } },
     async (
       request: FastifyRequest<{
         Params: { server: string };
@@ -687,7 +682,7 @@ export function registerRoutes(
 
   app.get(
     '/bans',
-    { config: { minRole: 'admin' } },
+    { config: { permission: 'ban' } },
     async (
       request: FastifyRequest<{
         Querystring: {
@@ -727,7 +722,7 @@ export function registerRoutes(
 
   app.patch(
     '/bans/:kind/:id',
-    { config: { minRole: 'admin', action: true } },
+    { config: { permission: 'ban', action: true } },
     async (
       request: FastifyRequest<{
         Params: { kind: string; id: string };
@@ -824,7 +819,7 @@ export function registerRoutes(
 
   app.post(
     '/bans/unban',
-    { config: { minRole: 'admin', action: true } },
+    { config: { permission: 'ban', action: true } },
     async (
       request: FastifyRequest<{ Body: UnbanRequest }>,
     ): Promise<UnbanResponse> => {
@@ -861,7 +856,7 @@ export function registerRoutes(
 
   app.post(
     '/bans',
-    { config: { minRole: 'admin', action: true } },
+    { config: { permission: 'ban', action: true } },
     async (
       request: FastifyRequest<{ Body: AddBanRequest }>,
       reply: FastifyReply,

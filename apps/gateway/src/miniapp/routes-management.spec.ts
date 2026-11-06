@@ -1,10 +1,22 @@
-import type { AdminRole } from '@cod2admin/admin-store';
+import {
+  ADMIN_PERMISSIONS,
+  MODERATOR_PERMISSIONS,
+  OWNER_GRANTED_PERMISSIONS,
+  PERMISSIONS,
+  type Permission,
+} from '@cod2admin/admin-store';
 import { UdpQueryTimeoutError } from '@cod2admin/rcon-client';
 import type { FastifyInstance } from 'fastify';
 // Brings in the type of `injectWS`, which the plugin adds to every Fastify instance.
 import type {} from '@fastify/websocket';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { sampleAdmin, sampleReport } from '../lib/testing/fake-admin-store.js';
+import {
+  ADMIN_ACCESS,
+  MODERATOR_ACCESS,
+  OWNER_ACCESS,
+  sampleAdmin,
+  sampleReport,
+} from '../lib/testing/fake-admin-store.js';
 import { createFakeDeps, type FakeDeps } from '../lib/testing/fake-deps.js';
 import { summarizeSnapshots } from './dashboard.js';
 import { signInitData } from './init-data.js';
@@ -48,17 +60,20 @@ function auth(telegramId: number) {
 
 function setup(): FakeDeps {
   const fake = createFakeDeps();
-  const roles: Record<number, AdminRole> = {
-    [OWNER]: 'owner',
-    [ADMIN]: 'admin',
-    [OTHER_ADMIN]: 'admin',
-    [MODERATOR]: 'moderator',
-    [OTHER_MODERATOR]: 'moderator',
+  const shapes: Record<
+    number,
+    { isOwner: boolean; permissions: Permission[] }
+  > = {
+    [OWNER]: OWNER_ACCESS,
+    [ADMIN]: ADMIN_ACCESS,
+    [OTHER_ADMIN]: ADMIN_ACCESS,
+    [MODERATOR]: MODERATOR_ACCESS,
+    [OTHER_MODERATOR]: MODERATOR_ACCESS,
   };
-  const admins = Object.entries(roles).map(([id, role]) =>
+  const admins = Object.entries(shapes).map(([id, access]) =>
     sampleAdmin({
       telegramId: Number(id),
-      role,
+      ...access,
       username: 'kim',
       firstName: 'Kim',
     }),
@@ -109,7 +124,7 @@ describe('Mini App management routes', () => {
     });
   }
 
-  describe('role gates (same as the chat commands, docs/PLAN.md §4)', () => {
+  describe('permission gates (same as the chat commands, docs/PLAN.md §4)', () => {
     it.each([
       ['GET', '/audit', ADMIN],
       ['GET', '/relays', ADMIN],
@@ -124,28 +139,41 @@ describe('Mini App management routes', () => {
       ['POST', '/servers/default/level', MODERATOR],
       ['PUT', '/servers/default/rotation', MODERATOR],
       ['GET', '/servers/default/cvars', MODERATOR],
-    ] as const)('%s %s refuses a lower role', async (method, url, as) => {
-      const response = await call(
-        method,
-        url,
-        as,
-        method === 'GET' ? undefined : {},
-      );
+    ] as const)(
+      '%s %s refuses a caller without that permission',
+      async (method, url, as) => {
+        const response = await call(
+          method,
+          url,
+          as,
+          method === 'GET' ? undefined : {},
+        );
 
-      expect(response.statusCode).toBe(403);
-    });
+        expect(response.statusCode).toBe(403);
+      },
+    );
   });
 
   describe('admins', () => {
-    it('lets an admin add a moderator, but not an admin', async () => {
+    function staff(telegramId: number, permissions: Permission[]) {
+      return sampleAdmin({
+        telegramId,
+        isOwner: false,
+        permissions,
+        username: 'kim',
+        firstName: 'Kim',
+      });
+    }
+
+    it('adds staff with the permissions the caller may grant', async () => {
       const added = await call('POST', '/admins', ADMIN, {
         telegramId: 50,
-        role: 'moderator',
+        permissions: ['kick', 'tempban'],
       });
       expect(added.statusCode).toBe(201);
       expect(fake.adminStore.addAdmin).toHaveBeenCalledWith(
         50,
-        'moderator',
+        ['kick', 'tempban'],
         ADMIN,
       );
       expect(fake.adminStore.recordAuditLog).toHaveBeenCalledWith(
@@ -155,88 +183,212 @@ describe('Mini App management routes', () => {
           source: 'miniapp',
         }),
       );
-
-      const refused = await call('POST', '/admins', ADMIN, {
-        telegramId: 51,
-        role: 'admin',
-      });
-      expect(refused.statusCode).toBe(403);
-      expect(fake.adminStore.addAdmin).toHaveBeenCalledTimes(1);
     });
 
-    it('never adds an owner, or someone already on the list', async () => {
+    it('refuses a new grant of rcon from anyone but the owner, and an unknown id', async () => {
+      const refused = await call('POST', '/admins', ADMIN, {
+        telegramId: 51,
+        permissions: ['rcon'],
+      });
+      expect(refused.statusCode).toBe(403);
+      expect(refused.json().message).toContain(
+        'Only the owner can grant rcon.',
+      );
+      expect(fake.adminStore.addAdmin).not.toHaveBeenCalled();
+
+      const unknown = await call('POST', '/admins', OWNER, {
+        telegramId: 52,
+        permissions: ['not-real'],
+      });
+      expect(unknown.statusCode).toBe(400);
+      expect(unknown.json().message).toBe('Unknown permission: not-real');
+      expect(fake.adminStore.addAdmin).not.toHaveBeenCalled();
+    });
+
+    it('lets the owner grant rcon to someone new, including an empty list', async () => {
       expect(
         (
           await call('POST', '/admins', OWNER, {
             telegramId: 50,
-            role: 'owner',
+            permissions: ['rcon', 'kick'],
           })
         ).statusCode,
-      ).toBe(400);
+      ).toBe(201);
+      expect(fake.adminStore.addAdmin).toHaveBeenCalledWith(
+        50,
+        ['rcon', 'kick'],
+        OWNER,
+      );
+
       expect(
         (
-          await call('POST', '/admins', OWNER, {
-            telegramId: ADMIN,
-            role: 'moderator',
+          await call('POST', '/admins', ADMIN, {
+            telegramId: 51,
+            permissions: [],
           })
         ).statusCode,
-      ).toBe(409);
+      ).toBe(201);
+      expect(fake.adminStore.addAdmin).toHaveBeenCalledWith(51, [], ADMIN);
+    });
+
+    it('does not change someone who is already staff', async () => {
+      const response = await call('POST', '/admins', OWNER, {
+        telegramId: ADMIN,
+        permissions: ['kick'],
+      });
+      expect(response.statusCode).toBe(409);
+      expect(response.json().message).toContain('already staff');
+      expect(fake.adminStore.addAdmin).not.toHaveBeenCalled();
+      expect(fake.adminStore.setPermissions).not.toHaveBeenCalled();
+
       expect(
         (
           await call('POST', '/admins', OWNER, {
             telegramId: -5,
-            role: 'moderator',
+            permissions: ['kick'],
           })
         ).statusCode,
       ).toBe(400);
-      expect(fake.adminStore.addAdmin).not.toHaveBeenCalled();
     });
 
     it.each([
       ['the owner', ADMIN, OWNER],
-      ['another admin', ADMIN, OTHER_ADMIN],
       ['themselves', ADMIN, ADMIN],
       ['themselves as owner', OWNER, OWNER],
-    ])('an actor cannot remove or re-role %s', async (_who, actor, target) => {
-      expect(
-        (await call('DELETE', `/admins/${target}`, actor)).statusCode,
-      ).toBe(403);
-      expect(
-        (await call('PATCH', `/admins/${target}`, actor, { role: 'moderator' }))
-          .statusCode,
-      ).toBe(403);
-      expect(fake.adminStore.removeAdmin).not.toHaveBeenCalled();
-      expect(fake.adminStore.setRole).not.toHaveBeenCalled();
+    ])(
+      'an actor cannot remove or change permissions of %s',
+      async (_who, actor, target) => {
+        expect(
+          (await call('DELETE', `/admins/${target}`, actor)).statusCode,
+        ).toBe(403);
+        expect(
+          (
+            await call('PATCH', `/admins/${target}`, actor, {
+              permissions: ['kick'],
+            })
+          ).statusCode,
+        ).toBe(403);
+        expect(fake.adminStore.removeAdmin).not.toHaveBeenCalled();
+        expect(fake.adminStore.setPermissions).not.toHaveBeenCalled();
+      },
+    );
+
+    it('refuses a moderator-shaped actor on the admins routes', async () => {
+      const response = await call('GET', '/admins', MODERATOR);
+      expect(response.statusCode).toBe(403);
+      expect(response.json().message).toBe(
+        'This needs the admins.manage permission.',
+      );
     });
 
-    it('an admin cannot promote a moderator; the owner can', async () => {
+    it('403s when a holder of rcon tries to newly grant it, and keeps it when omitted', async () => {
+      const granter = staff(8, ['admins.manage', 'rcon', 'kick']);
+      const without = staff(9, ['kick']);
+      const withRcon = staff(10, ['kick', 'rcon']);
+      const original = fake.adminStore.getAdmin.getMockImplementation()!;
+      fake.adminStore.getAdmin.mockImplementation(async (id) => {
+        if (id === 8) return granter;
+        if (id === 9) return without;
+        if (id === 10) return withRcon;
+        return original(id);
+      });
+
+      const refused = await call('PATCH', '/admins/9', 8, {
+        permissions: ['kick', 'rcon'],
+      });
+      expect(refused.statusCode).toBe(403);
+      expect(refused.json().message).toContain(
+        'Only the owner can grant rcon.',
+      );
+      expect(fake.adminStore.setPermissions).not.toHaveBeenCalled();
+
+      const kept = await call('PATCH', '/admins/10', ADMIN, {
+        permissions: ['kick'],
+      });
+      expect(kept.statusCode).toBe(200);
+      expect(fake.adminStore.setPermissions).toHaveBeenCalledWith(10, [
+        'kick',
+        'rcon',
+      ]);
+    });
+
+    it('lets the owner add and remove rcon', async () => {
+      let stored: Permission[] = ['kick'];
+      fake.adminStore.getAdmin.mockImplementation(async (id) => {
+        if (id === OWNER) {
+          return sampleAdmin({
+            telegramId: OWNER,
+            ...OWNER_ACCESS,
+            username: 'kim',
+            firstName: 'Kim',
+          });
+        }
+        if (id === 9) return staff(9, stored);
+        return undefined;
+      });
+      fake.adminStore.setPermissions.mockImplementation(
+        async (_id, permissions) => {
+          stored = [...permissions];
+        },
+      );
+
       expect(
-        (await call('PATCH', `/admins/${MODERATOR}`, ADMIN, { role: 'admin' }))
-          .statusCode,
-      ).toBe(403);
+        (
+          await call('PATCH', '/admins/9', OWNER, {
+            permissions: ['kick', 'rcon'],
+          })
+        ).statusCode,
+      ).toBe(200);
+      expect(fake.adminStore.setPermissions).toHaveBeenCalledWith(9, [
+        'kick',
+        'rcon',
+      ]);
+
       expect(
-        (await call('PATCH', `/admins/${MODERATOR}`, OWNER, { role: 'admin' }))
+        (await call('PATCH', '/admins/9', OWNER, { permissions: ['kick'] }))
           .statusCode,
       ).toBe(200);
-      expect(fake.adminStore.setRole).toHaveBeenCalledWith(MODERATOR, 'admin');
+      expect(fake.adminStore.setPermissions).toHaveBeenLastCalledWith(9, [
+        'kick',
+      ]);
     });
 
-    it('says who the asker may manage', async () => {
-      const { admins, assignable } = (
-        await call('GET', '/admins', ADMIN)
-      ).json();
+    it("refuses a permission the caller doesn't hold", async () => {
+      const response = await call('PATCH', `/admins/${MODERATOR}`, ADMIN, {
+        permissions: ['audit'],
+      });
+      expect(response.statusCode).toBe(403);
+      expect(response.json().message).toBe("You can't grant audit.");
+      expect(fake.adminStore.setPermissions).not.toHaveBeenCalled();
+    });
 
-      expect(assignable).toEqual(['moderator']);
+    it('says who the asker may manage, owner first', async () => {
+      const body = (await call('GET', '/admins', ADMIN)).json();
+
+      expect(body.catalog).toEqual([...PERMISSIONS]);
+      expect(body.templates).toEqual([
+        { id: 'moderator', permissions: [...MODERATOR_PERMISSIONS] },
+        { id: 'admin', permissions: [...ADMIN_PERMISSIONS] },
+      ]);
+      expect(body.ownerGranted).toEqual([...OWNER_GRANTED_PERMISSIONS]);
+      expect(body.admins[0]).toMatchObject({
+        telegramId: OWNER,
+        isOwner: true,
+        permissions: [...PERMISSIONS],
+        manageable: false,
+      });
       expect(
-        admins.map((admin: { telegramId: number; manageable: boolean }) => [
-          admin.telegramId,
-          admin.manageable,
-        ]),
+        body.admins.map(
+          (admin: { telegramId: number; manageable: boolean }) => [
+            admin.telegramId,
+            admin.manageable,
+          ],
+        ),
       ).toEqual([
         [OWNER, false],
         [ADMIN, false],
-        [OTHER_ADMIN, false],
         [MODERATOR, true],
+        [OTHER_ADMIN, true],
         [OTHER_MODERATOR, true],
       ]);
     });

@@ -1,14 +1,25 @@
 export { migrate } from './lib/migrate.js';
+export {
+  ADMIN_PERMISSIONS,
+  MODERATOR_PERMISSIONS,
+  OWNER_GRANTED_PERMISSIONS,
+  PERMISSIONS,
+  PermissionError,
+  effectivePermissions,
+  hasPermission,
+  isPermission,
+  resolvePermissionGrant,
+} from './lib/permissions.js';
 export { createAdminStore } from './lib/store.js';
 export type {
   AddPlayerNoteInput,
   Admin,
-  AdminRole,
   AdminStore,
   AuditLogEntry,
   AuditLogFilter,
   AuditSource,
   ClaimOwnerResult,
+  Permission,
   PlayerNote,
   PlayerNoteFilter,
   PlayerNoteKind,

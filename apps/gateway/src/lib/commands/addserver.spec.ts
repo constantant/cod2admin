@@ -1,11 +1,19 @@
-import { UdpQueryTimeoutError, type ServerStatus } from '@cod2admin/rcon-client';
+import {
+  UdpQueryTimeoutError,
+  type ServerStatus,
+} from '@cod2admin/rcon-client';
 import { describe, expect, it, vi } from 'vitest';
 import { createFakeCtx } from '../testing/fake-ctx.js';
 import { createFakeDeps } from '../testing/fake-deps.js';
 import { asRconClient, createFakeRcon } from '../testing/fake-rcon.js';
-import { ADDSERVER_USAGE, addServerCommand, parseAddServerArgs } from './addserver.js';
+import { OWNER_ACCESS } from '../testing/fake-admin-store.js';
+import {
+  ADDSERVER_USAGE,
+  addServerCommand,
+  parseAddServerArgs,
+} from './addserver.js';
 
-const OWNER = { telegramId: 1, role: 'owner' as const };
+const OWNER = { telegramId: 1, ...OWNER_ACCESS };
 const LIVE_STATUS: ServerStatus = {
   raw: 'map: mp_toujane\n...',
   mapName: 'mp_toujane',
@@ -63,7 +71,11 @@ describe('addServerCommand', () => {
     await addServerCommand(ctx, deps);
 
     expect(ctx.deleteMessage).toHaveBeenCalledOnce();
-    expect(deps.createRconClient).toHaveBeenCalledWith({ host: '185.158.113.146', port: 28996, password: 's3cret' });
+    expect(deps.createRconClient).toHaveBeenCalledWith({
+      host: '185.158.113.146',
+      port: 28996,
+      password: 's3cret',
+    });
     expect(adminStore.upsertServer).toHaveBeenCalledWith({
       alias: 'ctf2',
       rconHost: '185.158.113.146',
@@ -72,10 +84,20 @@ describe('addServerCommand', () => {
     });
     expect(deps.rconClients.get('ctf2')).toBe(asRconClient(newRcon));
     expect(adminStore.recordAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'addserver', target: 'ctf2', detailJson: { host: '185.158.113.146', port: 28996 } }),
+      expect.objectContaining({
+        action: 'addserver',
+        target: 'ctf2',
+        detailJson: { host: '185.158.113.146', port: 28996 },
+      }),
     );
-    expect(JSON.stringify(adminStore.recordAuditLog.mock.calls)).not.toContain('s3cret');
-    expect(ctx.reply).toHaveBeenLastCalledWith(expect.stringContaining('Server "ctf2" added: 185.158.113.146:28996 — mp_toujane, 1 player.'));
+    expect(JSON.stringify(adminStore.recordAuditLog.mock.calls)).not.toContain(
+      's3cret',
+    );
+    expect(ctx.reply).toHaveBeenLastCalledWith(
+      expect.stringContaining(
+        'Server "ctf2" added: 185.158.113.146:28996 — mp_toujane, 1 player.',
+      ),
+    );
   });
 
   it('keeps commands without --server going to the config-file server when there was no default yet', async () => {
@@ -85,7 +107,9 @@ describe('addServerCommand', () => {
     await addServerCommand(ctx, deps);
 
     expect(adminStore.setDefaultServer).toHaveBeenCalledWith('default');
-    expect(ctx.reply).toHaveBeenLastCalledWith(expect.stringContaining('still go to "default"'));
+    expect(ctx.reply).toHaveBeenLastCalledWith(
+      expect.stringContaining('still go to "default"'),
+    );
   });
 
   it('leaves an existing default alone', async () => {
@@ -112,19 +136,28 @@ describe('addServerCommand', () => {
 
     await addServerCommand(ctx, deps);
 
-    expect(adminStore.recordAuditLog).toHaveBeenCalledWith(expect.objectContaining({ action: 'updateserver' }));
-    expect(ctx.reply).toHaveBeenLastCalledWith(expect.stringContaining('Server "ctf2" updated'));
+    expect(adminStore.recordAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'updateserver' }),
+    );
+    expect(ctx.reply).toHaveBeenLastCalledWith(
+      expect.stringContaining('Server "ctf2" updated'),
+    );
   });
 
   it('saves nothing when the server rejects the password', async () => {
-    const { deps, adminStore } = setup({ raw: 'Bad rconpassword.\n', players: [] });
+    const { deps, adminStore } = setup({
+      raw: 'Bad rconpassword.\n',
+      players: [],
+    });
     const ctx = privateCtx('ctf2 1.2.3.4:28960 wrong');
 
     await addServerCommand(ctx, deps);
 
     expect(adminStore.upsertServer).not.toHaveBeenCalled();
     expect(deps.rconClients.has('ctf2')).toBe(false);
-    expect(ctx.reply).toHaveBeenLastCalledWith(expect.stringContaining('rejected the RCON password'));
+    expect(ctx.reply).toHaveBeenLastCalledWith(
+      expect.stringContaining('rejected the RCON password'),
+    );
   });
 
   it('saves nothing when the server never answers', async () => {
@@ -134,7 +167,9 @@ describe('addServerCommand', () => {
     await addServerCommand(ctx, deps);
 
     expect(adminStore.upsertServer).not.toHaveBeenCalled();
-    expect(ctx.reply).toHaveBeenLastCalledWith(expect.stringContaining('No answer from 1.2.3.4:28960'));
+    expect(ctx.reply).toHaveBeenLastCalledWith(
+      expect.stringContaining('No answer from 1.2.3.4:28960'),
+    );
   });
 
   it('refuses to overwrite the config-file server', async () => {
@@ -145,7 +180,9 @@ describe('addServerCommand', () => {
 
     expect(deps.createRconClient).not.toHaveBeenCalled();
     expect(adminStore.upsertServer).not.toHaveBeenCalled();
-    expect(ctx.reply).toHaveBeenLastCalledWith(expect.stringContaining('comes from the bot\'s config file'));
+    expect(ctx.reply).toHaveBeenLastCalledWith(
+      expect.stringContaining("comes from the bot's config file"),
+    );
   });
 
   it('refuses in a group, deletes the message there, and warns about the exposed password', async () => {
@@ -161,8 +198,12 @@ describe('addServerCommand', () => {
 
     expect(ctx.deleteMessage).toHaveBeenCalledOnce();
     expect(adminStore.upsertServer).not.toHaveBeenCalled();
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('only works in a private chat'));
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('I deleted your message here'));
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('only works in a private chat'),
+    );
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('I deleted your message here'),
+    );
   });
 
   it('asks the user to delete the message themselves when the bot cannot delete it in a group', async () => {
@@ -176,6 +217,8 @@ describe('addServerCommand', () => {
 
     await addServerCommand(ctx, deps);
 
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('please delete it yourself'));
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('please delete it yourself'),
+    );
   });
 });

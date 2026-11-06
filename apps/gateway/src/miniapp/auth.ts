@@ -1,9 +1,13 @@
-import type { AdminRole, AdminStore } from '@cod2admin/admin-store';
+import type { AdminStore, Permission } from '@cod2admin/admin-store';
 import { validateInitData, type InitDataUser } from './init-data.js';
+
+export { hasPermission } from '@cod2admin/admin-store';
 
 export interface MiniAppActor {
   telegramId: number;
-  role: AdminRole;
+  isOwner: boolean;
+  /** Stored grants. Empty for the owner — `isOwner` is what grants every permission. */
+  permissions: readonly Permission[];
   username: string | null;
   firstName: string | null;
 }
@@ -17,16 +21,6 @@ export interface AuthOptions {
   adminStore: AdminStore;
   /** `MINIAPP_DEV_TELEGRAM_ID`: unsigned requests act as this user (local dev loop only). */
   devTelegramId?: number;
-}
-
-const ROLE_RANK: Record<AdminRole, number> = {
-  moderator: 1,
-  admin: 2,
-  owner: 3,
-};
-
-export function hasRole(actor: MiniAppActor, minRole: AdminRole): boolean {
-  return ROLE_RANK[actor.role] >= ROLE_RANK[minRole];
 }
 
 /** `@nick`, else the first name, else the ID — how chat shows an admin's messages. */
@@ -46,8 +40,8 @@ export function initDataFromHeader(
 
 /**
  * The Mini App's only gate (docs/PLAN-miniapp.md §8): Telegram's signature on `initData` says who
- * the user is, and `admin-store` says what they may do — the same roles as the chat bot. A valid
- * Telegram user with no role gets nothing, not a read-only session through another code path.
+ * the user is, and `admin-store` says what they may do — the same permissions as the chat bot. A
+ * valid Telegram user who isn't staff gets nothing, not a read-only session through another path.
  */
 export async function authenticate(
   initData: string | undefined,
@@ -85,7 +79,7 @@ export async function authenticate(
       message: `You're not an admin of this bot. Ask the owner to add you (your Telegram ID is ${user.id}).`,
     };
   }
-  // Remember their current @username/first name, as the chat bot's requireRole does.
+  // Remember their current @username/first name, as the chat bot's requireStaff does.
   if (
     options.devTelegramId !== user.id &&
     (admin.username !== user.username || admin.firstName !== user.firstName)
@@ -100,7 +94,8 @@ export async function authenticate(
     ok: true,
     actor: {
       telegramId: user.id,
-      role: admin.role,
+      isOwner: admin.isOwner,
+      permissions: admin.permissions,
       username: user.username ?? admin.username,
       firstName: user.firstName ?? admin.firstName,
     },

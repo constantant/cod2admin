@@ -30,7 +30,7 @@ import { T } from '../../shared/i18n';
       <mat-progress-bar mode="indeterminate" />
     }
     <div class="page">
-      @if (session.can('owner')) {
+      @if (session.can('servers.manage')) {
         <button mat-flat-button class="add" (click)="add()">
           <c2a-icon name="add" /> {{ 'Add a server' | t }}
         </button>
@@ -90,7 +90,7 @@ import { T } from '../../shared/i18n';
                   {{ 'Make default' | t }}
                 </button>
               }
-              @if (session.can('owner')) {
+              @if (session.can('servers.manage')) {
                 @if (!connection.logFromConfig) {
                   <button mat-stroked-button (click)="manageLog(server)">
                     {{ 'Game log…' | t }}

@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import fastifyStatic from '@fastify/static';
 import fastifyWebsocket from '@fastify/websocket';
+import { effectivePermissions, hasPermission } from '@cod2admin/admin-store';
 import { UdpQueryTimeoutError } from '@cod2admin/rcon-client';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { WebSocket } from 'ws';
@@ -11,7 +12,6 @@ import { ModerationActionError } from '../lib/moderation-actions.js';
 import type { LiveClientMessage, LiveServerMessage } from './api-types.js';
 import {
   authenticate,
-  hasRole,
   initDataFromHeader,
   type AuthOptions,
   type MiniAppActor,
@@ -104,15 +104,12 @@ export async function createMiniAppServer(
             .send(apiError(outcome.error, outcome.message));
         }
         request.actor = outcome.actor;
-        const { minRole, action } = request.routeOptions.config;
-        if (minRole && !hasRole(outcome.actor, minRole)) {
+        const { permission, action } = request.routeOptions.config;
+        if (permission && !hasPermission(outcome.actor, permission)) {
           return reply
             .code(403)
             .send(
-              apiError(
-                'forbidden',
-                `This needs the ${minRole} role — you're ${outcome.actor.role}.`,
-              ),
+              apiError('forbidden', `This needs the ${permission} permission.`),
             );
         }
         if (action && !state.limiter.take(outcome.actor.telegramId)) {
@@ -229,7 +226,11 @@ function handleLiveSocket(
           return fail(outcome.error, outcome.message);
         }
         actor = outcome.actor;
-        send({ type: 'ready', role: actor.role });
+        send({
+          type: 'ready',
+          isOwner: actor.isOwner,
+          permissions: effectivePermissions(actor),
+        });
         // Reports concern every server, so they don't depend on the subscribed one.
         stopReports = deps.reportQueue.subscribe((event) => {
           void deps.adminStore

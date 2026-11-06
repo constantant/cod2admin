@@ -19,7 +19,7 @@ import { Icon } from '../../shared/icon';
 import { Notify } from '../../shared/notify';
 import { T } from '../../shared/i18n';
 
-/** What the server reports about itself; the owner can change a setting from here. */
+/** What the server reports about itself. Changing one needs `cvars.write`. */
 @Component({
   selector: 'c2a-settings-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -51,7 +51,7 @@ import { T } from '../../shared/i18n';
             (ngModelChange)="filter.set($event)"
           />
         </mat-form-field>
-        @if (session.can('owner')) {
+        @if (session.can('cvars.write')) {
           <button mat-flat-button (click)="edit('', '')">
             {{ 'Set…' | t }}
           </button>
@@ -71,7 +71,7 @@ import { T } from '../../shared/i18n';
               <div class="mono name">{{ cvar.name }}</div>
               <div class="value">{{ cvar.value || ('(empty)' | t) }}</div>
             </div>
-            @if (session.can('owner')) {
+            @if (session.can('cvars.write')) {
               <button
                 mat-icon-button
                 [attr.aria-label]="'Change ' + cvar.name | t"
