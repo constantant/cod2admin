@@ -1,3 +1,13 @@
+## [1.18.0](https://github.com/constantant/cod2admin/releases/tag/v1.18.0) (2026-11-06)
+
+### 🚀 Features
+
+- replace admin roles with permissions ([2deaad8](https://github.com/constantant/cod2admin/commit/2deaad8))
+
+### ❤️ Thank You
+
+- kk
+
 ## [1.17.1](https://github.com/constantant/cod2admin/releases/tag/v1.17.1) (2026-11-06)
 
 ### 🩹 Fixes
