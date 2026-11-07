@@ -11,6 +11,9 @@ payment is needed.
 
 - **What it forwards:** only Bot API paths (`/bot<token>/<method>`, `/file/bot<token>/...`).
   Anything else gets `404`, so it can't be used as an open proxy.
+- **`GET /client-metadata?url=`:** reads one public OAuth client document for the gateway when
+  the bot's own address is refused. Only `https://claude.ai/oauth/...` and
+  `https://chatgpt.com/oauth/...`. Redirects are not followed. The response is at most 8 KB.
 - **Logging:** none. Every request path contains the bot's token, so whoever runs a relay
   could see it. Only use relays run by you or someone you trust.
 - **`GET /health`:** answers `{"ok":true,...}` when the relay can reach Telegram. It needs no

@@ -37,6 +37,7 @@ import {
 } from './lib/geoip.js';
 import {
   DEFAULT_TELEGRAM_RELAYS,
+  DIRECT_TELEGRAM_ROOT,
   describeRoute,
   parseRouteSettings,
   probeRoute,
@@ -63,6 +64,7 @@ import {
 } from './lib/vpn-ranges.js';
 import { startVersionCheckPoller } from './lib/version-check-poller.js';
 import { APP_BUTTON_TEXT } from './lib/commands/app.js';
+import { fetchClientDocument, loadClientMetadata } from './mcp/client-metadata.js';
 import { McpSessions } from './mcp/sessions.js';
 import { ChatFeeds } from './miniapp/chat-feed.js';
 import { startMiniAppServer } from './miniapp/server.js';
@@ -308,6 +310,14 @@ if (config.miniapp.port !== undefined) {
         sessions: mcp.sessions,
         deps,
         botUsername: () => botUsername,
+        // Claude and ChatGPT refuse this fetch from Russian hosting. The relays read the same
+        // public document from outside Russia. Direct access is still tried first.
+        loadMetadata: (clientId) =>
+          loadClientMetadata(clientId, (url) =>
+            fetchClientDocument(url, {
+              relays: telegramRouter.all.filter((route) => route !== DIRECT_TELEGRAM_ROOT),
+            }),
+          ),
       },
       integrations: {
         startTailer: (server) => {

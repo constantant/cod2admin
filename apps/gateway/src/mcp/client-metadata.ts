@@ -62,7 +62,8 @@ export function guardLookup(lookup: AddressLookup): AddressLookup {
 /**
  * Loads a client-id metadata document (the MCP registration path that replaced open dynamic
  * registration). The document is fetched only after its address is checked, with redirects
- * refused, so a client id cannot be used to reach an internal host.
+ * refused, so a client id cannot be used to reach an internal host. When this host is refused,
+ * `fetchDocument` may try the Telegram relays (`fetchClientDocument`).
  */
 export async function loadClientMetadata(
   clientId: string,
@@ -174,3 +175,120 @@ const blockingLookup = guardLookup((hostname, options, callback) => {
     callback(error, address, family);
   });
 });
+
+export interface ClientDocumentOptions {
+  /** Relay base URLs, tried in order when this host itself cannot read the document. */
+  relays?: readonly string[];
+  fetchDirect?: (url: URL) => Promise<string>;
+  fetchRelay?: (endpoint: URL) => Promise<{ status: number; body: string }>;
+}
+
+/**
+ * Reads a client-metadata document from this host. Claude answers Russian addresses with a
+ * redirect, and ChatGPT with 403, while the same URL is a small JSON document from the relays'
+ * network. A relay is asked only after the direct read fails, and only for the same URL.
+ */
+export async function fetchClientDocument(
+  url: URL,
+  options: ClientDocumentOptions = {},
+): Promise<string> {
+  const fetchDirect = options.fetchDirect ?? ((target: URL) => fetchPublicHttps(target));
+  try {
+    return await fetchDirect(url);
+  } catch (directError) {
+    for (const relay of options.relays ?? []) {
+      const endpoint = relayMetadataEndpoint(relay, url);
+      if (!endpoint) {
+        continue;
+      }
+      try {
+        const response = options.fetchRelay
+          ? await options.fetchRelay(endpoint)
+          : await readRelay(endpoint);
+        if (response.status === 200 && response.body.length <= DOCUMENT_BYTES) {
+          return response.body;
+        }
+      } catch {
+        // The next relay may be reachable. The direct error is what the visitor is shown.
+      }
+    }
+    // An older relay answers 404 for this route. The copies below are the public documents
+    // those two hosts serve outside Russia (2026-11-07), so a Russian install can connect
+    // before its relays are redeployed. A relay that returns the document wins above.
+    const known = knownClientDocument(url);
+    if (known) {
+      return known;
+    }
+    throw directError;
+  }
+}
+
+/**
+ * Public client documents Claude and ChatGPT serve from outside Russia. The ChatGPT per-connection
+ * document is the stable one with the callback id filled in. Only the name and redirect list are
+ * kept; the authorization server does not use the rest.
+ */
+export function knownClientDocument(url: URL): string | undefined {
+  const id = url.toString();
+  const fixed: Record<string, { name: string; redirects: string[] }> = {
+    'https://claude.ai/oauth/mcp-oauth-client-metadata': {
+      name: 'Claude',
+      redirects: ['https://claude.ai/api/mcp/auth_callback'],
+    },
+    'https://claude.ai/oauth/claude-code-client-metadata': {
+      name: 'Claude Code',
+      redirects: ['http://localhost/callback', 'http://127.0.0.1/callback'],
+    },
+    'https://claude.ai/oauth/mcp-oauth-client-metadata/confidential_client': {
+      name: 'Claude',
+      redirects: ['https://claude.ai/api/mcp/auth_callback'],
+    },
+    'https://chatgpt.com/oauth/client.json': {
+      name: 'ChatGPT',
+      redirects: ['https://chatgpt.com/connector_platform_oauth_redirect'],
+    },
+  };
+  const match = fixed[id];
+  if (match) {
+    return JSON.stringify({ client_id: id, client_name: match.name, redirect_uris: match.redirects });
+  }
+  const callback = /^https:\/\/chatgpt\.com\/oauth\/([A-Za-z0-9_-]{8,64})\/client\.json$/.exec(id);
+  if (!callback) {
+    return undefined;
+  }
+  return JSON.stringify({
+    client_id: id,
+    client_name: 'ChatGPT',
+    redirect_uris: [`https://chatgpt.com/connector/oauth/${callback[1]}`],
+  });
+}
+
+function relayMetadataEndpoint(relay: string, target: URL): URL | undefined {
+  let base: URL;
+  try {
+    base = new URL(relay);
+  } catch {
+    return undefined;
+  }
+  if (base.protocol !== 'https:' || base.username || base.password || base.search || base.hash) {
+    return undefined;
+  }
+  const path = base.pathname.replace(/\/$/, '');
+  return new URL(
+    `${base.origin}${path}/client-metadata?url=${encodeURIComponent(target.toString())}`,
+  );
+}
+
+async function readRelay(endpoint: URL): Promise<{ status: number; body: string }> {
+  const response = await fetch(endpoint, {
+    method: 'GET',
+    redirect: 'manual',
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    headers: { accept: 'application/json' },
+  });
+  const body = await response.text();
+  return {
+    status: response.status,
+    body: body.length > DOCUMENT_BYTES ? body.slice(0, DOCUMENT_BYTES + 1) : body,
+  };
+}

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { fetchPublicHttps, guardLookup, loadClientMetadata } from './client-metadata.js';
+import {
+  fetchClientDocument,
+  fetchPublicHttps,
+  guardLookup,
+  loadClientMetadata,
+} from './client-metadata.js';
 
 const CLIENT_ID = 'https://app.example/client.json';
 
@@ -94,6 +99,83 @@ describe('guardLookup', () => {
       expect(address).toBe('1.1.1.1');
       expect(family).toBe(4);
     });
+  });
+});
+
+describe('fetchClientDocument', () => {
+  const target = new URL(CLIENT_ID);
+
+  it('keeps the direct document when this host can read it', async () => {
+    const fetchRelay = async () => ({ status: 200, body: 'from-relay' });
+
+    await expect(
+      fetchClientDocument(target, {
+        relays: ['https://relay.example'],
+        fetchDirect: async () => 'from-here',
+        fetchRelay,
+      }),
+    ).resolves.toBe('from-here');
+  });
+
+  it('reads the same URL through a relay when this host is refused', async () => {
+    const seen: string[] = [];
+    const body = document();
+
+    await expect(
+      fetchClientDocument(target, {
+        relays: ['not a url', 'https://relay.example/base'],
+        fetchDirect: async () => {
+          throw new Error('HTTP 403');
+        },
+        fetchRelay: async (endpoint) => {
+          seen.push(endpoint.toString());
+          return { status: 200, body };
+        },
+      }),
+    ).resolves.toBe(body);
+    expect(seen).toEqual([
+      `https://relay.example/base/client-metadata?url=${encodeURIComponent(CLIENT_ID)}`,
+    ]);
+  });
+
+  it('uses the published Claude and ChatGPT documents when the relays have no such route', async () => {
+    const claude = new URL('https://claude.ai/oauth/mcp-oauth-client-metadata');
+    const body = await fetchClientDocument(claude, {
+      relays: ['https://relay.example'],
+      fetchDirect: async () => {
+        throw new Error('redirects are not followed');
+      },
+      fetchRelay: async () => ({ status: 404, body: 'Not found' }),
+    });
+    const metadata = await loadClientMetadata(claude.toString(), async () => body);
+    expect(metadata).toEqual({
+      clientId: claude.toString(),
+      clientName: 'Claude',
+      redirectUris: ['https://claude.ai/api/mcp/auth_callback'],
+    });
+
+    const chatgpt = new URL(
+      'https://chatgpt.com/oauth/00000000-0000-4000-8000-000000000001/client.json',
+    );
+    await expect(
+      fetchClientDocument(chatgpt, {
+        fetchDirect: async () => {
+          throw new Error('HTTP 403');
+        },
+      }),
+    ).resolves.toContain('https://chatgpt.com/connector/oauth/00000000-0000-4000-8000-000000000001');
+  });
+
+  it('reports the direct failure when every relay misses', async () => {
+    await expect(
+      fetchClientDocument(target, {
+        relays: ['https://relay.example'],
+        fetchDirect: async () => {
+          throw new Error('redirects are not followed');
+        },
+        fetchRelay: async () => ({ status: 502, body: '{"ok":false}' }),
+      }),
+    ).rejects.toThrow(/redirects are not followed/);
   });
 });
 

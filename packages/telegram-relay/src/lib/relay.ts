@@ -9,6 +9,9 @@
  *
  * - Only Bot API paths are forwarded (`/bot<token>/<method>`, `/file/bot<token>/<path>`), so this
  *   can't be used as an open proxy to anything else.
+ * - `GET /client-metadata?url=` fetches one public OAuth client-metadata document from a host
+ *   that refuses the bot's own address (Claude redirects Russian visitors; ChatGPT answers 403).
+ *   The host and `/oauth/` path are fixed. Redirects are not followed.
  * - Nothing is logged or stored. Bot tokens are part of every request path, so the person running a
  *   relay could see them — use a relay you or someone you trust runs.
  * - `GET /health` checks the relay can reach Telegram, without needing a bot token. It's what
@@ -16,6 +19,13 @@
  */
 
 const TELEGRAM_API = 'https://api.telegram.org';
+const METADATA_BYTES = 8 * 1024;
+
+/**
+ * Hosts whose client-metadata documents answer 200 from the relay's network and 302/403 from
+ * Russian hosting. Anything else stays 404, so this route is not a general-purpose proxy.
+ */
+const METADATA_HOSTS = new Set(['claude.ai', 'chatgpt.com']);
 
 const BOT_API_PATH = /^\/(?:file\/)?bot\d+:[A-Za-z0-9_-]+\/[^?#]*$/;
 
@@ -54,6 +64,13 @@ export async function handleRelayRequest(request: Request, fetchImpl: typeof fet
     }
   }
 
+  if (url.pathname === '/client-metadata') {
+    if (request.method !== 'GET') {
+      return new Response('Not found', { status: 404 });
+    }
+    return fetchClientMetadata(url.searchParams.get('url'), fetchImpl);
+  }
+
   if (!BOT_API_PATH.test(url.pathname) || (request.method !== 'GET' && request.method !== 'POST')) {
     return new Response('Not found', { status: 404 });
   }
@@ -69,5 +86,66 @@ export async function handleRelayRequest(request: Request, fetchImpl: typeof fet
   return new Response(upstream.body, {
     status: upstream.status,
     headers: pickHeaders(upstream.headers, FORWARDED_RESPONSE_HEADERS),
+  });
+}
+
+/**
+ * The exact https URL the relay will fetch. Undefined unless it is `claude.ai` or `chatgpt.com`,
+ * under `/oauth/`, with no query, fragment, port, or credentials. The URL parser resolves `..`.
+ */
+export function clientMetadataTarget(raw: string | null): string | undefined {
+  if (!raw || raw.length > 300) {
+    return undefined;
+  }
+  let target: URL;
+  try {
+    target = new URL(raw);
+  } catch {
+    return undefined;
+  }
+  if (
+    target.protocol !== 'https:' ||
+    target.username ||
+    target.password ||
+    target.search ||
+    target.hash ||
+    target.port ||
+    !METADATA_HOSTS.has(target.hostname) ||
+    !target.pathname.startsWith('/oauth/')
+  ) {
+    return undefined;
+  }
+  return target.toString();
+}
+
+async function fetchClientMetadata(
+  raw: string | null,
+  fetchImpl: typeof fetch,
+): Promise<Response> {
+  const target = clientMetadataTarget(raw);
+  if (!target) {
+    return new Response('Not found', { status: 404 });
+  }
+  let upstream: Response;
+  try {
+    upstream = await fetchImpl(target, {
+      method: 'GET',
+      redirect: 'manual',
+      headers: { accept: 'application/json' },
+    });
+  } catch {
+    return json({ ok: false, error: 'fetch failed' }, 502);
+  }
+  if (upstream.status !== 200) {
+    await upstream.body?.cancel();
+    return json({ ok: false, status: upstream.status }, 502);
+  }
+  const body = await upstream.arrayBuffer();
+  if (body.byteLength > METADATA_BYTES) {
+    return json({ ok: false, error: 'too large' }, 502);
+  }
+  return new Response(body, {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
   });
 }

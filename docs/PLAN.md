@@ -464,6 +464,9 @@ local login stays on `/api`. The grant is OAuth 2.1:
 
 - Public client, PKCE S256 only. The client id is an HTTPS metadata document. There is no open
   registration. The fetch refuses redirects, credentials, and private or reserved addresses.
+  Claude redirects a Russian server, and ChatGPT answers it with 403. The same public document
+  is then read through the configured Telegram relays, which fetch only those two hosts. Until
+  a relay has that route, the gateway uses its own copy of those documents.
 - The redirect URI must be one of the document's, exactly. `resource` must be this server's `/mcp`.
 - The person approves in a private Telegram chat before any token exists. Opening the link does
   not approve. The first staff member to open a request is the only one who can answer it. The

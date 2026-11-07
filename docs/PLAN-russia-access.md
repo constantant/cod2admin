@@ -57,8 +57,17 @@ also worked through each one.
   deploy their own relay (see `packages/telegram-relay/README.md`) and drop the shared ones with
   `/relays`.
 
+**Client metadata (2026-11-07).** Claude's and ChatGPT's OAuth client documents are public JSON,
+but a server in Russia is redirected (Claude, HTTP 302) or refused (ChatGPT, HTTP 403). The
+gateway reads the document directly first. When that fails, it asks each configured relay for
+`GET /client-metadata?url=`. The relay fetches only `https://claude.ai/oauth/...` and
+`https://chatgpt.com/oauth/...`, does not follow redirects, and still forwards nothing else.
+An older relay answers 404 for that route. The gateway then uses its own copy of the same
+documents, so an install can connect before the relays are redeployed.
+
 **Still open (B):** admins' own Telegram apps in Russia need a VPN or MTProto proxy. Relays only
-carry the bot's traffic. Free public MTProxy lists exist, but they're unreliable.
+carry the bot's traffic and those two client documents. Free public MTProxy lists exist, but
+they're unreliable.
 
 **Also still open:** `installer/apply-update.sh` sends its "update failed and was rolled back"
 alert straight to `api.telegram.org`, not through the relays. On a blocked host the rollback

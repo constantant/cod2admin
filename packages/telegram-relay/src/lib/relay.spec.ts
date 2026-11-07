@@ -46,6 +46,11 @@ describe('handleRelayRequest', () => {
     '/botnotatoken/getMe',
     `/x/bot${TOKEN}/getMe`,
     '/https://evil.example/',
+    '/client-metadata',
+    '/client-metadata?url=https://evil.example/oauth/client.json',
+    '/client-metadata?url=https://claude.ai/secret',
+    '/client-metadata?url=https://user:pass@claude.ai/oauth/client.json',
+    '/client-metadata?url=https://chatgpt.com/oauth/client.json?x=1',
   ])('refuses %s so it can\'t be used as an open proxy', async (path) => {
     const fetchImpl = fakeFetch();
 
@@ -71,6 +76,40 @@ describe('handleRelayRequest', () => {
 
     expect(fetchImpl.mock.calls[0][0]).toBe('https://api.telegram.org/');
     expect(await response.json()).toEqual({ ok: true, telegramStatus: 302 });
+  });
+
+  it('fetches an allowlisted client-metadata document and does not follow redirects', async () => {
+    const document = '{"client_id":"https://claude.ai/oauth/client.json"}';
+    const fetchImpl = fakeFetch(new Response(document, { headers: { 'content-type': 'application/json' } }));
+
+    const response = await handleRelayRequest(
+      new Request(
+        'https://relay.example/client-metadata?url=https%3A%2F%2Fclaude.ai%2Foauth%2Fclient.json',
+      ),
+      fetchImpl,
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe(document);
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe('https://claude.ai/oauth/client.json');
+    expect(init?.redirect).toBe('manual');
+    expect(init?.method).toBe('GET');
+  });
+
+  it('accepts a ChatGPT metadata path and reports an upstream refusal without its body', async () => {
+    const fetchImpl = fakeFetch(new Response('blocked', { status: 403 }));
+
+    const response = await handleRelayRequest(
+      new Request(
+        'https://relay.example/client-metadata?url=https%3A%2F%2Fchatgpt.com%2Foauth%2Fabc%2Fclient.json',
+      ),
+      fetchImpl,
+    );
+
+    expect(fetchImpl.mock.calls[0][0]).toBe('https://chatgpt.com/oauth/abc/client.json');
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ ok: false, status: 403 });
   });
 
   it('reports unhealthy when Telegram can\'t be reached', async () => {
