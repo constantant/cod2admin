@@ -29,6 +29,12 @@ Anyone in the staff list can use these, including someone with no permissions (`
 - `/app` — opens the server manager app inside Telegram (players, chat, reports, maps, bans, notes
   and more), when the bot's owner turned it on. In a private chat with the bot, the menu button
   opens it too.
+- `/mcp` — connect your own AI, in a private chat with the bot. Add the address it shows in
+  the app. Leave the browser page open, press Approve in Telegram (it opens beside the page),
+  choose Allow, then go back to the page. It returns you to the app. `/mcp` lists the
+  connections, `/mcp revoke <id>` ends one,
+  `/mcp revoke all` ends all of them. The app only gets the actions you approved and still hold.
+  Updating the bot, Telegram relays, the staff list and adding a server stay in this chat
 
 ## Commands by permission
 
@@ -141,6 +147,12 @@ are used in the Mini App (`/app`).
 
 Only the owner can give or take `rcon` and `update`. A non-owner can only include permissions
 they hold, and cannot newly grant `rcon` or `update` even if they hold them.
+
+An AI connected with `/mcp` can use only the permissions you approved for that connection, and
+only while you still hold them. `update`, `relays`, `admins.manage` and `servers.manage` stay in
+this chat. A read-only connection can read the in-game chat. Allow `say` on that connection to
+let it speak: each line starts with your name, about once every 10 seconds. A connection that
+can kick, ban, change the map, or send a console command does not receive the chat.
 
 ## Getting access
 

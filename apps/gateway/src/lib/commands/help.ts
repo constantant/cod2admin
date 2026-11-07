@@ -38,8 +38,8 @@ interface HelpLine {
 /** The most-used commands. Everything else is in the attached guide. */
 const SHORT_HELP_LINES: readonly HelpLine[] = [
   {
-    en: '/app — the server manager app',
-    ru: '/app — приложение для управления сервером',
+    en: '/app — the server manager; /mcp — connect your own AI',
+    ru: '/app — управление сервером; /mcp — подключить свой ИИ',
   },
   {
     en: '/status — server, map, player count',

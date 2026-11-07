@@ -396,6 +396,7 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
   'Chat button': 'Кнопка в чате',
   App: 'Приложение',
   Automatic: 'Автоматически',
+  'AI connection': 'Подключение ИИ',
   'Nothing matches.': 'Ничего не найдено.',
   'The bot': 'Бот',
 

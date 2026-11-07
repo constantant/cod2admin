@@ -1,4 +1,4 @@
-import type { ChatEvent } from '@cod2admin/log-tailer';
+import type { ChatEvent, GameLogTailer } from '@cod2admin/log-tailer';
 import type { ChatLineDto } from './api-types.js';
 
 /** What a `ChatFeed` needs from `GameLogTailer` — an interface, so tests can pass a fake. */
@@ -122,5 +122,30 @@ export class ChatFeed {
     for (const listener of this.listeners) {
       listener(entry.line);
     }
+  }
+}
+
+/**
+ * One feed per server, shared by the Mini App and AI connections. Built on first use from the
+ * gateway's log tailers, and rebuilt when `/findlog` replaces a tailer.
+ */
+export class ChatFeeds {
+  private readonly feeds = new Map<string, { tailer: GameLogTailer; feed: ChatFeed }>();
+
+  constructor(private readonly tailers: Map<string, GameLogTailer>) {}
+
+  /** `undefined` when this server has no game log. */
+  get(alias: string): ChatFeed | undefined {
+    const tailer = this.tailers.get(alias);
+    if (!tailer) {
+      this.feeds.delete(alias);
+      return undefined;
+    }
+    let entry = this.feeds.get(alias);
+    if (entry?.tailer !== tailer) {
+      entry = { tailer, feed: new ChatFeed(tailer) };
+      this.feeds.set(alias, entry);
+    }
+    return entry.feed;
   }
 }

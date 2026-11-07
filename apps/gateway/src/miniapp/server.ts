@@ -17,6 +17,7 @@ import {
   type MiniAppActor,
 } from './auth.js';
 import { ApiProblem, apiError, registerRoutes } from './routes.js';
+import { registerMcp, type McpHttpOptions } from '../mcp/http.js';
 import { MiniAppState, type MiniAppIntegrations } from './state.js';
 
 export interface MiniAppServerOptions {
@@ -25,6 +26,8 @@ export interface MiniAppServerOptions {
   staticDir?: string;
   devTelegramId?: number;
   integrations?: MiniAppIntegrations;
+  /** AI connections. Off unless the public HTTPS address is configured. */
+  mcp?: McpHttpOptions;
 }
 
 /** How long a new WebSocket has to send its `auth` message. */
@@ -58,6 +61,10 @@ export async function createMiniAppServer(
     reply.header('X-Content-Type-Options', 'nosniff');
     reply.header('Referrer-Policy', 'no-referrer');
   });
+
+  if (options.mcp) {
+    await registerMcp(app, options.mcp);
+  }
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof ApiProblem) {

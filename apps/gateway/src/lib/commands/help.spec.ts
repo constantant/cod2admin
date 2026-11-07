@@ -39,6 +39,8 @@ describe('formatShortHelp', () => {
 
     expect(moderator).not.toContain('your role');
     expect(moderator).toContain('/app');
+    expect(moderator).toContain('/mcp');
+    expect(formatShortHelp('player', 'en')).not.toContain('/mcp');
     expect(moderator).toContain('/kick');
     expect(moderator).toContain('/tempban');
     expect(moderator).not.toContain('/ban <id>');

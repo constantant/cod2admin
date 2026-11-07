@@ -1,4 +1,6 @@
+import type { GameLogTailer } from '@cod2admin/log-tailer';
 import { ReportAntiSpam, type SessionLookup } from '@cod2admin/report-pipeline';
+import { ChatFeeds } from '../../miniapp/chat-feed.js';
 import type { GatewayDeps } from '../deps.js';
 import { NO_COUNTRY_LOOKUP, NO_PROVIDER_LOOKUP } from '../geoip.js';
 import { DIRECT_TELEGRAM_ROOT, TelegramRouter } from '../telegram-routes.js';
@@ -38,6 +40,7 @@ export function createFakeDeps(): FakeDeps {
   const banStore = createFakeBanStore();
   const rcon = createFakeRcon();
   const githubReleaseClient = createFakeGithubReleaseClient();
+  const logTailers = new Map<string, GameLogTailer>();
   return {
     adminStore,
     banStore,
@@ -66,7 +69,8 @@ export function createFakeDeps(): FakeDeps {
       reportAntiSpam: new ReportAntiSpam<string>(),
       reportQueue: new ReportQueue(adminStore),
       sessionsByServer: new Map<string, SessionLookup>(),
-      logTailers: new Map(),
+      logTailers,
+      chatFeeds: new ChatFeeds(logTailers),
       updateConfig: {
         stagingDir: '/opt/cod2admin/staging',
         applyUpdateScriptPath: '/opt/cod2admin/bin/apply-update.sh',

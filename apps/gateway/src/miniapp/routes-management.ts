@@ -83,6 +83,7 @@ const AUDIT_SOURCES: readonly AuditSource[] = [
   'telegram_command',
   'auto',
   'miniapp',
+  'mcp',
 ];
 /** Would cut the bot off from the server it just changed. Everything else: the owner's call. */
 const CVARS_NOT_FROM_HERE = new Set(['rcon_password']);

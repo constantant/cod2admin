@@ -395,7 +395,11 @@ export interface UpdateAdminRequest {
 // ── Audit log ───────────────────────────────────────────────────────────────────────────────
 
 export type AuditSourceDto =
-  'telegram_button' | 'telegram_command' | 'auto' | 'miniapp';
+  | 'telegram_button'
+  | 'telegram_command'
+  | 'auto'
+  | 'miniapp'
+  | 'mcp';
 
 export interface AuditEntryDto {
   id: number;

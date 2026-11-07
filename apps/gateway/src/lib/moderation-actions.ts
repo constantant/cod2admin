@@ -24,6 +24,8 @@ export interface ExecuteModerationActionOptions {
   source: AuditSource;
   /** Only meaningful for `kind: 'tempban'`. Default 30 minutes (docs/PLAN.md §5 step 6). */
   durationMs?: number;
+  /** Merged into every audit row, for example the AI connection that asked. */
+  detailJson?: Record<string, unknown>;
 }
 
 export interface ModerationActionResult {
@@ -78,7 +80,7 @@ export async function executeModerationAction(
       serverAlias: options.serverAlias,
       reason,
       source: options.source,
-      detailJson,
+      detailJson: { ...options.detailJson, ...detailJson },
     });
   }
 

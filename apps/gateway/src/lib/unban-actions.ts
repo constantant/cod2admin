@@ -39,7 +39,11 @@ export interface LiftBanResult {
 export async function liftBan(
   target: string,
   deps: Pick<GatewayDeps, 'banStore' | 'adminStore' | 'rconClients'>,
-  actor: { telegramId: number; source: AuditSource },
+  actor: {
+    telegramId: number;
+    source: AuditSource;
+    detail?: Record<string, unknown>;
+  },
 ): Promise<LiftBanResult> {
   const ip = isIpv4(target);
   const unanswered: string[] = [];
@@ -104,6 +108,7 @@ export async function liftBan(
     serverAlias: null,
     source: actor.source,
     detailJson: {
+      ...actor.detail,
       lifted,
       ...(unanswered.length > 0 ? { unanswered } : {}),
       ...(notFound.length > 0 ? { notFound } : {}),

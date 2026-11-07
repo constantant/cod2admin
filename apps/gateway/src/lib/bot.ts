@@ -22,6 +22,7 @@ import {
   mapsSelectCallback,
   type MapsCallbackContext,
 } from './commands/maps.js';
+import { mcpCommand, mcpDecision, mcpStart } from './commands/mcp.js';
 import { permitCommand } from './commands/permit.js';
 import { playersCommand } from './commands/players.js';
 import { rconCommand } from './commands/rcon.js';
@@ -157,10 +158,12 @@ export function createBot(
   const allow = (permission: Permission) =>
     requirePermission(permission, deps.adminStore);
 
+  bot.command('start', (ctx) => mcpStart(ctx, deps));
   bot.command('claim', (ctx) => claimCommand(ctx, deps, claimSecret));
   bot.command('help', (ctx) => helpCommand(ctx, deps));
   bot.command('help_ru', (ctx) => helpRuCommand(ctx, deps));
 
+  bot.command('mcp', staff, (ctx) => mcpCommand(ctx, deps));
   bot.command('app', staff, (ctx) =>
     appCommand(ctx, config.miniapp.url, bot.botInfo.username),
   );
@@ -216,6 +219,23 @@ export function createBot(
   bot.command('vpnnets', allow('vpn'), (ctx) => vpnNetsCommand(ctx, deps));
   bot.command('vpnkick', allow('vpn'), (ctx) => vpnKickCommand(ctx, deps));
 
+  bot.callbackQuery(/^mcp:(?:allow|read|deny):[0-9a-f]{32}$/, staff, (ctx) => {
+    const actor = ctx as Context & BotContext;
+    if (!actor.from || !actor.admin || !actor.callbackQuery?.data) {
+      return;
+    }
+    return mcpDecision(
+      {
+        fromId: actor.from.id,
+        admin: actor.admin,
+        data: actor.callbackQuery.data,
+        privateChat: actor.chat?.type === 'private' || actor.chat === undefined,
+        answer: (text) => actor.answerCallbackQuery({ text }),
+        edit: (text) => actor.editMessageText(text),
+      },
+      deps,
+    );
+  });
   bot.callbackQuery(STATUS_REFRESH_CALLBACK_DATA, staff, (ctx) =>
     statusRefreshCallback(ctx, deps),
   );

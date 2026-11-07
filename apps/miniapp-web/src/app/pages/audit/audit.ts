@@ -24,6 +24,7 @@ const SOURCE_LABELS: Record<AuditSourceDto, string> = {
   telegram_button: 'Chat button',
   miniapp: 'App',
   auto: 'Automatic',
+  mcp: 'AI connection',
 };
 
 /** Who did what (docs/PLAN-miniapp.md §6.4) — `/auditlog`, searchable. Owner only, as in chat. */

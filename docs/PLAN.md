@@ -432,7 +432,8 @@ Staff is a row in `admins` plus a set of permission ids. There is no stored role
   turn `admins.manage` off. `cvars.write`, `servers.manage`, `audit`, `relays`, and `logs`
   (`/findlog`) follow the ordinary rule: only someone who holds one can give it.
 - Every privileged action (kick/ban/unban/permission change) is written to an **audit log** table
-  (who, what, target, reason, timestamp, source = telegram button / telegram command / auto)
+  (who, what, target, reason, timestamp, source = telegram button / telegram command / auto /
+  mini app / AI connection)
   and `/auditlog [n]` (the `audit` permission) reviews recent actions.
 - Adding servers (implemented 2026-10-04, `servers.manage`): `/addserver <alias> <host:port> <password>` in a private chat. The bot deletes that message
   (it contains the password), checks the server answers `rcon status` with that password, and
@@ -451,6 +452,42 @@ Staff is a row in `admins` plus a set of permission ids. There is no stored role
   can be granted or denied a given server, but can't hold `kick` on one server and `ban` on
   another. Acceptable for now (single-operator/small-team use case); revisit if multi-tenant
   usage with different trust levels per server actually comes up.
+
+### AI connections (MCP), 2026-11-07
+
+A staff member connects their own AI on the Mini App's HTTPS port, at `{MINIAPP_URL}/mcp`.
+The listener is off unless both `MINIAPP_PORT` and `MINIAPP_URL` (https) are set. The issuer
+and the resource URL are that configured origin. The request's Host header is ignored.
+
+The app gets its own tokens. It never receives the bot token, and the Mini App's unsigned
+local login stays on `/api`. The grant is OAuth 2.1:
+
+- Public client, PKCE S256 only. The client id is an HTTPS metadata document. There is no open
+  registration. The fetch refuses redirects, credentials, and private or reserved addresses.
+- The redirect URI must be one of the document's, exactly. `resource` must be this server's `/mcp`.
+- The person approves in a private Telegram chat before any token exists. Opening the link does
+  not approve. The first staff member to open a request is the only one who can answer it. The
+  browser page has to stay open: the Telegram link opens beside it, and after the choice that
+  page redirects back to the app.
+- Codes last 60 seconds and work once. A second use revokes the connection. Access tokens last
+  10 minutes. Refresh tokens rotate and last 14 days from the approval; presenting one that
+  already rotated revokes the connection. Tokens are stored as SHA-256 hashes.
+- An omitted scope is read-only. The person allows the intersection of what they hold and what
+  the app asked, or read only, or nothing. That set is snapshotted. A permission they later
+  gain stays out until a new approval. A permission they lose drops on the next call.
+- `update`, `relays`, `admins.manage` and `servers.manage` stay in Telegram, including for the
+  owner. The tools are whoami, servers, status, players, bans, mutes, audit, recent chat, kick,
+  tempban, ban, unban, say, map, cvars, the default server, and raw rcon. Server passwords and
+  log paths are not returned. Raw rcon is audited as the command, and its reply is truncated.
+- In-game chat text goes only to a connection whose actions are empty or only `say`. A
+  connection that can kick, ban, change the map, write a cvar, pick the default server, or send
+  RCON does not receive it. `recent_chat` polls the same feed as the Mini App. `say` puts that
+  staff member's name at the front of the line and waits about 10 seconds between lines.
+  Reading chat is not audited. Speaking is.
+- Each action is audited with source `mcp` and the connection id, and shares the Mini App action
+  cap (20 calls / 10 seconds). Removing the staff member deletes their connections.
+
+`/mcp` in a private chat lists live connections. `/mcp revoke <id>` and `/mcp revoke all` end them.
 
 ## 5. In-game report automation (the core feature)
 
@@ -936,8 +973,8 @@ target_ip, reason, raw_chat_line, created_at, resolved_action, resolved_by, reso
   **not built.** Report cards live only in Telegram and in memory (`ReportRegistry`), so a
   restart forgets open cards, and cards can't show past reports against a player.
 - `audit_log(id, actor_telegram_id, action, target, server_alias, reason, source, detail_json,
-created_at)` — `reason` and `source` (`telegram_button` / `telegram_command` / `auto`, per
-  §4) are explicit columns rather than buried in `detail_json`, since `/auditlog` (§4) needs to
+created_at)` — `reason` and `source` (`telegram_button` / `telegram_command` / `auto` /
+  `miniapp` / `mcp`, per §4) are explicit columns rather than buried in `detail_json`, since `/auditlog` (§4) needs to
   filter/display them directly; `detail_json` holds any action-specific extra data (e.g. the
   raw command text for `/rcon`, §6).
 
@@ -957,6 +994,10 @@ failure, and this DB now holds durable ban/audit history, not just cache-able st
   built-in rate limiter regardless.
 - Telegram side: every mutating command/button goes through a role-check middleware; deny by
   default for unknown Telegram user IDs.
+- AI connections (§4) use OAuth 2.1 on the Mini App's HTTPS port. The app receives its own
+  short-lived tokens, stored only as hashes, and the bot token stays on the gateway. Every call
+  checks that token against the approval and the person's current permissions. Updating the bot,
+  Telegram routing, the staff list and server passwords stay in Telegram.
 - Rate-limit outgoing RCON commands from the gateway itself (a burst of Telegram button
   clicks or a report flood shouldn't hammer the game server).
 - Validate/sanitize anything interpolated into an RCON command (player-supplied report

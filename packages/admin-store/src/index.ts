@@ -1,5 +1,17 @@
 export { migrate } from './lib/migrate.js';
 export {
+  createMcpRepository,
+  createMemoryMcpRepository,
+} from './lib/mcp-repository.js';
+export type {
+  McpAccessRow,
+  McpCodeRow,
+  McpDecision,
+  McpGrantRow,
+  McpPendingRow,
+  McpRepository,
+} from './lib/mcp-repository.js';
+export {
   ADMIN_PERMISSIONS,
   MODERATOR_PERMISSIONS,
   OWNER_GRANTED_PERMISSIONS,

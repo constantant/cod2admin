@@ -4,12 +4,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   createAdminStore,
+  createMcpRepository,
   migrate as migrateAdminStore,
 } from '@cod2admin/admin-store';
 import {
   createBanStore,
   migrate as migrateBanStore,
 } from '@cod2admin/ban-store';
+import type { GameLogTailer } from '@cod2admin/log-tailer';
 import { decodeText, RconClient } from '@cod2admin/rcon-client';
 import { ReportAntiSpam } from '@cod2admin/report-pipeline';
 import type { SessionLookup } from '@cod2admin/report-pipeline';
@@ -61,6 +63,8 @@ import {
 } from './lib/vpn-ranges.js';
 import { startVersionCheckPoller } from './lib/version-check-poller.js';
 import { APP_BUTTON_TEXT } from './lib/commands/app.js';
+import { McpSessions } from './mcp/sessions.js';
+import { ChatFeeds } from './miniapp/chat-feed.js';
 import { startMiniAppServer } from './miniapp/server.js';
 
 const config = loadConfig();
@@ -229,6 +233,17 @@ startPreferredRouteCheck(telegramRouter, probeTelegramRoute);
 // Report-card state (docs/PLAN.md §5 steps 4/6) — process-lifetime, shared between the bot's
 // callback handler and the GameLogTailer wiring below, so both sides see the same in-flight
 // reports/cooldowns.
+const mcpOrigin = config.miniapp.url?.replace(/\/$/, '');
+const mcp =
+  config.miniapp.port !== undefined && mcpOrigin
+    ? {
+        sessions: new McpSessions(createMcpRepository(config.databaseUrl)),
+        origin: mcpOrigin,
+      }
+    : undefined;
+let botUsername: string | undefined;
+
+const logTailers = new Map<string, GameLogTailer>();
 const deps: GatewayDeps = {
   adminStore,
   banStore,
@@ -249,10 +264,12 @@ const deps: GatewayDeps = {
   reportAntiSpam: new ReportAntiSpam<string>(),
   reportQueue: new ReportQueue(adminStore),
   sessionsByServer: new Map<string, SessionLookup>(),
-  logTailers: new Map(),
+  logTailers,
+  chatFeeds: new ChatFeeds(logTailers),
   updateConfig,
   githubReleaseClient: createGithubReleaseClient(),
   updateRegistry: new UpdateRegistry(),
+  mcp,
 };
 
 startExpiryPoller(deps);
@@ -286,6 +303,12 @@ if (config.miniapp.port !== undefined) {
         config.miniapp.staticDir ??
         fileURLToPath(new URL('../miniapp', import.meta.url)),
       devTelegramId: config.miniapp.devTelegramId,
+      mcp: mcp && {
+        origin: mcp.origin,
+        sessions: mcp.sessions,
+        deps,
+        botUsername: () => botUsername,
+      },
       integrations: {
         startTailer: (server) => {
           startReportTailer(server, deps, bot, config.textEncoding);
@@ -328,6 +351,7 @@ void bot.start({
   // Small batches keep each relay response well under 16 KB (see the Cloudflare note in bot.ts).
   limit: 10,
   onStart: (botInfo) => {
+    botUsername = botInfo.username;
     console.log(`cod2admin gateway started as @${botInfo.username}`);
   },
 });

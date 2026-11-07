@@ -1,5 +1,4 @@
 import type { ServerConfig } from '@cod2admin/admin-store';
-import type { GameLogTailer } from '@cod2admin/log-tailer';
 import {
   stripColorCodes,
   type RconClient,
@@ -7,7 +6,7 @@ import {
 } from '@cod2admin/rcon-client';
 import type { GatewayDeps } from '../lib/deps.js';
 import type { PlayerDto, StatusResponse } from './api-types.js';
-import { ChatFeed } from './chat-feed.js';
+import type { ChatFeed } from './chat-feed.js';
 import { toPlayerDto } from './dto.js';
 import { StatusWatcher } from './status-watcher.js';
 
@@ -65,10 +64,6 @@ export interface MiniAppIntegrations {
  * made on first use — servers come and go with `/addserver`/`/removeserver`.
  */
 export class MiniAppState {
-  private readonly chatFeeds = new Map<
-    string,
-    { tailer: GameLogTailer; feed: ChatFeed }
-  >();
   private readonly statusWatchers = new Map<string, StatusWatcher>();
   readonly limiter = new ActionLimiter();
   /** Why the last update from the app failed, until the next try. */
@@ -132,18 +127,7 @@ export class MiniAppState {
 
   /** `undefined` when the bot doesn't read this server's log — an RCON-only install has no chat. */
   chatFeed(alias: string): ChatFeed | undefined {
-    const tailer = this.deps.logTailers.get(alias);
-    if (!tailer) {
-      this.chatFeeds.delete(alias);
-      return undefined;
-    }
-    // `/findlog` can replace the tailer while the bot runs; the old one gets no more lines.
-    let entry = this.chatFeeds.get(alias);
-    if (entry?.tailer !== tailer) {
-      entry = { tailer, feed: new ChatFeed(tailer) };
-      this.chatFeeds.set(alias, entry);
-    }
-    return entry.feed;
+    return this.deps.chatFeeds.get(alias);
   }
 
   statusWatcher(alias: string): StatusWatcher {

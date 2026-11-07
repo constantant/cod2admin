@@ -6,7 +6,7 @@ import { extractServerFlag, resolveServer } from '../resolve-server.js';
 const UNIT_MS: Record<string, number> = { m: 60_000, h: 3_600_000, d: 86_400_000 };
 const DURATION_TOKEN = /^(\d+)(m|h|d)?$/;
 
-function parseDurationMs(token: string | undefined): number | undefined {
+export function parseDurationMs(token: string | undefined): number | undefined {
   if (!token) {
     return undefined;
   }

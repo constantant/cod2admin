@@ -19,6 +19,7 @@ export const auditSourceEnum = pgEnum('audit_source', [
   'telegram_command',
   'auto',
   'miniapp',
+  'mcp',
 ]);
 
 export const reportStatusEnum = pgEnum('report_status', [
@@ -118,6 +119,94 @@ export const settings = pgTable('settings', {
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
+});
+
+/**
+ * An OAuth authorization request waiting for the staff member to approve it in Telegram.
+ * The browser and Telegram each hold a different secret; only the hashes are stored.
+ */
+export const mcpPending = pgTable('mcp_pending', {
+  publicId: text('public_id').primaryKey(),
+  approveHash: text('approve_hash').notNull().unique(),
+  browserHash: text('browser_hash').notNull().unique(),
+  clientId: text('client_id').notNull(),
+  clientName: text('client_name').notNull(),
+  redirectUri: text('redirect_uri').notNull(),
+  codeChallenge: text('code_challenge').notNull(),
+  resource: text('resource').notNull(),
+  scope: text('scope').notNull(),
+  state: text('state').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  telegramId: bigint('telegram_id', { mode: 'number' }),
+  permissions: text('permissions').array(),
+  decision: text('decision'),
+  codeIssued: boolean('code_issued').notNull().default(false),
+});
+
+/** A single-use authorization code. Reuse revokes the grant it already created. */
+export const mcpCodes = pgTable('mcp_codes', {
+  codeHash: text('code_hash').primaryKey(),
+  telegramId: bigint('telegram_id', { mode: 'number' })
+    .notNull()
+    .references(() => admins.telegramId, { onDelete: 'cascade' }),
+  permissions: text('permissions').array().notNull(),
+  clientId: text('client_id').notNull(),
+  clientName: text('client_name').notNull(),
+  redirectUri: text('redirect_uri').notNull(),
+  codeChallenge: text('code_challenge').notNull(),
+  resource: text('resource').notNull(),
+  scope: text('scope').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedGrantId: text('used_grant_id'),
+});
+
+/** One AI connection. Refresh tokens rotate; presenting an old one revokes the row. */
+export const mcpGrants = pgTable(
+  'mcp_grants',
+  {
+    id: text('id').primaryKey(),
+    telegramId: bigint('telegram_id', { mode: 'number' })
+      .notNull()
+      .references(() => admins.telegramId, { onDelete: 'cascade' }),
+    clientId: text('client_id').notNull(),
+    clientName: text('client_name').notNull(),
+    redirectHost: text('redirect_host').notNull(),
+    permissions: text('permissions').array().notNull(),
+    scope: text('scope').notNull(),
+    resource: text('resource').notNull(),
+    refreshHash: text('refresh_hash').notNull().unique(),
+    refreshExpiresAt: timestamp('refresh_expires_at', {
+      withTimezone: true,
+    }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (table) => [index('mcp_grants_telegram_idx').on(table.telegramId)],
+);
+
+/** Refresh-token hashes that already rotated. Presenting one revokes its grant. */
+export const mcpRetiredRefresh = pgTable('mcp_retired_refresh', {
+  refreshHash: text('refresh_hash').primaryKey(),
+  grantId: text('grant_id')
+    .notNull()
+    .references(() => mcpGrants.id, { onDelete: 'cascade' }),
+});
+
+/** Short-lived access tokens. Deleting the grant (or the admin) removes them. */
+export const mcpAccess = pgTable('mcp_access', {
+  tokenHash: text('token_hash').primaryKey(),
+  grantId: text('grant_id')
+    .notNull()
+    .references(() => mcpGrants.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 });
 
 /** docs/PLAN.md §4/§7 — every privileged action, reviewable via `/auditlog`. */

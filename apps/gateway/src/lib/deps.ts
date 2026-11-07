@@ -15,6 +15,8 @@ import type { ReportRegistry } from './reports.js';
 import type { UpdateRegistry } from './update-registry.js';
 import type { VpnKicker } from './vpn-kick.js';
 import type { VpnFlags } from './vpn-ranges.js';
+import type { ChatFeeds } from '../miniapp/chat-feed.js';
+import type { McpSessions } from '../mcp/sessions.js';
 
 /**
  * Self-update (docs/PLAN.md §13.2/§13.3) config, derived from `GatewayConfig.updateStagingDir` in
@@ -77,7 +79,17 @@ export interface GatewayDeps {
   sessionsByServer: Map<string, SessionLookup>;
   /** The `games_mp.log` tailer of every server with a log path — the Mini App's live chat source. */
   logTailers: Map<string, GameLogTailer>;
+  /** Live chat for those tailers, one feed per server, shared with AI connections. */
+  chatFeeds: ChatFeeds;
   updateConfig: UpdateFeatureConfig | undefined;
+  /**
+   * AI connections (OAuth on the Mini App's public address). Absent unless `MINIAPP_PORT` and
+   * `MINIAPP_URL` are both set — there is no issuer to advertise without them.
+   */
+  mcp?: {
+    sessions: McpSessions;
+    origin: string;
+  };
   githubReleaseClient: GithubReleaseClient;
   /** Pending `/update` confirm/cancel cards (docs/PLAN.md §13.3) — same shape/lifetime caveats as `reportRegistry`. */
   updateRegistry: UpdateRegistry;
