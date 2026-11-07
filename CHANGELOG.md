@@ -1,3 +1,13 @@
+## [1.19.1](https://github.com/constantant/cod2admin/releases/tag/v1.19.1) (2026-11-07)
+
+### 🩹 Fixes
+
+- read AI client metadata from hosts that refuse this server ([63f7f76](https://github.com/constantant/cod2admin/commit/63f7f76))
+
+### ❤️ Thank You
+
+- kk
+
 ## [1.19.0](https://github.com/constantant/cod2admin/releases/tag/v1.19.0) (2026-11-07)
 
 ### 🚀 Features
