@@ -1,3 +1,13 @@
+## [1.19.0](https://github.com/constantant/cod2admin/releases/tag/v1.19.0) (2026-11-07)
+
+### 🚀 Features
+
+- let each staff member connect their own AI ([79b4c48](https://github.com/constantant/cod2admin/commit/79b4c48))
+
+### ❤️ Thank You
+
+- kk
+
 ## [1.18.0](https://github.com/constantant/cod2admin/releases/tag/v1.18.0) (2026-11-06)
 
 ### 🚀 Features
