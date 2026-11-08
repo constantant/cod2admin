@@ -1,6 +1,7 @@
 import dgram from 'node:dgram';
 import { afterEach, describe, expect, it } from 'vitest';
 import { DumpuserReplyError, RconClient } from './rcon-client.js';
+import { encodeText } from './text-encoding.js';
 import { UdpQueryTimeoutError } from './udp-transport.js';
 
 const OOB_PREFIX = Buffer.from([0xff, 0xff, 0xff, 0xff]);
@@ -448,7 +449,7 @@ describe('RconClient', () => {
         received = data.subarray(4);
         const reply = Buffer.concat([
           OOB_PREFIX,
-          Buffer.from(userinfo({ name: 'x', cl_hwid: '5' }), 'latin1'),
+          encodeText(userinfo({ name: 'Димон', cl_hwid: '5' }), 'cp1251'),
         ]);
         socket.send(reply, rinfo.port, rinfo.address);
       });
@@ -467,7 +468,7 @@ describe('RconClient', () => {
       });
 
       await expect(client.dumpuser('Димон')).resolves.toEqual({
-        name: 'x',
+        name: 'Димон',
         cl_hwid: '5',
       });
       expect(packets).toBe(1);
@@ -506,6 +507,60 @@ describe('RconClient', () => {
       ]);
     });
 
+    it('does not unquote a mixed name, so xXДимон cannot take xX userinfo', async () => {
+      const received: Buffer[] = [];
+      const socket = dgram.createSocket('udp4');
+      socket.on('message', (data, rinfo) => {
+        const payload = data.subarray(4);
+        received.push(payload);
+        const quoted = payload.toString('latin1').includes('dumpuser "');
+        const body = quoted
+          ? 'print\nPlayer xX is not on the server\n'
+          : userinfo({ name: 'xX', cl_hwid: '999' });
+        socket.send(
+          Buffer.concat([OOB_PREFIX, Buffer.from(body, 'latin1')]),
+          rinfo.port,
+          rinfo.address,
+        );
+      });
+      await new Promise<void>((resolve) =>
+        socket.bind(0, '127.0.0.1', () => resolve()),
+      );
+      peer = {
+        port: socket.address().port,
+        close: () => new Promise((resolve) => socket.close(() => resolve())),
+      };
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'pw',
+        encoding: 'cp1251',
+      });
+
+      await expect(client.dumpuser('xXДимон')).resolves.toEqual({});
+      expect(received).toHaveLength(1);
+      expect(received[0]).toEqual(
+        Buffer.concat([
+          Buffer.from('rcon pw dumpuser "xX', 'latin1'),
+          Buffer.from([0xc4, 0xe8, 0xec, 0xee, 0xed]),
+          Buffer.from('"', 'latin1'),
+        ]),
+      );
+    });
+
+    it('returns an empty map when the userinfo name is a different player', async () => {
+      peer = await createMockPeer((_payload, respond) => {
+        respond(userinfo({ name: 'xX', cl_hwid: '999' }));
+      });
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'secret',
+      });
+
+      await expect(client.dumpuser('const')).resolves.toEqual({});
+    });
+
     it('returns an empty map when both quotings miss, and does not guess userinfo', async () => {
       const received: string[] = [];
       peer = await createMockPeer((payload, respond) => {
@@ -528,6 +583,21 @@ describe('RconClient', () => {
     it('throws when the reply is neither userinfo nor a miss', async () => {
       peer = await createMockPeer((_payload, respond) => {
         respond('print\nserver exploded\n');
+      });
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'secret',
+      });
+
+      await expect(client.dumpuser('const')).rejects.toBeInstanceOf(
+        DumpuserReplyError,
+      );
+    });
+
+    it('throws when a userinfo header is followed by lines that are not cvars', async () => {
+      peer = await createMockPeer((_payload, respond) => {
+        respond('print\nuserinfo\n--------\nthis is not a cvar row\n');
       });
       const client = new RconClient({
         host: '127.0.0.1',

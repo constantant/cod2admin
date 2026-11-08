@@ -1,4 +1,9 @@
-import { stripColorCodes, type CvarMap } from '@cod2admin/rcon-client';
+import {
+  DumpuserReplyError,
+  stripColorCodes,
+  type CvarMap,
+  type StatusPlayer,
+} from '@cod2admin/rcon-client';
 import { sanitizeRconArg } from './sanitize.js';
 
 /** A status row newer than this is reused. Older than this may cost one `status`. */
@@ -6,48 +11,30 @@ const FRESH_STATUS_MS = 10_000;
 /** One identity RCON (`status` or `dumpuser`) per server per this interval. */
 const IDENTITY_RCON_INTERVAL_MS = 1_000;
 
-export interface IdentityPlayer {
-  guid?: string;
-  ip?: string;
-  name: string;
-  /** `status` num. Never sent as `dumpuser`'s argument. */
-  slot: number;
-}
-
 export interface IdentityResolveInput {
   serverAlias: string;
-  player: IdentityPlayer;
+  player: StatusPlayer;
   /**
    * When `player` was read from `status`. Within the last 10 seconds the
    * helper does not call `status` itself. Omit it when the age is unknown.
    */
   statusFetchedAt?: number;
-  /** Already-fetched `dumpuser` map. When set, no identity RCON is sent. */
-  dumpuser?: CvarMap;
 }
 
 export interface IdentityResolution {
   key: string | null;
   /** Row the key was built from. A status refresh replaces the caller's row. */
-  player: IdentityPlayer;
+  player: StatusPlayer;
   /**
    * Pass this back as `statusFetchedAt` on the next resolve. Echoes the
-   * caller's time when that row was fresh, otherwise the time the slot was found.
+   * caller's time when that row was fresh, otherwise the time the player was found.
    */
   statusFetchedAt?: number;
   /**
    * True when this call did not use a `dumpuser` result. The key stays at
-   * GUID or IP. A map the caller already passed is not a skip.
+   * GUID or IP.
    */
   dumpuserSkipped: boolean;
-}
-
-interface StatusLikePlayer {
-  guid?: string;
-  ip?: string;
-  name: string;
-  num?: number;
-  slot?: number;
 }
 
 export interface PlayerIdentityResolverDeps {
@@ -55,16 +42,17 @@ export interface PlayerIdentityResolverDeps {
   now?: () => number;
   dumpuser?: (serverAlias: string, strippedName: string) => Promise<CvarMap>;
   status?: (serverAlias: string) => Promise<{
-    players: readonly StatusLikePlayer[];
+    players: readonly StatusPlayer[];
   }>;
 }
 
 /**
  * Best stable id for one player. `cl_hwid` `0` and guid `0` are never keys.
- * A missing or failed `dumpuser` leaves the key at GUID, else IP with no port.
+ * A missing or failed `dumpuser` leaves the key at GUID, else IP.
+ * `StatusPlayer.ip` is already the host, with no port.
  */
 export function playerIdentityKey(
-  player: Pick<IdentityPlayer, 'guid' | 'ip'>,
+  player: Pick<StatusPlayer, 'guid' | 'ip'>,
   dumpuser?: CvarMap,
 ): string | null {
   const hwid = signedHwid(dumpuser?.['cl_hwid']);
@@ -75,8 +63,8 @@ export function playerIdentityKey(
   if (guid !== null) {
     return `guid:${guid}`;
   }
-  const ip = ipWithoutPort(player.ip);
-  if (ip !== null) {
+  const ip = player.ip?.trim();
+  if (ip) {
     return `ip:${ip}`;
   }
   return null;
@@ -109,24 +97,6 @@ function signedHwid(value: string | undefined): string | null {
   return String(parsed);
 }
 
-function ipWithoutPort(value: string | undefined): string | null {
-  if (value === undefined) {
-    return null;
-  }
-  const trimmed = value.trim();
-  if (trimmed === '') {
-    return null;
-  }
-  const colon = trimmed.lastIndexOf(':');
-  if (colon > 0 && /^-?\d+$/.test(trimmed.slice(colon + 1))) {
-    const host = trimmed.slice(0, colon);
-    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
-      return host;
-    }
-  }
-  return trimmed;
-}
-
 function isFresh(fetchedAt: number | undefined, at: number): boolean {
   return (
     fetchedAt !== undefined &&
@@ -135,43 +105,43 @@ function isFresh(fetchedAt: number | undefined, at: number): boolean {
   );
 }
 
-function toIdentityPlayer(player: StatusLikePlayer): IdentityPlayer | null {
-  const slot = player.slot ?? player.num;
-  if (slot === undefined) {
-    return null;
-  }
-  return {
-    guid: player.guid,
-    ip: player.ip,
-    name: player.name,
-    slot,
-  };
-}
-
 /**
  * Resolves one player when the caller asks. No timer and no RCON until
  * `resolve`. A fresh status row (the ban sweep's, from the last 10 seconds)
  * is used as-is. A stale row costs one `status` and does not also `dumpuser`
- * in that same second. `dumpuser` is refused while the previous identity
- * command for that server was under a second ago.
+ * in that same second. Another resolve waits out an in-flight command, then
+ * one second from when that command settled.
  */
 export function createPlayerIdentityResolver(
   deps: PlayerIdentityResolverDeps = {},
 ) {
   const now = deps.now ?? (() => Date.now());
   const lastRconAt = new Map<string, number>();
+  const inFlight = new Set<string>();
 
-  function budgetOpen(serverAlias: string, at: number): boolean {
+  function blocked(serverAlias: string, at: number): boolean {
+    if (inFlight.has(serverAlias)) {
+      return true;
+    }
     const last = lastRconAt.get(serverAlias);
-    return last === undefined || at - last >= IDENTITY_RCON_INTERVAL_MS;
+    return last !== undefined && at - last < IDENTITY_RCON_INTERVAL_MS;
   }
 
-  function spend(serverAlias: string, at: number): void {
-    lastRconAt.set(serverAlias, at);
+  async function run<T>(
+    serverAlias: string,
+    command: () => Promise<T>,
+  ): Promise<T> {
+    inFlight.add(serverAlias);
+    try {
+      return await command();
+    } finally {
+      inFlight.delete(serverAlias);
+      lastRconAt.set(serverAlias, now());
+    }
   }
 
   function fromRow(
-    player: IdentityPlayer,
+    player: StatusPlayer,
     statusFetchedAt: number | undefined,
     dumpuserSkipped: boolean,
     dumpuser?: CvarMap,
@@ -187,34 +157,24 @@ export function createPlayerIdentityResolver(
   return {
     async resolve(input: IdentityResolveInput): Promise<IdentityResolution> {
       const at = now();
-      if (input.dumpuser !== undefined) {
-        return fromRow(
-          input.player,
-          input.statusFetchedAt,
-          false,
-          input.dumpuser,
-        );
-      }
-
       let player = input.player;
       let statusFetchedAt = input.statusFetchedAt;
 
-      // A stale slot can belong to someone else. Refreshing it spends this
+      // A stale num can belong to someone else. Refreshing it spends this
       // second's identity command, so dumpuser waits for the next call.
-      if (!isFresh(statusFetchedAt, at) && deps.status) {
-        if (!budgetOpen(input.serverAlias, at)) {
+      const readStatus = deps.status;
+      if (!isFresh(statusFetchedAt, at) && readStatus) {
+        if (blocked(input.serverAlias, at)) {
           return fromRow(player, statusFetchedAt, true);
         }
-        spend(input.serverAlias, at);
         try {
-          const status = await deps.status(input.serverAlias);
-          const found = status.players
-            .map(toIdentityPlayer)
-            .filter((row): row is IdentityPlayer => row !== null)
-            .find((row) => row.slot === input.player.slot);
+          const status = await run(input.serverAlias, () =>
+            readStatus(input.serverAlias),
+          );
+          const found = status.players.find((row) => row.num === player.num);
           if (found) {
             player = found;
-            statusFetchedAt = at;
+            statusFetchedAt = now();
           }
         } catch {
           // Status was still the identity command for this second.
@@ -222,22 +182,30 @@ export function createPlayerIdentityResolver(
         return fromRow(player, statusFetchedAt, true);
       }
 
-      if (!deps.dumpuser) {
+      const readDumpuser = deps.dumpuser;
+      if (!readDumpuser) {
         return fromRow(player, statusFetchedAt, true);
       }
 
       // Callers strip before dumpuser. Strip here too so a colored status
       // name cannot miss; RconClient strips again and does the quoting.
       const name = sanitizeRconArg(stripColorCodes(player.name));
-      if (name === '' || !budgetOpen(input.serverAlias, at)) {
+      if (name === '' || blocked(input.serverAlias, at)) {
         return fromRow(player, statusFetchedAt, true);
       }
 
-      spend(input.serverAlias, at);
       try {
-        const userinfo = await deps.dumpuser(input.serverAlias, name);
+        const userinfo = await run(input.serverAlias, () =>
+          readDumpuser(input.serverAlias, name),
+        );
         return fromRow(player, statusFetchedAt, false, userinfo);
-      } catch {
+      } catch (error) {
+        if (error instanceof DumpuserReplyError) {
+          console.error(
+            `dumpuser for "${name}" on "${input.serverAlias}" was not userinfo:`,
+            error,
+          );
+        }
         return fromRow(player, statusFetchedAt, false);
       }
     },

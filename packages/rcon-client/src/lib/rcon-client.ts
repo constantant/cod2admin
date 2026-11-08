@@ -80,13 +80,14 @@ function parseInfoPrintLine(line: string): [string, string] | null {
 }
 
 /**
- * A miss is an empty map. Anything else that is not userinfo throws, so a
- * failure line is never stored as cvars.
+ * A miss is an empty map. A header whose other lines are not cvars throws,
+ * so a layout change is not stored as "no userinfo".
  */
 function parseDumpuserReply(reply: string): CvarMap {
   const cvars: CvarMap = {};
   let sawHeader = false;
   let sawCvar = false;
+  let sawOther = false;
   for (const rawLine of reply.split(/\r?\n/)) {
     const trimmed = rawLine.trim();
     if (trimmed === '') {
@@ -98,13 +99,27 @@ function parseDumpuserReply(reply: string): CvarMap {
     }
     const parsed = parseInfoPrintLine(rawLine.replace(/[ \t]+$/, ''));
     if (!parsed) {
+      sawOther = true;
       continue;
     }
     cvars[parsed[0]] = parsed[1];
     sawCvar = true;
   }
-  if (!sawHeader && !sawCvar) {
+  if (!sawCvar && (sawOther || !sawHeader)) {
     throw new DumpuserReplyError(reply);
+  }
+  return cvars;
+}
+
+/**
+ * The server matches `dumpuser` without color codes. A reply for a different
+ * name (an unquoted high byte split into another player) is a miss.
+ */
+function userinfoForName(reply: string, requestedName: string): CvarMap {
+  const cvars = parseDumpuserReply(reply);
+  const returned = stripColorCodes(cvars['name'] ?? '').trim();
+  if (returned !== requestedName.trim()) {
+    return {};
   }
   return cvars;
 }
@@ -192,9 +207,10 @@ export class RconClient {
    * This strips again so a leftover `^N` still matches the server, which compares
    * names without color codes; the second strip does not re-encode the name.
    * Non-ASCII names are quoted (the server treats bytes above 0x7F as whitespace
-   * outside quotes, same as `say`). ASCII is sent bare, like `kick`'s name
-   * fallback. If that reply is `Usage:` or "is not on the server", the other
-   * quoting is tried once. A miss is an empty map, not a guessed userinfo.
+   * outside quotes, same as `say`) and are not retried unquoted: that retry
+   * would look up only the ASCII prefix. ASCII is sent bare, like `kick`'s
+   * name fallback, and a `Usage:` or "is not on the server" reply is retried
+   * quoted once. A miss, or userinfo for a different name, is an empty map.
    * `cl_hwid` is whatever the server printed, including a signed integer; `0`
    * stays in the map and is not an identity.
    */
@@ -203,18 +219,21 @@ export class RconClient {
     if (name.trim() === '') {
       return {};
     }
-    const quoteFirst = !isAsciiName(name);
-    const firstArg = quoteFirst ? quotedArg(name) : name;
-    const secondArg = quoteFirst ? name : quotedArg(name);
-    const first = await this.rcon(`dumpuser ${firstArg}`);
+    const nonAscii = !isAsciiName(name);
+    const first = await this.rcon(
+      `dumpuser ${nonAscii ? quotedArg(name) : name}`,
+    );
     if (!KICK_FAILURE_PATTERN.test(firstLine(first))) {
-      return parseDumpuserReply(first);
+      return userinfoForName(first, name);
     }
-    const second = await this.rcon(`dumpuser ${secondArg}`);
+    if (nonAscii) {
+      return {};
+    }
+    const second = await this.rcon(`dumpuser ${quotedArg(name)}`);
     if (KICK_FAILURE_PATTERN.test(firstLine(second))) {
       return {};
     }
-    return parseDumpuserReply(second);
+    return userinfoForName(second, name);
   }
 
   /**
