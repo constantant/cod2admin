@@ -25,6 +25,34 @@ export interface TelegramUser {
   firstName: string | null;
 }
 
+export type WatchMode = 'off' | 'flag' | 'report' | 'kick';
+export type WatchJoin = 'spectator' | 'private';
+
+/**
+ * Per-server watcher settings (`servers.watch`). Null on the row means off.
+ * The private password is not a field here.
+ */
+export interface ServerWatchSettings {
+  /** False stays disconnected. True with `mode: 'off'` is a valid stored state. */
+  enabled: boolean;
+  mode: WatchMode;
+  flagZ: number;
+  kickZ: number;
+  minFeatureN: number;
+  minSelfLives: number;
+  kickExtremeLives: number;
+  kickMinSessionLives: number;
+  cooldownMs: number;
+  maxKicksPerHour: number;
+  maxCardsPerHour: number;
+  spectatorName: string;
+  join: WatchJoin;
+  /** `sv_privateclients` before a private slot was reserved. Not a secret. */
+  privateClientsPrevious: number | null;
+  negotiatedProtocol: number | null;
+  confirmedAimFeatures: 0 | 1 | 2;
+}
+
 export interface ServerConfig {
   alias: string;
   rconHost: string;
@@ -35,6 +63,12 @@ export interface ServerConfig {
   boundTelegramChatId: number | null;
   /** Set via `setDefaultServer` — at most one server has it. */
   isDefault: boolean;
+  /** Null: the watcher is off. Never includes the private password. */
+  watch: ServerWatchSettings | null;
+  /** Decrypted. Null when no private password is stored. */
+  watchPrivatePassword: string | null;
+  /** True only when this bot generated `watchPrivatePassword`. */
+  watchPrivatePasswordOwned: boolean;
 }
 
 export interface UpsertServerInput {
@@ -91,6 +125,9 @@ export interface AuditLogFilter {
 
 export type ReportStatus = 'open' | 'handled' | 'ignored';
 
+/** `player` is an in-game `!report`. `watch` must not collapse into that row. */
+export type ReportOrigin = 'player' | 'watch';
+
 export interface Report {
   id: number;
   serverAlias: string;
@@ -98,6 +135,8 @@ export interface Report {
   reporterGuid: string | null;
   targetName: string;
   reason: string | null;
+  /** Omitted on write means `player`. */
+  origin: ReportOrigin;
   status: ReportStatus;
   /** How many times this report was filed while open. */
   count: number;
@@ -114,6 +153,8 @@ export interface RecordReportInput {
   reporterGuid?: string | null;
   targetName: string;
   reason?: string | null;
+  /** Omitted reports are `player`. */
+  origin?: ReportOrigin;
 }
 
 export interface ReportFilter {
@@ -228,6 +269,24 @@ export interface AdminStore {
   /** Makes this server the only default one. `false` (nothing changed) if no such server exists. */
   setDefaultServer(alias: string): Promise<boolean>;
   getDefaultServer(): Promise<ServerConfig | undefined>;
+  /**
+   * Replaces `servers.watch`. `false` if no such server exists.
+   * Refuses `mode: 'kick'` unless `confirmedAimFeatures` is 2.
+   * The private password is not accepted here.
+   */
+  setServerWatch(
+    alias: string,
+    settings: ServerWatchSettings,
+  ): Promise<boolean>;
+  /**
+   * Writes the private-password column. `null` clears it and clears `owned`.
+   * `false` if no such server exists. The plaintext is never put in `servers.watch`.
+   */
+  setWatchPrivatePassword(
+    alias: string,
+    password: string | null,
+    owned: boolean,
+  ): Promise<boolean>;
 
   /** A setting changed from Telegram, or `undefined` if it was never set (or was reset). */
   getSetting(key: string): Promise<unknown>;
@@ -253,7 +312,7 @@ export interface AdminStore {
   /** Every distinct action in the log, sorted — the viewer's filter choices. */
   listAuditActions(): Promise<string[]>;
 
-  /** Saves a `!report`, or counts it on the open report with the same server, reporter and target. */
+  /** Saves a report, or counts it on the open row with the same server, reporter, target, and origin. */
   recordReport(input: RecordReportInput): Promise<Report>;
   getReport(id: number): Promise<Report | undefined>;
   /** Newest first. */

@@ -13,6 +13,7 @@ import {
   timestamp,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
+import type { ReportOrigin, ServerWatchSettings } from './types.js';
 
 export const auditSourceEnum = pgEnum('audit_source', [
   'telegram_button',
@@ -98,6 +99,12 @@ export const servers = pgTable(
     boundTelegramChatId: bigint('bound_telegram_chat_id', { mode: 'number' }),
     /** Target of commands without `--server` in chats not bound via `/bindserver` (`/setdefault`). */
     isDefault: boolean('is_default').notNull().default(false),
+    /** Null: the watcher is off. No password field — that column is separate. */
+    watch: jsonb('watch').$type<ServerWatchSettings>(),
+    watchPrivatePasswordEncrypted: text('watch_private_password_encrypted'),
+    watchPrivatePasswordOwned: boolean('watch_private_password_owned')
+      .notNull()
+      .default(false),
   },
   (table) => [
     // At most one default server, enforced by the DB like admins_one_owner_idx.
@@ -224,7 +231,8 @@ export const auditLog = pgTable('audit_log', {
 
 /**
  * Every `!report` players file (docs/PLAN-miniapp.md §6.4) — the Mini App's queue. Repeats of an
- * open report collapse into one row (`count`), like the Telegram card does.
+ * open report with the same origin collapse into one row (`count`), like the Telegram card does.
+ * A `watch` row does not collapse into a `player` row of the same names.
  */
 export const reports = pgTable(
   'reports',
@@ -247,6 +255,7 @@ export const reports = pgTable(
     resolvedAt: timestamp('resolved_at', { withTimezone: true }),
     /** What was done, e.g. `Kicked`. */
     outcome: text('outcome'),
+    origin: text('origin').$type<ReportOrigin>().notNull().default('player'),
   },
   (table) => [
     index('reports_status_idx').on(table.status, table.lastReportedAt),

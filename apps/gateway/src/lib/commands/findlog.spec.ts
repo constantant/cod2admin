@@ -23,6 +23,9 @@ function server(overrides: Partial<ServerConfig> = {}): ServerConfig {
     logSourceConfig: null,
     boundTelegramChatId: null,
     isDefault: false,
+    watch: null,
+    watchPrivatePassword: null,
+    watchPrivatePasswordOwned: false,
     ...overrides,
   };
 }

@@ -3,6 +3,7 @@ import {
   ADMIN_PERMISSIONS,
   OWNER_GRANTED_PERMISSIONS,
   PermissionError,
+  effectivePermissions,
   hasPermission,
   resolvePermissionGrant,
 } from './permissions.js';
@@ -80,6 +81,36 @@ describe('hasPermission', () => {
     expect(hasPermission({ isOwner: true, permissions: [] }, 'rcon')).toBe(
       true,
     );
+  });
+
+  it('keeps watch.manage with the owner, not the admin template', () => {
+    expect(OWNER_GRANTED_PERMISSIONS).toContain('watch.manage');
+    expect(ADMIN_PERMISSIONS).not.toContain('watch.manage');
+    expect(effectivePermissions({ isOwner: true, permissions: [] })).toContain(
+      'watch.manage',
+    );
+    expect(
+      effectivePermissions({
+        isOwner: false,
+        permissions: [...ADMIN_PERMISSIONS],
+      }),
+    ).not.toContain('watch.manage');
+    expect(() =>
+      resolvePermissionGrant({
+        actorIsOwner: false,
+        actorPermissions: [...adminPerms, 'watch.manage'],
+        targetPermissions: ['kick'],
+        requested: ['kick', 'watch.manage'],
+      }),
+    ).toThrow(/Only the owner can grant watch\.manage/);
+    expect(
+      resolvePermissionGrant({
+        actorIsOwner: true,
+        actorPermissions: [],
+        targetPermissions: [],
+        requested: ['watch.manage'],
+      }),
+    ).toEqual(['watch.manage']);
   });
 
   it('does not treat a moderator-shaped set as a ban', () => {

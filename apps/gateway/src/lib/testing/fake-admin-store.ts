@@ -30,6 +30,8 @@ export interface FakeAdminStore extends AdminStore {
   removeServer: Mock<AdminStore['removeServer']>;
   setDefaultServer: Mock<AdminStore['setDefaultServer']>;
   getDefaultServer: Mock<AdminStore['getDefaultServer']>;
+  setServerWatch: Mock<AdminStore['setServerWatch']>;
+  setWatchPrivatePassword: Mock<AdminStore['setWatchPrivatePassword']>;
   getSetting: Mock<AdminStore['getSetting']>;
   setSetting: Mock<AdminStore['setSetting']>;
   deleteSetting: Mock<AdminStore['deleteSetting']>;
@@ -74,6 +76,7 @@ export function sampleReport(overrides: Partial<Report> = {}): Report {
     resolvedBy: null,
     resolvedAt: null,
     outcome: null,
+    origin: 'player',
     ...overrides,
   };
 }
@@ -135,6 +138,8 @@ export function createFakeAdminStore(
     removeServer: vi.fn().mockResolvedValue(true),
     setDefaultServer: vi.fn().mockResolvedValue(true),
     getDefaultServer: vi.fn().mockResolvedValue(undefined),
+    setServerWatch: vi.fn().mockResolvedValue(true),
+    setWatchPrivatePassword: vi.fn().mockResolvedValue(true),
     getSetting: vi.fn().mockResolvedValue(undefined),
     setSetting: vi.fn().mockResolvedValue(undefined),
     deleteSetting: vi.fn().mockResolvedValue(undefined),

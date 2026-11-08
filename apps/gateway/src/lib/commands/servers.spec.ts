@@ -12,6 +12,9 @@ const SERVER: ServerConfig = {
   logSourceConfig: null,
   boundTelegramChatId: null,
   isDefault: false,
+  watch: null,
+  watchPrivatePassword: null,
+  watchPrivatePasswordOwned: false,
 };
 
 describe('formatServersMessage', () => {

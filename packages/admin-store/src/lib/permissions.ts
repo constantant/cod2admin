@@ -21,6 +21,7 @@ export const PERMISSIONS = [
   'audit',
   'rcon',
   'update',
+  'watch.manage',
   'relays',
   'templates',
   'logs',
@@ -57,6 +58,7 @@ export const ADMIN_PERMISSIONS = [
 export const OWNER_GRANTED_PERMISSIONS = [
   'rcon',
   'update',
+  'watch.manage',
 ] as const satisfies readonly Permission[];
 
 export class PermissionError extends Error {
@@ -99,10 +101,10 @@ function uniquePermissions(values: readonly string[]): Permission[] {
 /**
  * The set to store after an edit.
  *
- * The owner may set any ids, including `rcon` and `update`. Anyone else may set
- * only ids they hold, and `rcon` / `update` stay exactly as they already are:
- * mentioning one the person doesn't have is refused, and leaving one out does
- * not take it away.
+ * The owner may set any ids, including `rcon`, `update`, and `watch.manage`.
+ * Anyone else may set only ids they hold, and those owner-granted ids stay
+ * exactly as they already are: mentioning one the person doesn't have is
+ * refused, and leaving one out does not take it away.
  */
 export function resolvePermissionGrant(input: {
   actorIsOwner: boolean;

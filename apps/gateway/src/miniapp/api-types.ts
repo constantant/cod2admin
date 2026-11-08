@@ -27,6 +27,7 @@ export const PERMISSIONS = [
   'audit',
   'rcon',
   'update',
+  'watch.manage',
   'relays',
   'templates',
   'logs',

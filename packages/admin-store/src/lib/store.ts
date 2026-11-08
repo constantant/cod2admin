@@ -35,6 +35,7 @@ import {
   telegramUsers,
 } from './schema.js';
 import { SecretBox } from './secrets.js';
+import { watchSettingsForStorage } from './watch-settings.js';
 import type {
   AddPlayerNoteInput,
   Admin,
@@ -51,10 +52,12 @@ import type {
   RecordSnapshotInput,
   Report,
   ReportFilter,
+  ReportOrigin,
   ReportStatus,
   SaveKnownPlayerInput,
   ServerConfig,
   ServerSnapshot,
+  ServerWatchSettings,
   TelegramUser,
   UpsertServerInput,
 } from './types.js';
@@ -307,6 +310,40 @@ export class DrizzleAdminStore implements AdminStore {
     return row ? this.toServerConfig(row) : undefined;
   }
 
+  async setServerWatch(
+    alias: string,
+    settings: ServerWatchSettings,
+  ): Promise<boolean> {
+    const watch = watchSettingsForStorage(settings);
+    const updated = await this.db
+      .update(servers)
+      .set({ watch })
+      .where(eq(servers.alias, alias))
+      .returning({ alias: servers.alias });
+    return updated.length > 0;
+  }
+
+  async setWatchPrivatePassword(
+    alias: string,
+    password: string | null,
+    owned: boolean,
+  ): Promise<boolean> {
+    const watchPrivatePasswordEncrypted =
+      password === null || password === ''
+        ? null
+        : this.secretBox.encrypt(password);
+    const updated = await this.db
+      .update(servers)
+      .set({
+        watchPrivatePasswordEncrypted,
+        watchPrivatePasswordOwned:
+          watchPrivatePasswordEncrypted === null ? false : owned,
+      })
+      .where(eq(servers.alias, alias))
+      .returning({ alias: servers.alias });
+    return updated.length > 0;
+  }
+
   async getSetting(key: string): Promise<unknown> {
     const [row] = await this.db
       .select({ value: settings.value })
@@ -397,6 +434,7 @@ export class DrizzleAdminStore implements AdminStore {
 
   async recordReport(input: RecordReportInput): Promise<Report> {
     const reason = input.reason ?? null;
+    const origin = reportOrigin(input.origin);
     return this.db.transaction(async (tx) => {
       const [open] = await tx
         .select({ id: reports.id })
@@ -406,6 +444,7 @@ export class DrizzleAdminStore implements AdminStore {
             eq(reports.status, 'open'),
             eq(reports.serverAlias, input.serverAlias),
             eq(reports.reporterName, input.reporterName),
+            eq(reports.origin, origin),
             sql`lower(${reports.targetName}) = lower(${input.targetName})`,
           ),
         )
@@ -431,6 +470,7 @@ export class DrizzleAdminStore implements AdminStore {
           reporterGuid: input.reporterGuid ?? null,
           targetName: input.targetName,
           reason,
+          origin,
         })
         .returning();
       return created as Report;
@@ -695,8 +735,23 @@ export class DrizzleAdminStore implements AdminStore {
       logSourceConfig: row.logSourceConfig,
       boundTelegramChatId: row.boundTelegramChatId,
       isDefault: row.isDefault,
+      watch: row.watch,
+      watchPrivatePassword: row.watchPrivatePasswordEncrypted
+        ? this.secretBox.decrypt(row.watchPrivatePasswordEncrypted)
+        : null,
+      watchPrivatePasswordOwned: row.watchPrivatePasswordOwned,
     };
   }
+}
+
+function reportOrigin(origin: string | undefined): ReportOrigin {
+  if (origin === undefined || origin === 'player') {
+    return 'player';
+  }
+  if (origin === 'watch') {
+    return 'watch';
+  }
+  throw new Error(`Unknown report origin: ${origin}`);
 }
 
 export function createAdminStore(

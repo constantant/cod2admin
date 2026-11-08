@@ -448,6 +448,9 @@ describe('Mini App management routes', () => {
           logSourceConfig: null,
           boundTelegramChatId: null,
           isDefault: false,
+          watch: null,
+          watchPrivatePassword: null,
+          watchPrivatePasswordOwned: false,
         },
       ]);
       fake.rcon.getStatus.mockResolvedValue({
