@@ -1,3 +1,13 @@
+## [1.20.0](https://github.com/constantant/cod2admin/releases/tag/v1.20.0) (2026-11-08)
+
+### 🚀 Features
+
+- let admins edit the bot's game-chat lines ([4966491](https://github.com/constantant/cod2admin/commit/4966491))
+
+### ❤️ Thank You
+
+- kk
+
 ## [1.19.1](https://github.com/constantant/cod2admin/releases/tag/v1.19.1) (2026-11-07)
 
 ### 🩹 Fixes
