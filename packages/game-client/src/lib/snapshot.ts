@@ -1,4 +1,4 @@
-import { decodeText } from '@cod2admin/rcon-client';
+import { decodeText, parseCvarBlock } from '@cod2admin/rcon-client';
 import { BitMsg } from './bit-msg.js';
 import {
   BIG_INFO_STRING,
@@ -59,8 +59,6 @@ export interface EntityObservation {
   origin: readonly [number, number, number];
   viewangles: readonly [number, number, number];
   weapon: number;
-  /** True when this delta's changed-field count included `weapon`. */
-  weaponInDelta: boolean;
 }
 
 export interface ParsedSnapshot {
@@ -395,7 +393,6 @@ function observe(serverTimeMs: number, entities: Map<number, Int32Array>): Entit
         bitsToFloat(state[ANGLE_ROLL] ?? 0),
       ],
       weapon: state[WEAPON] ?? 0,
-      weaponInDelta: true,
     });
   }
   return players;
@@ -464,24 +461,13 @@ function serverIdFrom(configstrings: Map<number, string>): number | null {
   for (const index of [CS_SYSTEMINFO, CS_SERVERINFO]) {
     const text = configstrings.get(index);
     if (!text) continue;
-    const keys = parseInfoKeys(text);
+    const keys = parseCvarBlock(text);
     const raw = keys['sv_serverid'] ?? keys['sv_serverId'];
     if (raw === undefined) continue;
     const value = Number(raw);
     if (Number.isInteger(value)) return value & 0xff;
   }
   return null;
-}
-
-export function parseInfoKeys(info: string): Record<string, string> {
-  const parts = info.split('\\');
-  const keys: Record<string, string> = {};
-  for (let i = 1; i + 1 < parts.length; i += 2) {
-    const key = parts[i];
-    const value = parts[i + 1];
-    if (key) keys[key] = value ?? '';
-  }
-  return keys;
 }
 
 /** Parse one decompressed server message. Truncation fails the parse and does not throw. */

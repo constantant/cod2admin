@@ -251,9 +251,8 @@ export function huffmanCompress(input: Uint8Array, maxOut: number): HuffResult {
 }
 
 /**
- * Decompress symbols that fit in `input`. Stops when the next code would read
- * past the buffer (padding that does not finish a symbol). Output past `maxOut`
- * fails the parse; it does not throw.
+ * Decompress. A code cut off before it finishes fails. Zero bits that only pad
+ * the last byte after a finished symbol are the compressor's byte align, not a cut.
  */
 export function huffmanDecompress(input: Uint8Array, maxOut: number): HuffResult {
   if (maxOut < 0) return { ok: false, reason: 'cap' };
@@ -265,11 +264,21 @@ export function huffmanDecompress(input: Uint8Array, maxOut: number): HuffResult
     const started = bloc.n;
     const symbol = coder.receive(input, bloc, input.length);
     if (symbol === null) {
-      if (out.length === 0 && started === 0 && input.length > 0) return { ok: false, reason: 'truncated' };
+      if (bloc.n !== started && !isZeroTailPad(input, started, bloc.n)) return { ok: false, reason: 'truncated' };
+      if (out.length === 0 && input.length > 0) return { ok: false, reason: 'truncated' };
       break;
     }
     if (out.length >= maxOut) return { ok: false, reason: 'cap' };
     out.push(symbol);
   }
   return { ok: true, data: Uint8Array.from(out) };
+}
+
+/** True when the unfinished code is only the zero fill in the final byte. */
+function isZeroTailPad(input: Uint8Array, fromBit: number, toBit: number): boolean {
+  if (input.length === 0 || fromBit < (input.length - 1) * 8) return false;
+  for (let bit = fromBit; bit < toBit; bit++) {
+    if (((input[bit >> 3] ?? 0) >> (bit & 7)) & 1) return false;
+  }
+  return true;
 }

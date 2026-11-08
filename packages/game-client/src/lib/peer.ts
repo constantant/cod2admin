@@ -1,6 +1,6 @@
 import dgram from 'node:dgram';
 import { parseOobPacket } from '@cod2admin/rcon-client';
-import { CS_SERVERINFO, CS_SYSTEMINFO, MAX_DATAGRAM, TEAM_SPECTATOR } from './constants.js';
+import { CS_SERVERINFO, CS_SYSTEMINFO, MAX_DATAGRAM } from './constants.js';
 import type { EntityObservation } from './snapshot.js';
 import { emptyParseState, parseServerMessage, type ParseState } from './snapshot.js';
 import {
@@ -31,12 +31,6 @@ export interface GamePeerOptions {
   host: string;
   port: number;
   timeoutMs?: number;
-  name?: string;
-  /**
-   * Default true. The one-shot pure-rejection probe passes false and does not retry.
-   * Production callers leave this unset.
-   */
-  enforceGate?: boolean;
   onDatagram?: (direction: 'in' | 'out', bytes: Buffer) => void;
 }
 
@@ -68,13 +62,19 @@ interface Pending {
  * Spectator-only peer. Sends no movement buttons and no private-slot password.
  * `connect` refuses unless getstatus has `sv_pure` and `sv_punkbuster` equal to `0`.
  */
+// Assigned from the class static block. `open` stays private, so the pure probe is not a GamePeer method.
+let openPeer!: (options: GamePeerOptions, enforceGate: boolean) => Promise<GamePeer>;
+
 export class GamePeer {
+  static {
+    openPeer = (options, enforceGate) => GamePeer.open(options, enforceGate);
+  }
+
   readonly status: StatusInfo;
   protocol: number;
   private readonly socket: dgram.Socket;
   private readonly host: string;
   private readonly port: number;
-  private readonly name: string;
   private readonly onDatagram?: GamePeerOptions['onDatagram'];
   private challenge: number;
   private readonly qport: number;
@@ -115,7 +115,6 @@ export class GamePeer {
     this.socket = socket;
     this.host = options.host;
     this.port = options.port;
-    this.name = options.name ?? 'AdminWatch';
     this.onDatagram = options.onDatagram;
     this.challenge = challenge;
     this.qport = 1 + Math.floor(Math.random() * 65534);
@@ -124,7 +123,11 @@ export class GamePeer {
     socket.on('message', (msg, rinfo) => this.onMessage(msg, rinfo));
   }
 
-  static async connect(options: GamePeerOptions): Promise<GamePeer> {
+  static connect(options: GamePeerOptions): Promise<GamePeer> {
+    return GamePeer.open(options, true);
+  }
+
+  private static async open(options: GamePeerOptions, enforceGate: boolean): Promise<GamePeer> {
     const timeoutMs = options.timeoutMs ?? 3000;
     const socket = dgram.createSocket('udp4');
     await new Promise<void>((resolve, reject) => {
@@ -140,7 +143,7 @@ export class GamePeer {
       const status = parseStatusBody(statusBody);
       Object.assign(peer.status, status);
       const gate = connectAllowed(status);
-      if (options.enforceGate !== false && !gate.ok) {
+      if (enforceGate && !gate.ok) {
         peer.close();
         throw new ConnectRefusedError(gate.reason, status);
       }
@@ -159,7 +162,6 @@ export class GamePeer {
         protocol: status.protocol,
         challenge,
         qport: peer.qport,
-        name: peer.name,
       });
       const connectBody = await peer.roundTrip(buildConnectPacket(userinfo), timeoutMs, (header) => {
         return header === 'connectResponse' || header === 'error';
@@ -378,10 +380,11 @@ export class GamePeer {
   }
 }
 
-function emptyStatus(): StatusInfo {
-  return { protocol: null, sv_pure: null, sv_punkbuster: null, sv_fps: null, keys: {} };
+/** One connect with the pure/PB gate off. Not part of the package entry. Does not retry. */
+export function connectPureProbe(options: GamePeerOptions): Promise<GamePeer> {
+  return openPeer(options, false);
 }
 
-export function spectatorAccepted(team: number | null): boolean {
-  return team === TEAM_SPECTATOR;
+function emptyStatus(): StatusInfo {
+  return { protocol: null, sv_pure: null, sv_punkbuster: null, sv_fps: null, keys: {} };
 }

@@ -1,15 +1,16 @@
 /**
- * Manual dev-server spike. Not part of vitest. Does not set sv_privateclients
- * or sv_privatepassword. The sv_pure 0 write is a raw OOB rcon after the
- * rejection text is recorded, and only for this script.
+ * Manual dev-server spike. Not part of vitest and not part of the library build.
+ * Does not set sv_privateclients or sv_privatepassword. sv_pure 0 is a raw OOB
+ * rcon only after the rejection text is stored, and finally restores sv_pure 1
+ * when this run was the one that lowered it.
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { createSocket } from 'node:dgram';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildOobPacket, parseOobPacket } from '@cod2admin/rcon-client';
 import { ET_PLAYER } from './lib/constants.js';
-import { GamePeer, type WatchResult } from './lib/peer.js';
+import { connectPureProbe, GamePeer, type WatchResult } from './lib/peer.js';
 import type { EntityObservation } from './lib/snapshot.js';
 import { buildGetstatusPacket, parseStatusBody, type StatusInfo } from './lib/wire.js';
 
@@ -88,14 +89,14 @@ function intervals(times: number[]): number | null {
   return deltas[Math.floor(deltas.length / 2)] ?? null;
 }
 
-async function probe(label: string): Promise<WatchResult & { error?: string }> {
+async function probe(label: string, gate: boolean): Promise<WatchResult & { error?: string }> {
   const captured: Buffer[] = [];
+  const open = gate ? GamePeer.connect.bind(GamePeer) : connectPureProbe;
   try {
-    const peer = await GamePeer.connect({
+    const peer = await open({
       host,
       port,
       timeoutMs: 4000,
-      enforceGate: label !== 'pure-still-1',
       onDatagram: (direction, bytes) => {
         if (direction === 'in' && captured.length < 4) captured.push(Buffer.from(bytes));
       },
@@ -123,9 +124,14 @@ async function probe(label: string): Promise<WatchResult & { error?: string }> {
   }
 }
 
+function rejectionStored(run: { serverCommands: string[]; oobMessages: string[] } | null): boolean {
+  if (!run) return false;
+  const text = [...run.serverCommands, ...run.oobMessages].join('\n');
+  return text.includes('EXE_CANNOTVALIDATEPURECLIENT') || text.includes('EXE_UNPURECLIENTDETECTED');
+}
+
 function summarize(status: StatusInfo | null, pureRun: Awaited<ReturnType<typeof probe>> | null, parseRun: Awaited<ReturnType<typeof probe>> | null) {
   const movement = spread(parseRun?.samples ?? []);
-  const both = movement.originChanged > 0 && movement.anglesChanged > 0 && movement.enemies > 1 && movement.areas > 1;
   const weapons = [...new Set((parseRun?.samples ?? []).map((sample) => sample.weapon))];
   return {
     date: new Date().toISOString().slice(0, 10),
@@ -151,7 +157,7 @@ function summarize(status: StatusInfo | null, pureRun: Awaited<ReturnType<typeof
           intervalMs: intervals(parseRun.receivedAt),
           movement,
           weapons,
-          confirmedAimFeatures: both ? 2 : 0,
+          confirmedAimFeatures: 0,
           serverCommands: parseRun.serverCommands.slice(0, 12),
           systemInfo: parseRun.systemInfo,
         }
@@ -160,34 +166,60 @@ function summarize(status: StatusInfo | null, pureRun: Awaited<ReturnType<typeof
 }
 
 async function main(): Promise<void> {
-  let status: StatusInfo | null = null;
+  let lowered = false;
   try {
-    status = parseStatusBody(await query(buildGetstatusPacket()));
-  } catch (error) {
-    const failure = {
-      date: new Date().toISOString().slice(0, 10),
-      target: `${host}:${port}`,
-      unreachable: error instanceof Error ? error.message : String(error),
-      confirmedAimFeatures: 0,
-    };
-    process.stdout.write(`${JSON.stringify(failure, null, 2)}\n`);
-    return;
-  }
-  const pureRun = status.sv_pure === '0' ? null : await probe('pure-still-1');
-  if (status.sv_pure !== '0') {
-    try {
-      await query(buildOobPacket(`rcon ${password} sv_pure 0`));
-    } catch (error) {
-      process.stderr.write(`rcon sv_pure 0 failed: ${error instanceof Error ? error.message : String(error)}\n`);
-    }
+    let status: StatusInfo;
     try {
       status = parseStatusBody(await query(buildGetstatusPacket()));
-    } catch {
-      // keep the pre-change status; the parse run will say if the server is gone
+    } catch (error) {
+      const failure = {
+        date: new Date().toISOString().slice(0, 10),
+        target: `${host}:${port}`,
+        unreachable: error instanceof Error ? error.message : String(error),
+        confirmedAimFeatures: 0,
+      };
+      process.stdout.write(`${JSON.stringify(failure, null, 2)}\n`);
+      return;
+    }
+    const pureRun = status.sv_pure === '0' ? null : await probe('pure-still-1', false);
+    // Lower pure only after the rejection text is already in pureRun. A server that
+    // was already 0 is left alone, and finally does not force it back to 1.
+    if (status.sv_pure !== '0' && rejectionStored(pureRun)) {
+      lowered = true;
+      try {
+        await query(buildOobPacket(`rcon ${password} sv_pure 0`));
+      } catch (error) {
+        process.stderr.write(`rcon sv_pure 0 failed: ${error instanceof Error ? error.message : String(error)}\n`);
+      }
+      try {
+        status = parseStatusBody(await query(buildGetstatusPacket()));
+      } catch {
+        // keep the pre-change status; the parse run will say if the server is gone
+      }
+    }
+    const parseRun = status.sv_pure === '0' && status.sv_punkbuster === '0' ? await probe('pure-0', true) : null;
+    process.stdout.write(`${JSON.stringify(summarize(status, pureRun, parseRun), null, 2)}\n`);
+  } finally {
+    if (!lowered) return;
+    try {
+      await query(buildOobPacket(`rcon ${password} sv_pure 1`));
+    } catch (error) {
+      process.stderr.write(`rcon sv_pure 1 failed: ${error instanceof Error ? error.message : String(error)}\n`);
     }
   }
-  const parseRun = status.sv_pure === '0' && status.sv_punkbuster === '0' ? await probe('pure-0') : null;
-  process.stdout.write(`${JSON.stringify(summarize(status, pureRun, parseRun), null, 2)}\n`);
 }
 
-await main();
+/** Importing this file must not open a socket. Only a direct run talks to the server. */
+function startedAsScript(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (startedAsScript()) {
+  await main();
+}

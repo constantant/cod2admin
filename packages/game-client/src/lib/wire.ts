@@ -1,4 +1,4 @@
-import { buildOobPacket, encodeText } from '@cod2admin/rcon-client';
+import { buildOobPacket, encodeText, parseCvarBlock } from '@cod2admin/rcon-client';
 import { BitMsg } from './bit-msg.js';
 import {
   CLC_CLIENT_COMMAND,
@@ -13,7 +13,6 @@ import {
   maxMessageLength,
 } from './constants.js';
 import { huffmanCompress, huffmanDecompress, type HuffResult } from './huffman.js';
-import { parseInfoKeys } from './snapshot.js';
 
 export const SPECTATOR_NAME = 'AdminWatch';
 export const SPECTATOR_RATE = 25000;
@@ -30,7 +29,7 @@ export interface StatusInfo {
 /** `body` is the text after `statusResponse\\n`. Missing keys stay null. */
 export function parseStatusBody(body: string): StatusInfo {
   const line = body.split('\n', 1)[0] ?? '';
-  const keys = parseInfoKeys(line);
+  const keys = parseCvarBlock(line);
   const protocol = keys['protocol'] !== undefined && /^-?\d+$/.test(keys['protocol']) ? Number(keys['protocol']) : null;
   return {
     protocol,
@@ -64,13 +63,18 @@ export function buildGetchallengePacket(): Buffer {
   return buildOobPacket('getchallenge');
 }
 
+/** `\\`, `"`, and `;` would add userinfo keys or end the connect quotes. */
+export function sanitizeSpectatorName(name: string): string {
+  const cleaned = name.replace(/[\\";]/g, '');
+  return cleaned.length > 0 ? cleaned : SPECTATOR_NAME;
+}
+
 export function buildSpectatorUserinfo(options: {
   protocol: number;
   challenge: number;
   qport: number;
-  name?: string;
 }): string {
-  const name = options.name ?? SPECTATOR_NAME;
+  const name = sanitizeSpectatorName(SPECTATOR_NAME);
   // No checksum, password, cl_hwid, or private-slot key. Snaps is a request only.
   return [
     `\\protocol\\${options.protocol}`,
@@ -152,7 +156,8 @@ function writeClientBody(packet: ClientDatagram): BitMsg {
       msg.writeBit(0);
       msg.writeLong(packet.serverTime);
     }
-    // Unchanged buttons, weapon, off-hand, and angles. One keyed bit, then stop.
+    // Keyed 0 (`key & 1`) is no-change: MSG_ReadKey returns 0 and the reader stops.
+    // `(key & 1) ^ 1` is value 1, which continues into buttons.
     msg.writeBits(key & 1, 1);
   } else {
     msg.writeBits(CLC_EOF, 3);

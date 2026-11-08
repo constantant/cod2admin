@@ -3,26 +3,35 @@ import { createSocket, type Socket } from 'node:dgram';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { buildOobPacket } from '@cod2admin/rcon-client';
+import { buildOobPacket, parseOobPacket } from '@cod2admin/rcon-client';
 import { BitMsg } from './bit-msg.js';
-import { SVC_SNAPSHOT } from './constants.js';
+import { CLC_MOVE_NO_DELTA, CLIENT_CLEAR_HEADER, SVC_SNAPSHOT } from './constants.js';
 import { HUFF_FREQ } from './huff-data.js';
 import { huffmanCompress, huffmanDecompress } from './huffman.js';
 import { ConnectRefusedError, GamePeer } from './peer.js';
 import { parseServerMessage } from './snapshot.js';
 import {
+  buildClientDatagram,
   buildDisconnectDatagram,
   buildGetchallengePacket,
   buildSpectatorUserinfo,
+  comHashKey,
   connectAllowed,
   decodeClientDatagram,
+  FragmentAssembler,
   parseStatusBody,
+  sanitizeSpectatorName,
+  SPECTATOR_NAME,
 } from './wire.js';
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), '../../fixtures');
 
 function fixture(name: string): string {
   return readFileSync(join(fixtures, name), 'utf8').trim();
+}
+
+function fixtureBytes(name: string): Buffer {
+  return readFileSync(join(fixtures, name));
 }
 
 describe('OOB challenge framing', () => {
@@ -52,6 +61,32 @@ describe('Huffman', () => {
     if (!compressed.ok) return;
     expect(huffmanDecompress(compressed.data, 8)).toEqual({ ok: false, reason: 'cap' });
     expect(() => huffmanDecompress(compressed.data, 8)).not.toThrow();
+  });
+
+  it('fails when a code is cut mid-symbol', () => {
+    const input = Uint8Array.from({ length: 40 }, (_, i) => (i * 17 + 3) & 0xff);
+    const compressed = huffmanCompress(input, 256);
+    expect(compressed.ok).toBe(true);
+    if (!compressed.ok) return;
+    const full = compressed.data;
+    let truncated = false;
+    for (let bytes = full.length; bytes >= 1 && !truncated; bytes--) {
+      for (let keep = 8; keep >= 1; keep--) {
+        const cut = full.slice(0, bytes);
+        if (keep < 8) {
+          const mask = (1 << keep) - 1;
+          const last = cut[cut.length - 1] ?? 0;
+          // Dropping only zero pad is the compressor's byte align, not a cut symbol.
+          if ((last & ~mask) === 0) continue;
+          cut[cut.length - 1] = last & mask;
+        } else if (bytes === full.length) {
+          continue;
+        }
+        const result = huffmanDecompress(cut, 256);
+        if (!result.ok && result.reason === 'truncated') truncated = true;
+      }
+    }
+    expect(truncated).toBe(true);
   });
 });
 
@@ -84,6 +119,22 @@ describe('getstatus gate', () => {
     expect(buildSpectatorUserinfo({ protocol: protocol115.protocol ?? 0, challenge: 1, qport: 2 })).not.toContain(
       'checksum',
     );
+    const userinfo = buildSpectatorUserinfo({ protocol: 118, challenge: 1, qport: 2 });
+    expect(userinfo).toContain(`\\name\\${SPECTATOR_NAME}\\`);
+    expect(sanitizeSpectatorName('a\\b"c;d')).toBe('abcd');
+    expect(sanitizeSpectatorName('\\";')).toBe(SPECTATOR_NAME);
+    expect(userinfo.split('\\name\\')[1]?.split('\\')[0]).toBe(SPECTATOR_NAME);
+  });
+
+  it('reads a captured getstatus datagram and a fragmented snapshot', () => {
+    const status = parseOobPacket(fixtureBytes('pure-still-1-0.bin'));
+    expect(status.header).toBe('statusResponse');
+    const info = parseStatusBody(status.body);
+    expect(info.protocol).toBe(118);
+    expect(info.sv_pure).toBe('1');
+    expect(info.sv_punkbuster).toBe('0');
+    const fragment = new FragmentAssembler(info.protocol ?? 0).push(fixtureBytes('pure-0-3.bin'));
+    expect(fragment).toMatchObject({ ok: true, pending: true, sequence: 1 });
   });
 
   it('refuses a missing or non-zero pure or punkbuster key', () => {
@@ -111,6 +162,48 @@ describe('getstatus gate', () => {
     ).rejects.toBeInstanceOf(ConnectRefusedError);
     expect(seen.some((line) => line.startsWith('connect'))).toBe(false);
     socket.close();
+  });
+});
+
+describe('zero-button keepalive', () => {
+  it('is a no-change usercmd for both even and odd keys', () => {
+    for (const checksumFeed of [0, 1]) {
+      const command = '';
+      const messageAcknowledge = 0;
+      const key = (checksumFeed ^ messageAcknowledge ^ comHashKey(command, 32)) | 0;
+      const packet = buildClientDatagram({
+        sequence: 1,
+        qport: 1,
+        challenge: 0,
+        serverId: 0,
+        messageAcknowledge,
+        reliableAcknowledge: 0,
+        ackedServerCommand: command,
+        checksumFeed,
+        serverTime: 100,
+        commands: [],
+        move: true,
+      });
+      const payload = packet.subarray(6);
+      const compressed = Uint8Array.from(payload.subarray(CLIENT_CLEAR_HEADER));
+      const plain = huffmanDecompress(compressed, 2048);
+      expect(plain.ok).toBe(true);
+      if (!plain.ok) return;
+      const msg = new BitMsg(plain.data);
+      expect(msg.readBits(3)).toBe(CLC_MOVE_NO_DELTA);
+      expect(msg.readByte()).toBe(1);
+      expect(msg.readBit()).toBe(1);
+      expect(msg.readByte()).toBe(100);
+      const wire = msg.readBit();
+      // MSG_ReadKey is the wire bit XOR (key & 1). Value 0 stops before buttons.
+      expect(wire ^ (key & 1)).toBe(0);
+      expect(wire).toBe(key & 1);
+      const shift = msg.bit & 7;
+      const partial = shift === 0 ? 0 : (msg.data[msg.bit >> 3] ?? 0) >> shift;
+      expect(partial).toBe(0);
+      expect(msg.readcount).toBe(msg.cursize);
+      expect(msg.overflowed).toBe(false);
+    }
   });
 });
 
