@@ -4,6 +4,8 @@ import {
   type ServerConfig,
   type ServerWatchSettings,
 } from '@cod2admin/admin-store';
+import { GrammyError } from 'grammy';
+import { inspect } from 'node:util';
 import { describe, expect, it, vi } from 'vitest';
 import { createFakeCtx } from '../testing/fake-ctx.js';
 import { createFakeDeps } from '../testing/fake-deps.js';
@@ -136,6 +138,9 @@ describe('watchCommand', () => {
     await watchCommand(ctx, deps);
 
     expect(ctx.reply).toHaveBeenCalledWith(SECRET);
+    expect(vi.mocked(ctx.reply).mock.invocationCallOrder[0]).toBeLessThan(
+      adminStore.recordAuditLog.mock.invocationCallOrder[0] ?? 0,
+    );
     expect(adminStore.recordAuditLog).toHaveBeenCalledWith({
       actorTelegramId: 1,
       action: 'watch_private_password_shown',
@@ -146,6 +151,41 @@ describe('watchCommand', () => {
     expect(
       JSON.stringify(adminStore.recordAuditLog.mock.calls[0]?.[0]),
     ).not.toContain(SECRET);
+  });
+
+  it('does not audit or log the secret when the private reply fails', async () => {
+    const { deps, adminStore } = setup({
+      watchPrivatePassword: SECRET,
+      watchPrivatePasswordOwned: true,
+    });
+    const ctx = createFakeCtx({
+      match: 'password',
+      admin: OWNER,
+      chat: { id: 1, type: 'private' },
+    });
+    const failure = new GrammyError(
+      "Call to 'sendMessage' failed!",
+      {
+        ok: false,
+        error_code: 403,
+        description: 'Forbidden: bot was blocked by the user',
+      },
+      'sendMessage',
+      { chat_id: 1, text: SECRET },
+    );
+    vi.mocked(ctx.reply).mockRejectedValueOnce(failure);
+    const logged: unknown[][] = [];
+    const spy = vi.spyOn(console, 'error').mockImplementation((...args) => {
+      logged.push(args);
+    });
+
+    await expect(watchCommand(ctx, deps)).rejects.toBe(failure);
+
+    expect(failure).not.toHaveProperty('payload');
+    expect(inspect(failure)).not.toContain(SECRET);
+    expect(JSON.stringify(logged)).not.toContain(SECRET);
+    expect(adminStore.recordAuditLog).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 
   it('records unreserve as spectator join and does not touch the game server', async () => {

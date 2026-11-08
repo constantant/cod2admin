@@ -302,10 +302,23 @@ async function showPassword(
     await ctx.reply(`No private password is stored for ${server.alias}.`);
     return;
   }
+  try {
+    await ctx.reply(secret);
+  } catch (error) {
+    // The error's payload is the sendMessage body. Drop it before any log.
+    dropReplyPayload(error);
+    console.error(`Failed to send the private password for ${server.alias}.`);
+    throw error;
+  }
   await audit(ctx, deps, server.alias, 'watch_private_password_shown', {
     owned: server.watchPrivatePasswordOwned,
   });
-  await ctx.reply(secret);
+}
+
+function dropReplyPayload(error: unknown): void {
+  if (error !== null && typeof error === 'object' && 'payload' in error) {
+    delete (error as { payload?: unknown }).payload;
+  }
 }
 
 async function unreserve(

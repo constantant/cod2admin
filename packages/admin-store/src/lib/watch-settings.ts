@@ -7,7 +7,7 @@ export class WatchSettingsError extends Error {
   }
 }
 
-/** Stored when a server is first configured. `enabled: false` opens nothing. */
+/** Base for the first settings write. A null column stays off and opens nothing. */
 export const DEFAULT_SERVER_WATCH_SETTINGS: ServerWatchSettings = {
   enabled: false,
   mode: 'off',

@@ -40,6 +40,7 @@ const PERMISSION_RU: Readonly<Record<string, string>> = {
   audit: 'Журнал действий',
   rcon: 'Консоль',
   update: 'Обновить бота',
+  'watch.manage': 'Управлять наблюдателем',
   relays: 'Маршруты до Telegram',
   templates: 'Надписи бота в игре',
   logs: 'Найти журнал игры',
@@ -381,9 +382,10 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
   "Edit others' notes": 'Править чужие заметки',
   'Manage staff': 'Управлять составом',
   'Update the bot': 'Обновить бота',
+  'Manage the watcher': 'Управлять наблюдателем',
   'Find the game log': 'Найти журнал игры',
-  'Only the owner can grant the console and bot update.':
-    'Консоль и обновление бота может выдать только владелец.',
+  'Only the owner can grant the console, bot update, and watcher.':
+    'Консоль, обновление бота и наблюдателя может выдать только владелец.',
   '· added by': '· добавил',
   "Hasn't opened the bot yet": 'Ещё не открывал бота',
   'They can find their Telegram ID by opening this app: it shows it when they have no access.':
