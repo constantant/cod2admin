@@ -199,6 +199,15 @@ importers:
         specifier: ^0.31.10
         version: 0.31.10
 
+  packages/game-client:
+    dependencies:
+      '@cod2admin/rcon-client':
+        specifier: workspace:*
+        version: link:../rcon-client
+      tslib:
+        specifier: ^2.3.0
+        version: 2.8.1
+
   packages/log-tailer:
     dependencies:
       tslib:

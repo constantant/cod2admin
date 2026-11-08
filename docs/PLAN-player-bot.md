@@ -2,7 +2,7 @@
 
 |                  |                                                                                                                                                              |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Status           | Accepted. These product decisions are the plan. The protocol spike has not been run, and the Spike note is still empty.                                      |
+| Status           | Accepted. These product decisions are the plan. The spectator protocol spike ran on 2026-11-08. The Spike note is filled. `confirmedAimFeatures` is 0.       |
 | Author           | _(placeholder)_                                                                                                                                              |
 | Date             | 2026-11-08                                                                                                                                                   |
 | Product version  | v1.20.0 (`db0410c`, branch `feat/player-watch-bot`)                                                                                                          |
@@ -858,23 +858,23 @@ CI never opens the game port.
 
 ## Spike note
 
-Not run. This table stays empty until the protocol spike is run. PR 2 appends the spectator results here, in the design, not only in a PR description. PR 3 does not merge until this section lists which of `snapOnAcquire` and `firedWhileLookingAway` exist on that spectator run, the enemy-visible counts, and the pure and PunkBuster results. The private-slot row is not part of that gate. If spectators are refused or see nobody, `confirmedAimFeatures` stays 0 until a later dev-only private-slot step, and PR 3 still may merge for features the note says do not exist: it must not score them, and kick cannot arm.
+Run 2026-11-08 against the dev server, spectator only. PR 3 does not merge until this section lists which of `snapOnAcquire` and `firedWhileLookingAway` exist on that spectator run, the enemy-visible counts, and the pure and PunkBuster results. The private-slot row is not part of that gate. Spectators were accepted and saw nobody, so `confirmedAimFeatures` stays 0 until a later dev-only private-slot step. PR 3 still may merge for features the note says do not exist: it must not score them, and kick cannot arm.
 
 | Field                                                | Result                                                                                                                                              |
 | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Date                                                 |                                                                                                                                                     |
+| Date                                                 | 2026-11-08                                                                                                                                          |
 | Target                                               | `127.0.0.1:28960`, Compose service `cod2_server`                                                                                                    |
-| `protocol` from `getstatus`                          |                                                                                                                                                     |
-| `sv_fps`                                             |                                                                                                                                                     |
-| Received snap interval                               |                                                                                                                                                     |
-| `sv_punkbuster` from `getstatus`                     |                                                                                                                                                     |
-| `sv_pure` from `getstatus`, before anyone changes it |                                                                                                                                                     |
-| Pure rejection text, verbatim, still at `sv_pure 1`  |                                                                                                                                                     |
-| Parser run after a local `sv_pure 0`                 | not evidence for CTF                                                                                                                                |
-| Spectator accepted? Enemy count across the map?      |                                                                                                                                                     |
+| `protocol` from `getstatus`                          | 118                                                                                                                                                 |
+| `sv_fps`                                             | absent from `getstatus`                                                                                                                             |
+| Received snap interval                               | 51 ms median across 386 snapshots on the parser run below                                                                                           |
+| `sv_punkbuster` from `getstatus`                     | `0`                                                                                                                                                 |
+| `sv_pure` from `getstatus`, before anyone changes it | `1`                                                                                                                                                 |
+| Pure rejection text, verbatim, still at `sv_pure 1`  | `w "EXE_CANNOTVALIDATEPURECLIENT"`. Before that drop, 40 snapshots parsed with 0 failures.                                                          |
+| Parser run after a local `sv_pure 0`                 | not evidence for CTF. 386 snapshots, 0 parse failures. `sv_pure` was set back to `1` after this run.                                                |
+| Spectator accepted? Enemy count across the map?      | Accepted (team 3, client 0). Enemy count 0. No other players were on the server.                                                                    |
 | Private-slot body at spawn: entities seen            | empty. A later dev-only step fills this only if spectators are refused or see nobody. PR 2 does not reserve a slot. PR 3 is not blocked on this row |
-| `confirmedAimFeatures`                               | 0, 1, or 2                                                                                                                                          |
-| Weapon id present?                                   | if no, population key stays `all`                                                                                                                   |
+| `confirmedAimFeatures`                               | 0                                                                                                                                                   |
+| Weapon id present?                                   | not observed. No player entities. Population key stays `all`.                                                                                       |
 
 ## PR Plan
 

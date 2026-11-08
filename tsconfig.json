@@ -23,6 +23,9 @@
     },
     {
       "path": "./packages/telegram-relay"
+    },
+    {
+      "path": "./packages/game-client"
     }
   ],
   "compilerOptions": {}

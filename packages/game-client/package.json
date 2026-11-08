@@ -1,0 +1,25 @@
+{
+  "name": "@cod2admin/game-client",
+  "version": "1.20.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "@org/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "nx": {
+    "name": "game-client"
+  },
+  "dependencies": {
+    "@cod2admin/rcon-client": "workspace:*",
+    "tslib": "^2.3.0"
+  }
+}

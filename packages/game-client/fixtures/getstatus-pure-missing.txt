@@ -1,0 +1,1 @@
+\protocol\118\sv_punkbuster\0\sv_fps\20
