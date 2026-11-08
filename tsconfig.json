@@ -26,6 +26,9 @@
     },
     {
       "path": "./packages/game-client"
+    },
+    {
+      "path": "./packages/player-watch"
     }
   ],
   "compilerOptions": {}
