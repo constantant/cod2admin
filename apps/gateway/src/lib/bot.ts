@@ -40,6 +40,7 @@ import {
   statusRefreshCallback,
 } from './commands/status.js';
 import { tempbanCommand } from './commands/tempban.js';
+import { templatesCommand } from './commands/templates.js';
 import { unbanCommand } from './commands/unban.js';
 import {
   updateActionCallback,
@@ -216,6 +217,9 @@ export function createBot(
     }),
   );
   bot.command('relays', allow('relays'), (ctx) => relaysCommand(ctx, deps));
+  bot.command('templates', allow('templates'), (ctx) =>
+    templatesCommand(ctx, deps),
+  );
   bot.command('vpnnets', allow('vpn'), (ctx) => vpnNetsCommand(ctx, deps));
   bot.command('vpnkick', allow('vpn'), (ctx) => vpnKickCommand(ctx, deps));
 
@@ -255,6 +259,7 @@ export function createBot(
       banStore: deps.banStore,
       sessionsByServer: deps.sessionsByServer,
       reportQueue: deps.reportQueue,
+      chatTemplates: deps.chatTemplates,
       describeIp: (ip) =>
         joinIpLabels(
           joinCountryAndProvider(

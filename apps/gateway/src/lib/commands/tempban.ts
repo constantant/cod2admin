@@ -3,7 +3,11 @@ import type { GatewayDeps } from '../deps.js';
 import { executeModerationAction } from '../moderation-actions.js';
 import { extractServerFlag, resolveServer } from '../resolve-server.js';
 
-const UNIT_MS: Record<string, number> = { m: 60_000, h: 3_600_000, d: 86_400_000 };
+const UNIT_MS: Record<string, number> = {
+  m: 60_000,
+  h: 3_600_000,
+  d: 86_400_000,
+};
 const DURATION_TOKEN = /^(\d+)(m|h|d)?$/;
 
 export function parseDurationMs(token: string | undefined): number | undefined {
@@ -32,29 +36,41 @@ export function formatDuration(ms: number): string {
  * reports one, IP-fallback otherwise (`executeModerationAction`, docs/PLAN.md §5 steps 6/7).
  * Never calls native `tempBanClient` — see the plan's "tempban mechanism" decision for why.
  */
-export async function tempbanCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
+export async function tempbanCommand(
+  ctx: BotContext,
+  deps: GatewayDeps,
+): Promise<void> {
   const { alias: serverAlias, rest } = extractServerFlag(matchText(ctx));
   const server = await resolveServer(ctx, deps, serverAlias);
   if (!server) {
     return;
   }
 
-  const [idToken, durationToken, ...reasonParts] = rest.split(/\s+/).filter(Boolean);
+  const [idToken, durationToken, ...reasonParts] = rest
+    .split(/\s+/)
+    .filter(Boolean);
   const clientId = idToken === undefined ? NaN : Number.parseInt(idToken, 10);
   if (Number.isNaN(clientId)) {
-    await ctx.reply('Usage: /tempban <client id> [duration] [reason] [--server <alias>]');
+    await ctx.reply(
+      'Usage: /tempban <client id> [duration] [reason] [--server <alias>]',
+    );
     return;
   }
 
   const durationMs = parseDurationMs(durationToken);
   // If the "duration" token didn't parse as one, it's actually the start of the reason.
-  const reasonTokens = durationMs === undefined && durationToken ? [durationToken, ...reasonParts] : reasonParts;
+  const reasonTokens =
+    durationMs === undefined && durationToken
+      ? [durationToken, ...reasonParts]
+      : reasonParts;
   const reason = reasonTokens.join(' ');
 
   const { players } = await server.rcon.status();
   const player = players.find((candidate) => candidate.num === clientId);
   if (!player) {
-    await ctx.reply(`Client ${clientId} is not currently connected — cannot temp-ban.`);
+    await ctx.reply(
+      `Client ${clientId} is not currently connected — cannot temp-ban.`,
+    );
     return;
   }
 
@@ -70,8 +86,11 @@ export async function tempbanCommand(ctx: BotContext, deps: GatewayDeps): Promis
       reason: reason || null,
       source: 'telegram_command',
       durationMs,
+      chatTemplates: deps.chatTemplates,
     },
   );
 
-  await ctx.reply(`${result.label} ${player.name} for ${formatDuration(result.durationMs!)}.`);
+  await ctx.reply(
+    `${result.label} ${player.name} for ${formatDuration(result.durationMs!)}.`,
+  );
 }

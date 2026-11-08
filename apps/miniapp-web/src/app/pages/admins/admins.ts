@@ -46,6 +46,7 @@ const PERMISSION_LABEL: Record<Permission, string> = {
   rcon: 'Console',
   update: 'Update the bot',
   relays: 'Telegram routes',
+  templates: 'Game chat lines',
   logs: 'Find the game log',
 };
 

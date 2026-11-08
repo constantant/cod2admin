@@ -128,6 +128,7 @@ describe('Mini App management routes', () => {
     it.each([
       ['GET', '/audit', ADMIN],
       ['GET', '/relays', ADMIN],
+      ['GET', '/templates', ADMIN],
       ['GET', '/update', ADMIN],
       ['POST', '/update', ADMIN],
       ['DELETE', '/servers/other', ADMIN],
@@ -152,6 +153,47 @@ describe('Mini App management routes', () => {
         expect(response.statusCode).toBe(403);
       },
     );
+  });
+
+  describe('game-chat lines', () => {
+    it('shows the built-in lines and applies a change at once', async () => {
+      const listed = await call('GET', '/templates', OWNER);
+      expect(listed.statusCode).toBe(200);
+      const lines = listed.json().lines as {
+        id: string;
+        text: string;
+        preview: string;
+      }[];
+      expect(lines.find((line) => line.id === 'vpn_kick')?.text).toBe('');
+      expect(lines.find((line) => line.id === 'kick')?.preview).toBe(
+        'Player was kicked by an admin',
+      );
+
+      const saved = await call('PUT', '/templates', OWNER, {
+        texts: { vpn_kick: '{name} out: {kind}', kick: '' },
+      });
+      expect(saved.statusCode).toBe(200);
+      const next = saved.json().lines as {
+        id: string;
+        text: string;
+        preview: string;
+      }[];
+      expect(next.find((line) => line.id === 'vpn_kick')).toMatchObject({
+        text: '{name} out: {kind}',
+        preview: 'Player out: VPN',
+      });
+      expect(next.find((line) => line.id === 'kick')?.preview).toBe('');
+      expect(fake.deps.chatTemplates.get('ban')).toContain('banned');
+      expect(fake.adminStore.setSetting).toHaveBeenCalledWith(
+        'chat.templates',
+        expect.objectContaining({ vpn_kick: '{name} out: {kind}', kick: '' }),
+      );
+
+      const bad = await call('PUT', '/templates', OWNER, {
+        texts: { kick: 1 },
+      });
+      expect(bad.statusCode).toBe(400);
+    });
   });
 
   describe('admins', () => {

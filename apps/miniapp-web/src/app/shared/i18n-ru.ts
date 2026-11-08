@@ -41,6 +41,7 @@ const PERMISSION_RU: Readonly<Record<string, string>> = {
   rcon: 'Консоль',
   update: 'Обновить бота',
   relays: 'Маршруты до Telegram',
+  templates: 'Надписи бота в игре',
   logs: 'Найти журнал игры',
 };
 const permissionRu = (id: string) => PERMISSION_RU[id] ?? id;
@@ -71,6 +72,8 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
   'Audit log': 'Журнал действий',
   Console: 'Консоль',
   'Telegram routes': 'Маршруты до Telegram',
+  'Game chat lines': 'Надписи бота в игре',
+  'What the bot says to players': 'Что бот пишет игрокам',
   'Bot update': 'Обновление бота',
   'Switch map, restart, edit the rotation': 'Смена карты, перезапуск, ротация',
   'Browse, edit, lift, add': 'Просмотр, изменение, снятие, добавление',
@@ -442,8 +445,16 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
 
   // VPN
   'Kick players on a VPN': 'Кикать игроков с VPN',
-  'Players marked 🛡 (VPN, proxy, Tor, hosting or a network below) are kicked on sight on every server, with a message in the game chat. Nobody is banned: a VPN address is shared by strangers.':
-    'Игроков с меткой 🛡 (VPN, прокси, Tor, хостинг или сеть из списка ниже) кикает сразу на всех серверах, с сообщением в игровом чате. Банов нет: адрес VPN делят между собой незнакомые люди.',
+  'Players marked 🛡 (VPN, proxy, Tor, hosting or a network below) are kicked on sight on every server. Nobody is banned: a VPN address is shared by strangers.':
+    'Игроков с меткой 🛡 (VPN, прокси, Tor, хостинг или сеть из списка ниже) кикает сразу на всех серверах. Банов нет: адрес VPN делят между собой незнакомые люди.',
+  'Lines the bot sends into the game. Leave one empty to send nothing. A message someone types is not one of these.':
+    'Строки, которые бот сам пишет в игру. Пустая строка ничего не отправляет. Текст, который кто-то набрал сам, сюда не входит.',
+  'Only that player': 'Только этому игроку',
+  Placeholders: 'Подстановки',
+  'Players see now': 'Сейчас игроки видят',
+  'Sends nothing.': 'Ничего не отправляется.',
+  'VPN kick': 'Кик за VPN',
+  'Mute warning': 'Предупреждение о заглушении',
   'Never kicked': 'Никогда не кикать',
   'GUID or name': 'GUID или имя',
   'Anyone can take a name; a GUID is safer.':

@@ -10,7 +10,10 @@ import { extractServerFlag, resolveServer } from '../resolve-server.js';
  * rare one, so `/ban` requires the target still be connected (like `/tempban` already does) —
  * there's nothing left to ban by (no GUID, no IP) once they're gone.
  */
-export async function banCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
+export async function banCommand(
+  ctx: BotContext,
+  deps: GatewayDeps,
+): Promise<void> {
   const { alias: serverAlias, rest } = extractServerFlag(matchText(ctx));
   const server = await resolveServer(ctx, deps, serverAlias);
   if (!server) {
@@ -28,7 +31,9 @@ export async function banCommand(ctx: BotContext, deps: GatewayDeps): Promise<vo
   const { players } = await server.rcon.status();
   const player = players.find((candidate) => candidate.num === clientId);
   if (!player) {
-    await ctx.reply(`Client ${clientId} is not currently connected — cannot ban.`);
+    await ctx.reply(
+      `Client ${clientId} is not currently connected — cannot ban.`,
+    );
     return;
   }
 
@@ -43,8 +48,11 @@ export async function banCommand(ctx: BotContext, deps: GatewayDeps): Promise<vo
       actorTelegramId: ctx.admin!.telegramId,
       reason: reason || null,
       source: 'telegram_command',
+      chatTemplates: deps.chatTemplates,
     },
   );
 
-  await ctx.reply(`${result.label} ${player.name}${reason ? ` for: ${reason}` : ''}.`);
+  await ctx.reply(
+    `${result.label} ${player.name}${reason ? ` for: ${reason}` : ''}.`,
+  );
 }

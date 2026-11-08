@@ -147,6 +147,7 @@ export function startReportTailer(
     rcon: () => deps.rconClients.get(alias),
     banStore: deps.banStore,
     adminStore: deps.adminStore,
+    chatTemplates: deps.chatTemplates,
   });
   tailer.on('chat', (chat) => {
     mutes.handle(chat).catch((error: unknown) => {

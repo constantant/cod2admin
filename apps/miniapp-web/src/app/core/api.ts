@@ -17,6 +17,8 @@ import type {
   MutesResponse,
   ChangeMapRequest,
   ChatResponse,
+  ChatTemplatesResponse,
+  ChatTemplatesUpdate,
   ConsoleResponse,
   CvarsResponse,
   DashboardResponse,
@@ -359,6 +361,16 @@ export class ApiService {
 
   vpn() {
     return this.call<VpnResponse>(this.http.get('/api/vpn'));
+  }
+
+  chatTemplates() {
+    return this.call<ChatTemplatesResponse>(this.http.get('/api/templates'));
+  }
+
+  saveChatTemplates(texts: ChatTemplatesUpdate['texts']) {
+    return this.call<ChatTemplatesResponse>(
+      this.http.put('/api/templates', { texts }),
+    );
   }
 
   setVpnKick(enabled: boolean) {

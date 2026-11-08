@@ -2,10 +2,16 @@ import type { AdminStore } from '@cod2admin/admin-store';
 import type { BanStore, Mute } from '@cod2admin/ban-store';
 import { detectReportTrigger, type ChatEvent } from '@cod2admin/log-tailer';
 import type { RconClient } from '@cod2admin/rcon-client';
+import {
+  DEFAULT_CHAT_TEMPLATES,
+  renderChatTemplate,
+  type ChatTemplates,
+} from './chat-templates.js';
+import { displayName } from './commands/players.js';
 import { sanitizeRconArg } from './sanitize.js';
 
-export const MUTE_WARNING =
-  'You are muted by an admin. Your next message will get you kicked.';
+/** The built-in mute warning. A stored template replaces it. */
+export const MUTE_WARNING = DEFAULT_CHAT_TEMPLATES.mute_warn;
 
 /** GUID 0 is shared by most players (docs/PLAN.md §2.4), so it identifies nobody. */
 export function usableGuid(guid: string | null | undefined): string | null {
@@ -35,6 +41,8 @@ export interface MuteEnforcerOptions {
   rcon(): RconClient | undefined;
   banStore: Pick<BanStore, 'listActiveMutes'>;
   adminStore: Pick<AdminStore, 'recordAuditLog'>;
+  /** Absent: the built-in warning. */
+  chatTemplates?: ChatTemplates;
 }
 
 /**
@@ -75,7 +83,13 @@ export class MuteEnforcer {
 
     if (!this.warned.has(mute.id)) {
       this.warned.add(mute.id);
-      await rcon.tell(player.num, MUTE_WARNING);
+      const warning = renderChatTemplate(
+        this.options.chatTemplates?.get('mute_warn') ?? MUTE_WARNING,
+        { name: displayName(player) },
+      );
+      if (warning) {
+        await rcon.tell(player.num, warning);
+      }
       return;
     }
     await rcon.kick(player.num, sanitizeRconArg(player.name));

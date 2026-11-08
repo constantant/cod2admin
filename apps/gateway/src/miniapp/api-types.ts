@@ -28,6 +28,7 @@ export const PERMISSIONS = [
   'rcon',
   'update',
   'relays',
+  'templates',
   'logs',
 ] as const;
 
@@ -395,11 +396,7 @@ export interface UpdateAdminRequest {
 // ── Audit log ───────────────────────────────────────────────────────────────────────────────
 
 export type AuditSourceDto =
-  | 'telegram_button'
-  | 'telegram_command'
-  | 'auto'
-  | 'miniapp'
-  | 'mcp';
+  'telegram_button' | 'telegram_command' | 'auto' | 'miniapp' | 'mcp';
 
 export interface AuditEntryDto {
   id: number;
@@ -510,6 +507,26 @@ export interface VpnResponse {
   kickEnabled: boolean;
   exempt: string[];
   networks: { asn: number; name: string | null }[];
+}
+
+// ── Game-chat lines (/templates) ────────────────────────────────────────────────────────────
+
+export interface ChatTemplateLineDto {
+  id: 'kick' | 'ban' | 'tempban' | 'vpn_kick' | 'mute_warn';
+  channel: 'say' | 'tell';
+  placeholders: string;
+  text: string;
+  defaultText: string;
+  /** What the sample player would see. Empty when the line sends nothing. */
+  preview: string;
+}
+
+export interface ChatTemplatesResponse {
+  lines: ChatTemplateLineDto[];
+}
+
+export interface ChatTemplatesUpdate {
+  texts: Partial<Record<ChatTemplateLineDto['id'], string>>;
 }
 
 // ── Telegram routes ─────────────────────────────────────────────────────────────────────────

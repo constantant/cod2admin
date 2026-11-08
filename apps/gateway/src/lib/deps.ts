@@ -13,6 +13,7 @@ import type {
 import type { ReportQueue } from './report-queue.js';
 import type { ReportRegistry } from './reports.js';
 import type { UpdateRegistry } from './update-registry.js';
+import type { ChatTemplates } from './chat-templates.js';
 import type { VpnKicker } from './vpn-kick.js';
 import type { VpnFlags } from './vpn-ranges.js';
 import type { ChatFeeds } from '../miniapp/chat-feed.js';
@@ -58,6 +59,8 @@ export interface GatewayDeps {
   vpn: VpnFlags;
   /** `/vpnkick` state and its sweep (vpn-kick.ts) — off until an admin turns it on. */
   vpnKick: VpnKicker;
+  /** Lines the bot sends into the game (`/templates`). `vpn_kick` starts empty. */
+  chatTemplates: ChatTemplates;
   /** How the bot reaches Telegram (telegram-routes.ts) — managed with `/relays`. */
   telegramRoutes: {
     router: TelegramRouter;

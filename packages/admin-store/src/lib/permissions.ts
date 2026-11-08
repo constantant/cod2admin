@@ -22,6 +22,7 @@ export const PERMISSIONS = [
   'rcon',
   'update',
   'relays',
+  'templates',
   'logs',
 ] as const;
 

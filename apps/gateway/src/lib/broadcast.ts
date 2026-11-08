@@ -1,16 +1,17 @@
 import type { RconClient } from '@cod2admin/rcon-client';
-import { sanitizeRconArg } from './sanitize.js';
+import { renderChatTemplate, type ChatTemplateVars } from './chat-templates.js';
 
 /**
- * Every kick/ban/tempban broadcasts an in-game `rcon say` announcement — not silent, not
- * optional per-action (docs/PLAN.md §5 step 6, §6). Temp-ban doesn't exist until Phase 2, so
- * only kick/ban call this in Phase 1.
+ * Says the rendered moderation line in game chat. An empty template, or one that
+ * renders empty, sends nothing (chat-templates.ts).
  */
 export async function broadcastModerationAction(
-  rcon: RconClient,
-  target: string,
-  action: string,
+  rcon: Pick<RconClient, 'say'>,
+  template: string,
+  vars: ChatTemplateVars,
 ): Promise<void> {
-  const safeTarget = sanitizeRconArg(target);
-  await rcon.say(`${safeTarget} was ${action} by an admin`);
+  const text = renderChatTemplate(template, vars);
+  if (text) {
+    await rcon.say(text);
+  }
 }

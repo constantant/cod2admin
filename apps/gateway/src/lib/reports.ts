@@ -23,6 +23,7 @@ import {
 import type { RconClient } from '@cod2admin/rcon-client';
 import { Bot, InlineKeyboard } from 'grammy';
 import type { ActingAdmin } from './bot-context.js';
+import type { ChatTemplates } from './chat-templates.js';
 import {
   executeModerationAction,
   ModerationActionError,
@@ -286,6 +287,8 @@ export interface ReportCallbackDeps {
   banStore: BanStore;
   /** Per-server session lookup for `select`'s re-enrichment — keyed like `rconClients`. */
   sessionsByServer: Map<string, SessionLookup>;
+  /** The live game-chat lines. Absent: the built-in text. */
+  chatTemplates?: ChatTemplates;
   describeIp?: (ip: string) => string | undefined;
   reportQueue?: ReportQueue;
 }
@@ -451,6 +454,7 @@ export async function reportActionCallback(
         actorTelegramId: admin.telegramId,
         reason: entry.trigger.reason,
         source: 'telegram_button',
+        chatTemplates: deps.chatTemplates,
       },
     );
     await ctx.editMessageText(

@@ -665,9 +665,10 @@ local login stays on `/api`. The grant is OAuth 2.1:
 6. **Action execution**: button press → grammy callback handler → permission check → RCON
    command via `rcon-client` → on success, edit the Telegram message to show the resolved
    state (who acted, what action, timestamp) and write the audit log row. **Decided**: every
-   kick/ban/tempban also fires an `rcon say "<target> was <action> by an admin"` broadcast
-   into the game for transparency (§6) — not silent, not optional per-action (a per-server
-   opt-out toggle can be added later if a community wants it, but the default is on).
+   kick/ban/tempban also fires an `rcon say` announcement into the game for transparency (§6).
+   The words are a template (`/templates`, Mini App "Game chat lines"), defaulting to
+   `<name> was <action> by an admin`. An empty template sends nothing. The VPN autokick line
+   starts empty.
 
    **Temp-ban mechanism (decided)**: per the §2.4 caveat, native `tempBanClient`'s duration is
    a server-wide cvar, not a per-call argument, and likely doesn't survive a restart — unfit
@@ -821,9 +822,10 @@ deps, bot)` (`apps/gateway/src/lib/report-tailers.ts`) right after `createBot`. 
   as chat commands; `/rcon` covers them for the owner, and the Mini App's Maps page has them for admins.
 - `/say <message>` — broadcast to the game via `rcon say`.
 - **Moderation broadcasts** _(decided)_: every kick/ban/tempban (whether triggered via a
-  report card or a manual `/kick`/`/ban` command) also sends an `rcon say` announcement to
-  the game, so players see moderation happening rather than a name silently vanishing — see
-  §5 step 6.
+  report card or a manual `/kick`/`/ban` command) also sends an `rcon say` from a template,
+  so players see moderation happening rather than a name silently vanishing — see §5 step 6.
+  The defaults are `<name> was kicked/banned/temp-banned by an admin`. An empty template
+  sends nothing (`/templates`). A typed `/say` is not one of these lines.
 - `/rcon <raw command>` — owner-only raw passthrough escape hatch, always logged to the audit
   log verbatim (necessary power-user backdoor, but must be tightly scoped and logged given
   it bypasses all higher-level guardrails).
@@ -909,10 +911,11 @@ deps, bot)` (`apps/gateway/src/lib/report-tailers.ts`) right after `createBot`. 
     not ban** (a ban on a shared exit IP hits strangers, and the player can return with the VPN
     off), triggered by everything the 🛡 mark covers including `hosting`, **off by default**
     (`/vpnkick on|off`, admin+). `apps/gateway/src/lib/vpn-kick.ts` runs on the ban sweep's
-    10-second interval and queries servers only while on; each kick is announced in game chat
-    (`<name> kicked: VPN is not allowed here…`) and audit-logged as `vpn_kick` (source `auto`,
-    actor 0 = "bot (automatic)") at most once per server+IP per 5 minutes, while the kick itself
-    repeats every sweep. `/vpnkick allow <GUID or name>` exempts trusted players (GUID
+    10-second interval and queries servers only while on. Each kick is audit-logged as
+    `vpn_kick` (source `auto`, actor 0 = "bot (automatic)") at most once per server+IP per
+    5 minutes, while the kick itself repeats every sweep. The game-chat line is the
+    `vpn_kick` template, which is empty until someone sets it (`/templates`), so a kick says
+    nothing unless that line is filled in. `/vpnkick allow <GUID or name>` exempts trusted players (GUID
     preferred — names can be taken). Detection is still the weak part: the owner's second VPN
     (AS58061 "Scalaxy B.V.") was on no list, not even FireHOL's, so `/vpnnets add` is how such
     networks get caught.

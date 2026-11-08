@@ -45,6 +45,11 @@ import {
 import { formatTelegramUser } from '../lib/telegram-user.js';
 import { runApplyUpdate } from '../lib/update-apply.js';
 import { getRunningVersion, isNewerVersion } from '../lib/version.js';
+import {
+  applyChatTemplates,
+  CHAT_TEMPLATES_SETTING_KEY,
+  chatTemplateLines,
+} from '../lib/chat-templates.js';
 import { normalizeExempt, VPN_KICK_SETTING_KEY } from '../lib/vpn-kick.js';
 import {
   NO_VPN_LOOKUP,
@@ -65,6 +70,8 @@ import type {
   LogRequest,
   LogResponse,
   Presets,
+  ChatTemplatesResponse,
+  ChatTemplatesUpdate,
   RelaysResponse,
   RelayTestResponse,
   ServersResponse,
@@ -172,7 +179,7 @@ function grantedPermissions(
 
 /**
  * The rest of the chat bot's management commands, as an API: audit log, admins, servers, VPN
- * rules, Telegram routes, self-update, plus presets and cvars. Same permission gates as the
+ * rules, game-chat lines, Telegram routes, self-update, plus presets and cvars. Same permission gates as the
  * commands, and the same stores, so a change made here shows there at once.
  */
 export function registerManagementRoutes(
@@ -1051,6 +1058,41 @@ export function registerManagementRoutes(
       );
       await audit(request, { action: 'relays', detailJson: { reset: true } });
       return relaysResponse();
+    },
+  );
+
+  // ── Game-chat lines (/templates) ─────────────────────────────────────────────────────────
+
+  const templatesResponse = (): ChatTemplatesResponse => ({
+    lines: chatTemplateLines(deps.chatTemplates.all),
+  });
+
+  app.get(
+    '/templates',
+    { config: { permission: 'templates' } },
+    templatesResponse,
+  );
+
+  app.put(
+    '/templates',
+    { config: { permission: 'templates', action: true } },
+    async (
+      request: FastifyRequest<{ Body: ChatTemplatesUpdate }>,
+    ): Promise<ChatTemplatesResponse> => {
+      const texts = request.body?.texts;
+      if (typeof texts !== 'object' || texts === null) {
+        throw new ApiProblem(400, 'bad_request', 'Which lines?');
+      }
+      for (const value of Object.values(texts)) {
+        if (typeof value !== 'string') {
+          throw new ApiProblem(400, 'bad_request', 'Each line is text.');
+        }
+      }
+      const next = applyChatTemplates(deps.chatTemplates.all, texts);
+      await deps.adminStore.setSetting(CHAT_TEMPLATES_SETTING_KEY, next);
+      deps.chatTemplates.setAll(next);
+      await audit(request, { action: 'templates', detailJson: next });
+      return templatesResponse();
     },
   );
 

@@ -84,8 +84,9 @@ Each command needs the permission in its heading. `/permit` is how those permiss
 - `/vpnnets` — provider networks shown as 🛡 VPN, for VPNs the built-in lists miss.
   `/vpnnets add <player IP or ASN>` marks the whole network of that IP (e.g. a VPN player's IP
   from `/players`); `/vpnnets remove <ASN>` unmarks it. Only a mark — nobody is kicked for it
-- `/vpnkick on|off` — kick players marked 🛡 on sight, on every server, with a message in the game
-  chat (off by default; nobody is banned). `/vpnkick allow <GUID or name>` exempts a trusted
+- `/vpnkick on|off` — kick players marked 🛡 on sight, on every server (off by default; nobody is
+  banned). The game-chat line for that kick is set with `/templates` and starts empty.
+  `/vpnkick allow <GUID or name>` exempts a trusted
   player, `/vpnkick unallow` undoes it, `/vpnkick` shows the state
 
 ### `admins.manage`
@@ -137,6 +138,13 @@ Each command needs the permission in its heading. `/permit` is how those permiss
 - `/relays` — how the bot reaches Telegram: directly, or through relays where Telegram is blocked
   (e.g. servers in Russia). `/relays test` checks every route; `add <url>`, `remove <n>`,
   `direct on|off` and `reset` change the list, effective immediately
+
+### `templates`
+
+- `/templates` — the lines the bot itself sends into the game: kick, ban, temp ban, VPN kick and
+  the mute warning. `/templates set <id> <text>` changes one, `/templates clear <id>` sends
+  nothing, `/templates reset <id>` restores the built-in line. Placeholders: `{name}` `{reason}`
+  `{kind}` `{minutes}`. The VPN kick line is empty until set. A typed `/say` is not one of these
 
 ## Permissions
 

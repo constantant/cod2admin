@@ -2,6 +2,11 @@ import type { AdminStore, AuditSource } from '@cod2admin/admin-store';
 import type { BanStore } from '@cod2admin/ban-store';
 import { isBanFileSafeName, type RconClient } from '@cod2admin/rcon-client';
 import { broadcastModerationAction } from './broadcast.js';
+import {
+  DEFAULT_CHAT_TEMPLATES,
+  type ChatTemplates,
+  type ChatTemplateId,
+} from './chat-templates.js';
 import { sanitizeRconArg } from './sanitize.js';
 
 export type ModerationActionKind = 'kick' | 'ban' | 'tempban';
@@ -26,6 +31,8 @@ export interface ExecuteModerationActionOptions {
   durationMs?: number;
   /** Merged into every audit row, for example the AI connection that asked. */
   detailJson?: Record<string, unknown>;
+  /** The live game-chat lines. Absent in a test: the built-in text. */
+  chatTemplates?: ChatTemplates;
 }
 
 export interface ModerationActionResult {
@@ -40,11 +47,21 @@ export class ModerationActionError extends Error {}
 
 const DEFAULT_TEMPBAN_MS = 30 * 60_000;
 
+function announcement(
+  options: ExecuteModerationActionOptions,
+  id: ChatTemplateId,
+): string {
+  return options.chatTemplates?.get(id) ?? DEFAULT_CHAT_TEMPLATES[id];
+}
+
 /**
  * `clientkick` by the status slot. A negative `num` is a name-only `/kick` (the player was not
  * on the list we just read), which has to go through `kick <name>`.
  */
-function dropPlayer(rcon: RconClient, target: ModerationTarget): Promise<string> {
+function dropPlayer(
+  rcon: RconClient,
+  target: ModerationTarget,
+): Promise<string> {
   if (target.num >= 0) {
     return rcon.kick(target.num, target.name);
   }
@@ -84,14 +101,23 @@ export async function executeModerationAction(
     });
   }
 
+  const durationMs = options.durationMs ?? DEFAULT_TEMPBAN_MS;
+  const minutes =
+    kind === 'tempban' ? String(Math.round(durationMs / 60_000)) : '';
+  const say = (id: ChatTemplateId) =>
+    broadcastModerationAction(options.rcon, announcement(options, id), {
+      name: target.name,
+      reason: reason ?? '',
+      minutes,
+    });
+
   if (kind === 'kick') {
     await dropPlayer(options.rcon, target);
-    await broadcastModerationAction(options.rcon, target.name, 'kicked');
+    await say('kick');
     await recordAudit('kick');
     return { label: 'Kicked', ipFallback: false };
   }
 
-  const durationMs = options.durationMs ?? DEFAULT_TEMPBAN_MS;
   const expiresAt =
     kind === 'tempban' ? new Date(Date.now() + durationMs) : null;
 
@@ -119,11 +145,7 @@ export async function executeModerationAction(
     const label = kind === 'tempban' ? 'Temp-banned' : 'Banned';
     // Broadcast uses a plain player-facing verb, not the (admin-facing) detailed label below —
     // players don't need "GUID unavailable" jargon in an in-game chat announcement.
-    await broadcastModerationAction(
-      options.rcon,
-      target.name,
-      kind === 'tempban' ? 'temp-banned' : 'banned',
-    );
+    await say(kind);
     await recordAudit(kind, { guid: target.guid });
     return {
       label,
@@ -152,11 +174,7 @@ export async function executeModerationAction(
     kind === 'tempban'
       ? 'IP temp-banned (GUID unavailable)'
       : 'IP-banned (GUID unavailable)';
-  await broadcastModerationAction(
-    options.rcon,
-    target.name,
-    kind === 'tempban' ? 'temp-banned' : 'banned',
-  );
+  await say(kind);
   await recordAudit(kind, { ip: target.ip });
   return {
     label,

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_CHAT_TEMPLATES } from './chat-templates.js';
 import { createFakeDeps } from './testing/fake-deps.js';
 import {
   ModerationActionError,
@@ -16,6 +17,7 @@ function baseOptions() {
     rcon,
     banStore,
     adminStore,
+    deps,
     options: {
       serverAlias: 'default',
       rcon: deps.rconClients.get('default')!,
@@ -23,6 +25,7 @@ function baseOptions() {
       adminStore: deps.adminStore,
       actorTelegramId: 1,
       source: 'telegram_command' as const,
+      chatTemplates: deps.chatTemplates,
     },
   };
 }
@@ -46,6 +49,32 @@ describe('executeModerationAction', () => {
         source: 'telegram_command',
       }),
     );
+  });
+
+  it('kicks without a game-chat line when that template is empty', async () => {
+    const { rcon, options } = baseOptions();
+    options.chatTemplates.setAll({ ...DEFAULT_CHAT_TEMPLATES, kick: '' });
+
+    await executeModerationAction('kick', target(), options);
+
+    expect(rcon.kick).toHaveBeenCalledWith(2, 'Cheatr123');
+    expect(rcon.say).not.toHaveBeenCalled();
+  });
+
+  it('puts the reason and the length into a temp-ban line that asks for them', async () => {
+    const { rcon, options } = baseOptions();
+    options.chatTemplates.setAll({
+      ...DEFAULT_CHAT_TEMPLATES,
+      tempban: '{name} for {minutes}m: {reason}',
+    });
+
+    await executeModerationAction('tempban', target({ guid: '123' }), {
+      ...options,
+      reason: 'aimbot',
+      durationMs: 30 * 60_000,
+    });
+
+    expect(rcon.say).toHaveBeenCalledWith('Cheatr123 for 30m: aimbot');
   });
 
   it('bans via the GUID path when a usable GUID is available', async () => {

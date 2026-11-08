@@ -96,6 +96,13 @@ const LINKS: readonly Link[] = [
     permission: 'rcon',
   },
   {
+    path: '/templates',
+    label: 'Game chat lines',
+    hint: 'What the bot says to players',
+    icon: 'chat',
+    permission: 'templates',
+  },
+  {
     path: '/relays',
     label: 'Telegram routes',
     hint: 'How the bot reaches Telegram',

@@ -79,7 +79,7 @@ step are implemented (M5: 2026-11-03, see its §0, including what hasn't been tr
 - backend: `apps/gateway/src/miniapp/` (Fastify, in the gateway process, off unless
   `MINIAPP_PORT` is set); `api-types.ts` there is the contract both apps compile. Routes:
   `routes.ts` (players, maps, chat, bans), `routes-insight.ts` (dashboard, reports, notes),
-  `routes-management.ts` (audit, admins, servers, VPN, relays, update, presets, cvars)
+  `routes-management.ts` (audit, admins, servers, VPN, templates, relays, update, presets, cvars)
 - installer: `installer/lib/miniapp.sh` (Caddy + own domain or `<ip>.sslip.io`)
 - local dev loop: `nx serve miniapp-web` proxies `/api` to 127.0.0.1:18090. Don't start the full
   gateway locally with the shared dev bot token — the NAS instance uses the same token.

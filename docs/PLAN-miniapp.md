@@ -76,7 +76,7 @@ Local verification used a harness running the Mini App server with real Postgres
   The player sheet shows notes, bans and past actions.
 - **Presets:** one-tap reasons, temp-ban lengths and chat lines (settings key `miniapp.presets`).
 - **Management:** audit log search, admins, servers (`/addserver`, `/removeserver`, `/setdefault`,
-  `/findlog`), VPN rules, Telegram routes and self-update. `/claim` and `/bindserver` stay in chat:
+  `/findlog`), VPN rules, game-chat lines, Telegram routes and self-update. `/claim` and `/bindserver` stay in chat:
   the first runs before anyone is staff, the second binds the chat it's sent in.
 - **Beyond the chat bot:** next map, map restart, round restart (`RconClient.levelCommand`, sent
   once for the same reason as `map()`), rotation editor, and server cvars (`cvars.read` to view,

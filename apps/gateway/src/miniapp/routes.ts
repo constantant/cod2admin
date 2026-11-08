@@ -284,6 +284,7 @@ export function registerRoutes(
             reason: optionalReason(body.reason),
             source: 'miniapp',
             durationMs: duration,
+            chatTemplates: deps.chatTemplates,
           },
         );
         const forHowLong = result.durationMs

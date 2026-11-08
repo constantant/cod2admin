@@ -1,5 +1,6 @@
 import type { AdminStore } from '@cod2admin/admin-store';
 import type { RconClient, StatusPlayer } from '@cod2admin/rcon-client';
+import type { ChatTemplates } from './chat-templates.js';
 import { displayName } from './commands/players.js';
 import { sanitizeRconArg } from './sanitize.js';
 import type { VpnKind, VpnLookup } from './vpn-ranges.js';
@@ -23,7 +24,10 @@ export interface VpnKickSettings {
   exempt: string[];
 }
 
-export const DEFAULT_VPN_KICK_SETTINGS: VpnKickSettings = { enabled: false, exempt: [] };
+export const DEFAULT_VPN_KICK_SETTINGS: VpnKickSettings = {
+  enabled: false,
+  exempt: [],
+};
 
 export function parseVpnKickSettings(value: unknown): VpnKickSettings {
   if (typeof value !== 'object' || value === null) {
@@ -32,14 +36,20 @@ export function parseVpnKickSettings(value: unknown): VpnKickSettings {
   const { enabled, exempt } = value as { enabled?: unknown; exempt?: unknown };
   return {
     enabled: enabled === true,
-    exempt: Array.isArray(exempt) ? exempt.filter((entry): entry is string => typeof entry === 'string' && entry !== '') : [],
+    exempt: Array.isArray(exempt)
+      ? exempt.filter(
+          (entry): entry is string => typeof entry === 'string' && entry !== '',
+        )
+      : [],
   };
 }
 
 /** How an exempt entry is stored: a GUID as-is, a name lower-cased with colour codes stripped. */
 export function normalizeExempt(value: string): string {
   const trimmed = value.trim();
-  return /^\d+$/.test(trimmed) ? trimmed : displayName({ num: 0, score: 0, ping: 0, name: trimmed }).toLowerCase();
+  return /^\d+$/.test(trimmed)
+    ? trimmed
+    : displayName({ num: 0, score: 0, ping: 0, name: trimmed }).toLowerCase();
 }
 
 function isExempt(player: StatusPlayer, exempt: ReadonlySet<string>): boolean {
@@ -49,7 +59,10 @@ function isExempt(player: StatusPlayer, exempt: ReadonlySet<string>): boolean {
   return exempt.has(displayName(player).toLowerCase());
 }
 
-/** Announce in game chat and audit at most once per player IP in this window; kick every time. */
+/**
+ * Audit, and the game-chat line when its template is set, at most once per player IP
+ * in this window. The kick itself happens every sweep. The template starts empty.
+ */
 const ANNOUNCE_EVERY_MS = 5 * 60 * 1000;
 
 const KIND_TEXT: Record<VpnKind, string> = {
@@ -63,6 +76,7 @@ export interface VpnKickSweepDeps {
   vpn: VpnLookup;
   rconClients: Map<string, RconClient>;
   adminStore: Pick<AdminStore, 'recordAuditLog'>;
+  chatTemplates: ChatTemplates;
 }
 
 /** The live `/vpnkick` state plus the sweep that enforces it. One per gateway. */
@@ -103,7 +117,10 @@ export class VpnKicker {
           await this.kick(deps, serverAlias, rcon, player, kind);
         }
       } catch (error) {
-        console.error(`VPN kick sweep failed for server "${serverAlias}":`, error);
+        console.error(
+          `VPN kick sweep failed for server "${serverAlias}":`,
+          error,
+        );
       }
     }
   }
@@ -118,10 +135,17 @@ export class VpnKicker {
     const name = displayName(player);
     const key = `${serverAlias}|${player.ip}`;
     const last = this.lastAnnounced.get(key);
-    const announce = last === undefined || this.now() - last >= ANNOUNCE_EVERY_MS;
+    const announce =
+      last === undefined || this.now() - last >= ANNOUNCE_EVERY_MS;
+    const text = deps.chatTemplates.render('vpn_kick', {
+      name,
+      kind: KIND_TEXT[kind],
+    });
     if (announce) {
       this.lastAnnounced.set(key, this.now());
-      await rcon.say(sanitizeRconArg(`${name} kicked: ${KIND_TEXT[kind]} is not allowed here. Turn it off to play.`));
+      if (text) {
+        await rcon.say(text);
+      }
     }
     await rcon.kick(player.num, sanitizeRconArg(player.name));
     if (announce) {

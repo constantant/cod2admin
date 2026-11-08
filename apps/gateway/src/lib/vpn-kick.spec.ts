@@ -2,6 +2,7 @@ import type { StatusPlayer } from '@cod2admin/rcon-client';
 import { describe, expect, it, vi } from 'vitest';
 import { asRconClient, createFakeRcon } from './testing/fake-rcon.js';
 import { createFakeAdminStore } from './testing/fake-admin-store.js';
+import { ChatTemplates, DEFAULT_CHAT_TEMPLATES } from './chat-templates.js';
 import {
   normalizeExempt,
   parseVpnKickSettings,
@@ -32,6 +33,7 @@ function setup(kinds: Record<string, VpnKind> = { [VPN_IP]: 'hosting' }) {
     vpn: { lookup: (ip: string) => kinds[ip] },
     rconClients: new Map([['ctfrussia', asRconClient(rcon)]]),
     adminStore,
+    chatTemplates: new ChatTemplates(),
   };
   return {
     rcon,
@@ -51,7 +53,7 @@ describe('VpnKicker', () => {
     expect(rcon.status).not.toHaveBeenCalled();
   });
 
-  it('kicks only flagged players, announcing it in game chat and the audit log', async () => {
+  it('kicks only flagged players and audits, without a game-chat line', async () => {
     const { rcon, adminStore, kicker, deps } = setup();
     kicker.setSettings({ enabled: true, exempt: [] });
 
@@ -59,9 +61,7 @@ describe('VpnKicker', () => {
 
     expect(rcon.kick).toHaveBeenCalledTimes(1);
     expect(rcon.kick).toHaveBeenCalledWith(0, 'const^7');
-    expect(rcon.say).toHaveBeenCalledWith(
-      'const kicked: VPN/proxy is not allowed here. Turn it off to play.',
-    );
+    expect(rcon.say).not.toHaveBeenCalled();
     expect(adminStore.recordAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'vpn_kick',
@@ -75,6 +75,11 @@ describe('VpnKicker', () => {
 
   it('kicks a rejoining player every sweep but announces only once per 5 minutes', async () => {
     const { rcon, adminStore, kicker, deps, advance } = setup();
+    deps.chatTemplates.setAll({
+      ...DEFAULT_CHAT_TEMPLATES,
+      vpn_kick:
+        '{name} kicked: {kind} is not allowed here. Turn it off to play.',
+    });
     kicker.setSettings({ enabled: true, exempt: [] });
 
     await kicker.sweep(deps);

@@ -10,7 +10,10 @@ import { sanitizeRconArg } from '../sanitize.js';
  * A numeric target is checked against `status()` so we don't `clientkick` an empty slot. A name
  * is passed through; `RconClient#kick` quotes it if the first attempt misses.
  */
-export async function kickCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
+export async function kickCommand(
+  ctx: BotContext,
+  deps: GatewayDeps,
+): Promise<void> {
   const { alias: serverAlias, rest } = extractServerFlag(matchText(ctx));
   const server = await resolveServer(ctx, deps, serverAlias);
   if (!server) {
@@ -40,7 +43,15 @@ export async function kickCommand(ctx: BotContext, deps: GatewayDeps): Promise<v
   await executeModerationAction(
     'kick',
     { num: clientId, name: kickTarget },
-    { serverAlias: server.alias, rcon: server.rcon, banStore: deps.banStore, adminStore: deps.adminStore, actorTelegramId: ctx.admin!.telegramId, source: 'telegram_command' },
+    {
+      serverAlias: server.alias,
+      rcon: server.rcon,
+      banStore: deps.banStore,
+      adminStore: deps.adminStore,
+      actorTelegramId: ctx.admin!.telegramId,
+      source: 'telegram_command',
+      chatTemplates: deps.chatTemplates,
+    },
   );
   await ctx.reply(`Kicked ${kickTarget}.`);
 }

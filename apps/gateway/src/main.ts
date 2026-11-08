@@ -20,6 +20,11 @@ import { loadConfig } from './lib/config.js';
 import type { GatewayDeps, UpdateFeatureConfig } from './lib/deps.js';
 import { startExpiryPoller } from './lib/expiry-poller.js';
 import {
+  ChatTemplates,
+  CHAT_TEMPLATES_SETTING_KEY,
+  parseChatTemplates,
+} from './lib/chat-templates.js';
+import {
   parseVpnKickSettings,
   VPN_KICK_SETTING_KEY,
   VpnKicker,
@@ -64,7 +69,10 @@ import {
 } from './lib/vpn-ranges.js';
 import { startVersionCheckPoller } from './lib/version-check-poller.js';
 import { APP_BUTTON_TEXT } from './lib/commands/app.js';
-import { fetchClientDocument, loadClientMetadata } from './mcp/client-metadata.js';
+import {
+  fetchClientDocument,
+  loadClientMetadata,
+} from './mcp/client-metadata.js';
 import { McpSessions } from './mcp/sessions.js';
 import { ChatFeeds } from './miniapp/chat-feed.js';
 import { startMiniAppServer } from './miniapp/server.js';
@@ -197,6 +205,10 @@ const vpnKick = new VpnKicker();
 vpnKick.setSettings(
   parseVpnKickSettings(await adminStore.getSetting(VPN_KICK_SETTING_KEY)),
 );
+const chatTemplates = new ChatTemplates();
+chatTemplates.setAll(
+  parseChatTemplates(await adminStore.getSetting(CHAT_TEMPLATES_SETTING_KEY)),
+);
 
 // How the bot reaches Telegram (lib/telegram-routes.ts, docs/PLAN-russia-access.md): a /relays
 // change stored in the database wins over .env, which wins over direct + the built-in relays.
@@ -257,6 +269,7 @@ const deps: GatewayDeps = {
   provider: config.geoip.enabled ? asnDatabase : NO_PROVIDER_LOOKUP,
   vpn: config.vpnFlag.enabled ? vpnDatabase : NO_VPN_LOOKUP,
   vpnKick,
+  chatTemplates,
   telegramRoutes: {
     router: telegramRouter,
     defaults: telegramDefaults,
@@ -315,7 +328,9 @@ if (config.miniapp.port !== undefined) {
         loadMetadata: (clientId) =>
           loadClientMetadata(clientId, (url) =>
             fetchClientDocument(url, {
-              relays: telegramRouter.all.filter((route) => route !== DIRECT_TELEGRAM_ROOT),
+              relays: telegramRouter.all.filter(
+                (route) => route !== DIRECT_TELEGRAM_ROOT,
+              ),
             }),
           ),
       },

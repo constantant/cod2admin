@@ -52,7 +52,7 @@ import { T } from '../../shared/i18n';
           >
           <p class="muted small">
             {{
-              'Players marked 🛡 (VPN, proxy, Tor, hosting or a network below) are kicked on sight on every server, with a message in the game chat. Nobody is banned: a VPN address is shared by strangers.'
+              'Players marked 🛡 (VPN, proxy, Tor, hosting or a network below) are kicked on sight on every server. Nobody is banned: a VPN address is shared by strangers.'
                 | t
             }}
           </p>

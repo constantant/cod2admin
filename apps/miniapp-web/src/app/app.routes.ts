@@ -70,6 +70,12 @@ export const appRoutes: Route[] = [
     loadComponent: () => import('./pages/audit/audit').then((m) => m.AuditPage),
   },
   {
+    path: 'templates',
+    canMatch: [allow('templates')],
+    loadComponent: () =>
+      import('./pages/templates/templates').then((m) => m.TemplatesPage),
+  },
+  {
     path: 'relays',
     canMatch: [allow('relays')],
     loadComponent: () =>
