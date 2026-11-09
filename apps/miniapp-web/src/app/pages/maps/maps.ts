@@ -9,6 +9,8 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { NgTemplateOutlet } from '@angular/common';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -22,6 +24,18 @@ import { Icon } from '../../shared/icon';
 import { Notify } from '../../shared/notify';
 import { RotationDialog } from './rotation-dialog';
 import { T } from '../../shared/i18n';
+import { MapThumb } from '../../shared/map-thumb';
+
+const VIEW_KEY = 'c2a.maps.view';
+export type MapsView = 'preview' | 'compact';
+
+function storedView(): MapsView {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'compact' ? 'compact' : 'preview';
+  } catch {
+    return 'preview';
+  }
+}
 
 /** Short names for the stock CoD2 modes; a mod's own modes show as their name in capitals. */
 const MODE_LABELS: Record<string, string> = {
@@ -50,7 +64,10 @@ export function modeLabel(gametype: string | null | undefined): string {
     T,
     FormsModule,
     MatButtonModule,
+    MatButtonToggleModule,
     MatChipsModule,
+    NgTemplateOutlet,
+    MapThumb,
     MatFormFieldModule,
     MatInputModule,
     MatProgressBarModule,
@@ -73,6 +90,8 @@ export class MapsPage {
   /** The mode the map buttons load in. */
   protected readonly mode = signal<string | null>(null);
   protected readonly label = modeLabel;
+  /** Preview tiles or the compact name buttons: each admin's own choice, kept in the browser. */
+  protected readonly view = signal<MapsView>(storedView());
   /** The live status knows a map change sooner than this page's last load. */
   protected readonly current = computed(
     () => this.live.status()?.mapName ?? this.maps()?.current ?? null,
@@ -99,6 +118,15 @@ export class MapsPage {
       const alias = this.session.server();
       untracked(() => void this.load(alias));
     });
+  }
+
+  protected setView(view: MapsView): void {
+    this.view.set(view);
+    try {
+      localStorage.setItem(VIEW_KEY, view);
+    } catch {
+      // Private mode: the choice just lasts until the page closes.
+    }
   }
 
   protected async load(alias = this.session.server()): Promise<void> {

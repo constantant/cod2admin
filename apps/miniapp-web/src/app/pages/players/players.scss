@@ -22,6 +22,14 @@
   }
 }
 
+.thumb {
+  flex: none;
+  width: 88px;
+  margin-left: auto;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
 .small {
   font: var(--mat-sys-body-small);
 }

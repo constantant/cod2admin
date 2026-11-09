@@ -276,6 +276,9 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
   Mode: 'Режим',
   'Game mode': 'Режим игры',
   'Find a map': 'Найти карту',
+  'Map view': 'Вид списка карт',
+  Previews: 'Превью',
+  Compact: 'Компактно',
   '— load in': '— запустить в режиме',
   "custom map — you'll be asked to confirm.":
     'нестандартная карта: приложение попросит подтвердить.',

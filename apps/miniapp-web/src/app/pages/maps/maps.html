@@ -58,11 +58,27 @@
   </mat-chip-listbox>
   }
 
-  <h2>
-    {{ 'Maps' | t }} @if (mode(); as gametype) {
-    <span class="muted">{{ '— load in' | t }} {{ label(gametype) }}</span>
-    }
-  </h2>
+  <div class="row maps-head">
+    <h2>
+      {{ 'Maps' | t }} @if (mode(); as gametype) {
+      <span class="muted">{{ '— load in' | t }} {{ label(gametype) }}</span>
+      }
+    </h2>
+    <span class="spacer"></span>
+    <mat-button-toggle-group
+      [value]="view()"
+      (change)="setView($event.value)"
+      hideSingleSelectionIndicator
+      [attr.aria-label]="'Map view' | t"
+    >
+      <mat-button-toggle value="preview" [attr.aria-label]="'Previews' | t">
+        <c2a-icon name="apps" />
+      </mat-button-toggle>
+      <mat-button-toggle value="compact" [attr.aria-label]="'Compact' | t">
+        <c2a-icon name="list" />
+      </mat-button-toggle>
+    </mat-button-toggle-group>
+  </div>
   @if (maps.maps.length > 12) {
   <mat-form-field
     class="full-width"
@@ -73,18 +89,14 @@
     <input matInput [placeholder]="'Find a map' | t" [(ngModel)]="filter" />
   </mat-form-field>
   }
-  <div class="grid">
+  <div class="grid" [class.tiles]="view() === 'preview'">
     @for (map of visibleMaps(); track map.name) {
-    <button
-      mat-stroked-button
-      [class.on]="isCurrent(map.name, mode())"
-      [disabled]="switching() !== null"
-      (click)="change(map.name, map.stock, mode())"
-    >
-      @if (!map.stock) {
-      <c2a-icon name="warning" class="custom" />
-      } {{ map.name }}
-    </button>
+    <ng-container
+      *ngTemplateOutlet="
+        tile;
+        context: { name: map.name, stock: map.stock, gametype: mode(), tag: null }
+      "
+    />
     } @empty {
     <p class="muted">{{ emptyText() | t }}</p>
     }
@@ -104,19 +116,64 @@
     <button mat-button (click)="editRotation()">{{ 'Edit' | t }}</button>
   </div>
   @if (maps.rotation.length > 0) {
-  <div class="grid">
+  <div class="grid" [class.tiles]="view() === 'preview'">
     @for (entry of maps.rotation; track entry.map + ':' + entry.gametype) {
-    <button
-      mat-stroked-button
-      [class.on]="isCurrent(entry.map, entry.gametype)"
-      [disabled]="switching() !== null"
-      (click)="change(entry.map, true, entry.gametype)"
-    >
-      {{ entry.map }} @if (entry.gametype) {
-      <span class="mode-tag">{{ label(entry.gametype) }}</span>
-      }
-    </button>
+    <ng-container
+      *ngTemplateOutlet="
+        tile;
+        context: {
+          name: entry.map,
+          stock: true,
+          gametype: entry.gametype,
+          tag: entry.gametype
+        }
+      "
+    />
     }
   </div>
   } }
 </div>
+
+<ng-template
+  #tile
+  let-name="name"
+  let-stock="stock"
+  let-gametype="gametype"
+  let-tag="tag"
+>
+  @if (view() === 'preview') {
+  <button
+    class="tile"
+    type="button"
+    [class.on]="isCurrent(name, gametype)"
+    [disabled]="switching() !== null"
+    [attr.aria-label]="name"
+    (click)="change(name, stock, gametype)"
+  >
+    <c2a-map-thumb [name]="name">
+      @if (tag) {
+      <span class="mode-tag on-art">{{ label(tag) }}</span>
+      }
+    </c2a-map-thumb>
+    <span class="caption">
+      @if (!stock) {
+      <c2a-icon name="warning" class="custom" />
+      }
+      <span class="caption-name">{{ name }}</span>
+    </span>
+  </button>
+  } @else {
+  <button
+    mat-stroked-button
+    [class.on]="isCurrent(name, gametype)"
+    [disabled]="switching() !== null"
+    (click)="change(name, stock, gametype)"
+  >
+    @if (!stock) {
+    <c2a-icon name="warning" class="custom" />
+    } {{ name }} @if (tag) {
+    <span class="mode-tag">{{ label(tag) }}</span>
+    }
+  </button>
+  }
+</ng-template>

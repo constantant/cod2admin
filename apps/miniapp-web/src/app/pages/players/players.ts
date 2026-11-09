@@ -25,6 +25,7 @@ import { Icon } from '../../shared/icon';
 import { Notify } from '../../shared/notify';
 import { openPlayerSheet } from './player-sheet';
 import { T } from '../../shared/i18n';
+import { MapThumb } from '../../shared/map-thumb';
 
 type SortKey = 'score' | 'name' | 'ping' | 'num';
 
@@ -42,6 +43,7 @@ type SortKey = 'score' | 'name' | 'ping' | 'num';
     MatProgressBarModule,
     GameName,
     Icon,
+    MapThumb,
   ],
   templateUrl: './players.html',
   styleUrl: './players.scss',

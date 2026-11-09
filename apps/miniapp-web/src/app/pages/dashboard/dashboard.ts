@@ -20,6 +20,7 @@ import { Icon } from '../../shared/icon';
 import { LineChart } from '../../shared/line-chart';
 import { Notify } from '../../shared/notify';
 import { modeLabel } from '../maps/maps';
+import { MapThumb } from '../../shared/map-thumb';
 import { dateLocale, t, T } from '../../shared/i18n';
 
 /** The server at a glance, and how busy it has been (docs/PLAN-miniapp.md §6.4). */
@@ -35,6 +36,7 @@ import { dateLocale, t, T } from '../../shared/i18n';
     GameName,
     Icon,
     LineChart,
+    MapThumb,
   ],
   template: `
     @if (loading()) {
@@ -70,12 +72,17 @@ import { dateLocale, t, T } from '../../shared/i18n';
               </div>
               <div class="muted">{{ 'players now' | t }}</div>
             </div>
-            <div>
-              <div class="value text">{{ map() ?? '—' }}</div>
-              <div class="muted">
-                {{ 'map' | t
-                }}{{ data.gametype ? ' · ' + mode(data.gametype) : '' }}
+            <div class="now-map">
+              <div>
+                <div class="value text">{{ map() ?? '—' }}</div>
+                <div class="muted">
+                  {{ 'map' | t
+                  }}{{ data.gametype ? ' · ' + mode(data.gametype) : '' }}
+                </div>
               </div>
+              @if (map(); as name) {
+                <c2a-map-thumb class="thumb" [name]="name" />
+              }
             </div>
           </div>
         </section>
@@ -166,7 +173,12 @@ import { dateLocale, t, T } from '../../shared/i18n';
               <ul class="maps">
                 @for (entry of data.history.topMaps; track entry.map) {
                   <li>
-                    <div class="row">
+                    <div class="row top-map">
+                      <c2a-map-thumb
+                        class="thumb-sm"
+                        [name]="entry.map"
+                        [showName]="false"
+                      />
                       <span class="map-name">{{ entry.map }}</span>
                       <span class="spacer"></span>
                       <span class="muted">{{ percent(entry.percent) }}</span>
@@ -240,6 +252,27 @@ import { dateLocale, t, T } from '../../shared/i18n';
     h2 {
       font: var(--mat-sys-title-small);
       margin: 0;
+    }
+    .now-map {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .thumb {
+      flex: none;
+      width: 104px;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .top-map {
+      gap: 8px;
+    }
+    .thumb-sm {
+      flex: none;
+      width: 40px;
+      border-radius: 6px;
+      overflow: hidden;
     }
     .maps {
       list-style: none;

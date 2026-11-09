@@ -30,7 +30,9 @@
         <div class="value map">{{ status.mapName ?? '—' }}</div>
         <div class="muted">{{ 'map' | t }}</div>
       </div>
-      @if (flagged() > 0) {
+      @if (status.mapName; as mapName) {
+      <c2a-map-thumb class="thumb" [name]="mapName" />
+      } @if (flagged() > 0) {
       <div>
         <div class="value vpn">{{ flagged() }}</div>
         <div class="muted">{{ 'on VPN' | t }}</div>

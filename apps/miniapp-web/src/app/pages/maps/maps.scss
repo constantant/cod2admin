@@ -82,3 +82,62 @@ mat-chip-listbox {
 .rotation-head h2 {
   margin-bottom: 8px;
 }
+
+.maps-head h2 {
+  margin-bottom: 8px;
+}
+
+mat-button-toggle-group c2a-icon {
+  width: 20px;
+  height: 20px;
+  margin: 8px;
+}
+
+.grid.tiles {
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: var(--mat-sys-on-surface);
+  background: var(--mat-sys-surface-container);
+  border: 2px solid transparent;
+  border-radius: 12px;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  &.on {
+    border-color: var(--mat-sys-primary);
+    background: var(--mat-sys-secondary-container);
+  }
+}
+
+.on-art {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  margin: 0;
+}
+
+.caption {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  font: var(--mat-sys-label-medium);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.caption-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

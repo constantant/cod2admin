@@ -59,6 +59,7 @@ const PATHS = {
   download: 'M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z',
   delete:
     'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z',
+  list: 'M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z',
   up: 'M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z',
   down: 'M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z',
   note: 'M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z',
