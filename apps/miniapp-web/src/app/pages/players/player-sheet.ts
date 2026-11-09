@@ -174,6 +174,12 @@ export class PlayerSheet {
     );
   }
 
+  protected async markKnown(): Promise<void> {
+    await this.run(() =>
+      this.api.markKnown(this.data.server, this.player.num, this.player.name),
+    );
+  }
+
   protected async tell(): Promise<void> {
     const message = this.message().trim();
     if (!message) {
