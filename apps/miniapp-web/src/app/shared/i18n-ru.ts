@@ -474,8 +474,8 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
 
   // Known players
   'Mark as known': 'Отметить как известного',
-  "The bot can't tell this player's network or GUID (a local address, and no GUID). Enter an ASN or a GUID for {name}.":
-    'Бот не может определить сеть или GUID этого игрока (локальный адрес и GUID нет). Введите ASN или GUID для {name}.',
+  "The bot can't tell this player's network or GUID (a local address, and no GUID). Enter an ASN or a GUID to save them as a known player.":
+    'Бот не может определить сеть или GUID этого игрока (локальный адрес и GUID нет). Введите ASN или GUID, чтобы сохранить его как известного игрока.',
   'Known player added.': 'Известный игрок добавлен.',
   'Add this network to known': 'Добавить эту сеть в известные',
   'Add this GUID to known': 'Добавить этот GUID в известные',
