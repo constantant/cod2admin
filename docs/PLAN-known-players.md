@@ -175,8 +175,10 @@ An entry may also hold real GUIDs (`known_players.guids`, migration `0009`). Mos
 0 (`docs/PLAN.md` §2.4), so the ASN stays the base check; a GUID only adds information when present:
 
 1. A real GUID stored for the name → **known**, from any network.
-2. A real GUID not among the stored ones, network fits → **suspect**: flagged ⚠️ in `/players` and
-   the Mini App, **never kicked** (a GUID changes with a new CD key) and not exempt from `/vpnkick`.
+2. A real GUID not among the stored ones, network fits (or unknown) → **suspect**: flagged ⚠️ and,
+   since 2026-11-09, **kicked** like an impostor (the audit entry says `reason: guid`). A new CD key
+   means a new GUID, so an admin adds it with "mark as known"; until then they are kicked. Not
+   exempt from `/vpnkick`.
 3. Network doesn't fit and no stored GUID vouches → **impostor**, kicked as before (with a GUID
    that differs too, the kick audit entry carries it).
 4. GUID 0 or none stored → ASN decides. An entry with no ASNs (GUID only) has no network to check.

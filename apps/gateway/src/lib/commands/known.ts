@@ -42,7 +42,7 @@ function formatStatus(deps: GatewayDeps): string {
   const { enabled, entries } = deps.knownPlayers;
   return [
     enabled
-      ? 'Known players is ON: a listed name from a listed network is never kicked for a VPN; a listed name from any other network is kicked on sight. Nobody is banned.'
+      ? 'Known players is ON: a listed name from a listed network is never kicked for a VPN; a listed name from any other network, or with a different real GUID, is kicked on sight. Nobody is banned.'
       : 'Known players is OFF: the list is kept, but nobody is kicked or exempted because of it.',
     '',
     entries.length === 0

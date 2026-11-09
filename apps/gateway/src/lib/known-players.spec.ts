@@ -74,9 +74,9 @@ describe('KnownPlayers.verdict with GUIDs', () => {
     ['stored GUID vouches from any network', player(0, 'Vasya', '3.3.3.3', '716922'), 'known'],
     ['GUID 0 falls back to the ASN: fits', player(1, 'Vasya', '1.1.1.1'), 'known'],
     ['GUID 0, other ASN', player(2, 'Vasya', '3.3.3.3'), 'impostor'],
-    ['another real GUID from a listed ASN is only flagged', player(3, 'Vasya', '1.1.1.1', '999'), 'suspect'],
+    ['another real GUID from a listed ASN is a suspect', player(3, 'Vasya', '1.1.1.1', '999'), 'suspect'],
     ['another real GUID from another ASN is kicked', player(4, 'Vasya', '3.3.3.3', '999'), 'impostor'],
-    ['another real GUID, ASN unknown: flagged, not kicked', player(5, 'Vasya', '9.9.9.9', '999'), 'suspect'],
+    ['another real GUID, ASN unknown: a suspect', player(5, 'Vasya', '9.9.9.9', '999'), 'suspect'],
     ['a real GUID where none is stored: ASN decides', player(6, 'Petya', '2.2.2.2', '999'), 'known'],
     ['GUID-only entry, GUID 0: nothing to check', player(7, 'GuidOnly', '3.3.3.3'), 'unverified'],
     ['GUID-only entry, wrong GUID: flagged', player(8, 'GuidOnly', '3.3.3.3', '1'), 'suspect'],
@@ -84,11 +84,21 @@ describe('KnownPlayers.verdict with GUIDs', () => {
     expect(known.verdict(subject)).toBe(expected);
   });
 
-  it('never kicks a suspect, and does not protect one from a VPN kick', async () => {
-    const { rcon, deps, known: live } = setup([player(3, 'Vasya', '2.2.2.2', '999')]);
+  it('kicks a suspect (other GUID), says why, and does not protect one from a VPN kick', async () => {
+    const { rcon, adminStore, deps, known: live } = setup([
+      player(3, 'Vasya', '2.2.2.2', '999'),
+      player(4, 'Vasya', '2.2.2.2', '716922'),
+    ]);
     live.setEntries([entry('vasya', [8359], ['716922'])]);
     await live.sweep(deps);
-    expect(rcon.kick).not.toHaveBeenCalled();
+    expect(rcon.kick).toHaveBeenCalledTimes(1);
+    expect(rcon.kick).toHaveBeenCalledWith(3, 'Vasya');
+    expect(adminStore.recordAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'known_kick',
+        detailJson: { ip: '2.2.2.2', guid: '999', reason: 'guid', asn: 8359 },
+      }),
+    );
     expect(live.isProtected(player(3, 'Vasya', '2.2.2.2', '999'))).toBe(false);
     expect(live.isProtected(player(3, 'Vasya', '2.2.2.2', '716922'))).toBe(true);
   });
@@ -129,7 +139,7 @@ describe('KnownPlayers.sweep', () => {
         target: 'VASYA',
         serverAlias: 'main',
         source: 'auto',
-        detailJson: { ip: '3.3.3.3', guid: null, asn: 202226 },
+        detailJson: { ip: '3.3.3.3', guid: null, reason: 'network', asn: 202226 },
       }),
     );
   });
