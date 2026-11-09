@@ -636,9 +636,7 @@ export class DrizzleAdminStore implements AdminStore {
     await this.pool.end();
   }
 
-  private async withPermissions(
-    rows: AdminRow[],
-  ): Promise<Admin[]> {
+  private async withPermissions(rows: AdminRow[]): Promise<Admin[]> {
     if (rows.length === 0) {
       return [];
     }

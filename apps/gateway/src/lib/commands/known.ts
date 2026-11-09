@@ -15,7 +15,8 @@ const USAGE_LINES = {
   add: '/known add <name> [AS12389 …] [guid:716922 …] — without either, takes the network and GUID of the player now online with that name',
   addAsn: '/known addasn <ASN> <name> — one more network for a known name',
   removeAsn: '/known removeasn <ASN> <name>',
-  addGuid: '/known addguid <GUID> <name> — a real GUID (most players have 0) beats the network check',
+  addGuid:
+    '/known addguid <GUID> <name> — a real GUID (most players have 0) beats the network check',
   removeGuid: '/known removeguid <GUID> <name>',
   note: '/known note <name> <text> — a note (empty text clears it)',
   remove: '/known remove <name>',
@@ -27,7 +28,10 @@ const ASN_TOKEN = /^AS\d{1,10}$/i;
 const GUID_TOKEN = /^guid:(\d{1,20})$/i;
 
 function formatIds(asns: number[], guids: string[]): string {
-  return [...asns.map((asn) => `AS${asn}`), ...guids.map((guid) => `GUID ${guid}`)].join(', ');
+  return [
+    ...asns.map((asn) => `AS${asn}`),
+    ...guids.map((guid) => `GUID ${guid}`),
+  ].join(', ');
 }
 
 function formatEntry(entry: KnownPlayer): string {
@@ -153,7 +157,11 @@ export async function knownCommand(
     }
 
     case 'add': {
-      const { name: display, asns: givenAsns, guids: givenGuids } = splitName(tokens);
+      const {
+        name: display,
+        asns: givenAsns,
+        guids: givenGuids,
+      } = splitName(tokens);
       const name = display ? normalizeKnownName(display) : '';
       if (!name) {
         await ctx.reply(`Usage: ${USAGE_LINES.add}`);
@@ -201,10 +209,14 @@ export async function knownCommand(
       const isGuid = subcommand.toLowerCase().endsWith('guid');
       const idText = tokens[0] ?? '';
       const asn = isGuid ? undefined : parseAsn(idText);
-      const guid = isGuid && /^\d{1,20}$/.test(idText) && idText !== '0' ? idText : undefined;
+      const guid =
+        isGuid && /^\d{1,20}$/.test(idText) && idText !== '0'
+          ? idText
+          : undefined;
       const display = tokens.slice(1).join(' ');
       const entry = display ? find(normalizeKnownName(display)) : undefined;
-      const usage = USAGE_LINES[subcommand.toLowerCase() as keyof typeof USAGE_LINES];
+      const usage =
+        USAGE_LINES[subcommand.toLowerCase() as keyof typeof USAGE_LINES];
       const label = isGuid ? `GUID ${guid}` : `AS${asn}`;
       if ((asn === undefined && guid === undefined) || !entry) {
         await ctx.reply(
@@ -214,7 +226,9 @@ export async function knownCommand(
         );
         return;
       }
-      const has = isGuid ? entry.guids.includes(guid!) : entry.asns.includes(asn!);
+      const has = isGuid
+        ? entry.guids.includes(guid!)
+        : entry.asns.includes(asn!);
       if (adding === has) {
         await ctx.reply(
           adding
@@ -223,8 +237,10 @@ export async function knownCommand(
         );
         return;
       }
-      const toggle = <T,>(list: T[], value: T) =>
-        adding ? [...list, value] : list.filter((existing) => existing !== value);
+      const toggle = <T>(list: T[], value: T) =>
+        adding
+          ? [...list, value]
+          : list.filter((existing) => existing !== value);
       const asns = isGuid ? entry.asns : toggle(entry.asns, asn!);
       const guids = isGuid ? toggle(entry.guids, guid!) : entry.guids;
       if (asns.length === 0 && guids.length === 0) {
@@ -275,19 +291,28 @@ export async function knownCommand(
       });
       await reload(deps);
       await audit(ctx, deps, 'known_note', entry.name, { note });
-      await ctx.reply(note ? `Note saved for ${entry.display}.` : `Note cleared for ${entry.display}.`);
+      await ctx.reply(
+        note
+          ? `Note saved for ${entry.display}.`
+          : `Note cleared for ${entry.display}.`,
+      );
       return;
     }
 
     case 'remove': {
       const entry = rest ? find(normalizeKnownName(rest)) : undefined;
       if (!entry) {
-        await ctx.reply(`${rest ? `${rest} isn't in the list.` : `Usage: ${USAGE_LINES.remove}`}`);
+        await ctx.reply(
+          `${rest ? `${rest} isn't in the list.` : `Usage: ${USAGE_LINES.remove}`}`,
+        );
         return;
       }
       await deps.adminStore.deleteKnownPlayer(entry.name);
       await reload(deps);
-      await audit(ctx, deps, 'known_remove', entry.name, { asns: entry.asns, guids: entry.guids });
+      await audit(ctx, deps, 'known_remove', entry.name, {
+        asns: entry.asns,
+        guids: entry.guids,
+      });
       await ctx.reply(`${entry.display} is no longer a known player.`);
       return;
     }
@@ -296,4 +321,3 @@ export async function knownCommand(
       await ctx.reply(KNOWN_USAGE);
   }
 }
-

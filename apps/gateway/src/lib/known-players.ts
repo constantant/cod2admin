@@ -43,11 +43,7 @@ export function normalizeKnownName(name: string): string {
  *   one of its ASNs. Kicked.
  */
 export type KnownVerdict =
-  | 'unknown'
-  | 'known'
-  | 'unverified'
-  | 'suspect'
-  | 'impostor';
+  'unknown' | 'known' | 'unverified' | 'suspect' | 'impostor';
 
 /** What a listed name is checked against. */
 export interface KnownIdentity {
@@ -78,7 +74,9 @@ export function classify(
   const asn = player.ip ? asnOf(player.ip) : undefined;
   // An entry with no ASNs (GUID only) has nothing to compare a network against.
   const asnFits =
-    asn === undefined || entry.asns.size === 0 ? undefined : entry.asns.has(asn);
+    asn === undefined || entry.asns.size === 0
+      ? undefined
+      : entry.asns.has(asn);
   if (asnFits === false) {
     return 'impostor';
   }

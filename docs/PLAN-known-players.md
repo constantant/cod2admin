@@ -25,8 +25,8 @@ The ASN comes from the DB-IP ASN database the bot already loads (`AsnDatabase.as
 
 ## 2. Closest existing code (reuse, don't reinvent)
 
-| Need                              | Existing piece                                                                    |
-| --------------------------------- | --------------------------------------------------------------------------------- |
+| Need                              | Existing piece                                                                     |
+| --------------------------------- | ---------------------------------------------------------------------------------- |
 | Periodic sweep over every server  | `VpnKicker.sweep` (`lib/vpn-kick.ts`), called from `startExpiryPoller` (10 s tick) |
 | Name normalising (colours, case)  | `displayName()` + `normalizeExempt()` in `commands/players.ts` / `vpn-kick.ts`     |
 | IP → ASN                          | `deps.provider.asn(ip)` (`ProviderLookup`)                                         |
@@ -90,12 +90,12 @@ Exposes:
 
 ### 3.4 What "never kicked" covers
 
-| Auto action                                  | Known player (name + ASN match)                          |
-| -------------------------------------------- | -------------------------------------------------------- |
-| `/vpnkick` (VPN/proxy/Tor/hosting)           | **Exempt.** Needs the hook in `isExempt` in `vpn-kick.ts` |
-| Mute-enforcer kick (`mute-enforcer.ts`)      | Not exempt — an admin muted them on purpose              |
-| Ban enforcement sweep (`ban-store`)          | Not exempt — an explicit ban always wins (see Q1)        |
-| Manual `/kick`, `/ban`, `/tempban`           | Unaffected; these are explicit admin actions             |
+| Auto action                             | Known player (name + ASN match)                           |
+| --------------------------------------- | --------------------------------------------------------- |
+| `/vpnkick` (VPN/proxy/Tor/hosting)      | **Exempt.** Needs the hook in `isExempt` in `vpn-kick.ts` |
+| Mute-enforcer kick (`mute-enforcer.ts`) | Not exempt — an admin muted them on purpose               |
+| Ban enforcement sweep (`ban-store`)     | Not exempt — an explicit ban always wins (see Q1)         |
+| Manual `/kick`, `/ban`, `/tempban`      | Unaffected; these are explicit admin actions              |
 
 Warn the admin instead of silently conflicting: when an admin adds a known player whose name or
 current IP is under an active ban, or kicks/bans a known player, the reply says "this player is in

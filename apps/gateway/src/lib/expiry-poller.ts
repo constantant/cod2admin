@@ -1,4 +1,7 @@
-import { runBanEnforcementSweep, runBanExpirySweep } from '@cod2admin/ban-store';
+import {
+  runBanEnforcementSweep,
+  runBanExpirySweep,
+} from '@cod2admin/ban-store';
 import type { GatewayDeps } from './deps.js';
 
 const DEFAULT_INTERVAL_MS = 10_000;
@@ -13,7 +16,10 @@ const DEFAULT_INTERVAL_MS = 10_000;
  * A tick is skipped while the previous one is still running: a server that drops queries can make
  * a single `status` take ~10s (rcon-client's retries), and overlapping sweeps would only add load.
  */
-export function startExpiryPoller(deps: GatewayDeps, intervalMs = DEFAULT_INTERVAL_MS): NodeJS.Timeout {
+export function startExpiryPoller(
+  deps: GatewayDeps,
+  intervalMs = DEFAULT_INTERVAL_MS,
+): NodeJS.Timeout {
   let running = false;
   return setInterval(() => {
     if (running) {
@@ -21,9 +27,11 @@ export function startExpiryPoller(deps: GatewayDeps, intervalMs = DEFAULT_INTERV
     }
     running = true;
     void Promise.all([
-      runBanEnforcementSweep(deps.banStore, deps.rconClients).catch((error: unknown) => {
-        console.error('Ban enforcement sweep failed:', error);
-      }),
+      runBanEnforcementSweep(deps.banStore, deps.rconClients).catch(
+        (error: unknown) => {
+          console.error('Ban enforcement sweep failed:', error);
+        },
+      ),
       runBanExpirySweep(deps.banStore).catch((error: unknown) => {
         console.error('GUID ban expiry sweep failed:', error);
       }),

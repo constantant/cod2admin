@@ -342,8 +342,14 @@ export function registerRoutes(
       await deps.adminStore.saveKnownPlayer({
         name,
         display: existing?.display ?? displayName(player),
-        asns: asn === undefined ? (existing?.asns ?? []) : [...(existing?.asns ?? []), asn],
-        guids: guid === undefined ? (existing?.guids ?? []) : [...(existing?.guids ?? []), guid],
+        asns:
+          asn === undefined
+            ? (existing?.asns ?? [])
+            : [...(existing?.asns ?? []), asn],
+        guids:
+          guid === undefined
+            ? (existing?.guids ?? [])
+            : [...(existing?.guids ?? []), guid],
         note: existing?.note ?? null,
         createdBy: request.actor.telegramId,
       });

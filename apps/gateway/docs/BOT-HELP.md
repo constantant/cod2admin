@@ -97,8 +97,7 @@ Each command needs the permission in its heading. `/permit` is how those permiss
   never kicked for a VPN; a listed name from any other network, or with a different real GUID, is kicked on sight
   (kick only, no ban). Explicit bans and mutes still apply. The ASN only says which provider — someone on the same
   ISP with the same name passes; two people sharing one name must share one entry. The game-chat
-  line for the kick is `known_kick` in `/templates` (empty at first). A real GUID (most players have
-  0) stored for a name vouches for them from any network; a different real GUID on a listed name
+  line for the kick is `known_kick` in `/templates` (empty at first). A real GUID (most players have 0) stored for a name vouches for them from any network; a different real GUID on a listed name
   is kicked even from a listed network (a new CD key means a new GUID: add it with "mark as known").
   `/players` marks ✅ known and ⚠️ a known
   name from another network or with another GUID.
