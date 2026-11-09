@@ -30,7 +30,11 @@ describe('knownCommand with GUIDs', () => {
       guids: ['716922'],
     });
     await knownCommand(ctx('add Anna guid:5'), deps);
-    expect(deps.knownPlayers.entries[1]).toMatchObject({ name: 'anna', asns: [], guids: ['5'] });
+    expect(deps.knownPlayers.entries[1]).toMatchObject({
+      name: 'anna',
+      asns: [],
+      guids: ['5'],
+    });
   });
 
   it('takes the network and real GUID of the player online', async () => {
@@ -38,13 +42,25 @@ describe('knownCommand with GUIDs', () => {
     const rcon = createFakeRcon();
     rcon.status.mockResolvedValue({
       raw: '',
-      players: [{ num: 3, score: 0, ping: 1, name: 'Vasya', ip: '1.1.1.1', guid: '716922' }],
+      players: [
+        {
+          num: 3,
+          score: 0,
+          ping: 1,
+          name: 'Vasya',
+          ip: '1.1.1.1',
+          guid: '716922',
+        },
+      ],
     });
     deps.rconClients.set('main', asRconClient(rcon));
     deps.provider = { lookup: () => undefined, asn: () => 12389 };
 
     await knownCommand(ctx('add vasya'), deps);
-    expect(deps.knownPlayers.entries[0]).toMatchObject({ asns: [12389], guids: ['716922'] });
+    expect(deps.knownPlayers.entries[0]).toMatchObject({
+      asns: [12389],
+      guids: ['716922'],
+    });
   });
 
   it('adds and removes a GUID, and keeps at least one identity', async () => {
@@ -58,7 +74,10 @@ describe('knownCommand with GUIDs', () => {
     expect(reply(dup)).toContain('already has GUID 716922');
 
     await knownCommand(ctx('removeasn AS1 Vasya'), deps);
-    expect(deps.knownPlayers.entries[0]).toMatchObject({ asns: [], guids: ['716922'] });
+    expect(deps.knownPlayers.entries[0]).toMatchObject({
+      asns: [],
+      guids: ['716922'],
+    });
 
     const last = ctx('removeguid 716922 Vasya');
     await knownCommand(last, deps);
@@ -83,7 +102,10 @@ describe('knownCommand', () => {
     const { deps, adminStore } = setup();
     await knownCommand(ctx('on'), deps);
     expect(deps.knownPlayers.enabled).toBe(true);
-    expect(adminStore.setSetting).toHaveBeenCalledWith(KNOWN_PLAYERS_SETTING_KEY, { enabled: true });
+    expect(adminStore.setSetting).toHaveBeenCalledWith(
+      KNOWN_PLAYERS_SETTING_KEY,
+      { enabled: true },
+    );
     expect(adminStore.recordAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'known', actorTelegramId: 7 }),
     );
@@ -94,7 +116,10 @@ describe('knownCommand', () => {
   it('adds a name with given ASNs, merging into an existing entry', async () => {
     const { deps } = setup();
     await knownCommand(ctx('add Big Vasya AS12389 AS8359'), deps);
-    expect(deps.knownPlayers.entries[0]).toMatchObject({ name: 'big vasya', asns: [12389, 8359] });
+    expect(deps.knownPlayers.entries[0]).toMatchObject({
+      name: 'big vasya',
+      asns: [12389, 8359],
+    });
 
     const c = ctx('add big vasya AS202226');
     await knownCommand(c, deps);
@@ -108,13 +133,25 @@ describe('knownCommand', () => {
     const rcon = createFakeRcon();
     rcon.status.mockResolvedValue({
       raw: '',
-      players: [{ num: 3, score: 0, ping: 1, name: '^1Vasya', ip: '1.1.1.1', guid: '0' }],
+      players: [
+        {
+          num: 3,
+          score: 0,
+          ping: 1,
+          name: '^1Vasya',
+          ip: '1.1.1.1',
+          guid: '0',
+        },
+      ],
     });
     deps.rconClients.set('main', asRconClient(rcon));
     deps.provider = { lookup: () => undefined, asn: () => 12389 };
 
     await knownCommand(ctx('add vasya'), deps);
-    expect(deps.knownPlayers.entries[0]).toMatchObject({ name: 'vasya', asns: [12389] });
+    expect(deps.knownPlayers.entries[0]).toMatchObject({
+      name: 'vasya',
+      asns: [12389],
+    });
 
     const c = ctx('add nobody');
     await knownCommand(c, deps);

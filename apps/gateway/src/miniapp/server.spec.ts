@@ -323,7 +323,11 @@ describe('Mini App server', () => {
           { name: 'cheater', display: 'Cheater', asns: [12389] },
         ]);
         expect(fake.adminStore.recordAuditLog).toHaveBeenCalledWith(
-          expect.objectContaining({ action: 'known_add', target: 'cheater', actorTelegramId: 2 }),
+          expect.objectContaining({
+            action: 'known_add',
+            target: 'cheater',
+            actorTelegramId: 2,
+          }),
         );
         expect((await markKnown(server, 2)).statusCode).toBe(409);
 
@@ -344,7 +348,10 @@ describe('Mini App server', () => {
 
         const response = await markKnown(server, 2);
         expect(response.json().message).toContain('AS12389 and GUID 716922');
-        expect(fake.deps.knownPlayers.entries[0]).toMatchObject({ asns: [12389], guids: ['716922'] });
+        expect(fake.deps.knownPlayers.entries[0]).toMatchObject({
+          asns: [12389],
+          guids: ['716922'],
+        });
         expect((await markKnown(server, 2)).statusCode).toBe(409);
 
         fake.rcon.status.mockResolvedValue({
@@ -356,14 +363,19 @@ describe('Mini App server', () => {
           url: '/api/servers/default/status',
           headers: { authorization: authHeader(2) },
         });
-        expect(status.json().players[0]).toMatchObject({ known: 'suspect', knownAddable: true });
+        expect(status.json().players[0]).toMatchObject({
+          known: 'suspect',
+          knownAddable: true,
+        });
       });
 
       it('refuses a changed slot, an unknown network and a caller without the vpn permission', async () => {
         const fake = setup();
         const server = await start(fake);
 
-        expect((await markKnown(server, 2, 'Someone else')).statusCode).toBe(409);
+        expect((await markKnown(server, 2, 'Someone else')).statusCode).toBe(
+          409,
+        );
         expect((await markKnown(server, 2)).statusCode).toBe(422);
         expect((await markKnown(server, 3)).statusCode).toBe(403);
       });

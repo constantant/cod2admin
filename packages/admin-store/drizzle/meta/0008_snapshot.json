@@ -27,12 +27,8 @@
           "name": "admin_permissions_telegram_id_admins_telegram_id_fk",
           "tableFrom": "admin_permissions",
           "tableTo": "admins",
-          "columnsFrom": [
-            "telegram_id"
-          ],
-          "columnsTo": [
-            "telegram_id"
-          ],
+          "columnsFrom": ["telegram_id"],
+          "columnsTo": ["telegram_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -40,10 +36,7 @@
       "compositePrimaryKeys": {
         "admin_permissions_telegram_id_permission_pk": {
           "name": "admin_permissions_telegram_id_permission_pk",
-          "columns": [
-            "telegram_id",
-            "permission"
-          ]
+          "columns": ["telegram_id", "permission"]
         }
       },
       "uniqueConstraints": {},
@@ -73,10 +66,7 @@
       "compositePrimaryKeys": {
         "admin_servers_telegram_id_server_alias_pk": {
           "name": "admin_servers_telegram_id_server_alias_pk",
-          "columns": [
-            "telegram_id",
-            "server_alias"
-          ]
+          "columns": ["telegram_id", "server_alias"]
         }
       },
       "uniqueConstraints": {},
@@ -271,9 +261,7 @@
         "known_players_name_unique": {
           "name": "known_players_name_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "name"
-          ]
+          "columns": ["name"]
         }
       },
       "policies": {},
@@ -309,12 +297,8 @@
           "name": "mcp_access_grant_id_mcp_grants_id_fk",
           "tableFrom": "mcp_access",
           "tableTo": "mcp_grants",
-          "columnsFrom": [
-            "grant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["grant_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -402,12 +386,8 @@
           "name": "mcp_codes_telegram_id_admins_telegram_id_fk",
           "tableFrom": "mcp_codes",
           "tableTo": "admins",
-          "columnsFrom": [
-            "telegram_id"
-          ],
-          "columnsTo": [
-            "telegram_id"
-          ],
+          "columnsFrom": ["telegram_id"],
+          "columnsTo": ["telegram_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -525,12 +505,8 @@
           "name": "mcp_grants_telegram_id_admins_telegram_id_fk",
           "tableFrom": "mcp_grants",
           "tableTo": "admins",
-          "columnsFrom": [
-            "telegram_id"
-          ],
-          "columnsTo": [
-            "telegram_id"
-          ],
+          "columnsFrom": ["telegram_id"],
+          "columnsTo": ["telegram_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -540,9 +516,7 @@
         "mcp_grants_refresh_hash_unique": {
           "name": "mcp_grants_refresh_hash_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "refresh_hash"
-          ]
+          "columns": ["refresh_hash"]
         }
       },
       "policies": {},
@@ -659,16 +633,12 @@
         "mcp_pending_approve_hash_unique": {
           "name": "mcp_pending_approve_hash_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "approve_hash"
-          ]
+          "columns": ["approve_hash"]
         },
         "mcp_pending_browser_hash_unique": {
           "name": "mcp_pending_browser_hash_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "browser_hash"
-          ]
+          "columns": ["browser_hash"]
         }
       },
       "policies": {},
@@ -698,12 +668,8 @@
           "name": "mcp_retired_refresh_grant_id_mcp_grants_id_fk",
           "tableFrom": "mcp_retired_refresh",
           "tableTo": "mcp_grants",
-          "columnsFrom": [
-            "grant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["grant_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1163,20 +1129,12 @@
     "public.player_note_kind": {
       "name": "player_note_kind",
       "schema": "public",
-      "values": [
-        "guid",
-        "ip",
-        "name"
-      ]
+      "values": ["guid", "ip", "name"]
     },
     "public.report_status": {
       "name": "report_status",
       "schema": "public",
-      "values": [
-        "open",
-        "handled",
-        "ignored"
-      ]
+      "values": ["open", "handled", "ignored"]
     }
   },
   "schemas": {},

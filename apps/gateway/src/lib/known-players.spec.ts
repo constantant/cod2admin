@@ -4,17 +4,43 @@ import { describe, expect, it } from 'vitest';
 import { ChatTemplates, DEFAULT_CHAT_TEMPLATES } from './chat-templates.js';
 import { createFakeAdminStore } from './testing/fake-admin-store.js';
 import { asRconClient, createFakeRcon } from './testing/fake-rcon.js';
-import { KnownPlayers, normalizeKnownName, parseKnownEnabled } from './known-players.js';
+import {
+  KnownPlayers,
+  normalizeKnownName,
+  parseKnownEnabled,
+} from './known-players.js';
 
-const ASN_BY_IP: Record<string, number> = { '1.1.1.1': 12389, '2.2.2.2': 8359, '3.3.3.3': 202226 };
+const ASN_BY_IP: Record<string, number> = {
+  '1.1.1.1': 12389,
+  '2.2.2.2': 8359,
+  '3.3.3.3': 202226,
+};
 const asnOf = (ip: string) => ASN_BY_IP[ip];
 
-function entry(name: string, asns: number[], guids: string[] = []): KnownPlayer {
+function entry(
+  name: string,
+  asns: number[],
+  guids: string[] = [],
+): KnownPlayer {
   const at = new Date();
-  return { name, display: name, asns, guids, note: null, createdBy: 1, createdAt: at, updatedAt: at };
+  return {
+    name,
+    display: name,
+    asns,
+    guids,
+    note: null,
+    createdBy: 1,
+    createdAt: at,
+    updatedAt: at,
+  };
 }
 
-function player(num: number, name: string, ip?: string, guid = '0'): StatusPlayer {
+function player(
+  num: number,
+  name: string,
+  ip?: string,
+  guid = '0',
+): StatusPlayer {
   return { num, score: 0, ping: 50, name, ...(ip ? { ip } : {}), guid };
 }
 
@@ -31,7 +57,13 @@ function setup(players: StatusPlayer[], enabled = true) {
     adminStore,
     chatTemplates: new ChatTemplates(),
   };
-  return { rcon, adminStore, known, deps, advance: (ms: number) => (now += ms) };
+  return {
+    rcon,
+    adminStore,
+    known,
+    deps,
+    advance: (ms: number) => (now += ms),
+  };
 }
 
 describe('normalizeKnownName', () => {
@@ -55,7 +87,11 @@ describe('KnownPlayers.verdict', () => {
     ['unlisted name', player(0, 'Stranger', '3.3.3.3'), 'unknown'],
     ['listed name, listed ASN', player(1, '^1Vasya', '2.2.2.2'), 'known'],
     ['listed name, other ASN', player(2, 'vasya', '3.3.3.3'), 'impostor'],
-    ['listed name, unresolvable IP', player(3, 'Vasya', '9.9.9.9'), 'unverified'],
+    [
+      'listed name, unresolvable IP',
+      player(3, 'Vasya', '9.9.9.9'),
+      'unverified',
+    ],
     ['listed name, no IP (bot)', player(4, 'Vasya'), 'unverified'],
   ])('%s → %s', (_label, subject, expected) => {
     expect(known.verdict(subject)).toBe(expected);
@@ -71,21 +107,58 @@ describe('KnownPlayers.verdict with GUIDs', () => {
   ]);
 
   it.each([
-    ['stored GUID vouches from any network', player(0, 'Vasya', '3.3.3.3', '716922'), 'known'],
-    ['GUID 0 falls back to the ASN: fits', player(1, 'Vasya', '1.1.1.1'), 'known'],
+    [
+      'stored GUID vouches from any network',
+      player(0, 'Vasya', '3.3.3.3', '716922'),
+      'known',
+    ],
+    [
+      'GUID 0 falls back to the ASN: fits',
+      player(1, 'Vasya', '1.1.1.1'),
+      'known',
+    ],
     ['GUID 0, other ASN', player(2, 'Vasya', '3.3.3.3'), 'impostor'],
-    ['another real GUID from a listed ASN is a suspect', player(3, 'Vasya', '1.1.1.1', '999'), 'suspect'],
-    ['another real GUID from another ASN is kicked', player(4, 'Vasya', '3.3.3.3', '999'), 'impostor'],
-    ['another real GUID, ASN unknown: a suspect', player(5, 'Vasya', '9.9.9.9', '999'), 'suspect'],
-    ['a real GUID where none is stored: ASN decides', player(6, 'Petya', '2.2.2.2', '999'), 'known'],
-    ['GUID-only entry, GUID 0: nothing to check', player(7, 'GuidOnly', '3.3.3.3'), 'unverified'],
-    ['GUID-only entry, wrong GUID: flagged', player(8, 'GuidOnly', '3.3.3.3', '1'), 'suspect'],
+    [
+      'another real GUID from a listed ASN is a suspect',
+      player(3, 'Vasya', '1.1.1.1', '999'),
+      'suspect',
+    ],
+    [
+      'another real GUID from another ASN is kicked',
+      player(4, 'Vasya', '3.3.3.3', '999'),
+      'impostor',
+    ],
+    [
+      'another real GUID, ASN unknown: a suspect',
+      player(5, 'Vasya', '9.9.9.9', '999'),
+      'suspect',
+    ],
+    [
+      'a real GUID where none is stored: ASN decides',
+      player(6, 'Petya', '2.2.2.2', '999'),
+      'known',
+    ],
+    [
+      'GUID-only entry, GUID 0: nothing to check',
+      player(7, 'GuidOnly', '3.3.3.3'),
+      'unverified',
+    ],
+    [
+      'GUID-only entry, wrong GUID: flagged',
+      player(8, 'GuidOnly', '3.3.3.3', '1'),
+      'suspect',
+    ],
   ])('%s → %s', (_label, subject, expected) => {
     expect(known.verdict(subject)).toBe(expected);
   });
 
   it('kicks a suspect (other GUID), says why, and does not protect one from a VPN kick', async () => {
-    const { rcon, adminStore, deps, known: live } = setup([
+    const {
+      rcon,
+      adminStore,
+      deps,
+      known: live,
+    } = setup([
       player(3, 'Vasya', '2.2.2.2', '999'),
       player(4, 'Vasya', '2.2.2.2', '716922'),
     ]);
@@ -100,14 +173,25 @@ describe('KnownPlayers.verdict with GUIDs', () => {
       }),
     );
     expect(live.isProtected(player(3, 'Vasya', '2.2.2.2', '999'))).toBe(false);
-    expect(live.isProtected(player(3, 'Vasya', '2.2.2.2', '716922'))).toBe(true);
+    expect(live.isProtected(player(3, 'Vasya', '2.2.2.2', '716922'))).toBe(
+      true,
+    );
   });
 
   it('says what marking a player as known would add', () => {
-    expect(known.additions(player(0, 'Vasya', '3.3.3.3', '716922'))).toEqual({ asn: 202226 });
-    expect(known.additions(player(0, 'Vasya', '1.1.1.1', '716922'))).toEqual({});
-    expect(known.additions(player(0, 'Petya', '2.2.2.2', '4'))).toEqual({ guid: '4' });
-    expect(known.additions(player(0, 'New', '1.1.1.1', '7'))).toEqual({ asn: 12389, guid: '7' });
+    expect(known.additions(player(0, 'Vasya', '3.3.3.3', '716922'))).toEqual({
+      asn: 202226,
+    });
+    expect(known.additions(player(0, 'Vasya', '1.1.1.1', '716922'))).toEqual(
+      {},
+    );
+    expect(known.additions(player(0, 'Petya', '2.2.2.2', '4'))).toEqual({
+      guid: '4',
+    });
+    expect(known.additions(player(0, 'New', '1.1.1.1', '7'))).toEqual({
+      asn: 12389,
+      guid: '7',
+    });
     expect(known.additions(player(0, 'New', '9.9.9.9'))).toEqual({});
   });
 });
@@ -139,14 +223,22 @@ describe('KnownPlayers.sweep', () => {
         target: 'VASYA',
         serverAlias: 'main',
         source: 'auto',
-        detailJson: { ip: '3.3.3.3', guid: null, reason: 'network', asn: 202226 },
+        detailJson: {
+          ip: '3.3.3.3',
+          guid: null,
+          reason: 'network',
+          asn: 202226,
+        },
       }),
     );
   });
 
   it('kicks every sweep but audits and announces once per window', async () => {
     const { rcon, adminStore, known, deps, advance } = setup(PLAYERS);
-    deps.chatTemplates.setAll({ ...DEFAULT_CHAT_TEMPLATES, known_kick: '{name} is not who they claim' });
+    deps.chatTemplates.setAll({
+      ...DEFAULT_CHAT_TEMPLATES,
+      known_kick: '{name} is not who they claim',
+    });
 
     await known.sweep(deps);
     await known.sweep(deps);
@@ -163,7 +255,10 @@ describe('KnownPlayers.sweep', () => {
     const { known, deps } = setup(PLAYERS);
     const broken = createFakeRcon();
     broken.status.mockRejectedValue(new Error('timeout'));
-    deps.rconClients = new Map([['broken', asRconClient(broken)], ...deps.rconClients]);
+    deps.rconClients = new Map([
+      ['broken', asRconClient(broken)],
+      ...deps.rconClients,
+    ]);
 
     await expect(known.sweep(deps)).resolves.toBeUndefined();
   });

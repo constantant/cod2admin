@@ -919,13 +919,15 @@ export function registerManagementRoutes(
 
   const knownResponse = (): KnownResponse => ({
     enabled: deps.knownPlayers.enabled,
-    entries: deps.knownPlayers.entries.map(({ name, display, asns, guids, note }) => ({
-      name,
-      display,
-      asns,
-      guids,
-      note,
-    })),
+    entries: deps.knownPlayers.entries.map(
+      ({ name, display, asns, guids, note }) => ({
+        name,
+        display,
+        asns,
+        guids,
+        note,
+      }),
+    ),
   });
 
   const reloadKnown = async () =>
@@ -1063,7 +1065,11 @@ export function registerManagementRoutes(
       const entry = knownEntry(request.body?.name);
       const asn = request.body?.asn;
       if (typeof asn !== 'number' || !entry.asns.includes(asn)) {
-        throw new ApiProblem(404, 'not_found', 'No such network on this player.');
+        throw new ApiProblem(
+          404,
+          'not_found',
+          'No such network on this player.',
+        );
       }
       if (entry.asns.length + entry.guids.length === 1) {
         throw new ApiProblem(

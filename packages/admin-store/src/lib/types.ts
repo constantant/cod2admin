@@ -49,11 +49,7 @@ export interface UpsertServerInput {
 /** `miniapp`: an action taken from the Telegram Mini App (docs/PLAN-miniapp.md §7). */
 /** `mcp`: an action taken by an AI the staff member connected (docs/PLAN.md §4). */
 export type AuditSource =
-  | 'telegram_button'
-  | 'telegram_command'
-  | 'auto'
-  | 'miniapp'
-  | 'mcp';
+  'telegram_button' | 'telegram_command' | 'auto' | 'miniapp' | 'mcp';
 
 export interface AuditLogEntry {
   id: number;

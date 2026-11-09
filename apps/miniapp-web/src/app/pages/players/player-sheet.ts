@@ -36,13 +36,7 @@ export interface PlayerSheetData {
   player: PlayerDto;
 }
 
-type Mode =
-  | 'menu'
-  | ModerationKind
-  | 'mute'
-  | 'tell'
-  | 'known'
-  | 'history';
+type Mode = 'menu' | ModerationKind | 'mute' | 'tell' | 'known' | 'history';
 
 /**
  * Everything you can do to one connected player (docs/PLAN-miniapp.md §6.1): details, then kick,

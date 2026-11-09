@@ -12,10 +12,22 @@ import {
   type CountryLookup,
   type ProviderLookup,
 } from '../geoip.js';
-import { markdownTable, replyWithReport, reportDocument, reportFileName, type LongReply } from '../long-reply.js';
+import {
+  markdownTable,
+  replyWithReport,
+  reportDocument,
+  reportFileName,
+  type LongReply,
+} from '../long-reply.js';
 import type { KnownVerdict } from '../known-players.js';
 import { extractServerFlag, resolveServer } from '../resolve-server.js';
-import { describeVpnLong, describeVpnShort, joinIpLabels, NO_VPN_LOOKUP, type VpnLookup } from '../vpn-ranges.js';
+import {
+  describeVpnLong,
+  describeVpnShort,
+  joinIpLabels,
+  NO_VPN_LOOKUP,
+  type VpnLookup,
+} from '../vpn-ranges.js';
 
 /** What `/players` shows next to each IP. Each lookup defaults to "show nothing". */
 export interface PlayerIpLookups {
@@ -28,10 +40,16 @@ export interface PlayerIpLookups {
 
 function knownMark(lookups: PlayerIpLookups, player: StatusPlayer): string {
   const verdict = lookups.knownPlayers?.verdict(player);
-  return verdict === 'known' ? '✅' : verdict === 'impostor' || verdict === 'suspect' ? '⚠️' : '';
+  return verdict === 'known'
+    ? '✅'
+    : verdict === 'impostor' || verdict === 'suspect'
+      ? '⚠️'
+      : '';
 }
 
-function resolveLookups(lookups: PlayerIpLookups): Required<Omit<PlayerIpLookups, 'knownPlayers'>> & PlayerIpLookups {
+function resolveLookups(
+  lookups: PlayerIpLookups,
+): Required<Omit<PlayerIpLookups, 'knownPlayers'>> & PlayerIpLookups {
   return {
     knownPlayers: lookups.knownPlayers,
     geoip: lookups.geoip ?? NO_COUNTRY_LOOKUP,
@@ -46,13 +64,22 @@ function resolveLookups(lookups: PlayerIpLookups): Required<Omit<PlayerIpLookups
  * turns into `^1` instead of removing.
  */
 export function displayName(player: StatusPlayer): string {
-  return stripColorCodes(player.name.replace(/\^\^(\d)\1/g, '')).trim() || `client ${player.num}`;
+  return (
+    stripColorCodes(player.name.replace(/\^\^(\d)\1/g, '')).trim() ||
+    `client ${player.num}`
+  );
 }
 
-function formatPlayerLine(player: StatusPlayer, lookups: ReturnType<typeof resolveLookups>): string {
+function formatPlayerLine(
+  player: StatusPlayer,
+  lookups: ReturnType<typeof resolveLookups>,
+): string {
   const ip = player.ip ?? 'unknown';
   const labels = joinIpLabels(
-    joinCountryAndProvider(describeIpShort(lookups.geoip, player.ip), describeProviderShort(lookups.provider, player.ip)),
+    joinCountryAndProvider(
+      describeIpShort(lookups.geoip, player.ip),
+      describeProviderShort(lookups.provider, player.ip),
+    ),
     describeVpnShort(lookups.vpn, player.ip),
   );
   const mark = knownMark(lookups, player);
@@ -63,7 +90,10 @@ function formatPlayerLine(player: StatusPlayer, lookups: ReturnType<typeof resol
  * Formats the `/players` list — detailed `rcon status` table, includes IPs, their country, provider
  * and a VPN/proxy/Tor flag (docs/PLAN.md §6).
  */
-export function formatPlayersMessage(players: StatusPlayer[], lookups: PlayerIpLookups = {}): string {
+export function formatPlayersMessage(
+  players: StatusPlayer[],
+  lookups: PlayerIpLookups = {},
+): string {
   if (players.length === 0) {
     return 'No players connected.';
   }
@@ -78,14 +108,20 @@ export interface PlayersContext {
 
 function header(players: StatusPlayer[], context: PlayersContext): string {
   const count = `${players.length} player${players.length === 1 ? '' : 's'}`;
-  return [count, context.serverAlias, context.mapName].filter(Boolean).join(' · ');
+  return [count, context.serverAlias, context.mapName]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 /**
  * The short `/players` for a full server: a header, players per country, how many are flagged
  * as VPN, and one compact line per player — everything else is in the attached report.
  */
-export function formatPlayersSummary(players: StatusPlayer[], lookups: PlayerIpLookups, context: PlayersContext): string {
+export function formatPlayersSummary(
+  players: StatusPlayer[],
+  lookups: PlayerIpLookups,
+  context: PlayersContext,
+): string {
   const resolved = resolveLookups(lookups);
   const countries = new Map<string, number>();
   let flagged = 0;
@@ -99,7 +135,15 @@ export function formatPlayersSummary(players: StatusPlayer[], lookups: PlayerIpL
       flagged++;
     }
     const flag = code ? (code === 'LAN' ? 'LAN' : flagEmoji(code)) : '';
-    return [`#${player.num}`, displayName(player), flag, vpn ? '🛡' : '', knownMark(resolved, player)].filter(Boolean).join(' ');
+    return [
+      `#${player.num}`,
+      displayName(player),
+      flag,
+      vpn ? '🛡' : '',
+      knownMark(resolved, player),
+    ]
+      .filter(Boolean)
+      .join(' ');
   });
 
   const summary = [header(players, context)];
@@ -107,14 +151,22 @@ export function formatPlayersSummary(players: StatusPlayer[], lookups: PlayerIpL
     summary.push(
       [...countries]
         .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-        .map(([code, count]) => `${code === 'LAN' ? 'LAN' : flagEmoji(code)} ${count}`)
+        .map(
+          ([code, count]) =>
+            `${code === 'LAN' ? 'LAN' : flagEmoji(code)} ${count}`,
+        )
         .join('  '),
     );
   }
   if (flagged > 0) {
     summary.push(`🛡 ${flagged} on VPN/proxy/Tor`);
   }
-  summary.push('', ...lines, '', 'Full details (IP, city, provider, GUID) in the attached file.');
+  summary.push(
+    '',
+    ...lines,
+    '',
+    'Full details (IP, city, provider, GUID) in the attached file.',
+  );
   return summary.join('\n');
 }
 
@@ -144,8 +196,25 @@ export function formatPlayersReport(
   });
   return reportDocument({
     title: `Players — ${context.serverAlias}`,
-    meta: [`Server: ${context.serverAlias}`, ...(context.mapName ? [`Map: ${context.mapName}`] : []), `Players: ${players.length}`],
-    body: markdownTable(['#', 'Name', 'Score', 'Ping', 'GUID', 'IP', 'Location', 'Provider', 'VPN'], rows),
+    meta: [
+      `Server: ${context.serverAlias}`,
+      ...(context.mapName ? [`Map: ${context.mapName}`] : []),
+      `Players: ${players.length}`,
+    ],
+    body: markdownTable(
+      [
+        '#',
+        'Name',
+        'Score',
+        'Ping',
+        'GUID',
+        'IP',
+        'Location',
+        'Provider',
+        'VPN',
+      ],
+      rows,
+    ),
     now,
     credits: true,
   });
@@ -166,12 +235,18 @@ export function buildPlayersReply(
 }
 
 /** `/players [--server <alias>]` (docs/PLAN.md §6). */
-export async function playersCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
+export async function playersCommand(
+  ctx: BotContext,
+  deps: GatewayDeps,
+): Promise<void> {
   const { alias: serverAlias } = extractServerFlag(matchText(ctx));
   const server = await resolveServer(ctx, deps, serverAlias);
   if (!server) {
     return;
   }
   const { players, mapName } = await server.rcon.status();
-  await replyWithReport(ctx, buildPlayersReply(players, deps, { serverAlias: server.alias, mapName }));
+  await replyWithReport(
+    ctx,
+    buildPlayersReply(players, deps, { serverAlias: server.alias, mapName }),
+  );
 }
