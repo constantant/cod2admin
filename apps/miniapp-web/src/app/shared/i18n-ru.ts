@@ -473,7 +473,6 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
   'Turn on': 'Включить',
 
   // Known players
-  'More…': 'Ещё…',
   'Mark as known': 'Отметить как известного',
   'Add this network to known': 'Добавить эту сеть в известные',
   'Add this GUID to known': 'Добавить этот GUID в известные',
