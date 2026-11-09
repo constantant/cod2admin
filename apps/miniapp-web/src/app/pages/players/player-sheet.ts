@@ -27,7 +27,6 @@ import { PresetsService } from '../../core/presets';
 import { SessionService } from '../../core/session';
 import { flagEmoji, formatAgo, formatMinutes } from '../../shared/format';
 import { GameName, plainName } from '../../shared/game-name';
-import { Forms } from '../../shared/form-dialog';
 import { Icon } from '../../shared/icon';
 import { Notify } from '../../shared/notify';
 import { t, T } from '../../shared/i18n';
@@ -37,7 +36,13 @@ export interface PlayerSheetData {
   player: PlayerDto;
 }
 
-type Mode = 'menu' | ModerationKind | 'mute' | 'tell' | 'history';
+type Mode =
+  | 'menu'
+  | ModerationKind
+  | 'mute'
+  | 'tell'
+  | 'known'
+  | 'history';
 
 /**
  * Everything you can do to one connected player (docs/PLAN-miniapp.md §6.1): details, then kick,
@@ -67,7 +72,6 @@ export class PlayerSheet {
   private readonly ref = inject(MatBottomSheetRef<PlayerSheet>);
   private readonly api = inject(ApiService);
   private readonly notify = inject(Notify);
-  private readonly forms = inject(Forms);
   private readonly presetsService = inject(PresetsService);
   protected readonly session = inject(SessionService);
 
@@ -84,6 +88,7 @@ export class PlayerSheet {
   protected readonly busy = signal(false);
   protected readonly reason = signal('');
   protected readonly message = signal('');
+  protected readonly knownValue = signal('');
   protected readonly duration = signal(30);
 
   constructor() {
@@ -209,29 +214,20 @@ export class PlayerSheet {
       );
       return;
     }
-    const name = plainName(this.player.name) || `client ${this.player.num}`;
-    const values = await this.forms.open({
-      title: 'Mark as known',
-      message: t(
-        "The bot can't tell this player's network or GUID (a local address, and no GUID). Enter an ASN or a GUID for {name}.",
-      ).replace('{name}', name),
-      confirm: 'Add',
-      fields: [
-        {
-          key: 'value',
-          label: 'Player IP, ASN or GUID',
-          mono: true,
-          required: true,
-          hint: 'AS12389 / guid:716922',
-        },
-      ],
-    });
-    if (values) {
-      await this.run(async () => {
-        await this.api.addKnown(name, String(values['value']));
-        return { message: 'Known player added.' };
-      });
+    // Nothing to learn from them (a local address and no GUID): ask for an ASN or GUID inline.
+    this.open('known');
+  }
+
+  protected async addKnown(): Promise<void> {
+    const value = this.knownValue().trim();
+    if (!value) {
+      return;
     }
+    const name = plainName(this.player.name) || `client ${this.player.num}`;
+    await this.run(async () => {
+      await this.api.addKnown(name, value);
+      return { message: 'Known player added.' };
+    });
   }
 
   protected async tell(): Promise<void> {

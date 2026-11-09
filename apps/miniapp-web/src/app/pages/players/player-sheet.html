@@ -118,6 +118,32 @@
     {{ 'Send' | t }}
   </button>
 </div>
+} @case ('known') {
+<p class="muted small">
+  {{ "The bot can't tell this player's network or GUID (a local address, and no
+  GUID). Enter an ASN or a GUID to save them as a known player." | t }}
+</p>
+<mat-form-field class="full-width" subscriptSizing="dynamic">
+  <mat-label>{{ 'Player IP, ASN or GUID' | t }}</mat-label>
+  <input
+    matInput
+    class="mono"
+    [(ngModel)]="knownValue"
+    [placeholder]="'AS12389 / guid:716922' | t"
+    (keyup.enter)="addKnown()"
+    cdkFocusInitial
+  />
+</mat-form-field>
+<div class="buttons">
+  <button mat-button (click)="open('menu')">{{ 'Back' | t }}</button>
+  <button
+    mat-flat-button
+    [disabled]="busy() || !knownValue().trim()"
+    (click)="addKnown()"
+  >
+    {{ 'Add' | t }}
+  </button>
+</div>
 } @case ('history') {
 <div class="history">
   @if (history(); as history) {
