@@ -1,3 +1,25 @@
+## [1.21.0](https://github.com/constantant/cod2admin/releases/tag/v1.21.0) (2026-11-09)
+
+### 🚀 Features
+
+- add known players — nicknames tied to provider networks ([dab8465](https://github.com/constantant/cod2admin/commit/dab8465))
+- add a Known players page to the Mini App ([f863bcd](https://github.com/constantant/cod2admin/commit/f863bcd))
+- mark a player as known from their Mini App sheet ([cb602bd](https://github.com/constantant/cod2admin/commit/cb602bd))
+- slim down the Mini App player sheet with a More menu ([88dbddc](https://github.com/constantant/cod2admin/commit/88dbddc))
+- tie GUIDs to known players ([32f6774](https://github.com/constantant/cod2admin/commit/32f6774))
+- show the Mini App player actions as icon buttons with tooltips ([63b1be5](https://github.com/constantant/cod2admin/commit/63b1be5))
+- kick a known name that shows up with a different GUID ([19238c9](https://github.com/constantant/cod2admin/commit/19238c9))
+
+### 🩹 Fixes
+
+- always offer "mark as known" in the Mini App player sheet ([709143e](https://github.com/constantant/cod2admin/commit/709143e))
+- ask for the ASN/GUID inline in the Mini App player sheet ([7f38edb](https://github.com/constantant/cod2admin/commit/7f38edb))
+
+### ❤️ Thank You
+
+- Claude Sonnet 5.5
+- kk
+
 ## [1.20.0](https://github.com/constantant/cod2admin/releases/tag/v1.20.0) (2026-11-08)
 
 ### 🚀 Features
