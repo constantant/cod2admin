@@ -296,3 +296,22 @@ export const serverSnapshots = pgTable(
     index('server_snapshots_alias_at_idx').on(table.serverAlias, table.at),
   ],
 );
+
+/**
+ * Known players (docs/PLAN-known-players.md): a name and the provider networks (ASNs) it normally
+ * connects from. `name` is lower case without colour codes; `display` is how the admin typed it.
+ */
+export const knownPlayers = pgTable('known_players', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull().unique(),
+  display: text('display').notNull(),
+  asns: bigint('asns', { mode: 'number' }).array().notNull(),
+  note: text('note'),
+  createdBy: bigint('created_by', { mode: 'number' }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});

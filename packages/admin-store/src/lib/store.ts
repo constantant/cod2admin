@@ -26,6 +26,7 @@ import {
   adminServers,
   admins,
   auditLog,
+  knownPlayers,
   playerNotes,
   reports,
   servers,
@@ -41,6 +42,7 @@ import type {
   AuditLogEntry,
   AuditLogFilter,
   ClaimOwnerResult,
+  KnownPlayer,
   PlayerNote,
   PlayerNoteFilter,
   PlayerNoteKind,
@@ -50,6 +52,7 @@ import type {
   Report,
   ReportFilter,
   ReportStatus,
+  SaveKnownPlayerInput,
   ServerConfig,
   ServerSnapshot,
   TelegramUser,
@@ -563,6 +566,36 @@ export class DrizzleAdminStore implements AdminStore {
       .delete(playerNotes)
       .where(eq(playerNotes.id, id))
       .returning({ id: playerNotes.id });
+    return deleted.length > 0;
+  }
+
+  async listKnownPlayers(): Promise<KnownPlayer[]> {
+    return this.db.select().from(knownPlayers).orderBy(asc(knownPlayers.name));
+  }
+
+  async saveKnownPlayer(input: SaveKnownPlayerInput): Promise<KnownPlayer> {
+    const note = input.note ?? null;
+    const [row] = await this.db
+      .insert(knownPlayers)
+      .values({ ...input, note })
+      .onConflictDoUpdate({
+        target: knownPlayers.name,
+        set: {
+          display: input.display,
+          asns: input.asns,
+          note,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return row as KnownPlayer;
+  }
+
+  async deleteKnownPlayer(name: string): Promise<boolean> {
+    const deleted = await this.db
+      .delete(knownPlayers)
+      .where(eq(knownPlayers.name, name))
+      .returning({ id: knownPlayers.id });
     return deleted.length > 0;
   }
 

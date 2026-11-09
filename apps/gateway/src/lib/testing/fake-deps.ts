@@ -9,6 +9,7 @@ import { ReportQueue } from '../report-queue.js';
 import { ReportRegistry } from '../reports.js';
 import { UpdateRegistry } from '../update-registry.js';
 import { ChatTemplates } from '../chat-templates.js';
+import { KnownPlayers } from '../known-players.js';
 import { VpnKicker } from '../vpn-kick.js';
 import { NO_VPN_LOOKUP } from '../vpn-ranges.js';
 import { asRconClient, createFakeRcon, type FakeRcon } from './fake-rcon.js';
@@ -57,6 +58,7 @@ export function createFakeDeps(): FakeDeps {
       provider: NO_PROVIDER_LOOKUP,
       vpn: NO_VPN_LOOKUP,
       vpnKick: new VpnKicker(),
+      knownPlayers: new KnownPlayers(() => undefined),
       chatTemplates: new ChatTemplates(),
       telegramRoutes: {
         router: new TelegramRouter([DIRECT_TELEGRAM_ROOT], () => undefined),

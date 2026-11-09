@@ -8,6 +8,7 @@ import {
   parseVpnKickSettings,
   VpnKicker,
 } from './vpn-kick.js';
+import { KnownPlayers } from './known-players.js';
 import type { VpnKind } from './vpn-ranges.js';
 
 const VPN_IP = '185.93.105.43';
@@ -104,6 +105,23 @@ describe('VpnKicker', () => {
     await kicker.sweep(deps);
 
     expect(rcon.kick).not.toHaveBeenCalled();
+  });
+
+  it('spares a known player from a known network, but not a known name from another one', async () => {
+    const { rcon, kicker, deps } = setup({ [VPN_IP]: 'hosting' });
+    kicker.setSettings({ enabled: true, exempt: [] });
+    const known = new KnownPlayers(() => 202226);
+    known.setEnabled(true);
+    const at = new Date();
+    const entry = { name: 'const', display: 'const', note: null, createdBy: 1, createdAt: at, updatedAt: at };
+
+    known.setEntries([{ ...entry, asns: [202226] }]);
+    await kicker.sweep({ ...deps, knownPlayers: known });
+    expect(rcon.kick).not.toHaveBeenCalled();
+
+    known.setEntries([{ ...entry, asns: [8359] }]);
+    await kicker.sweep({ ...deps, knownPlayers: known });
+    expect(rcon.kick).toHaveBeenCalledTimes(1);
   });
 
   it('keeps sweeping other servers when one fails', async () => {

@@ -157,6 +157,27 @@ export interface PlayerNoteFilter {
   offset?: number;
 }
 
+export interface KnownPlayer {
+  /** Lower case, colour codes stripped — the key. */
+  name: string;
+  /** As the admin typed it. */
+  display: string;
+  /** Provider networks (ASNs) the player connects from. */
+  asns: number[];
+  note: string | null;
+  createdBy: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SaveKnownPlayerInput {
+  name: string;
+  display: string;
+  asns: number[];
+  note?: string | null;
+  createdBy: number;
+}
+
 export interface ServerSnapshot {
   serverAlias: string;
   at: Date;
@@ -263,6 +284,13 @@ export interface AdminStore {
   ): Promise<PlayerNote | undefined>;
   /** `false` if no such note existed. */
   deletePlayerNote(id: number): Promise<boolean>;
+
+  /** Sorted by name. */
+  listKnownPlayers(): Promise<KnownPlayer[]>;
+  /** Creates the entry, or replaces the ASNs/display/note of the one with this name. */
+  saveKnownPlayer(input: SaveKnownPlayerInput): Promise<KnownPlayer>;
+  /** `false` if no entry had this name. */
+  deleteKnownPlayer(name: string): Promise<boolean>;
 
   recordServerSnapshot(input: RecordSnapshotInput): Promise<void>;
   /** Oldest first. */

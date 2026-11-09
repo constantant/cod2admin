@@ -512,7 +512,7 @@ export interface VpnResponse {
 // ── Game-chat lines (/templates) ────────────────────────────────────────────────────────────
 
 export interface ChatTemplateLineDto {
-  id: 'kick' | 'ban' | 'tempban' | 'vpn_kick' | 'mute_warn';
+  id: 'kick' | 'ban' | 'tempban' | 'vpn_kick' | 'known_kick' | 'mute_warn';
   channel: 'say' | 'tell';
   placeholders: string;
   text: string;

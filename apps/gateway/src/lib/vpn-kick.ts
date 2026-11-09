@@ -2,6 +2,7 @@ import type { AdminStore } from '@cod2admin/admin-store';
 import type { RconClient, StatusPlayer } from '@cod2admin/rcon-client';
 import type { ChatTemplates } from './chat-templates.js';
 import { displayName } from './commands/players.js';
+import type { KnownPlayers } from './known-players.js';
 import { sanitizeRconArg } from './sanitize.js';
 import type { VpnKind, VpnLookup } from './vpn-ranges.js';
 
@@ -77,6 +78,8 @@ export interface VpnKickSweepDeps {
   rconClients: Map<string, RconClient>;
   adminStore: Pick<AdminStore, 'recordAuditLog'>;
   chatTemplates: ChatTemplates;
+  /** Known name from a known ASN: never kicked for a VPN (known-players.ts). */
+  knownPlayers?: Pick<KnownPlayers, 'isProtected'>;
 }
 
 /** The live `/vpnkick` state plus the sweep that enforces it. One per gateway. */
@@ -111,7 +114,11 @@ export class VpnKicker {
         const { players } = await rcon.status();
         for (const player of players) {
           const kind = player.ip ? deps.vpn.lookup(player.ip) : undefined;
-          if (!kind || isExempt(player, this.exemptSet)) {
+          if (
+            !kind ||
+            isExempt(player, this.exemptSet) ||
+            deps.knownPlayers?.isProtected(player)
+          ) {
             continue;
           }
           await this.kick(deps, serverAlias, rcon, player, kind);
