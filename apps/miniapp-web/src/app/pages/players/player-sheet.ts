@@ -27,6 +27,7 @@ import { PresetsService } from '../../core/presets';
 import { SessionService } from '../../core/session';
 import { flagEmoji, formatAgo, formatMinutes } from '../../shared/format';
 import { GameName, plainName } from '../../shared/game-name';
+import { Forms } from '../../shared/form-dialog';
 import { Icon } from '../../shared/icon';
 import { Notify } from '../../shared/notify';
 import { t, T } from '../../shared/i18n';
@@ -66,6 +67,7 @@ export class PlayerSheet {
   private readonly ref = inject(MatBottomSheetRef<PlayerSheet>);
   private readonly api = inject(ApiService);
   private readonly notify = inject(Notify);
+  private readonly forms = inject(Forms);
   private readonly presetsService = inject(PresetsService);
   protected readonly session = inject(SessionService);
 
@@ -93,9 +95,15 @@ export class PlayerSheet {
     });
   }
 
-  /** Shown while marking them would add a network or GUID to the list. */
+  /**
+   * Always offered, except for a player who is fully known already. When the bot can't tell their
+   * network or GUID (a LAN address and GUID 0, say) the admin types one in.
+   */
   protected canMarkKnown(): boolean {
-    return this.session.can('vpn') && !!this.player.knownAddable;
+    return (
+      this.session.can('vpn') &&
+      (!!this.player.knownAddable || this.player.known !== 'known')
+    );
   }
 
   protected markKnownLabel(): string {
@@ -195,9 +203,35 @@ export class PlayerSheet {
   }
 
   protected async markKnown(): Promise<void> {
-    await this.run(() =>
-      this.api.markKnown(this.data.server, this.player.num, this.player.name),
-    );
+    if (this.player.knownAddable) {
+      await this.run(() =>
+        this.api.markKnown(this.data.server, this.player.num, this.player.name),
+      );
+      return;
+    }
+    const name = plainName(this.player.name) || `client ${this.player.num}`;
+    const values = await this.forms.open({
+      title: 'Mark as known',
+      message: t(
+        "The bot can't tell this player's network or GUID (a local address, and no GUID). Enter an ASN or a GUID for {name}.",
+      ).replace('{name}', name),
+      confirm: 'Add',
+      fields: [
+        {
+          key: 'value',
+          label: 'Player IP, ASN or GUID',
+          mono: true,
+          required: true,
+          hint: 'AS12389 / guid:716922',
+        },
+      ],
+    });
+    if (values) {
+      await this.run(async () => {
+        await this.api.addKnown(name, String(values['value']));
+        return { message: 'Known player added.' };
+      });
+    }
   }
 
   protected async tell(): Promise<void> {
