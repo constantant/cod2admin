@@ -45,7 +45,7 @@ import { T } from '../../shared/i18n';
           >
           <p class="muted small">
             {{
-              'A listed name from a listed network is never kicked for a VPN. The same name from any other network is kicked on sight on every server. Nobody is banned, and bans and mutes still apply.'
+              'A listed name from a listed network is never kicked for a VPN. The same name from any other network, or with a different GUID, is kicked on sight on every server. Nobody is banned, and bans and mutes still apply.'
                 | t
             }}
           </p>
@@ -85,7 +85,7 @@ import { T } from '../../shared/i18n';
         </form>
         <p class="muted small">
           {{
-            'Adding a name that is already listed gives it one more network or GUID. The ASN only tells the provider: someone on the same provider with the same name passes. A real GUID (most players have 0) is stronger: a different GUID on a listed name is flagged ⚠️.'
+            'Adding a name that is already listed gives it one more network or GUID. The ASN only tells the provider: someone on the same provider with the same name passes. A real GUID (most players have 0) is stronger: a different GUID on a listed name is kicked, even from a listed network.'
               | t
           }}
         </p>

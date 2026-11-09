@@ -37,8 +37,8 @@ export function normalizeKnownName(name: string): string {
  *   not loaded, LAN address, a bot — and no GUID to compare). Treated as known: missing data never
  *   kicks a legitimate player.
  * - `suspect`: the name is listed, the ASN fits (or can't be told), but the player has a real GUID
- *   that isn't among the GUIDs stored for the name. Flagged ⚠️ only — never kicked, since a GUID
- *   changes with a new CD key.
+ *   that isn't among the GUIDs stored for the name. Kicked, like an impostor (a new CD key means a
+ *   new GUID: an admin then adds it with "mark as known").
  * - `impostor`: the name is listed, the player's GUID doesn't vouch for them, and the ASN is not
  *   one of its ASNs. Kicked.
  */
@@ -175,8 +175,9 @@ export class KnownPlayers {
       try {
         const { players } = await rcon.status();
         for (const player of players) {
-          if (this.verdict(player) === 'impostor') {
-            await this.kick(deps, serverAlias, rcon, player);
+          const verdict = this.verdict(player);
+          if (verdict === 'impostor' || verdict === 'suspect') {
+            await this.kick(deps, serverAlias, rcon, player, verdict);
           }
         }
       } catch (error) {
@@ -193,6 +194,7 @@ export class KnownPlayers {
     serverAlias: string,
     rcon: RconClient,
     player: StatusPlayer,
+    verdict: 'impostor' | 'suspect',
   ): Promise<void> {
     const name = displayName(player);
     const key = `${serverAlias}|${normalizeKnownName(player.name)}|${player.ip}`;
@@ -217,6 +219,7 @@ export class KnownPlayers {
         detailJson: {
           ip: player.ip ?? null,
           guid: realGuid(player) ?? null,
+          reason: verdict === 'suspect' ? 'guid' : 'network',
           asn: player.ip ? (this.asnOf(player.ip) ?? null) : null,
         },
       });

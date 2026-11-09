@@ -499,12 +499,12 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
   'Nicknames tied to their networks': 'Ники, привязанные к их сетям',
   'Known-name kick': 'Кик под известным ником',
   'Use the known players list': 'Применять список известных игроков',
-  'A listed name from a listed network is never kicked for a VPN. The same name from any other network is kicked on sight on every server. Nobody is banned, and bans and mutes still apply.':
-    'Ник из списка с «своей» сети никогда не кикают за VPN. Тот же ник с любой другой сети кикает сразу на всех серверах. Банов нет, а баны и муты действуют как обычно.',
+  'A listed name from a listed network is never kicked for a VPN. The same name from any other network, or with a different GUID, is kicked on sight on every server. Nobody is banned, and bans and mutes still apply.':
+    'Ник из списка с «своей» сети никогда не кикают за VPN. Тот же ник с любой другой сети или с другим GUID кикает сразу на всех серверах. Банов нет, а баны и муты действуют как обычно.',
   'Add a known player': 'Добавить известного игрока',
   Nickname: 'Ник',
-  'Adding a name that is already listed gives it one more network or GUID. The ASN only tells the provider: someone on the same provider with the same name passes. A real GUID (most players have 0) is stronger: a different GUID on a listed name is flagged ⚠️.':
-    'Если ник уже в списке, ему добавится ещё одна сеть или GUID. ASN говорит лишь о провайдере: человек у того же провайдера с тем же ником пройдёт. Настоящий GUID (у большинства игроков он 0) надёжнее: другой GUID у ника из списка помечается ⚠️.',
+  'Adding a name that is already listed gives it one more network or GUID. The ASN only tells the provider: someone on the same provider with the same name passes. A real GUID (most players have 0) is stronger: a different GUID on a listed name is kicked, even from a listed network.':
+    'Если ник уже в списке, ему добавится ещё одна сеть или GUID. ASN говорит лишь о провайдере: человек у того же провайдера с тем же ником пройдёт. Настоящий GUID (у большинства игроков он 0) надёжнее: другой GUID у ника из списка кикают даже с «своей» сети.',
   Network: 'Сеть',
   'Start enforcing the known players list?':
     'Начать применять список известных игроков?',

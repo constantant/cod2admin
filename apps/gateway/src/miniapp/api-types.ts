@@ -75,8 +75,8 @@ export interface PlayerDto {
   /** On the watchlist. */
   watched?: boolean;
   /**
-   * `/known`: `known` — a listed name that fits; `suspect` — fits the network but not the GUID
-   * (flag only); `impostor` — a listed name from another network (kicked while `/known` is on).
+   * `/known`: `known` — a listed name that fits; `suspect` — fits the network but has another
+   * GUID; `impostor` — a listed name from another network. Both are kicked while `/known` is on.
    */
   known?: 'known' | 'suspect' | 'impostor';
   /** Marking them as known would add a network or GUID to the list. */
