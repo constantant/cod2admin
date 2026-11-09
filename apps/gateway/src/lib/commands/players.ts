@@ -13,6 +13,7 @@ import {
   type ProviderLookup,
 } from '../geoip.js';
 import { markdownTable, replyWithReport, reportDocument, reportFileName, type LongReply } from '../long-reply.js';
+import type { KnownVerdict } from '../known-players.js';
 import { extractServerFlag, resolveServer } from '../resolve-server.js';
 import { describeVpnLong, describeVpnShort, joinIpLabels, NO_VPN_LOOKUP, type VpnLookup } from '../vpn-ranges.js';
 
@@ -21,10 +22,18 @@ export interface PlayerIpLookups {
   geoip?: CountryLookup;
   provider?: ProviderLookup;
   vpn?: VpnLookup;
+  /** The `/known` list: ✅ marks a known player, ⚠️ a known name from another network. */
+  knownPlayers?: { verdict(player: StatusPlayer): KnownVerdict };
 }
 
-function resolveLookups(lookups: PlayerIpLookups): Required<PlayerIpLookups> {
+function knownMark(lookups: PlayerIpLookups, player: StatusPlayer): string {
+  const verdict = lookups.knownPlayers?.verdict(player);
+  return verdict === 'known' ? '✅' : verdict === 'impostor' ? '⚠️' : '';
+}
+
+function resolveLookups(lookups: PlayerIpLookups): Required<Omit<PlayerIpLookups, 'knownPlayers'>> & PlayerIpLookups {
   return {
+    knownPlayers: lookups.knownPlayers,
     geoip: lookups.geoip ?? NO_COUNTRY_LOOKUP,
     provider: lookups.provider ?? NO_PROVIDER_LOOKUP,
     vpn: lookups.vpn ?? NO_VPN_LOOKUP,
@@ -40,13 +49,14 @@ export function displayName(player: StatusPlayer): string {
   return stripColorCodes(player.name.replace(/\^\^(\d)\1/g, '')).trim() || `client ${player.num}`;
 }
 
-function formatPlayerLine(player: StatusPlayer, lookups: Required<PlayerIpLookups>): string {
+function formatPlayerLine(player: StatusPlayer, lookups: ReturnType<typeof resolveLookups>): string {
   const ip = player.ip ?? 'unknown';
   const labels = joinIpLabels(
     joinCountryAndProvider(describeIpShort(lookups.geoip, player.ip), describeProviderShort(lookups.provider, player.ip)),
     describeVpnShort(lookups.vpn, player.ip),
   );
-  return `#${player.num} ${displayName(player)} — score ${player.score}, ping ${player.ping}, ip ${ip}${labels ? ` ${labels}` : ''}`;
+  const mark = knownMark(lookups, player);
+  return `#${player.num} ${displayName(player)}${mark ? ` ${mark}` : ''} — score ${player.score}, ping ${player.ping}, ip ${ip}${labels ? ` ${labels}` : ''}`;
 }
 
 /**
@@ -89,7 +99,7 @@ export function formatPlayersSummary(players: StatusPlayer[], lookups: PlayerIpL
       flagged++;
     }
     const flag = code ? (code === 'LAN' ? 'LAN' : flagEmoji(code)) : '';
-    return [`#${player.num}`, displayName(player), flag, vpn ? '🛡' : ''].filter(Boolean).join(' ');
+    return [`#${player.num}`, displayName(player), flag, vpn ? '🛡' : '', knownMark(resolved, player)].filter(Boolean).join(' ');
   });
 
   const summary = [header(players, context)];

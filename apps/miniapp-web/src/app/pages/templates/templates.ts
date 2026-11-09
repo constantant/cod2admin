@@ -22,6 +22,7 @@ const LABEL: Record<ChatTemplateLineDto['id'], string> = {
   ban: 'Ban',
   tempban: 'Temp ban',
   vpn_kick: 'VPN kick',
+  known_kick: 'Known-name kick',
   mute_warn: 'Mute warning',
 };
 

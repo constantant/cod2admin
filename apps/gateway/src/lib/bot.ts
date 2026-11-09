@@ -47,6 +47,7 @@ import {
   updateCommand,
   type UpdateCallbackContext,
 } from './commands/update.js';
+import { knownCommand } from './commands/known.js';
 import { vpnKickCommand } from './commands/vpnkick.js';
 import { vpnNetsCommand } from './commands/vpnnets.js';
 import type { GatewayConfig } from './config.js';
@@ -222,6 +223,7 @@ export function createBot(
   );
   bot.command('vpnnets', allow('vpn'), (ctx) => vpnNetsCommand(ctx, deps));
   bot.command('vpnkick', allow('vpn'), (ctx) => vpnKickCommand(ctx, deps));
+  bot.command('known', allow('vpn'), (ctx) => knownCommand(ctx, deps));
 
   bot.callbackQuery(/^mcp:(?:allow|read|deny):[0-9a-f]{32}$/, staff, (ctx) => {
     const actor = ctx as Context & BotContext;

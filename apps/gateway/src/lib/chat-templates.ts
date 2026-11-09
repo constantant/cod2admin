@@ -2,7 +2,7 @@ import { sanitizeRconArg } from './sanitize.js';
 
 /**
  * The lines the bot itself sends into the game. A typed `/say` is not one of these.
- * An empty template sends nothing. `vpn_kick` starts empty (issue #10): the console
+ * An empty template sends nothing. `vpn_kick` and `known_kick` start empty (issue #10): the console
  * line in the game chat stays off until someone writes it.
  * Stored as one JSON object under `chat.templates`. A missing key keeps the built-in text.
  */
@@ -13,6 +13,7 @@ export const CHAT_TEMPLATE_IDS = [
   'ban',
   'tempban',
   'vpn_kick',
+  'known_kick',
   'mute_warn',
 ] as const;
 
@@ -25,6 +26,7 @@ export const DEFAULT_CHAT_TEMPLATES: ChatTemplateMap = {
   ban: '{name} was banned by an admin',
   tempban: '{name} was temp-banned by an admin',
   vpn_kick: '',
+  known_kick: '',
   mute_warn:
     'You are muted by an admin. Your next message will get you kicked.',
 };
@@ -57,6 +59,7 @@ const LINE_META: Record<
     placeholders: '{name} {reason} {minutes}',
   },
   vpn_kick: { channel: 'say', placeholders: '{name} {kind}' },
+  known_kick: { channel: 'say', placeholders: '{name}' },
   mute_warn: { channel: 'tell', placeholders: '{name}' },
 };
 

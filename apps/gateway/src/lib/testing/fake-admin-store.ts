@@ -48,6 +48,9 @@ export interface FakeAdminStore extends AdminStore {
   findPlayerNotes: Mock<AdminStore['findPlayerNotes']>;
   updatePlayerNote: Mock<AdminStore['updatePlayerNote']>;
   deletePlayerNote: Mock<AdminStore['deletePlayerNote']>;
+  listKnownPlayers: Mock<AdminStore['listKnownPlayers']>;
+  saveKnownPlayer: Mock<AdminStore['saveKnownPlayer']>;
+  deleteKnownPlayer: Mock<AdminStore['deleteKnownPlayer']>;
   recordServerSnapshot: Mock<AdminStore['recordServerSnapshot']>;
   listServerSnapshots: Mock<AdminStore['listServerSnapshots']>;
   pruneServerSnapshots: Mock<AdminStore['pruneServerSnapshots']>;
@@ -149,6 +152,9 @@ export function createFakeAdminStore(
     findPlayerNotes: vi.fn().mockResolvedValue([]),
     updatePlayerNote: vi.fn().mockResolvedValue(undefined),
     deletePlayerNote: vi.fn().mockResolvedValue(false),
+    listKnownPlayers: vi.fn().mockResolvedValue([]),
+    saveKnownPlayer: vi.fn().mockResolvedValue(undefined),
+    deleteKnownPlayer: vi.fn().mockResolvedValue(false),
     recordServerSnapshot: vi.fn().mockResolvedValue(undefined),
     listServerSnapshots: vi.fn().mockResolvedValue([]),
     pruneServerSnapshots: vi.fn().mockResolvedValue(undefined),

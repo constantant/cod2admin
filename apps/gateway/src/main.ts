@@ -25,6 +25,11 @@ import {
   parseChatTemplates,
 } from './lib/chat-templates.js';
 import {
+  KNOWN_PLAYERS_SETTING_KEY,
+  KnownPlayers,
+  parseKnownEnabled,
+} from './lib/known-players.js';
+import {
   parseVpnKickSettings,
   VPN_KICK_SETTING_KEY,
   VpnKicker,
@@ -205,6 +210,12 @@ const vpnKick = new VpnKicker();
 vpnKick.setSettings(
   parseVpnKickSettings(await adminStore.getSetting(VPN_KICK_SETTING_KEY)),
 );
+// /known (lib/known-players.ts): off unless an admin turned it on; runs with the ban sweep.
+const knownPlayers = new KnownPlayers((ip) => asnDatabase.asn(ip));
+knownPlayers.setEnabled(
+  parseKnownEnabled(await adminStore.getSetting(KNOWN_PLAYERS_SETTING_KEY)),
+);
+knownPlayers.setEntries(await adminStore.listKnownPlayers());
 const chatTemplates = new ChatTemplates();
 chatTemplates.setAll(
   parseChatTemplates(await adminStore.getSetting(CHAT_TEMPLATES_SETTING_KEY)),
@@ -269,6 +280,7 @@ const deps: GatewayDeps = {
   provider: config.geoip.enabled ? asnDatabase : NO_PROVIDER_LOOKUP,
   vpn: config.vpnFlag.enabled ? vpnDatabase : NO_VPN_LOOKUP,
   vpnKick,
+  knownPlayers,
   chatTemplates,
   telegramRoutes: {
     router: telegramRouter,

@@ -28,7 +28,7 @@ describe('DrizzleAdminStore', () => {
 
   beforeEach(async () => {
     await pool.query(
-      'TRUNCATE admin_permissions, admins, admin_servers, servers, audit_log, settings, telegram_users, reports, player_notes, server_snapshots RESTART IDENTITY CASCADE',
+      'TRUNCATE admin_permissions, admins, admin_servers, servers, audit_log, settings, telegram_users, reports, player_notes, known_players, server_snapshots RESTART IDENTITY CASCADE',
     );
   });
 
@@ -555,6 +555,32 @@ describe('DrizzleAdminStore', () => {
           (row) => row.id,
         ),
       ).toEqual([first.id]);
+    });
+  });
+
+  describe('known players', () => {
+    it('saves, replaces, lists and deletes by name', async () => {
+      const saved = await store.saveKnownPlayer({
+        name: 'vasya',
+        display: '^1Vasya',
+        asns: [12389, 4_200_000_000],
+        createdBy: 1,
+      });
+      expect(saved).toMatchObject({ name: 'vasya', asns: [12389, 4_200_000_000], note: null });
+      await store.saveKnownPlayer({ name: 'anna', display: 'Anna', asns: [8359], createdBy: 1 });
+
+      const replaced = await store.saveKnownPlayer({
+        name: 'vasya',
+        display: 'Vasya',
+        asns: [12389],
+        note: 'home',
+        createdBy: 2,
+      });
+      expect(replaced).toMatchObject({ display: 'Vasya', asns: [12389], note: 'home', createdBy: 1 });
+
+      expect((await store.listKnownPlayers()).map((p) => p.name)).toEqual(['anna', 'vasya']);
+      await expect(store.deleteKnownPlayer('vasya')).resolves.toBe(true);
+      await expect(store.deleteKnownPlayer('vasya')).resolves.toBe(false);
     });
   });
 

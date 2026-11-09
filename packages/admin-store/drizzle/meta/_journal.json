@@ -57,6 +57,13 @@
       "when": 1794200000000,
       "tag": "0007_mcp",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794258238592,
+      "tag": "0008_known_players",
+      "breakpoints": true
     }
   ]
 }
