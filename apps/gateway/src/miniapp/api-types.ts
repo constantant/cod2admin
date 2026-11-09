@@ -74,6 +74,8 @@ export interface PlayerDto {
   noted?: boolean;
   /** On the watchlist. */
   watched?: boolean;
+  /** `/known`: `known` — a listed name from a listed network; `impostor` — a listed name from another one. */
+  known?: 'known' | 'impostor';
 }
 
 export interface StatusResponse {

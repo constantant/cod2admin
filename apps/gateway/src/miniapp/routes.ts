@@ -10,6 +10,7 @@ import {
   type ModerationActionKind,
 } from '../lib/moderation-actions.js';
 import { displayName } from '../lib/commands/players.js';
+import { normalizeKnownName } from '../lib/known-players.js';
 import { findMute, usableGuid } from '../lib/mute-enforcer.js';
 import { sanitizeRconArg } from '../lib/sanitize.js';
 import { isIpv4, liftBan } from '../lib/unban-actions.js';
@@ -296,6 +297,76 @@ export function registerRoutes(
       },
     );
   }
+
+  // ── Known players: "mark as known" from a player's sheet ─────────────────────────────────
+
+  /**
+   * Adds the player's current provider network (ASN) to the known list under their name: a new
+   * entry for a stranger, one more network for a listed name from another network (the "kicked,
+   * but it was really them" case). The slot is checked against the name the admin saw.
+   */
+  app.post(
+    '/servers/:server/players/:num/known',
+    { config: { permission: 'vpn', action: true } },
+    async (
+      request: FastifyRequest<{
+        Params: { server: string; num: string };
+        Body: { name?: string };
+      }>,
+      reply: FastifyReply,
+    ): Promise<ActionResponse> => {
+      const rcon = serverParam(state, request.params.server);
+      const num = Number(request.params.num);
+      const { players } = await rcon.status();
+      const player = players.find((candidate) => candidate.num === num);
+      if (!player || player.name !== request.body?.name) {
+        throw new ApiProblem(
+          409,
+          'player_changed',
+          "That player isn't connected any more.",
+        );
+      }
+      const asn = player.ip ? deps.provider.asn(player.ip) : undefined;
+      if (asn === undefined) {
+        throw new ApiProblem(
+          422,
+          'unknown_network',
+          "Couldn't find this player's provider network. Add it by ASN under Known players.",
+        );
+      }
+      const name = normalizeKnownName(player.name);
+      const existing = deps.knownPlayers.entries.find((e) => e.name === name);
+      if (existing?.asns.includes(asn)) {
+        throw new ApiProblem(
+          409,
+          'already',
+          `${displayName(player)} is already known on AS${asn}.`,
+        );
+      }
+      await deps.adminStore.saveKnownPlayer({
+        name,
+        display: existing?.display ?? displayName(player),
+        asns: [...(existing?.asns ?? []), asn],
+        note: existing?.note ?? null,
+        createdBy: request.actor.telegramId,
+      });
+      deps.knownPlayers.setEntries(await deps.adminStore.listKnownPlayers());
+      await deps.adminStore.recordAuditLog({
+        actorTelegramId: request.actor.telegramId,
+        source: 'miniapp',
+        action: 'known_add',
+        target: name,
+        serverAlias: request.params.server,
+        detailJson: { asn },
+      });
+      reply.code(201);
+      return {
+        message: existing
+          ? `AS${asn} added to ${existing.display}.`
+          : `${displayName(player)} is now a known player on AS${asn}.`,
+      };
+    },
+  );
 
   // ── Mutes (issue #7) — global, like bans ────────────────────────────────────────────────
 

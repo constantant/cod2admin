@@ -6,7 +6,9 @@ import { formatTelegramUser } from '../lib/telegram-user.js';
 import { describeVpnShort } from '../lib/vpn-ranges.js';
 import type { BanDto, MuteDto, PlayerDto } from './api-types.js';
 
-type IpLookups = Pick<GatewayDeps, 'geoip' | 'provider' | 'vpn'>;
+type IpLookups = Pick<GatewayDeps, 'geoip' | 'provider' | 'vpn'> & {
+  knownPlayers?: Pick<GatewayDeps['knownPlayers'], 'verdict'>;
+};
 
 /** What the bot knows about an IP: country/city, provider and VPN flag — each only when known. */
 function describeIp(
@@ -35,6 +37,7 @@ export function toPlayerDto(
   player: StatusPlayer,
   lookups: IpLookups,
 ): PlayerDto {
+  const verdict = lookups.knownPlayers?.verdict(player);
   return {
     num: player.num,
     name: player.name,
@@ -43,6 +46,7 @@ export function toPlayerDto(
     guid: player.guid && player.guid !== '0' ? player.guid : null,
     ip: player.ip ?? null,
     ...describeIp(player.ip, lookups),
+    ...(verdict === 'known' || verdict === 'impostor' ? { known: verdict } : {}),
   };
 }
 

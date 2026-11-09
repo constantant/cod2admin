@@ -25,6 +25,7 @@ import { sampleGuidBan } from '../lib/testing/fake-ban-store.js';
 import { createFakeDeps, type FakeDeps } from '../lib/testing/fake-deps.js';
 import type { LiveServerMessage } from './api-types.js';
 import { signInitData } from './init-data.js';
+import { KnownPlayers } from '../lib/known-players.js';
 import { createMiniAppServer } from './server.js';
 
 const TOKEN = '123456:TEST-token';
@@ -296,6 +297,64 @@ describe('Mini App server', () => {
           actorTelegramId: 3,
         }),
       );
+    });
+
+    describe('mark as known', () => {
+      const markKnown = (
+        server: Awaited<ReturnType<typeof start>>,
+        as: number,
+        name = '^1Cheater',
+      ) =>
+        server.inject({
+          method: 'POST',
+          url: '/api/servers/default/players/3/known',
+          headers: { authorization: authHeader(as) },
+          payload: { name },
+        });
+
+      it("saves the player's current network under their name, and adds more later", async () => {
+        const fake = setup();
+        fake.deps.provider = { lookup: () => undefined, asn: () => 12389 };
+        const server = await start(fake);
+
+        expect((await markKnown(server, 2)).statusCode).toBe(201);
+        expect(fake.deps.knownPlayers.entries).toMatchObject([
+          { name: 'cheater', display: 'Cheater', asns: [12389] },
+        ]);
+        expect(fake.adminStore.recordAuditLog).toHaveBeenCalledWith(
+          expect.objectContaining({ action: 'known_add', target: 'cheater', actorTelegramId: 2 }),
+        );
+        expect((await markKnown(server, 2)).statusCode).toBe(409);
+
+        fake.deps.provider = { lookup: () => undefined, asn: () => 8359 };
+        const more = await markKnown(server, 2);
+        expect(more.json().message).toBe('AS8359 added to Cheater.');
+        expect(fake.deps.knownPlayers.entries[0]!.asns).toEqual([12389, 8359]);
+      });
+
+      it('refuses a changed slot, an unknown network and a caller without the vpn permission', async () => {
+        const fake = setup();
+        const server = await start(fake);
+
+        expect((await markKnown(server, 2, 'Someone else')).statusCode).toBe(409);
+        expect((await markKnown(server, 2)).statusCode).toBe(422);
+        expect((await markKnown(server, 3)).statusCode).toBe(403);
+      });
+
+      it('shows the verdict on the player list', async () => {
+        const fake = setup();
+        fake.deps.provider = { lookup: () => undefined, asn: () => 12389 };
+        fake.deps.knownPlayers = new KnownPlayers(() => 12389);
+        const server = await start(fake);
+        await markKnown(server, 2);
+
+        const status = await server.inject({
+          method: 'GET',
+          url: '/api/servers/default/status',
+          headers: { authorization: authHeader(2) },
+        });
+        expect(status.json().players[0].known).toBe('known');
+      });
     });
 
     describe('mutes', () => {

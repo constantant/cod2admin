@@ -473,6 +473,12 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
   'Turn on': 'Включить',
 
   // Known players
+  'Mark as known': 'Отметить как известного',
+  'Add this network to known': 'Добавить эту сеть в известные',
+  '· known player': '· известный игрок',
+  '· known name, other network': '· известный ник, другая сеть',
+  "Couldn't find this player's provider network. Add it by ASN under Known players.":
+    'Не удалось определить сеть провайдера этого игрока. Добавьте её по ASN в разделе «Известные игроки».',
   'Known players': 'Известные игроки',
   'Nicknames tied to their networks': 'Ники, привязанные к их сетям',
   'Known-name kick': 'Кик под известным ником',
@@ -866,6 +872,18 @@ export const RU_PATTERNS: readonly [RegExp, (...groups: string[]) => string][] =
       /^Couldn't find the provider network for (.+)\. Add it by ASN instead, e\.g\. AS202226\.$/,
       (ip) =>
         `Не удалось найти сеть провайдера для ${ip}. Добавьте её по ASN, например AS202226.`,
+    ],
+    [
+      /^(.+) is already known on AS(\d+)\.$/,
+      (name, asn) => `${name} уже известен в AS${asn}.`,
+    ],
+    [
+      /^AS(\d+) added to (.+)\.$/,
+      (asn, name) => `AS${asn} добавлена игроку ${name}.`,
+    ],
+    [
+      /^(.+) is now a known player on AS(\d+)\.$/,
+      (name, asn) => `${name} теперь известный игрок (AS${asn}).`,
     ],
     [
       /^(.+) already has AS(\d+)\.$/,

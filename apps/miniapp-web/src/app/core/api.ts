@@ -202,6 +202,13 @@ export class ApiService {
     );
   }
 
+  /** Adds the player's current provider network to the known list under their name. */
+  markKnown(alias: string, num: number, name: string) {
+    return this.call<ActionResponse>(
+      this.http.post(`${server(alias)}/players/${num}/known`, { name }),
+    );
+  }
+
   mutes() {
     return this.call<MutesResponse>(this.http.get('/api/mutes'));
   }
