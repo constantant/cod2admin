@@ -15,6 +15,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatMenuModule } from '@angular/material/menu';
 import type {
   ModerationKind,
   NoteKind,
@@ -53,6 +54,7 @@ type Mode = 'menu' | ModerationKind | 'mute' | 'tell' | 'history';
     MatChipsModule,
     MatFormFieldModule,
     MatInputModule,
+    MatMenuModule,
     GameName,
     Icon,
   ],
@@ -89,6 +91,23 @@ export class PlayerSheet {
         this.duration.set(first);
       }
     });
+  }
+
+  protected canMarkKnown(): boolean {
+    return (
+      this.session.can('vpn') && !!this.player.ip && this.player.known !== 'known'
+    );
+  }
+
+  /** Whether the "More…" menu has anything in it for this staff member. */
+  protected hasMore(): boolean {
+    return (
+      this.session.can('tempban') ||
+      this.session.can('say') ||
+      this.session.can('ban') ||
+      (!!this.session.serverInfo()?.chat && this.session.can('mute')) ||
+      this.canMarkKnown()
+    );
   }
 
   protected open(mode: Mode): void {
