@@ -31,22 +31,10 @@
 }
 
 .actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-
-  button {
-    gap: 6px;
-  }
-}
-
-.more {
-  grid-column: 1 / -1;
-}
-
-mat-menu c2a-icon,
-.mat-mdc-menu-item c2a-icon {
-  margin-right: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-around;
+  gap: 4px;
 }
 
 .danger {

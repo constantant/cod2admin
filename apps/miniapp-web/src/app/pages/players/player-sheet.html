@@ -31,42 +31,72 @@
 @switch (mode()) { @case ('menu') {
 <div class="actions">
   @if (session.can('kick')) {
-  <button mat-stroked-button (click)="open('kick')">
-    <c2a-icon name="kick" /> {{ 'Kick' | t }}
+  <button
+    mat-icon-button
+    [matTooltip]="'Kick' | t"
+    [attr.aria-label]="'Kick' | t"
+    (click)="open('kick')"
+  >
+    <c2a-icon name="kick" />
+  </button>
+  } @if (session.can('tempban')) {
+  <button
+    mat-icon-button
+    [matTooltip]="'Temp ban' | t"
+    [attr.aria-label]="'Temp ban' | t"
+    (click)="open('tempban')"
+  >
+    <c2a-icon name="timer" />
+  </button>
+  } @if (session.serverInfo()?.chat && session.can('mute')) {
+  <button
+    mat-icon-button
+    [matTooltip]="'Mute' | t"
+    [attr.aria-label]="'Mute' | t"
+    (click)="open('mute')"
+  >
+    <c2a-icon name="mute" />
+  </button>
+  } @if (session.can('say')) {
+  <button
+    mat-icon-button
+    [matTooltip]="'Message' | t"
+    [attr.aria-label]="'Message' | t"
+    (click)="open('tell')"
+  >
+    <c2a-icon name="whisper" />
+  </button>
+  } @if (canMarkKnown()) {
+  <button
+    mat-icon-button
+    [matTooltip]="markKnownLabel() | t"
+    [attr.aria-label]="markKnownLabel() | t"
+    [disabled]="busy()"
+    (click)="markKnown()"
+  >
+    <c2a-icon name="shield" />
   </button>
   }
-  <button mat-stroked-button (click)="open('history')">
-    <c2a-icon name="history" /> {{ 'History & notes' | t }}
+  <button
+    mat-icon-button
+    [matTooltip]="'History & notes' | t"
+    [attr.aria-label]="'History & notes' | t"
+    (click)="open('history')"
+  >
+    <c2a-icon name="history" />
   </button>
-  @if (hasMore()) {
-  <button mat-stroked-button [matMenuTriggerFor]="more" class="more">
-    <c2a-icon name="more" /> {{ 'More…' | t }}
+  @if (session.can('ban')) {
+  <button
+    mat-icon-button
+    class="danger"
+    [matTooltip]="'Ban' | t"
+    [attr.aria-label]="'Ban' | t"
+    (click)="open('ban')"
+  >
+    <c2a-icon name="block" />
   </button>
   }
 </div>
-<mat-menu #more="matMenu">
-  @if (session.can('tempban')) {
-  <button mat-menu-item (click)="open('tempban')">
-    <c2a-icon name="timer" /> {{ 'Temp ban' | t }}
-  </button>
-  } @if (session.serverInfo()?.chat && session.can('mute')) {
-  <button mat-menu-item (click)="open('mute')">
-    <c2a-icon name="mute" /> {{ 'Mute' | t }}
-  </button>
-  } @if (session.can('say')) {
-  <button mat-menu-item (click)="open('tell')">
-    <c2a-icon name="whisper" /> {{ 'Message' | t }}
-  </button>
-  } @if (canMarkKnown()) {
-  <button mat-menu-item (click)="markKnown()">
-    <c2a-icon name="shield" /> {{ markKnownLabel() | t }}
-  </button>
-  } @if (session.can('ban')) {
-  <button mat-menu-item class="danger" (click)="open('ban')">
-    <c2a-icon name="block" /> {{ 'Ban' | t }}
-  </button>
-  }
-</mat-menu>
 } @case ('tell') {
 <mat-form-field class="full-width" subscriptSizing="dynamic">
   <mat-label>{{ 'Private message' | t }}</mat-label>

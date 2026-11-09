@@ -15,7 +15,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatMenuModule } from '@angular/material/menu';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import type {
   ModerationKind,
   NoteKind,
@@ -54,7 +54,7 @@ type Mode = 'menu' | ModerationKind | 'mute' | 'tell' | 'history';
     MatChipsModule,
     MatFormFieldModule,
     MatInputModule,
-    MatMenuModule,
+    MatTooltipModule,
     GameName,
     Icon,
   ],
@@ -109,17 +109,6 @@ export class PlayerSheet {
       default:
         return 'Mark as known';
     }
-  }
-
-  /** Whether the "More…" menu has anything in it for this staff member. */
-  protected hasMore(): boolean {
-    return (
-      this.session.can('tempban') ||
-      this.session.can('say') ||
-      this.session.can('ban') ||
-      (!!this.session.serverInfo()?.chat && this.session.can('mute')) ||
-      this.canMarkKnown()
-    );
   }
 
   protected open(mode: Mode): void {
