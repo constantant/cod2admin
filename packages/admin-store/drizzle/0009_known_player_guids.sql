@@ -1,0 +1,1 @@
+ALTER TABLE "known_players" ADD COLUMN "guids" text[] DEFAULT '{}'::text[] NOT NULL;

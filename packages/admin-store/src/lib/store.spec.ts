@@ -564,19 +564,21 @@ describe('DrizzleAdminStore', () => {
         name: 'vasya',
         display: '^1Vasya',
         asns: [12389, 4_200_000_000],
+        guids: [],
         createdBy: 1,
       });
-      expect(saved).toMatchObject({ name: 'vasya', asns: [12389, 4_200_000_000], note: null });
-      await store.saveKnownPlayer({ name: 'anna', display: 'Anna', asns: [8359], createdBy: 1 });
+      expect(saved).toMatchObject({ name: 'vasya', asns: [12389, 4_200_000_000], guids: [], note: null });
+      await store.saveKnownPlayer({ name: 'anna', display: 'Anna', asns: [8359], guids: [], createdBy: 1 });
 
       const replaced = await store.saveKnownPlayer({
         name: 'vasya',
         display: 'Vasya',
         asns: [12389],
+        guids: ['716922'],
         note: 'home',
         createdBy: 2,
       });
-      expect(replaced).toMatchObject({ display: 'Vasya', asns: [12389], note: 'home', createdBy: 1 });
+      expect(replaced).toMatchObject({ display: 'Vasya', asns: [12389], guids: ['716922'], note: 'home', createdBy: 1 });
 
       expect((await store.listKnownPlayers()).map((p) => p.name)).toEqual(['anna', 'vasya']);
       await expect(store.deleteKnownPlayer('vasya')).resolves.toBe(true);

@@ -12,6 +12,7 @@ const SAME_IN_RUSSIAN = new Set([
   'AS',
   'AS202226',
   'AS12389',
+  'AS12389 / guid:716922',
   'GUID',
   'ID',
   'IP',

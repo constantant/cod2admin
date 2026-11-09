@@ -919,10 +919,11 @@ export function registerManagementRoutes(
 
   const knownResponse = (): KnownResponse => ({
     enabled: deps.knownPlayers.enabled,
-    entries: deps.knownPlayers.entries.map(({ name, display, asns, note }) => ({
+    entries: deps.knownPlayers.entries.map(({ name, display, asns, guids, note }) => ({
       name,
       display,
       asns,
+      guids,
       note,
     })),
   });
@@ -939,9 +940,15 @@ export function registerManagementRoutes(
     return entry;
   };
 
-  /** A player IP (→ its provider network) or an ASN like `AS12389`. */
-  const asnFromInput = (value: unknown): number => {
+  /** A player IP (→ its provider network), an ASN like `AS12389`, or `guid:716922`. */
+  const identityFromInput = (
+    value: unknown,
+  ): { asn: number } | { guid: string } => {
     const text = typeof value === 'string' ? value.trim() : '';
+    const guid = /^guid:?\s*(\d{1,20})$/i.exec(text)?.[1];
+    if (guid && guid !== '0') {
+      return { guid };
+    }
     if (/^\d{1,3}(\.\d{1,3}){3}$/.test(text)) {
       const asn = deps.provider.asn(text);
       if (asn === undefined) {
@@ -951,22 +958,28 @@ export function registerManagementRoutes(
           `Couldn't find the provider network for ${text}. Use an ASN instead, e.g. AS12389.`,
         );
       }
-      return asn;
+      return { asn };
     }
     const asn = parseAsn(text);
     if (asn === undefined) {
       throw new ApiProblem(
         400,
         'bad_request',
-        'Enter a player IP or an ASN, like AS12389.',
+        'Enter a player IP, an ASN like AS12389, or a GUID like guid:716922.',
       );
     }
-    return asn;
+    return { asn };
   };
 
   const saveKnown = async (
     request: FastifyRequest,
-    entry: { name: string; display: string; asns: number[]; note: string | null },
+    entry: {
+      name: string;
+      display: string;
+      asns: number[];
+      guids: string[];
+      note: string | null;
+    },
     action: string,
     detailJson: unknown,
   ): Promise<KnownResponse> => {
@@ -1011,13 +1024,19 @@ export function registerManagementRoutes(
       if (!name) {
         throw new ApiProblem(400, 'bad_request', 'Enter a nickname.');
       }
-      const asn = asnFromInput(request.body?.value);
+      const identity = identityFromInput(request.body?.value);
       const existing = deps.knownPlayers.entries.find((e) => e.name === name);
-      if (existing?.asns.includes(asn)) {
+      const asns = existing?.asns ?? [];
+      const guids = existing?.guids ?? [];
+      if (
+        'asn' in identity
+          ? asns.includes(identity.asn)
+          : guids.includes(identity.guid)
+      ) {
         throw new ApiProblem(
           409,
           'already',
-          `${existing.display} already has AS${asn}.`,
+          `${existing!.display} already has ${'asn' in identity ? `AS${identity.asn}` : `GUID ${identity.guid}`}.`,
         );
       }
       return saveKnown(
@@ -1025,11 +1044,12 @@ export function registerManagementRoutes(
         {
           name,
           display: existing?.display ?? display,
-          asns: [...(existing?.asns ?? []), asn],
+          asns: 'asn' in identity ? [...asns, identity.asn] : asns,
+          guids: 'guid' in identity ? [...guids, identity.guid] : guids,
           note: existing?.note ?? null,
         },
         'known_add',
-        { asn },
+        identity,
       );
     },
   );
@@ -1045,11 +1065,11 @@ export function registerManagementRoutes(
       if (typeof asn !== 'number' || !entry.asns.includes(asn)) {
         throw new ApiProblem(404, 'not_found', 'No such network on this player.');
       }
-      if (entry.asns.length === 1) {
+      if (entry.asns.length + entry.guids.length === 1) {
         throw new ApiProblem(
           409,
           'last_network',
-          'That is the last network — remove the player instead.',
+          'That is the last network or GUID — remove the player instead.',
         );
       }
       return saveKnown(
@@ -1057,6 +1077,33 @@ export function registerManagementRoutes(
         { ...entry, asns: entry.asns.filter((a) => a !== asn) },
         'known_asn_remove',
         { asn },
+      );
+    },
+  );
+
+  app.post(
+    '/known/guid/remove',
+    { config: { permission: 'vpn', action: true } },
+    async (
+      request: FastifyRequest<{ Body: { name?: string; guid?: string } }>,
+    ): Promise<KnownResponse> => {
+      const entry = knownEntry(request.body?.name);
+      const guid = request.body?.guid;
+      if (typeof guid !== 'string' || !entry.guids.includes(guid)) {
+        throw new ApiProblem(404, 'not_found', 'No such GUID on this player.');
+      }
+      if (entry.asns.length + entry.guids.length === 1) {
+        throw new ApiProblem(
+          409,
+          'last_network',
+          'That is the last network or GUID — remove the player instead.',
+        );
+      }
+      return saveKnown(
+        request,
+        { ...entry, guids: entry.guids.filter((g) => g !== guid) },
+        'known_guid_remove',
+        { guid },
       );
     },
   );

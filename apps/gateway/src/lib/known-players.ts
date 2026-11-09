@@ -32,27 +32,60 @@ export function normalizeKnownName(name: string): string {
 
 /**
  * - `unknown`: the name isn't in the list — not our business.
- * - `known`: the name is listed and the player's ASN is one of its ASNs.
- * - `unverified`: the name is listed but the ASN can't be determined (database not loaded, LAN
- *   address, a bot). Treated as known — missing data never kicks a legitimate player.
- * - `impostor`: the name is listed and the ASN is not one of its ASNs.
+ * - `known`: the name is listed and the player's GUID or ASN fits.
+ * - `unverified`: the name is listed but nothing can be checked (ASN can't be determined — database
+ *   not loaded, LAN address, a bot — and no GUID to compare). Treated as known: missing data never
+ *   kicks a legitimate player.
+ * - `suspect`: the name is listed, the ASN fits (or can't be told), but the player has a real GUID
+ *   that isn't among the GUIDs stored for the name. Flagged ⚠️ only — never kicked, since a GUID
+ *   changes with a new CD key.
+ * - `impostor`: the name is listed, the player's GUID doesn't vouch for them, and the ASN is not
+ *   one of its ASNs. Kicked.
  */
-export type KnownVerdict = 'unknown' | 'known' | 'unverified' | 'impostor';
+export type KnownVerdict =
+  | 'unknown'
+  | 'known'
+  | 'unverified'
+  | 'suspect'
+  | 'impostor';
+
+/** What a listed name is checked against. */
+export interface KnownIdentity {
+  asns: ReadonlySet<number>;
+  guids: ReadonlySet<string>;
+}
+
+/** The player's GUID when the server reports a real one — most players have 0 (docs/PLAN.md §2.4). */
+export function realGuid(player: StatusPlayer): string | undefined {
+  return player.guid && /^\d+$/.test(player.guid) && player.guid !== '0'
+    ? player.guid
+    : undefined;
+}
 
 export function classify(
   player: StatusPlayer,
-  entries: ReadonlyMap<string, ReadonlySet<number>>,
+  entries: ReadonlyMap<string, KnownIdentity>,
   asnOf: (ip: string) => number | undefined,
 ): KnownVerdict {
-  const asns = entries.get(normalizeKnownName(player.name));
-  if (!asns) {
+  const entry = entries.get(normalizeKnownName(player.name));
+  if (!entry) {
     return 'unknown';
   }
-  const asn = player.ip ? asnOf(player.ip) : undefined;
-  if (asn === undefined) {
-    return 'unverified';
+  const guid = realGuid(player);
+  if (guid && entry.guids.has(guid)) {
+    return 'known'; // a stored GUID vouches for them, whatever network they are on now
   }
-  return asns.has(asn) ? 'known' : 'impostor';
+  const asn = player.ip ? asnOf(player.ip) : undefined;
+  // An entry with no ASNs (GUID only) has nothing to compare a network against.
+  const asnFits =
+    asn === undefined || entry.asns.size === 0 ? undefined : entry.asns.has(asn);
+  if (asnFits === false) {
+    return 'impostor';
+  }
+  if (guid && entry.guids.size > 0) {
+    return 'suspect';
+  }
+  return asnFits === undefined ? 'unverified' : 'known';
 }
 
 /** Audit and game-chat line at most once per name+IP in this window; the kick happens every sweep. */
@@ -68,7 +101,7 @@ export interface KnownSweepDeps {
 export class KnownPlayers {
   private enabledNow = false;
   private list: KnownPlayer[] = [];
-  private byName: ReadonlyMap<string, ReadonlySet<number>> = new Map();
+  private byName: ReadonlyMap<string, KnownIdentity> = new Map();
   private readonly lastAnnounced = new Map<string, number>();
 
   constructor(
@@ -91,13 +124,32 @@ export class KnownPlayers {
   setEntries(entries: KnownPlayer[]): void {
     this.list = [...entries];
     this.byName = new Map(
-      entries.map((entry) => [entry.name, new Set(entry.asns)]),
+      entries.map((entry) => [
+        entry.name,
+        { asns: new Set(entry.asns), guids: new Set(entry.guids) },
+      ]),
     );
   }
 
   /** The verdict for a player, whether or not the feature is on (`/players` shows it either way). */
   verdict(player: StatusPlayer): KnownVerdict {
     return classify(player, this.byName, this.asnOf);
+  }
+
+  /**
+   * What marking this player as known would add — their current network and real GUID, each only if
+   * the entry doesn't have it yet. Empty when there is nothing to learn (or nothing to go on).
+   */
+  additions(player: StatusPlayer): { asn?: number; guid?: string } {
+    const entry = this.list.find(
+      (candidate) => candidate.name === normalizeKnownName(player.name),
+    );
+    const asn = player.ip ? this.asnOf(player.ip) : undefined;
+    const guid = realGuid(player);
+    return {
+      ...(asn !== undefined && !entry?.asns.includes(asn) ? { asn } : {}),
+      ...(guid && !entry?.guids.includes(guid) ? { guid } : {}),
+    };
   }
 
   /** True while on, for a listed name that isn't an impostor — exempt from `/vpnkick`. */
@@ -164,6 +216,7 @@ export class KnownPlayers {
         source: 'auto',
         detailJson: {
           ip: player.ip ?? null,
+          guid: realGuid(player) ?? null,
           asn: player.ip ? (this.asnOf(player.ip) ?? null) : null,
         },
       });

@@ -168,3 +168,18 @@ strings in `i18n-ru.ts`. Also an "add as known" action on the player card in the
    escalate to a temp-ban? Recommended: no, keep it kick-only.
 4. **Announcement**: a game-chat line when an impostor is kicked (new `known_kick` template, empty
    by default) — wanted, or audit-only?
+
+## 6. GUIDs (added 2026-11-09)
+
+An entry may also hold real GUIDs (`known_players.guids`, migration `0009`). Most players have GUID
+0 (`docs/PLAN.md` §2.4), so the ASN stays the base check; a GUID only adds information when present:
+
+1. A real GUID stored for the name → **known**, from any network.
+2. A real GUID not among the stored ones, network fits → **suspect**: flagged ⚠️ in `/players` and
+   the Mini App, **never kicked** (a GUID changes with a new CD key) and not exempt from `/vpnkick`.
+3. Network doesn't fit and no stored GUID vouches → **impostor**, kicked as before (with a GUID
+   that differs too, the kick audit entry carries it).
+4. GUID 0 or none stored → ASN decides. An entry with no ASNs (GUID only) has no network to check.
+
+"Mark as known" (Mini App sheet) and `/known add` store the player's real GUID next to the ASN; the
+sheet's button text follows the verdict (new / add network / add GUID).

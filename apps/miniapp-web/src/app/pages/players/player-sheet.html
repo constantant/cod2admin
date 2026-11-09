@@ -6,7 +6,8 @@
     <span class="watched">{{ '· on the watchlist' | t }}</span>
     } @else if (player.noted) { {{ '· has notes' | t }} } @if (player.known ===
     'known') { {{ '· known player' | t }} } @else if (player.known ===
-    'impostor') { {{ '· known name, other network' | t }} }
+    'suspect') { {{ '⚠️ known name, other GUID' | t }} } @else if
+    (player.known === 'impostor') { {{ '· known name, other network' | t }} }
   </div>
 </div>
 
@@ -58,9 +59,7 @@
   </button>
   } @if (canMarkKnown()) {
   <button mat-menu-item (click)="markKnown()">
-    <c2a-icon name="shield" />
-    {{ (player.known === 'impostor' ? 'Add this network to known' : 'Mark as
-    known') | t }}
+    <c2a-icon name="shield" /> {{ markKnownLabel() | t }}
   </button>
   } @if (session.can('ban')) {
   <button mat-menu-item class="danger" (click)="open('ban')">

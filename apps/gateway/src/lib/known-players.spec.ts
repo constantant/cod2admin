@@ -9,13 +9,13 @@ import { KnownPlayers, normalizeKnownName, parseKnownEnabled } from './known-pla
 const ASN_BY_IP: Record<string, number> = { '1.1.1.1': 12389, '2.2.2.2': 8359, '3.3.3.3': 202226 };
 const asnOf = (ip: string) => ASN_BY_IP[ip];
 
-function entry(name: string, asns: number[]): KnownPlayer {
+function entry(name: string, asns: number[], guids: string[] = []): KnownPlayer {
   const at = new Date();
-  return { name, display: name, asns, note: null, createdBy: 1, createdAt: at, updatedAt: at };
+  return { name, display: name, asns, guids, note: null, createdBy: 1, createdAt: at, updatedAt: at };
 }
 
-function player(num: number, name: string, ip?: string): StatusPlayer {
-  return { num, score: 0, ping: 50, name, ...(ip ? { ip } : {}), guid: '0' };
+function player(num: number, name: string, ip?: string, guid = '0'): StatusPlayer {
+  return { num, score: 0, ping: 50, name, ...(ip ? { ip } : {}), guid };
 }
 
 function setup(players: StatusPlayer[], enabled = true) {
@@ -62,6 +62,46 @@ describe('KnownPlayers.verdict', () => {
   });
 });
 
+describe('KnownPlayers.verdict with GUIDs', () => {
+  const known = new KnownPlayers(asnOf);
+  known.setEntries([
+    entry('vasya', [12389], ['716922']),
+    entry('petya', [8359]),
+    entry('guidonly', [], ['555']),
+  ]);
+
+  it.each([
+    ['stored GUID vouches from any network', player(0, 'Vasya', '3.3.3.3', '716922'), 'known'],
+    ['GUID 0 falls back to the ASN: fits', player(1, 'Vasya', '1.1.1.1'), 'known'],
+    ['GUID 0, other ASN', player(2, 'Vasya', '3.3.3.3'), 'impostor'],
+    ['another real GUID from a listed ASN is only flagged', player(3, 'Vasya', '1.1.1.1', '999'), 'suspect'],
+    ['another real GUID from another ASN is kicked', player(4, 'Vasya', '3.3.3.3', '999'), 'impostor'],
+    ['another real GUID, ASN unknown: flagged, not kicked', player(5, 'Vasya', '9.9.9.9', '999'), 'suspect'],
+    ['a real GUID where none is stored: ASN decides', player(6, 'Petya', '2.2.2.2', '999'), 'known'],
+    ['GUID-only entry, GUID 0: nothing to check', player(7, 'GuidOnly', '3.3.3.3'), 'unverified'],
+    ['GUID-only entry, wrong GUID: flagged', player(8, 'GuidOnly', '3.3.3.3', '1'), 'suspect'],
+  ])('%s → %s', (_label, subject, expected) => {
+    expect(known.verdict(subject)).toBe(expected);
+  });
+
+  it('never kicks a suspect, and does not protect one from a VPN kick', async () => {
+    const { rcon, deps, known: live } = setup([player(3, 'Vasya', '2.2.2.2', '999')]);
+    live.setEntries([entry('vasya', [8359], ['716922'])]);
+    await live.sweep(deps);
+    expect(rcon.kick).not.toHaveBeenCalled();
+    expect(live.isProtected(player(3, 'Vasya', '2.2.2.2', '999'))).toBe(false);
+    expect(live.isProtected(player(3, 'Vasya', '2.2.2.2', '716922'))).toBe(true);
+  });
+
+  it('says what marking a player as known would add', () => {
+    expect(known.additions(player(0, 'Vasya', '3.3.3.3', '716922'))).toEqual({ asn: 202226 });
+    expect(known.additions(player(0, 'Vasya', '1.1.1.1', '716922'))).toEqual({});
+    expect(known.additions(player(0, 'Petya', '2.2.2.2', '4'))).toEqual({ guid: '4' });
+    expect(known.additions(player(0, 'New', '1.1.1.1', '7'))).toEqual({ asn: 12389, guid: '7' });
+    expect(known.additions(player(0, 'New', '9.9.9.9'))).toEqual({});
+  });
+});
+
 describe('KnownPlayers.sweep', () => {
   const PLAYERS = [
     player(0, 'Vasya', '2.2.2.2'),
@@ -89,7 +129,7 @@ describe('KnownPlayers.sweep', () => {
         target: 'VASYA',
         serverAlias: 'main',
         source: 'auto',
-        detailJson: { ip: '3.3.3.3', asn: 202226 },
+        detailJson: { ip: '3.3.3.3', guid: null, asn: 202226 },
       }),
     );
   });

@@ -113,7 +113,7 @@ describe('VpnKicker', () => {
     const known = new KnownPlayers(() => 202226);
     known.setEnabled(true);
     const at = new Date();
-    const entry = { name: 'const', display: 'const', note: null, createdBy: 1, createdAt: at, updatedAt: at };
+    const entry = { name: 'const', display: 'const', guids: [], note: null, createdBy: 1, createdAt: at, updatedAt: at };
 
     known.setEntries([{ ...entry, asns: [202226] }]);
     await kicker.sweep({ ...deps, knownPlayers: known });

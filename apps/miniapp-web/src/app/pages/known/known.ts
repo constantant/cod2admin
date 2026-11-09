@@ -66,12 +66,12 @@ import { T } from '../../shared/i18n';
             subscriptSizing="dynamic"
             appearance="outline"
           >
-            <mat-label>{{ 'Player IP or ASN' | t }}</mat-label>
+            <mat-label>{{ 'Player IP, ASN or GUID' | t }}</mat-label>
             <input
               matInput
               name="value"
               class="mono"
-              [placeholder]="'AS12389' | t"
+              [placeholder]="'AS12389 / guid:716922' | t"
               [(ngModel)]="value"
             />
           </mat-form-field>
@@ -85,7 +85,7 @@ import { T } from '../../shared/i18n';
         </form>
         <p class="muted small">
           {{
-            'Adding a name that is already listed gives it one more network. The ASN only tells the provider: someone on the same provider with the same name passes.'
+            'Adding a name that is already listed gives it one more network or GUID. The ASN only tells the provider: someone on the same provider with the same name passes. A real GUID (most players have 0) is stronger: a different GUID on a listed name is flagged ⚠️.'
               | t
           }}
         </p>
@@ -109,13 +109,25 @@ import { T } from '../../shared/i18n';
                       <c2a-icon name="close" />
                     </button>
                   }
+                  @for (guid of entry.guids; track guid) {
+                    <button
+                      class="chip mono"
+                      type="button"
+                      [disabled]="busy()"
+                      [attr.aria-label]="'Remove GUID ' + guid | t"
+                      (click)="removeGuid(entry, guid)"
+                    >
+                      {{ 'GUID' | t }} {{ guid }}
+                      <c2a-icon name="close" />
+                    </button>
+                  }
                   <button
                     class="chip"
                     type="button"
                     [disabled]="busy()"
                     (click)="addAsn(entry)"
                   >
-                    <c2a-icon name="add" /> {{ 'Network' | t }}
+                    <c2a-icon name="add" /> {{ 'Network or GUID' | t }}
                   </button>
                 </div>
                 @if (entry.note) {
@@ -252,12 +264,12 @@ export class KnownPage implements OnInit {
 
   protected async addAsn(entry: KnownPlayerDto): Promise<void> {
     const values = await this.forms.open({
-      title: 'Add a network',
+      title: 'Add a network or GUID',
       confirm: 'Add',
       fields: [
         {
           key: 'value',
-          label: 'Player IP or ASN',
+          label: 'Player IP, ASN or GUID',
           mono: true,
           required: true,
         },
@@ -272,6 +284,10 @@ export class KnownPage implements OnInit {
 
   protected removeAsn(entry: KnownPlayerDto, asn: number): Promise<boolean> {
     return this.run(() => this.api.removeKnownAsn(entry.name, asn));
+  }
+
+  protected removeGuid(entry: KnownPlayerDto, guid: string): Promise<boolean> {
+    return this.run(() => this.api.removeKnownGuid(entry.name, guid));
   }
 
   protected async editNote(entry: KnownPlayerDto): Promise<void> {
