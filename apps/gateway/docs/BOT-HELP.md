@@ -90,13 +90,17 @@ Each command needs the permission in its heading. `/permit` is how those permiss
   player, `/vpnkick unallow` undoes it, `/vpnkick` shows the state
 - `/known` — known players: a nickname tied to the provider networks (ASNs) its owner connects from.
   `/known add <name> [AS12389 …]` (without an ASN it takes the one of the player online now),
-  `/known addasn <ASN> <name>`, `/known removeasn <ASN> <name>`, `/known note <name> <text>`,
+  `/known addasn <ASN> <name>`, `/known removeasn <ASN> <name>`, `/known addguid <GUID> <name>`,
+  `/known removeguid <GUID> <name>` (also `add <name> AS1 guid:716922`; without either, `add` takes the
+  network and real GUID of the player online now), `/known note <name> <text>`,
   `/known remove <name>`. `/known on|off` (off by default): a listed name from a listed network is
   never kicked for a VPN; a listed name from any other network is kicked on sight (kick only, no
   ban). Explicit bans and mutes still apply. The ASN only says which provider — someone on the same
   ISP with the same name passes; two people sharing one name must share one entry. The game-chat
-  line for the kick is `known_kick` in `/templates` (empty at first). `/players` marks ✅ known and
-  ⚠️ a known name from another network.
+  line for the kick is `known_kick` in `/templates` (empty at first). A real GUID (most players have
+  0) stored for a name vouches for them from any network; a different real GUID on a listed name
+  from a listed network is only flagged ⚠️, never kicked. `/players` marks ✅ known and ⚠️ a known
+  name from another network or with another GUID.
 
 ### `admins.manage`
 

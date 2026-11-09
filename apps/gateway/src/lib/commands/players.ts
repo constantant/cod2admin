@@ -22,13 +22,13 @@ export interface PlayerIpLookups {
   geoip?: CountryLookup;
   provider?: ProviderLookup;
   vpn?: VpnLookup;
-  /** The `/known` list: ✅ marks a known player, ⚠️ a known name from another network. */
+  /** The `/known` list: ✅ marks a known player, ⚠️ a known name from another network or with another GUID. */
   knownPlayers?: { verdict(player: StatusPlayer): KnownVerdict };
 }
 
 function knownMark(lookups: PlayerIpLookups, player: StatusPlayer): string {
   const verdict = lookups.knownPlayers?.verdict(player);
-  return verdict === 'known' ? '✅' : verdict === 'impostor' ? '⚠️' : '';
+  return verdict === 'known' ? '✅' : verdict === 'impostor' || verdict === 'suspect' ? '⚠️' : '';
 }
 
 function resolveLookups(lookups: PlayerIpLookups): Required<Omit<PlayerIpLookups, 'knownPlayers'>> & PlayerIpLookups {

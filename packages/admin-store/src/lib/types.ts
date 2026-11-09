@@ -164,6 +164,8 @@ export interface KnownPlayer {
   display: string;
   /** Provider networks (ASNs) the player connects from. */
   asns: number[];
+  /** Real GUIDs of this player; may be empty (most players have GUID 0). */
+  guids: string[];
   note: string | null;
   createdBy: number;
   createdAt: Date;
@@ -174,6 +176,7 @@ export interface SaveKnownPlayerInput {
   name: string;
   display: string;
   asns: number[];
+  guids: string[];
   note?: string | null;
   createdBy: number;
 }

@@ -1,27 +1,41 @@
 import type { KnownPlayer } from '@cod2admin/admin-store';
+import type { StatusPlayer } from '@cod2admin/rcon-client';
 import { matchText, type BotContext } from '../bot-context.js';
 import type { GatewayDeps } from '../deps.js';
 import {
   KNOWN_PLAYERS_SETTING_KEY,
   normalizeKnownName,
+  realGuid,
 } from '../known-players.js';
 import { parseAsn } from './vpnnets.js';
 
-export const KNOWN_USAGE = [
-  '/known — the list, and whether it is on',
-  '/known on | off',
-  '/known add <name> [AS12389 …] — without an ASN, takes the one of the player now online with that name',
-  '/known addasn <ASN> <name> — one more network for a known name',
-  '/known removeasn <ASN> <name>',
-  '/known note <name> <text> — a note (empty text clears it)',
-  '/known remove <name>',
-].join('\n');
+const USAGE_LINES = {
+  status: '/known — the list, and whether it is on',
+  toggle: '/known on | off',
+  add: '/known add <name> [AS12389 …] [guid:716922 …] — without either, takes the network and GUID of the player now online with that name',
+  addAsn: '/known addasn <ASN> <name> — one more network for a known name',
+  removeAsn: '/known removeasn <ASN> <name>',
+  addGuid: '/known addguid <GUID> <name> — a real GUID (most players have 0) beats the network check',
+  removeGuid: '/known removeguid <GUID> <name>',
+  note: '/known note <name> <text> — a note (empty text clears it)',
+  remove: '/known remove <name>',
+} as const;
+
+export const KNOWN_USAGE = Object.values(USAGE_LINES).join('\n');
 
 const ASN_TOKEN = /^AS\d{1,10}$/i;
+const GUID_TOKEN = /^guid:(\d{1,20})$/i;
+
+function formatIds(asns: number[], guids: string[]): string {
+  return [...asns.map((asn) => `AS${asn}`), ...guids.map((guid) => `GUID ${guid}`)].join(', ');
+}
 
 function formatEntry(entry: KnownPlayer): string {
-  const asns = entry.asns.map((asn) => `AS${asn}`).join(', ');
-  return `• ${entry.display} — ${asns}${entry.note ? ` (${entry.note})` : ''}`;
+  const ids = [
+    ...entry.asns.map((asn) => `AS${asn}`),
+    ...entry.guids.map((guid) => `GUID ${guid}`),
+  ].join(', ');
+  return `• ${entry.display} — ${ids}${entry.note ? ` (${entry.note})` : ''}`;
 }
 
 function formatStatus(deps: GatewayDeps): string {
@@ -59,21 +73,19 @@ async function reload(deps: GatewayDeps): Promise<void> {
   deps.knownPlayers.setEntries(await deps.adminStore.listKnownPlayers());
 }
 
-/** The provider network of the first connected player with this name, on any server. */
-async function asnOfOnlinePlayer(
+/** The first connected player with this name, on any server. */
+async function onlinePlayer(
   deps: GatewayDeps,
   name: string,
-): Promise<number | undefined> {
+): Promise<StatusPlayer | undefined> {
   for (const rcon of deps.rconClients.values()) {
     try {
       const { players } = await rcon.status();
-      for (const player of players) {
-        if (normalizeKnownName(player.name) === name && player.ip) {
-          const asn = deps.provider.asn(player.ip);
-          if (asn !== undefined) {
-            return asn;
-          }
-        }
+      const found = players.find(
+        (player) => normalizeKnownName(player.name) === name,
+      );
+      if (found) {
+        return found;
       }
     } catch {
       // an unreachable server just can't help
@@ -82,13 +94,27 @@ async function asnOfOnlinePlayer(
   return undefined;
 }
 
-/** Last word of the text if it parses as an ASN, e.g. `Vasya AS12389` — otherwise the whole text. */
-function splitName(tokens: string[]): { name: string; asns: number[] } {
+/** Trailing `AS12389` / `guid:716922` words are identities; what's before them is the name. */
+function splitName(tokens: string[]): {
+  name: string;
+  asns: number[];
+  guids: string[];
+} {
   const asns: number[] = [];
-  while (tokens.length > 1 && ASN_TOKEN.test(tokens[tokens.length - 1]!)) {
-    asns.unshift(parseAsn(tokens.pop()!)!);
+  const guids: string[] = [];
+  while (tokens.length > 1) {
+    const last = tokens[tokens.length - 1]!;
+    const guid = GUID_TOKEN.exec(last)?.[1];
+    if (guid) {
+      guids.unshift(guid);
+    } else if (ASN_TOKEN.test(last)) {
+      asns.unshift(parseAsn(last)!);
+    } else {
+      break;
+    }
+    tokens.pop();
   }
-  return { name: tokens.join(' '), asns };
+  return { name: tokens.join(' '), asns, guids };
 }
 
 /**
@@ -127,69 +153,83 @@ export async function knownCommand(
     }
 
     case 'add': {
-      const { name: display, asns: given } = splitName(tokens);
+      const { name: display, asns: givenAsns, guids: givenGuids } = splitName(tokens);
       const name = display ? normalizeKnownName(display) : '';
       if (!name) {
-        await ctx.reply(`Usage: ${KNOWN_USAGE.split('\n')[2]}`);
+        await ctx.reply(`Usage: ${USAGE_LINES.add}`);
         return;
       }
-      const asns = [...given];
-      if (asns.length === 0) {
-        const online = await asnOfOnlinePlayer(deps, name);
-        if (online === undefined) {
+      const asns = [...givenAsns];
+      const guids = [...givenGuids];
+      if (asns.length === 0 && guids.length === 0) {
+        const online = await onlinePlayer(deps, name);
+        const guid = online ? realGuid(online) : undefined;
+        const asn = online?.ip ? deps.provider.asn(online.ip) : undefined;
+        if (asn === undefined && guid === undefined) {
           await ctx.reply(
-            `${display} isn't online (or has no known network). Name the networks yourself, e.g. /known add ${display} AS12389.`,
+            `${display} isn't online (or has no known network or GUID). Name the identity yourself, e.g. /known add ${display} AS12389.`,
           );
           return;
         }
-        asns.push(online);
+        if (asn !== undefined) asns.push(asn);
+        if (guid !== undefined) guids.push(guid);
       }
       const existing = find(name);
-      const merged = [...new Set([...(existing?.asns ?? []), ...asns])];
+      const mergedAsns = [...new Set([...(existing?.asns ?? []), ...asns])];
+      const mergedGuids = [...new Set([...(existing?.guids ?? []), ...guids])];
       await deps.adminStore.saveKnownPlayer({
         name,
         display: existing?.display ?? display,
-        asns: merged,
+        asns: mergedAsns,
+        guids: mergedGuids,
         note: existing?.note ?? null,
         createdBy: actor,
       });
       await reload(deps);
-      await audit(ctx, deps, 'known_add', name, { asns });
+      await audit(ctx, deps, 'known_add', name, { asns, guids });
       await ctx.reply(
-        `${display} is known on ${merged.map((asn) => `AS${asn}`).join(', ')}.${offNote}`,
+        `${display} is known: ${formatIds(mergedAsns, mergedGuids)}.${offNote}`,
       );
       return;
     }
 
     case 'addasn':
-    case 'removeasn': {
-      const adding = subcommand.toLowerCase() === 'addasn';
-      const asn = parseAsn(tokens[0] ?? '');
+    case 'removeasn':
+    case 'addguid':
+    case 'removeguid': {
+      const adding = subcommand.toLowerCase().startsWith('add');
+      const isGuid = subcommand.toLowerCase().endsWith('guid');
+      const idText = tokens[0] ?? '';
+      const asn = isGuid ? undefined : parseAsn(idText);
+      const guid = isGuid && /^\d{1,20}$/.test(idText) && idText !== '0' ? idText : undefined;
       const display = tokens.slice(1).join(' ');
       const entry = display ? find(normalizeKnownName(display)) : undefined;
-      if (asn === undefined || !entry) {
+      const usage = USAGE_LINES[subcommand.toLowerCase() as keyof typeof USAGE_LINES];
+      const label = isGuid ? `GUID ${guid}` : `AS${asn}`;
+      if ((asn === undefined && guid === undefined) || !entry) {
         await ctx.reply(
-          asn !== undefined && display
+          (asn !== undefined || guid !== undefined) && display
             ? `${display} isn't in the list — add it with /known add first.`
-            : `Usage: ${KNOWN_USAGE.split('\n')[adding ? 3 : 4]}`,
+            : `Usage: ${usage}`,
         );
         return;
       }
-      const has = entry.asns.includes(asn);
+      const has = isGuid ? entry.guids.includes(guid!) : entry.asns.includes(asn!);
       if (adding === has) {
         await ctx.reply(
           adding
-            ? `${entry.display} already has AS${asn}.`
-            : `${entry.display} doesn't have AS${asn}.`,
+            ? `${entry.display} already has ${label}.`
+            : `${entry.display} doesn't have ${label}.`,
         );
         return;
       }
-      const asns = adding
-        ? [...entry.asns, asn]
-        : entry.asns.filter((existing) => existing !== asn);
-      if (asns.length === 0) {
+      const toggle = <T,>(list: T[], value: T) =>
+        adding ? [...list, value] : list.filter((existing) => existing !== value);
+      const asns = isGuid ? entry.asns : toggle(entry.asns, asn!);
+      const guids = isGuid ? toggle(entry.guids, guid!) : entry.guids;
+      if (asns.length === 0 && guids.length === 0) {
         await ctx.reply(
-          `That is the last network of ${entry.display} — use /known remove ${entry.display} to delete the entry.`,
+          `That is the last identity of ${entry.display} — use /known remove ${entry.display} to delete the entry.`,
         );
         return;
       }
@@ -197,12 +237,19 @@ export async function knownCommand(
         name: entry.name,
         display: entry.display,
         asns,
+        guids,
         note: entry.note,
         createdBy: actor,
       });
       await reload(deps);
-      await audit(ctx, deps, adding ? 'known_asn_add' : 'known_asn_remove', entry.name, { asn });
-      await ctx.reply(`${entry.display}: ${asns.map((a) => `AS${a}`).join(', ')}.`);
+      await audit(
+        ctx,
+        deps,
+        `known_${isGuid ? 'guid' : 'asn'}_${adding ? 'add' : 'remove'}`,
+        entry.name,
+        isGuid ? { guid } : { asn },
+      );
+      await ctx.reply(`${entry.display}: ${formatIds(asns, guids)}.`);
       return;
     }
 
@@ -214,7 +261,7 @@ export async function knownCommand(
         )
         .sort((a, b) => b.name.length - a.name.length)[0];
       if (!entry) {
-        await ctx.reply(`Usage: ${KNOWN_USAGE.split('\n')[5]}`);
+        await ctx.reply(`Usage: ${USAGE_LINES.note}`);
         return;
       }
       const note = rest.slice(entry.display.length).trim() || null;
@@ -222,6 +269,7 @@ export async function knownCommand(
         name: entry.name,
         display: entry.display,
         asns: entry.asns,
+        guids: entry.guids,
         note,
         createdBy: actor,
       });
@@ -234,12 +282,12 @@ export async function knownCommand(
     case 'remove': {
       const entry = rest ? find(normalizeKnownName(rest)) : undefined;
       if (!entry) {
-        await ctx.reply(`${rest ? `${rest} isn't in the list.` : `Usage: ${KNOWN_USAGE.split('\n')[6]}`}`);
+        await ctx.reply(`${rest ? `${rest} isn't in the list.` : `Usage: ${USAGE_LINES.remove}`}`);
         return;
       }
       await deps.adminStore.deleteKnownPlayer(entry.name);
       await reload(deps);
-      await audit(ctx, deps, 'known_remove', entry.name, { asns: entry.asns });
+      await audit(ctx, deps, 'known_remove', entry.name, { asns: entry.asns, guids: entry.guids });
       await ctx.reply(`${entry.display} is no longer a known player.`);
       return;
     }

@@ -306,6 +306,8 @@ export const knownPlayers = pgTable('known_players', {
   name: text('name').notNull().unique(),
   display: text('display').notNull(),
   asns: bigint('asns', { mode: 'number' }).array().notNull(),
+  /** Real GUIDs (never 0) the player has been seen with — stronger than an ASN when present. */
+  guids: text('guids').array().notNull().default(sql`'{}'::text[]`),
   note: text('note'),
   createdBy: bigint('created_by', { mode: 'number' }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true })

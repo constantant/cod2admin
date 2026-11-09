@@ -394,6 +394,12 @@ export class ApiService {
     );
   }
 
+  removeKnownGuid(name: string, guid: string) {
+    return this.call<KnownResponse>(
+      this.http.post('/api/known/guid/remove', { name, guid }),
+    );
+  }
+
   setKnownNote(name: string, note: string) {
     return this.call<KnownResponse>(
       this.http.post('/api/known/note', { name, note }),

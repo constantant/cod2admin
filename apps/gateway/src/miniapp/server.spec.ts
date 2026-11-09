@@ -314,7 +314,8 @@ describe('Mini App server', () => {
 
       it("saves the player's current network under their name, and adds more later", async () => {
         const fake = setup();
-        fake.deps.provider = { lookup: () => undefined, asn: () => 12389 };
+        let asn = 12389;
+        fake.deps.knownPlayers = new KnownPlayers(() => asn);
         const server = await start(fake);
 
         expect((await markKnown(server, 2)).statusCode).toBe(201);
@@ -326,10 +327,36 @@ describe('Mini App server', () => {
         );
         expect((await markKnown(server, 2)).statusCode).toBe(409);
 
-        fake.deps.provider = { lookup: () => undefined, asn: () => 8359 };
+        asn = 8359;
         const more = await markKnown(server, 2);
         expect(more.json().message).toBe('AS8359 added to Cheater.');
         expect(fake.deps.knownPlayers.entries[0]!.asns).toEqual([12389, 8359]);
+      });
+
+      it('also stores a real GUID, and flags a different GUID on the list', async () => {
+        const fake = setup();
+        fake.rcon.status.mockResolvedValue({
+          raw: '',
+          players: [{ ...PLAYER, guid: '716922' }],
+        });
+        fake.deps.knownPlayers = new KnownPlayers(() => 12389);
+        const server = await start(fake);
+
+        const response = await markKnown(server, 2);
+        expect(response.json().message).toContain('AS12389 and GUID 716922');
+        expect(fake.deps.knownPlayers.entries[0]).toMatchObject({ asns: [12389], guids: ['716922'] });
+        expect((await markKnown(server, 2)).statusCode).toBe(409);
+
+        fake.rcon.status.mockResolvedValue({
+          raw: '',
+          players: [{ ...PLAYER, guid: '999' }],
+        });
+        const status = await server.inject({
+          method: 'GET',
+          url: '/api/servers/default/status',
+          headers: { authorization: authHeader(2) },
+        });
+        expect(status.json().players[0]).toMatchObject({ known: 'suspect', knownAddable: true });
       });
 
       it('refuses a changed slot, an unknown network and a caller without the vpn permission', async () => {
@@ -343,7 +370,6 @@ describe('Mini App server', () => {
 
       it('shows the verdict on the player list', async () => {
         const fake = setup();
-        fake.deps.provider = { lookup: () => undefined, asn: () => 12389 };
         fake.deps.knownPlayers = new KnownPlayers(() => 12389);
         const server = await start(fake);
         await markKnown(server, 2);

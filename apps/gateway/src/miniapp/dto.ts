@@ -7,7 +7,7 @@ import { describeVpnShort } from '../lib/vpn-ranges.js';
 import type { BanDto, MuteDto, PlayerDto } from './api-types.js';
 
 type IpLookups = Pick<GatewayDeps, 'geoip' | 'provider' | 'vpn'> & {
-  knownPlayers?: Pick<GatewayDeps['knownPlayers'], 'verdict'>;
+  knownPlayers?: Pick<GatewayDeps['knownPlayers'], 'verdict' | 'additions'>;
 };
 
 /** What the bot knows about an IP: country/city, provider and VPN flag — each only when known. */
@@ -46,7 +46,13 @@ export function toPlayerDto(
     guid: player.guid && player.guid !== '0' ? player.guid : null,
     ip: player.ip ?? null,
     ...describeIp(player.ip, lookups),
-    ...(verdict === 'known' || verdict === 'impostor' ? { known: verdict } : {}),
+    ...(verdict && verdict !== 'unknown' && verdict !== 'unverified'
+      ? { known: verdict }
+      : {}),
+    ...(lookups.knownPlayers &&
+    Object.keys(lookups.knownPlayers.additions(player)).length > 0
+      ? { knownAddable: true }
+      : {}),
   };
 }
 

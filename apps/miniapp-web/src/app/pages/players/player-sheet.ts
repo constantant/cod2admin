@@ -93,10 +93,22 @@ export class PlayerSheet {
     });
   }
 
+  /** Shown while marking them would add a network or GUID to the list. */
   protected canMarkKnown(): boolean {
-    return (
-      this.session.can('vpn') && !!this.player.ip && this.player.known !== 'known'
-    );
+    return this.session.can('vpn') && !!this.player.knownAddable;
+  }
+
+  protected markKnownLabel(): string {
+    switch (this.player.known) {
+      case 'impostor':
+        return 'Add this network to known';
+      case 'suspect':
+        return 'Add this GUID to known';
+      case 'known':
+        return 'Add network or GUID to known';
+      default:
+        return 'Mark as known';
+    }
   }
 
   /** Whether the "More…" menu has anything in it for this staff member. */

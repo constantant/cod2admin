@@ -476,6 +476,19 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
   'More…': 'Ещё…',
   'Mark as known': 'Отметить как известного',
   'Add this network to known': 'Добавить эту сеть в известные',
+  'Add this GUID to known': 'Добавить этот GUID в известные',
+  'Add network or GUID to known': 'Добавить сеть или GUID в известные',
+  '⚠️ known name, other GUID': '⚠️ известный ник, другой GUID',
+  'Network or GUID': 'Сеть или GUID',
+  'Player IP, ASN or GUID': 'IP игрока, ASN или GUID',
+  'Add a network or GUID': 'Добавить сеть или GUID',
+  'Enter a player IP, an ASN like AS12389, or a GUID like guid:716922.':
+    'Введите IP игрока, ASN вроде AS12389 или GUID вроде guid:716922.',
+  'No such GUID on this player.': 'У этого игрока нет такого GUID.',
+  'That is the last network or GUID — remove the player instead.':
+    'Это последняя сеть или GUID — удалите игрока целиком.',
+  "Couldn't find this player's provider network or GUID. Add the network by ASN under Known players.":
+    'Не удалось определить сеть провайдера или GUID игрока. Добавьте сеть по ASN в разделе «Известные игроки».',
   '· known player': '· известный игрок',
   '· known name, other network': '· известный ник, другая сеть',
   "Couldn't find this player's provider network. Add it by ASN under Known players.":
@@ -488,8 +501,8 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
     'Ник из списка с «своей» сети никогда не кикают за VPN. Тот же ник с любой другой сети кикает сразу на всех серверах. Банов нет, а баны и муты действуют как обычно.',
   'Add a known player': 'Добавить известного игрока',
   Nickname: 'Ник',
-  'Adding a name that is already listed gives it one more network. The ASN only tells the provider: someone on the same provider with the same name passes.':
-    'Если ник уже в списке, ему добавится ещё одна сеть. ASN говорит лишь о провайдере: человек у того же провайдера с тем же ником пройдёт.',
+  'Adding a name that is already listed gives it one more network or GUID. The ASN only tells the provider: someone on the same provider with the same name passes. A real GUID (most players have 0) is stronger: a different GUID on a listed name is flagged ⚠️.':
+    'Если ник уже в списке, ему добавится ещё одна сеть или GUID. ASN говорит лишь о провайдере: человек у того же провайдера с тем же ником пройдёт. Настоящий GUID (у большинства игроков он 0) надёжнее: другой GUID у ника из списка помечается ⚠️.',
   Network: 'Сеть',
   'Start enforcing the known players list?':
     'Начать применять список известных игроков?',
@@ -873,6 +886,19 @@ export const RU_PATTERNS: readonly [RegExp, (...groups: string[]) => string][] =
       /^Couldn't find the provider network for (.+)\. Add it by ASN instead, e\.g\. AS202226\.$/,
       (ip) =>
         `Не удалось найти сеть провайдера для ${ip}. Добавьте её по ASN, например AS202226.`,
+    ],
+    [/^(.+) is already known\.$/, (name) => `${name} уже известен.`],
+    [
+      /^(.+) already has GUID (\d+)\.$/,
+      (name, guid) => `У ${name} уже есть GUID ${guid}.`,
+    ],
+    [
+      /^(.+) added to (.+)\.$/,
+      (added, name) => `${added} добавлено игроку ${name}.`,
+    ],
+    [
+      /^(.+) is now a known player \((.+)\)\.$/,
+      (name, ids) => `${name} теперь известный игрок (${ids}).`,
     ],
     [
       /^(.+) is already known on AS(\d+)\.$/,

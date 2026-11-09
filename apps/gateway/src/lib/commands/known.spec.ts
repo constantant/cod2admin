@@ -20,6 +20,56 @@ function setup() {
   return createFakeDeps();
 }
 
+describe('knownCommand with GUIDs', () => {
+  it('adds GUIDs after the name, with or without ASNs', async () => {
+    const { deps } = setup();
+    await knownCommand(ctx('add Big Vasya AS1 guid:716922'), deps);
+    expect(deps.knownPlayers.entries[0]).toMatchObject({
+      name: 'big vasya',
+      asns: [1],
+      guids: ['716922'],
+    });
+    await knownCommand(ctx('add Anna guid:5'), deps);
+    expect(deps.knownPlayers.entries[1]).toMatchObject({ name: 'anna', asns: [], guids: ['5'] });
+  });
+
+  it('takes the network and real GUID of the player online', async () => {
+    const { deps } = setup();
+    const rcon = createFakeRcon();
+    rcon.status.mockResolvedValue({
+      raw: '',
+      players: [{ num: 3, score: 0, ping: 1, name: 'Vasya', ip: '1.1.1.1', guid: '716922' }],
+    });
+    deps.rconClients.set('main', asRconClient(rcon));
+    deps.provider = { lookup: () => undefined, asn: () => 12389 };
+
+    await knownCommand(ctx('add vasya'), deps);
+    expect(deps.knownPlayers.entries[0]).toMatchObject({ asns: [12389], guids: ['716922'] });
+  });
+
+  it('adds and removes a GUID, and keeps at least one identity', async () => {
+    const { deps } = setup();
+    await knownCommand(ctx('add Vasya AS1'), deps);
+    await knownCommand(ctx('addguid 716922 Vasya'), deps);
+    expect(deps.knownPlayers.entries[0]!.guids).toEqual(['716922']);
+
+    const dup = ctx('addguid 716922 Vasya');
+    await knownCommand(dup, deps);
+    expect(reply(dup)).toContain('already has GUID 716922');
+
+    await knownCommand(ctx('removeasn AS1 Vasya'), deps);
+    expect(deps.knownPlayers.entries[0]).toMatchObject({ asns: [], guids: ['716922'] });
+
+    const last = ctx('removeguid 716922 Vasya');
+    await knownCommand(last, deps);
+    expect(reply(last)).toContain('last identity');
+
+    const zero = ctx('addguid 0 Vasya');
+    await knownCommand(zero, deps);
+    expect(reply(zero)).toContain('Usage');
+  });
+});
+
 describe('knownCommand', () => {
   it('shows it is off and empty by default', async () => {
     const { deps } = setup();
@@ -82,7 +132,7 @@ describe('knownCommand', () => {
 
     const c = ctx('removeasn 2 Vasya');
     await knownCommand(c, deps);
-    expect(reply(c)).toContain('last network');
+    expect(reply(c)).toContain('last identity');
     expect(deps.knownPlayers.entries[0]!.asns).toEqual([2]);
   });
 

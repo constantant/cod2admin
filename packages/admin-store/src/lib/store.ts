@@ -583,6 +583,7 @@ export class DrizzleAdminStore implements AdminStore {
         set: {
           display: input.display,
           asns: input.asns,
+          guids: input.guids,
           note,
           updatedAt: new Date(),
         },

@@ -301,9 +301,9 @@ export function registerRoutes(
   // ── Known players: "mark as known" from a player's sheet ─────────────────────────────────
 
   /**
-   * Adds the player's current provider network (ASN) to the known list under their name: a new
-   * entry for a stranger, one more network for a listed name from another network (the "kicked,
-   * but it was really them" case). The slot is checked against the name the admin saw.
+   * Adds the player's current provider network (ASN) and real GUID, whichever the entry lacks, to
+   * the known list under their name: a new entry for a stranger, or more identity for a listed
+   * name (the "kicked, but it was really them" case). The slot is checked against the name the admin saw.
    */
   app.post(
     '/servers/:server/players/:num/known',
@@ -326,27 +326,24 @@ export function registerRoutes(
           "That player isn't connected any more.",
         );
       }
-      const asn = player.ip ? deps.provider.asn(player.ip) : undefined;
-      if (asn === undefined) {
-        throw new ApiProblem(
-          422,
-          'unknown_network',
-          "Couldn't find this player's provider network. Add it by ASN under Known players.",
-        );
-      }
+      const { asn, guid } = deps.knownPlayers.additions(player);
       const name = normalizeKnownName(player.name);
       const existing = deps.knownPlayers.entries.find((e) => e.name === name);
-      if (existing?.asns.includes(asn)) {
+      if (asn === undefined && guid === undefined) {
+        const known = existing?.asns.length || existing?.guids.length;
         throw new ApiProblem(
-          409,
-          'already',
-          `${displayName(player)} is already known on AS${asn}.`,
+          known ? 409 : 422,
+          known ? 'already' : 'unknown_network',
+          known
+            ? `${displayName(player)} is already known.`
+            : "Couldn't find this player's provider network or GUID. Add the network by ASN under Known players.",
         );
       }
       await deps.adminStore.saveKnownPlayer({
         name,
         display: existing?.display ?? displayName(player),
-        asns: [...(existing?.asns ?? []), asn],
+        asns: asn === undefined ? (existing?.asns ?? []) : [...(existing?.asns ?? []), asn],
+        guids: guid === undefined ? (existing?.guids ?? []) : [...(existing?.guids ?? []), guid],
         note: existing?.note ?? null,
         createdBy: request.actor.telegramId,
       });
@@ -357,13 +354,19 @@ export function registerRoutes(
         action: 'known_add',
         target: name,
         serverAlias: request.params.server,
-        detailJson: { asn },
+        detailJson: { asn: asn ?? null, guid: guid ?? null },
       });
       reply.code(201);
+      const added = [
+        asn === undefined ? '' : `AS${asn}`,
+        guid === undefined ? '' : `GUID ${guid}`,
+      ]
+        .filter(Boolean)
+        .join(' and ');
       return {
         message: existing
-          ? `AS${asn} added to ${existing.display}.`
-          : `${displayName(player)} is now a known player on AS${asn}.`,
+          ? `${added} added to ${existing.display}.`
+          : `${displayName(player)} is now a known player (${added}).`,
       };
     },
   );

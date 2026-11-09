@@ -902,7 +902,7 @@ describe('Mini App management routes', () => {
     it('adds names and networks, applies them to the running list and audits', async () => {
       let response = await call('POST', '/known', ADMIN, { name: '^1Vasya', value: 'AS12389' });
       expect(response.json().entries).toEqual([
-        { name: 'vasya', display: '^1Vasya', asns: [12389], note: null },
+        { name: 'vasya', display: '^1Vasya', asns: [12389], guids: [], note: null },
       ]);
       expect(fake.deps.knownPlayers.entries).toHaveLength(1);
 
@@ -937,6 +937,20 @@ describe('Mini App management routes', () => {
       response = await call('POST', '/known/remove', ADMIN, { name: 'vasya' });
       expect(response.json().entries).toEqual([]);
       expect((await call('POST', '/known/remove', ADMIN, { name: 'vasya' })).statusCode).toBe(404);
+    });
+
+    it('adds and removes GUIDs, never leaving an entry empty', async () => {
+      await call('POST', '/known', ADMIN, { name: 'vasya', value: 'AS1' });
+      let response = await call('POST', '/known', ADMIN, { name: 'vasya', value: 'guid:716922' });
+      expect(response.json().entries[0]).toMatchObject({ asns: [1], guids: ['716922'] });
+      expect((await call('POST', '/known', ADMIN, { name: 'vasya', value: 'guid:716922' })).statusCode).toBe(409);
+      expect((await call('POST', '/known', ADMIN, { name: 'vasya', value: 'guid:0' })).statusCode).toBe(400);
+
+      await call('POST', '/known/asn/remove', ADMIN, { name: 'vasya', asn: 1 });
+      expect((await call('POST', '/known/guid/remove', ADMIN, { name: 'vasya', guid: '716922' })).statusCode).toBe(409);
+      response = await call('POST', '/known', ADMIN, { name: 'vasya', value: 'AS2' });
+      response = await call('POST', '/known/guid/remove', ADMIN, { name: 'vasya', guid: '716922' });
+      expect(response.json().entries[0]).toMatchObject({ asns: [2], guids: [] });
     });
 
     it('turns the sweep on and off', async () => {
