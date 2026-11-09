@@ -3,6 +3,7 @@ import {
   MODERATOR_PERMISSIONS,
   type Admin,
   type AdminStore,
+  type KnownPlayer,
   type Permission,
   type Report,
 } from '@cod2admin/admin-store';
@@ -114,6 +115,7 @@ export function createFakeAdminStore(
   overrides: Partial<{ admins: Admin[] }> = {},
 ): FakeAdminStore {
   const admins = overrides.admins ?? [];
+  const known = new Map<string, KnownPlayer>();
   return {
     getAdmin: vi.fn(async (telegramId: number) =>
       admins.find((admin) => admin.telegramId === telegramId),
@@ -152,9 +154,19 @@ export function createFakeAdminStore(
     findPlayerNotes: vi.fn().mockResolvedValue([]),
     updatePlayerNote: vi.fn().mockResolvedValue(undefined),
     deletePlayerNote: vi.fn().mockResolvedValue(false),
-    listKnownPlayers: vi.fn().mockResolvedValue([]),
-    saveKnownPlayer: vi.fn().mockResolvedValue(undefined),
-    deleteKnownPlayer: vi.fn().mockResolvedValue(false),
+    // Stateful, so a save is visible to the next list — like the real table.
+    listKnownPlayers: vi.fn(async () => [...known.values()]),
+    saveKnownPlayer: vi.fn(async (input) => {
+      const row: KnownPlayer = {
+        note: null,
+        ...input,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      known.set(input.name, row);
+      return row;
+    }),
+    deleteKnownPlayer: vi.fn(async (name: string) => known.delete(name)),
     recordServerSnapshot: vi.fn().mockResolvedValue(undefined),
     listServerSnapshots: vi.fn().mockResolvedValue([]),
     pruneServerSnapshots: vi.fn().mockResolvedValue(undefined),

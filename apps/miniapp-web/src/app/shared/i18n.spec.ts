@@ -11,6 +11,7 @@ const APP_DIR = ['src/app', 'apps/miniapp-web/src/app']
 const SAME_IN_RUSSIAN = new Set([
   'AS',
   'AS202226',
+  'AS12389',
   'GUID',
   'ID',
   'IP',

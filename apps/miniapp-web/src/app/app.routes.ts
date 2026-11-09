@@ -53,6 +53,11 @@ export const appRoutes: Route[] = [
     loadComponent: () => import('./pages/vpn/vpn').then((m) => m.VpnPage),
   },
   {
+    path: 'known',
+    canMatch: [allow('vpn')],
+    loadComponent: () => import('./pages/known/known').then((m) => m.KnownPage),
+  },
+  {
     path: 'presets',
     canMatch: [allow('presets')],
     loadComponent: () =>

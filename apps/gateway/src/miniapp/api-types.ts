@@ -509,6 +509,21 @@ export interface VpnResponse {
   networks: { asn: number; name: string | null }[];
 }
 
+// ── Known players (/known) ──────────────────────────────────────────────────────────────────
+
+export interface KnownPlayerDto {
+  /** Lower case, colour codes stripped — what other requests name the entry by. */
+  name: string;
+  display: string;
+  asns: number[];
+  note: string | null;
+}
+
+export interface KnownResponse {
+  enabled: boolean;
+  entries: KnownPlayerDto[];
+}
+
 // ── Game-chat lines (/templates) ────────────────────────────────────────────────────────────
 
 export interface ChatTemplateLineDto {

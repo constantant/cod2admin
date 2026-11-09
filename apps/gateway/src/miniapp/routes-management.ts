@@ -24,6 +24,10 @@ import {
 import { loadRouteSettings } from '../lib/commands/relays.js';
 import { forgetServer } from '../lib/commands/removeserver.js';
 import { settleApplyProblem, stageRelease } from '../lib/commands/update.js';
+import {
+  KNOWN_PLAYERS_SETTING_KEY,
+  normalizeKnownName,
+} from '../lib/known-players.js';
 import { parseAsn } from '../lib/commands/vpnnets.js';
 import { cannotManageReason, mayManageAdmin } from '../lib/admin-rules.js';
 import type { GatewayDeps } from '../lib/deps.js';
@@ -78,6 +82,7 @@ import type {
   SetCvarRequest,
   UpdateStatusResponse,
   VpnResponse,
+  KnownResponse,
 } from './api-types.js';
 import { hasPermission, type MiniAppActor } from './auth.js';
 import { adminNames, serverParam } from './routes.js';
@@ -907,6 +912,185 @@ export function registerManagementRoutes(
         { remove: asn },
       );
       return vpnResponse();
+    },
+  );
+
+  // ── Known players (/known) ───────────────────────────────────────────────────────────────
+
+  const knownResponse = (): KnownResponse => ({
+    enabled: deps.knownPlayers.enabled,
+    entries: deps.knownPlayers.entries.map(({ name, display, asns, note }) => ({
+      name,
+      display,
+      asns,
+      note,
+    })),
+  });
+
+  const reloadKnown = async () =>
+    deps.knownPlayers.setEntries(await deps.adminStore.listKnownPlayers());
+
+  const knownEntry = (value: unknown) => {
+    const name = typeof value === 'string' ? normalizeKnownName(value) : '';
+    const entry = deps.knownPlayers.entries.find((e) => e.name === name);
+    if (!entry) {
+      throw new ApiProblem(404, 'not_found', 'No such known player.');
+    }
+    return entry;
+  };
+
+  /** A player IP (→ its provider network) or an ASN like `AS12389`. */
+  const asnFromInput = (value: unknown): number => {
+    const text = typeof value === 'string' ? value.trim() : '';
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(text)) {
+      const asn = deps.provider.asn(text);
+      if (asn === undefined) {
+        throw new ApiProblem(
+          422,
+          'unknown_network',
+          `Couldn't find the provider network for ${text}. Use an ASN instead, e.g. AS12389.`,
+        );
+      }
+      return asn;
+    }
+    const asn = parseAsn(text);
+    if (asn === undefined) {
+      throw new ApiProblem(
+        400,
+        'bad_request',
+        'Enter a player IP or an ASN, like AS12389.',
+      );
+    }
+    return asn;
+  };
+
+  const saveKnown = async (
+    request: FastifyRequest,
+    entry: { name: string; display: string; asns: number[]; note: string | null },
+    action: string,
+    detailJson: unknown,
+  ): Promise<KnownResponse> => {
+    await deps.adminStore.saveKnownPlayer({
+      ...entry,
+      createdBy: request.actor.telegramId,
+    });
+    await reloadKnown();
+    await audit(request, { action, target: entry.name, detailJson });
+    return knownResponse();
+  };
+
+  app.get('/known', { config: { permission: 'vpn' } }, knownResponse);
+
+  app.put(
+    '/known/enabled',
+    { config: { permission: 'vpn', action: true } },
+    async (
+      request: FastifyRequest<{ Body: { enabled?: boolean } }>,
+    ): Promise<KnownResponse> => {
+      if (typeof request.body?.enabled !== 'boolean') {
+        throw new ApiProblem(400, 'bad_request', 'On or off?');
+      }
+      const enabled = request.body.enabled;
+      await deps.adminStore.setSetting(KNOWN_PLAYERS_SETTING_KEY, { enabled });
+      deps.knownPlayers.setEnabled(enabled);
+      await audit(request, { action: 'known', detailJson: { enabled } });
+      return knownResponse();
+    },
+  );
+
+  /** Adds a name with its first network, or one more network for a name already listed. */
+  app.post(
+    '/known',
+    { config: { permission: 'vpn', action: true } },
+    async (
+      request: FastifyRequest<{ Body: { name?: string; value?: string } }>,
+    ): Promise<KnownResponse> => {
+      const display =
+        typeof request.body?.name === 'string' ? request.body.name.trim() : '';
+      const name = display ? normalizeKnownName(display) : '';
+      if (!name) {
+        throw new ApiProblem(400, 'bad_request', 'Enter a nickname.');
+      }
+      const asn = asnFromInput(request.body?.value);
+      const existing = deps.knownPlayers.entries.find((e) => e.name === name);
+      if (existing?.asns.includes(asn)) {
+        throw new ApiProblem(
+          409,
+          'already',
+          `${existing.display} already has AS${asn}.`,
+        );
+      }
+      return saveKnown(
+        request,
+        {
+          name,
+          display: existing?.display ?? display,
+          asns: [...(existing?.asns ?? []), asn],
+          note: existing?.note ?? null,
+        },
+        'known_add',
+        { asn },
+      );
+    },
+  );
+
+  app.post(
+    '/known/asn/remove',
+    { config: { permission: 'vpn', action: true } },
+    async (
+      request: FastifyRequest<{ Body: { name?: string; asn?: number } }>,
+    ): Promise<KnownResponse> => {
+      const entry = knownEntry(request.body?.name);
+      const asn = request.body?.asn;
+      if (typeof asn !== 'number' || !entry.asns.includes(asn)) {
+        throw new ApiProblem(404, 'not_found', 'No such network on this player.');
+      }
+      if (entry.asns.length === 1) {
+        throw new ApiProblem(
+          409,
+          'last_network',
+          'That is the last network — remove the player instead.',
+        );
+      }
+      return saveKnown(
+        request,
+        { ...entry, asns: entry.asns.filter((a) => a !== asn) },
+        'known_asn_remove',
+        { asn },
+      );
+    },
+  );
+
+  app.post(
+    '/known/note',
+    { config: { permission: 'vpn', action: true } },
+    async (
+      request: FastifyRequest<{ Body: { name?: string; note?: string } }>,
+    ): Promise<KnownResponse> => {
+      const entry = knownEntry(request.body?.name);
+      const note =
+        typeof request.body?.note === 'string'
+          ? request.body.note.trim().slice(0, 200) || null
+          : null;
+      return saveKnown(request, { ...entry, note }, 'known_note', { note });
+    },
+  );
+
+  app.post(
+    '/known/remove',
+    { config: { permission: 'vpn', action: true } },
+    async (
+      request: FastifyRequest<{ Body: { name?: string } }>,
+    ): Promise<KnownResponse> => {
+      const entry = knownEntry(request.body?.name);
+      await deps.adminStore.deleteKnownPlayer(entry.name);
+      await reloadKnown();
+      await audit(request, {
+        action: 'known_remove',
+        target: entry.name,
+        detailJson: { asns: entry.asns },
+      });
+      return knownResponse();
     },
   );
 
