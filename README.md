@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/images/logo.svg" alt="cod2admin logo" width="120" /></p>
+
 # cod2admin
 
 [![Release](https://img.shields.io/github/v/release/constantant/cod2admin)](https://github.com/constantant/cod2admin/releases/latest)
