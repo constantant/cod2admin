@@ -136,6 +136,7 @@ describe('Mini App management routes', () => {
       ['POST', '/servers/default/log', ADMIN],
       ['GET', '/admins', MODERATOR],
       ['GET', '/vpn', MODERATOR],
+      ['GET', '/known', MODERATOR],
       ['PUT', '/presets', MODERATOR],
       ['POST', '/servers/default/level', MODERATOR],
       ['PUT', '/servers/default/rotation', MODERATOR],
@@ -894,6 +895,54 @@ describe('Mini App management routes', () => {
         (await call('POST', '/vpn/networks', ADMIN, { value: 'nope' }))
           .statusCode,
       ).toBe(400);
+    });
+  });
+
+  describe('Known players', () => {
+    it('adds names and networks, applies them to the running list and audits', async () => {
+      let response = await call('POST', '/known', ADMIN, { name: '^1Vasya', value: 'AS12389' });
+      expect(response.json().entries).toEqual([
+        { name: 'vasya', display: '^1Vasya', asns: [12389], note: null },
+      ]);
+      expect(fake.deps.knownPlayers.entries).toHaveLength(1);
+
+      response = await call('POST', '/known', ADMIN, { name: 'vasya', value: '8359' });
+      expect(response.json().entries[0].asns).toEqual([12389, 8359]);
+      expect((await call('POST', '/known', ADMIN, { name: 'vasya', value: '8359' })).statusCode).toBe(409);
+      expect((await call('POST', '/known', ADMIN, { name: 'vasya', value: 'nope' })).statusCode).toBe(400);
+      expect((await call('POST', '/known', ADMIN, { name: '', value: 'AS1' })).statusCode).toBe(400);
+      expect(fake.adminStore.recordAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'known_add', target: 'vasya', source: 'miniapp' }),
+      );
+    });
+
+    it('resolves a player IP to its network', async () => {
+      fake.deps.provider = { lookup: () => undefined, asn: (ip) => (ip === '1.1.1.1' ? 12389 : undefined) };
+      const ok = await call('POST', '/known', ADMIN, { name: 'a', value: '1.1.1.1' });
+      expect(ok.json().entries[0].asns).toEqual([12389]);
+      expect((await call('POST', '/known', ADMIN, { name: 'b', value: '9.9.9.9' })).statusCode).toBe(422);
+    });
+
+    it('removes a network but never the last one, edits the note, deletes the entry', async () => {
+      await call('POST', '/known', ADMIN, { name: 'vasya', value: 'AS1' });
+      await call('POST', '/known', ADMIN, { name: 'vasya', value: 'AS2' });
+
+      let response = await call('POST', '/known/asn/remove', ADMIN, { name: 'vasya', asn: 1 });
+      expect(response.json().entries[0].asns).toEqual([2]);
+      expect((await call('POST', '/known/asn/remove', ADMIN, { name: 'vasya', asn: 2 })).statusCode).toBe(409);
+
+      response = await call('POST', '/known/note', ADMIN, { name: 'Vasya', note: ' home ' });
+      expect(response.json().entries[0].note).toBe('home');
+
+      response = await call('POST', '/known/remove', ADMIN, { name: 'vasya' });
+      expect(response.json().entries).toEqual([]);
+      expect((await call('POST', '/known/remove', ADMIN, { name: 'vasya' })).statusCode).toBe(404);
+    });
+
+    it('turns the sweep on and off', async () => {
+      const response = await call('PUT', '/known/enabled', ADMIN, { enabled: true });
+      expect(response.json().enabled).toBe(true);
+      expect(fake.deps.knownPlayers.enabled).toBe(true);
     });
   });
 

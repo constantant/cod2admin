@@ -1,7 +1,8 @@
 # Known players — nickname ↔ ASN allowlist
 
-Status: **bot side implemented** (2026-11-09), branch `feat/known-players`; mini app page and RU
-summary still open. Decisions taken: immunity does not cover explicit bans/mutes; reuses the `vpn`
+Status: **implemented** (2026-11-09), branch `feat/known-players` — bot, plus the mini app page
+("Known players" under More, same `vpn` permission; routes `/api/known*` in
+`routes-management.ts`). Not yet tried on a real server. Russian summary: `PLAN-known-players-ru.md`. Decisions taken: immunity does not cover explicit bans/mutes; reuses the `vpn`
 permission; kick only, no escalation; optional `known_kick` game-chat template (empty by default).
 The migration is `0008_known_players`; another unmerged branch (`player-watch-bot`) also has a
 `0008_watch` — renumber whichever merges second.

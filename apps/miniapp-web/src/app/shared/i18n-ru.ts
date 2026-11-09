@@ -472,6 +472,25 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
     'Всех с меткой 🛡 начнёт кикать на всех серверах уже через несколько секунд.',
   'Turn on': 'Включить',
 
+  // Known players
+  'Known players': 'Известные игроки',
+  'Nicknames tied to their networks': 'Ники, привязанные к их сетям',
+  'Known-name kick': 'Кик под известным ником',
+  'Use the known players list': 'Применять список известных игроков',
+  'A listed name from a listed network is never kicked for a VPN. The same name from any other network is kicked on sight on every server. Nobody is banned, and bans and mutes still apply.':
+    'Ник из списка с «своей» сети никогда не кикают за VPN. Тот же ник с любой другой сети кикает сразу на всех серверах. Банов нет, а баны и муты действуют как обычно.',
+  'Add a known player': 'Добавить известного игрока',
+  Nickname: 'Ник',
+  'Adding a name that is already listed gives it one more network. The ASN only tells the provider: someone on the same provider with the same name passes.':
+    'Если ник уже в списке, ему добавится ещё одна сеть. ASN говорит лишь о провайдере: человек у того же провайдера с тем же ником пройдёт.',
+  Network: 'Сеть',
+  'Start enforcing the known players list?':
+    'Начать применять список известных игроков?',
+  'A listed name from a network that is not listed for it is kicked on sight, on every server, starting within seconds. Check the list first.':
+    'Ник из списка с сети, которой у него нет, кикнут сразу на всех серверах, уже через несколько секунд. Сначала проверьте список.',
+  'Add a network': 'Добавить сеть',
+  'Remove this known player?': 'Убрать этого известного игрока?',
+
   // Presets
   'One per line. Everyone with access sees the same ones.':
     'По одному на строку. Шаблоны общие для всех, у кого есть доступ.',
@@ -549,6 +568,13 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
     'Введите адрес https, например https://my-relay.deno.dev',
   'Enter an IPv4 address, like 203.0.113.7.':
     'Введите адрес IPv4, например 203.0.113.7.',
+  'Enter a player IP or an ASN, like AS12389.':
+    'Введите IP игрока или ASN, например AS12389.',
+  'Enter a nickname.': 'Введите ник.',
+  'No such known player.': 'Такого известного игрока нет.',
+  'No such network on this player.': 'У этого игрока нет такой сети.',
+  'That is the last network — remove the player instead.':
+    'Это последняя сеть — удалите игрока целиком.',
   'Enter a player IP or an ASN, like AS202226.':
     'Введите IP игрока или ASN, например AS202226.',
   'Enter the GUID the server shows (not 0).':
@@ -840,6 +866,15 @@ export const RU_PATTERNS: readonly [RegExp, (...groups: string[]) => string][] =
       /^Couldn't find the provider network for (.+)\. Add it by ASN instead, e\.g\. AS202226\.$/,
       (ip) =>
         `Не удалось найти сеть провайдера для ${ip}. Добавьте её по ASN, например AS202226.`,
+    ],
+    [
+      /^(.+) already has AS(\d+)\.$/,
+      (name, asn) => `У ${name} уже есть AS${asn}.`,
+    ],
+    [
+      /^Couldn't find the provider network for (.+)\. Use an ASN instead, e\.g\. AS12389\.$/,
+      (ip) =>
+        `Не удалось найти сеть провайдера для ${ip}. Укажите ASN, например AS12389.`,
     ],
     [/^(.+) is already in the list\.$/, (url) => `${url} уже в списке.`],
     [

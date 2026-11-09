@@ -68,6 +68,13 @@ const LINKS: readonly Link[] = [
     permission: 'vpn',
   },
   {
+    path: '/known',
+    label: 'Known players',
+    hint: 'Nicknames tied to their networks',
+    icon: 'shield',
+    permission: 'vpn',
+  },
+  {
     path: '/presets',
     label: 'Presets',
     hint: 'One-tap reasons, lengths and messages',

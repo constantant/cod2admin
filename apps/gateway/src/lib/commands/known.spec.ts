@@ -1,4 +1,3 @@
-import type { KnownPlayer } from '@cod2admin/admin-store';
 import { describe, expect, it, vi } from 'vitest';
 import { createFakeCtx } from '../testing/fake-ctx.js';
 import { createFakeDeps } from '../testing/fake-deps.js';
@@ -17,18 +16,8 @@ function reply(c: ReturnType<typeof ctx>): string {
   return vi.mocked(c.reply).mock.calls[0]![0] as string;
 }
 
-/** A store that remembers saved entries, so `reload` sees them. */
 function setup() {
-  const fake = createFakeDeps();
-  const saved = new Map<string, KnownPlayer>();
-  fake.adminStore.saveKnownPlayer.mockImplementation(async (input) => {
-    const row = { note: null, ...input, createdAt: new Date(), updatedAt: new Date() } as KnownPlayer;
-    saved.set(input.name, row);
-    return row;
-  });
-  fake.adminStore.deleteKnownPlayer.mockImplementation(async (name) => saved.delete(name));
-  fake.adminStore.listKnownPlayers.mockImplementation(async () => [...saved.values()]);
-  return fake;
+  return createFakeDeps();
 }
 
 describe('knownCommand', () => {

@@ -50,6 +50,7 @@ import type {
   UpdateNoteRequest,
   UpdateStatusResponse,
   VpnResponse,
+  KnownResponse,
 } from '@cod2admin/miniapp-api';
 import { firstValueFrom } from 'rxjs';
 import { TelegramService } from './telegram';
@@ -361,6 +362,41 @@ export class ApiService {
 
   vpn() {
     return this.call<VpnResponse>(this.http.get('/api/vpn'));
+  }
+
+  known() {
+    return this.call<KnownResponse>(this.http.get('/api/known'));
+  }
+
+  setKnownEnabled(enabled: boolean) {
+    return this.call<KnownResponse>(
+      this.http.put('/api/known/enabled', { enabled }),
+    );
+  }
+
+  /** Adds the name with this network, or one more network for a name already listed. */
+  addKnown(name: string, value: string) {
+    return this.call<KnownResponse>(
+      this.http.post('/api/known', { name, value }),
+    );
+  }
+
+  removeKnownAsn(name: string, asn: number) {
+    return this.call<KnownResponse>(
+      this.http.post('/api/known/asn/remove', { name, asn }),
+    );
+  }
+
+  setKnownNote(name: string, note: string) {
+    return this.call<KnownResponse>(
+      this.http.post('/api/known/note', { name, note }),
+    );
+  }
+
+  removeKnown(name: string) {
+    return this.call<KnownResponse>(
+      this.http.post('/api/known/remove', { name }),
+    );
   }
 
   chatTemplates() {
