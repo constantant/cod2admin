@@ -43,6 +43,11 @@ export interface GamePeerOptions {
   onDatagram?: (direction: 'in' | 'out', bytes: Buffer) => void;
   /** Called as snapshots parse. The spike's `watch()` still collects them too. */
   onSample?: (sample: Sample) => void;
+  /**
+   * One call per snapshot, after `onSample`. Samples are already filed per
+   * subject slot, including the other visible players.
+   */
+  onSnapshot?: (samples: Sample[]) => void;
 }
 
 export interface WatchResult {
@@ -92,6 +97,7 @@ export class GamePeer {
   private readonly serverAlias: string;
   private readonly onDatagram?: GamePeerOptions['onDatagram'];
   private readonly onSample?: GamePeerOptions['onSample'];
+  private readonly onSnapshot?: GamePeerOptions['onSnapshot'];
   private challenge: number;
   private readonly qport: number;
   private fragments: FragmentAssembler;
@@ -141,6 +147,7 @@ export class GamePeer {
     this.serverAlias = options.serverAlias ?? `${options.host}:${options.port}`;
     this.onDatagram = options.onDatagram;
     this.onSample = options.onSample;
+    this.onSnapshot = options.onSnapshot;
     this.challenge = challenge;
     this.qport = 1 + Math.floor(Math.random() * 65534);
     this.fragments = new FragmentAssembler(protocol);
@@ -418,11 +425,16 @@ export class GamePeer {
       this.watchState.serverTimes.push(snapshot.serverTimeMs);
       const receivedAtMs = Date.now();
       this.watchState.receivedAt.push(receivedAtMs);
-      for (const player of snapshot.players) {
-        const sample = toSample(player, receivedAtMs, this.serverAlias);
+      const samples = samplesFromSnapshot(
+        snapshot.players,
+        receivedAtMs,
+        this.serverAlias,
+      );
+      for (const sample of samples) {
         this.watchState.samples.push(sample);
         this.onSample?.(sample);
       }
+      this.onSnapshot?.(samples);
       if (this.cmdTime < snapshot.serverTimeMs)
         this.cmdTime = snapshot.serverTimeMs;
       const self = snapshot.clients.find(
@@ -490,18 +502,46 @@ export function connectPureProbe(options: GamePeerOptions): Promise<GamePeer> {
   return openPeer(options, false);
 }
 
+/**
+ * LifeTracker files a life by `slot` and treats a different `entityNum` in
+ * that bucket as another player. Each subject therefore gets every visible
+ * player, including itself. `event` stays unset: death, hit, and kill codes
+ * are not confirmed.
+ */
+export function samplesFromSnapshot(
+  players: readonly EntityObservation[],
+  receivedAtMs: number,
+  serverAlias: string,
+): Sample[] {
+  const samples: Sample[] = [];
+  for (const subject of players) {
+    for (const player of players) {
+      samples.push(
+        toSample(player, receivedAtMs, serverAlias, subject.clientNum),
+      );
+    }
+  }
+  return samples;
+}
+
 function toSample(
   player: EntityObservation,
   receivedAtMs: number,
   serverAlias: string,
+  slot: number,
 ): Sample {
   return {
     serverTimeMs: player.serverTimeMs,
     receivedAtMs,
     serverAlias,
-    slot: player.clientNum,
+    slot,
     entityNum: player.entityNum,
     origin: { x: player.origin[0], y: player.origin[1], z: player.origin[2] },
+    velocity: {
+      x: player.velocity[0],
+      y: player.velocity[1],
+      z: player.velocity[2],
+    },
     viewangles: { pitch: player.viewangles[0], yaw: player.viewangles[1] },
     weapon: player.weapon,
   };

@@ -83,9 +83,8 @@ export interface RecordEvidenceInput {
 
 /**
  * Caps the parent passes to `decide`. Cards and kicks are per server.
- * The cooldown is per profile. A `suppressed` row counts only when its
- * reason is `kick` (the kick was not sent). A `cooldown` or `card_cap`
- * row does not.
+ * The cooldown is per profile. Only `flag`, `report`, and `kick` count.
+ * A suppressed row does not start the cooldown or consume the card cap.
  */
 export interface WatchCaps {
   cardsThisHour: number;
@@ -120,8 +119,7 @@ export interface WatchStore {
   recordEvidence(input: RecordEvidenceInput): Promise<string>;
   /**
    * `cardsThisHour` and `kickedThisHour` count the whole server.
-   * `cooldownActive` is only this profile. `suppressed` / `kick` counts
-   * as a card and starts the cooldown. `suppressed` / `cooldown` does not.
+   * `cooldownActive` is only this profile. Suppressed rows count toward neither.
    */
   loadCaps(input: {
     serverAlias: string;

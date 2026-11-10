@@ -1,7 +1,11 @@
-export { ConnectRefusedError, GamePeer, type WatchResult } from './lib/peer.js';
+export {
+  ConnectRefusedError,
+  GamePeer,
+  samplesFromSnapshot,
+  type WatchResult,
+} from './lib/peer.js';
 export {
   connectAllowed,
-  connectAllowedCvars,
   type ConnectGate,
   type StatusInfo,
 } from './lib/wire.js';

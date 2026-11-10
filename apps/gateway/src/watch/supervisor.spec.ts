@@ -4,6 +4,11 @@ import {
   type ServerConfig,
   type ServerWatchSettings,
 } from '@cod2admin/admin-store';
+import {
+  samplesFromSnapshot,
+  type EntityObservation,
+} from '@cod2admin/game-client';
+import type { Sample } from '@cod2admin/player-watch';
 import { ReportAntiSpam } from '@cod2admin/report-pipeline';
 import type { StatusPlayer } from '@cod2admin/rcon-client';
 import type {
@@ -20,6 +25,7 @@ import {
   type FakeAdminStore,
 } from '../lib/testing/fake-admin-store.js';
 import { createFakeRcon, type FakeRcon } from '../lib/testing/fake-rcon.js';
+import { createWatchChild } from './child.js';
 import {
   startWatchSupervisor,
   type SpawnedWatch,
@@ -242,6 +248,22 @@ describe('watch supervisor', () => {
     );
     expect(detail).not.toContain(PLAYER.ip);
     expect(draft.adminStore.recordReport).not.toHaveBeenCalled();
+    await feed(supervisor, draft, kickLife());
+    expect(
+      draft.memory.evidence.map((row) => [row.action, row.reason]),
+    ).toEqual([
+      ['suppressed', 'kick'],
+      ['suppressed', 'kick'],
+    ]);
+    const caps = await draft.memory.store.loadCaps({
+      serverAlias: 'default',
+      profileKey: 'guid:abc',
+      now: new Date(NOW),
+      cooldownMs: 30 * 60 * 1000,
+    });
+    expect(caps.cardsThisHour).toBe(0);
+    expect(caps.cooldownActive).toBe(false);
+    expect(draft.rcon.kick).not.toHaveBeenCalled();
   });
 
   it('ignores an IPC selfLives claim when the stored count is 0', async () => {
@@ -424,6 +446,100 @@ describe('watch supervisor', () => {
     expect(draft.spawn).not.toHaveBeenCalled();
     expect(draft.exit).not.toHaveBeenCalled();
   });
+
+  it('drops a life when the fresh status has no row for that slot', async () => {
+    const life = await snapshotLife();
+    expect(life['endReason']).toBe('disconnect');
+    expect(life['slot']).toBe(PLAYER.num);
+
+    const dropped = draftHarness();
+    dropped.servers.push(enabled({ mode: 'flag' }));
+    dropped.rcon.getStatus.mockResolvedValue(OPEN);
+    const supervisor = await boot(dropped);
+    supervisor.noteStatus('default', { raw: '', players: [] }, NOW);
+    await supervisor.whenIdle();
+    await feed(supervisor, dropped, life);
+    expect(dropped.memory.lives).toHaveLength(0);
+
+    supervisor.noteStatus(
+      'default',
+      {
+        raw: '',
+        mapName: 'mp_toujane',
+        players: [{ ...PLAYER, guid: 'zzz', name: 'Next' }],
+      },
+      NOW,
+    );
+    await supervisor.whenIdle();
+    expect(dropped.memory.lives).toHaveLength(0);
+  });
+
+  it('keeps a life while status is stale, then binds the row that arrives', async () => {
+    const life = await snapshotLife();
+    const draft = draftHarness();
+    draft.servers.push(enabled({ mode: 'off' }));
+    draft.rcon.getStatus.mockResolvedValue(OPEN);
+    const supervisor = await boot(draft);
+    supervisor.noteStatus('default', { raw: '', players: [] }, NOW - 11_000);
+    await supervisor.whenIdle();
+    await feed(supervisor, draft, life);
+    expect(draft.memory.lives).toHaveLength(0);
+    await seen(supervisor);
+    expect(draft.memory.lives).toHaveLength(1);
+    expect(draft.memory.lives[0]?.profileKey).toBe('guid:abc');
+  });
+
+  it('does not kick when three recent lives sit between flagZ and kickZ', async () => {
+    const draft = draftHarness();
+    draft.servers.push(
+      enabled({
+        mode: 'kick',
+        confirmedAimFeatures: 2,
+        kickExtremeLives: 3,
+        kickMinSessionLives: 1,
+        minSelfLives: 8,
+        minFeatureN: 5000,
+      }),
+    );
+    draft.rcon.getStatus.mockResolvedValue(OPEN);
+    const wide = { n: 5000, mean: 0, m2: 4999 };
+    draft.memory.moments.set('snapOnAcquire', wide);
+    draft.memory.moments.set('firedWhileLookingAway', wide);
+    const self = { n: 8, mean: 0, m2: 7 };
+    draft.memory.profiles.set('guid:abc', {
+      serverAlias: 'default',
+      profileKey: 'guid:abc',
+      kind: 'guid',
+      displayName: 'Cheater',
+      lastGuid: 'abc',
+      lastIp: PLAYER.ip ?? null,
+      lifeCount: 8,
+      selfMoments: { snapOnAcquire: self, firedWhileLookingAway: self },
+      lastSeenAt: new Date(NOW),
+    });
+    for (const lifeScore of [4.5, 5, 5.5]) {
+      await draft.memory.store.recordLife({
+        serverAlias: 'default',
+        profileKey: 'guid:abc',
+        kind: 'guid',
+        displayName: 'Cheater',
+        mapName: 'mp_toujane',
+        endReason: 'death',
+        startedAt: new Date(NOW - 10_000),
+        endedAt: new Date(NOW - 5_000),
+        features: { snapOnAcquire: lifeScore },
+        lifeScore,
+        featuresOverFlag: 1,
+        aimAgreeing: 0,
+        excludedFromPopulation: true,
+      });
+    }
+    const supervisor = await boot(draft);
+    await seen(supervisor);
+    await feed(supervisor, draft, kickLife());
+    expect(draft.rcon.kick).not.toHaveBeenCalled();
+    expect(draft.memory.evidence.map((row) => row.action)).toEqual(['report']);
+  });
 });
 
 async function armed(mode: 'flag' | 'kick'): Promise<{
@@ -481,6 +597,82 @@ async function feed(
   child!.stdout.write(`${JSON.stringify(life)}\n`);
   await new Promise((resolve) => setImmediate(resolve));
   await supervisor.whenIdle();
+}
+
+/** A disconnect life produced by the child from `samplesFromSnapshot`. */
+async function snapshotLife(): Promise<Record<string, unknown>> {
+  const stdin = new PassThrough();
+  const lines: string[] = [];
+  let snap: ((samples: Sample[]) => void) | undefined;
+  const child = createWatchChild({
+    stdin,
+    stdout: {
+      write(chunk: string) {
+        lines.push(String(chunk));
+        return true;
+      },
+    },
+    connect: async (options) => {
+      snap = options.onSnapshot;
+      return { disconnect() {}, run() {} };
+    },
+  });
+  try {
+    stdin.write(
+      `${JSON.stringify({
+        type: 'hello',
+        servers: [
+          {
+            alias: 'default',
+            host: '127.0.0.1',
+            port: 28960,
+            spectatorName: 'AdminWatch',
+            protocol: 118,
+            gSpeed: 190,
+          },
+        ],
+      })}\n`,
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    if (!snap) {
+      throw new Error('child did not connect');
+    }
+    const shoot = snap;
+    for (const serverTimeMs of [0, 500, 1100]) {
+      shoot(
+        samplesFromSnapshot(
+          [watchedPlayer(serverTimeMs)],
+          serverTimeMs,
+          'default',
+        ),
+      );
+    }
+    shoot([]);
+    const parsed = lines
+      .flatMap((chunk) => chunk.split('\n'))
+      .filter((line) => line.length > 0)
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    const life = parsed.find((row) => row['slot'] === PLAYER.num);
+    if (!life) {
+      throw new Error('child did not emit a life');
+    }
+    return life;
+  } finally {
+    child.stop();
+  }
+}
+
+function watchedPlayer(serverTimeMs: number): EntityObservation {
+  return {
+    serverTimeMs,
+    entityNum: PLAYER.num,
+    eType: 1,
+    clientNum: PLAYER.num,
+    origin: [serverTimeMs, 0, 0],
+    velocity: [400, 0, 0],
+    viewangles: [0, 0, 0],
+    weapon: 0,
+  };
 }
 
 function speedLife(): Record<string, unknown> {
@@ -633,7 +825,6 @@ function depsFor(draft: Draft) {
     spawn: draft.spawn,
     now: () => NOW,
     reportQueue: new ReportQueue(draft.adminStore),
-    reportAntiSpam: draft.antiSpam,
     createCardSender: () => ({
       async send(_chatId: number, card: { text: string }) {
         draft.cards.push(card.text);
@@ -708,8 +899,7 @@ function memoryStore(): Memory {
         const counts =
           row.action === 'flag' ||
           row.action === 'report' ||
-          row.action === 'kick' ||
-          (row.action === 'suppressed' && row.reason === 'kick');
+          row.action === 'kick';
         if (!counts) {
           continue;
         }

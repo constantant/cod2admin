@@ -1,5 +1,7 @@
 import { createInterface } from 'node:readline';
-import { GamePeer } from '@cod2admin/game-client';
+import type { Readable } from 'node:stream';
+import { pathToFileURL } from 'node:url';
+import { ConnectRefusedError, GamePeer } from '@cod2admin/game-client';
 import {
   LifeTracker,
   type LifeFeatures,
@@ -8,6 +10,7 @@ import {
 import {
   parseParentMessage,
   type HelloServer,
+  type MapMessage,
   type ParentMessage,
 } from './ipc.js';
 
@@ -20,185 +23,348 @@ interface Connection {
   host: string;
   port: number;
   gSpeed: number | null;
-  peer?: GamePeer;
+  mapName: string | null;
+  peer?: PeerHandle;
   tracker: LifeTracker;
   slots: Set<number>;
   startedAt: Map<number, number>;
+  attempt: number;
+  retry?: ReturnType<typeof setTimeout>;
 }
 
-const connections = new Map<string, Connection>();
-let generation = 0;
-let stopped = false;
-let chain: Promise<void> = Promise.resolve();
-
-const lines = createInterface({ input: process.stdin });
-lines.on('line', (line) => {
-  chain = chain
-    .then(() => onLine(line))
-    .catch((error: unknown) => {
-      console.error(
-        `watch child: ${error instanceof Error ? error.message : 'line failed'}`,
-      );
-    });
-});
-process.stdin.on('end', () => shutdown());
-process.on('SIGTERM', () => shutdown());
-process.on('SIGINT', () => shutdown());
-
-async function onLine(line: string): Promise<void> {
-  const message = parseParentMessage(line);
-  if (!message) {
-    return;
-  }
-  await apply(message);
+interface PeerHandle {
+  disconnect(): void;
+  run(): void;
 }
 
-async function apply(message: ParentMessage): Promise<void> {
-  const gen = ++generation;
-  const next = new Map(message.servers.map((server) => [server.alias, server]));
-  for (const [alias, connection] of connections) {
-    if (next.has(alias)) {
-      continue;
-    }
-    drop(connection, 'disconnect');
-    connections.delete(alias);
-  }
-  for (const server of message.servers) {
-    if (gen !== generation) {
-      return;
-    }
-    const current = connections.get(server.alias);
-    if (
-      current?.peer &&
-      current.host === server.host &&
-      current.port === server.port &&
-      current.gSpeed === server.gSpeed
-    ) {
-      continue;
-    }
-    await connectServer(server, gen);
-  }
+export interface ChildConnectOptions {
+  host: string;
+  port: number;
+  serverAlias: string;
+  name?: string;
+  onSnapshot: (samples: Sample[]) => void;
 }
 
-async function connectServer(server: HelloServer, gen: number): Promise<void> {
-  const previous = connections.get(server.alias);
-  if (previous) {
-    drop(previous, 'disconnect');
-    connections.delete(server.alias);
-  }
-  const connection: Connection = {
-    alias: server.alias,
-    host: server.host,
-    port: server.port,
-    gSpeed: server.gSpeed,
-    tracker: new LifeTracker(null, server.gSpeed),
-    slots: new Set(),
-    startedAt: new Map(),
+export interface WatchChildOptions {
+  stdin: Readable;
+  stdout: { write(chunk: string): unknown };
+  connect?: (options: ChildConnectOptions) => Promise<PeerHandle>;
+  /** Production child exits when stdin closes. Tests leave the process up. */
+  exitOnStop?: boolean;
+}
+
+const BACKOFF_MS = [1000, 2000, 5000, 15_000, 30_000];
+
+export function createWatchChild(options: WatchChildOptions): {
+  stop(): void;
+} {
+  const connectPeer = options.connect ?? defaultConnect;
+  const connections = new Map<string, Connection>();
+  let generation = 0;
+  let stopped = false;
+  let chain: Promise<void> = Promise.resolve();
+
+  const lines = createInterface({ input: options.stdin });
+  const onLine = (line: string): void => {
+    chain = chain
+      .then(() => handleLine(line))
+      .catch((error: unknown) => {
+        console.error(
+          `watch child: ${error instanceof Error ? error.message : 'line failed'}`,
+        );
+      });
   };
-  connections.set(server.alias, connection);
-  try {
-    // Spectator userinfo only. `server.password` is not read and not logged.
-    const peer = await GamePeer.connect({
-      host: server.host,
-      port: server.port,
-      serverAlias: server.alias,
-      name: server.spectatorName,
-      onSample: (sample) => {
-        if (gen !== generation) {
-          return;
-        }
-        onSample(server.alias, sample);
-      },
-    });
-    if (gen !== generation || stopped) {
-      peer.disconnect();
-      if (connections.get(server.alias) === connection) {
-        connections.delete(server.alias);
-      }
-      return;
+  lines.on('line', onLine);
+
+  function handleLine(line: string): Promise<void> {
+    const message = parseParentMessage(line);
+    if (!message) {
+      return Promise.resolve();
     }
-    connection.peer = peer;
-    peer.run();
-  } catch (error) {
-    if (connections.get(server.alias) === connection) {
+    if (message.type === 'map') {
+      applyMap(message);
+      return Promise.resolve();
+    }
+    return apply(message);
+  }
+
+  async function apply(
+    message: Exclude<ParentMessage, MapMessage>,
+  ): Promise<void> {
+    const gen = ++generation;
+    const next = new Map(
+      message.servers.map((server) => [server.alias, server]),
+    );
+    for (const [alias, connection] of connections) {
+      if (next.has(alias)) {
+        continue;
+      }
+      drop(connection, 'disconnect');
+      connections.delete(alias);
+    }
+    for (const server of message.servers) {
+      if (gen !== generation) {
+        return;
+      }
+      const current = connections.get(server.alias);
+      if (
+        current?.peer &&
+        current.host === server.host &&
+        current.port === server.port &&
+        current.gSpeed === server.gSpeed
+      ) {
+        continue;
+      }
+      await connectServer(server, gen);
+    }
+  }
+
+  async function connectServer(
+    server: HelloServer,
+    gen: number,
+  ): Promise<void> {
+    const previous = connections.get(server.alias);
+    if (previous) {
+      drop(previous, 'disconnect');
       connections.delete(server.alias);
     }
-    console.error(
-      `watch child: ${server.alias} connect failed: ${
-        error instanceof Error ? error.message : 'error'
-      }`,
+    const connection: Connection = {
+      alias: server.alias,
+      host: server.host,
+      port: server.port,
+      gSpeed: server.gSpeed,
+      mapName: null,
+      tracker: new LifeTracker(null, server.gSpeed),
+      slots: new Set(),
+      startedAt: new Map(),
+      attempt: 0,
+    };
+    connections.set(server.alias, connection);
+    await openPeer(connection, server, gen);
+  }
+
+  async function openPeer(
+    connection: Connection,
+    server: HelloServer,
+    gen: number,
+  ): Promise<void> {
+    let current: PeerHandle | undefined;
+    try {
+      // Spectator userinfo only. `server.password` is not read and not logged.
+      const peer = await connectPeer({
+        host: server.host,
+        port: server.port,
+        serverAlias: server.alias,
+        name: server.spectatorName,
+        onSnapshot: (samples) => {
+          if (
+            gen !== generation ||
+            current === undefined ||
+            connections.get(server.alias) !== connection
+          ) {
+            return;
+          }
+          ingest(connection, samples);
+        },
+      });
+      if (
+        gen !== generation ||
+        stopped ||
+        connections.get(server.alias) !== connection
+      ) {
+        peer.disconnect();
+        return;
+      }
+      current = peer;
+      connection.attempt = 0;
+      connection.peer = peer;
+      peer.run();
+    } catch (error) {
+      if (connections.get(server.alias) !== connection) {
+        return;
+      }
+      console.error(
+        `watch child: ${server.alias} connect failed: ${
+          error instanceof Error ? error.message : 'error'
+        }`,
+      );
+      // Pure and PunkBuster refusals stay down until the parent syncs again.
+      if (error instanceof ConnectRefusedError) {
+        clearRetry(connection);
+        connections.delete(server.alias);
+        return;
+      }
+      scheduleRetry(connection, server, gen);
+    }
+  }
+
+  function scheduleRetry(
+    connection: Connection,
+    server: HelloServer,
+    gen: number,
+  ): void {
+    if (stopped || gen !== generation) {
+      return;
+    }
+    const delay =
+      BACKOFF_MS[Math.min(connection.attempt, BACKOFF_MS.length - 1)] ?? 30_000;
+    connection.attempt += 1;
+    const timer = setTimeout(() => {
+      connection.retry = undefined;
+      if (
+        stopped ||
+        gen !== generation ||
+        connections.get(server.alias) !== connection
+      ) {
+        return;
+      }
+      void openPeer(connection, server, gen);
+    }, delay);
+    timer.unref();
+    connection.retry = timer;
+  }
+
+  function applyMap(message: MapMessage): void {
+    const connection = connections.get(message.serverAlias);
+    if (!connection || connection.mapName === message.mapName) {
+      return;
+    }
+    for (const slot of [...connection.slots]) {
+      const closed = connection.tracker.end(slot, 'map');
+      if (closed) {
+        emitLife(connection, closed);
+      }
+    }
+    connection.slots.clear();
+    connection.mapName = message.mapName;
+    connection.tracker = new LifeTracker(message.mapName, connection.gSpeed);
+  }
+
+  function ingest(connection: Connection, samples: readonly Sample[]): void {
+    const present = new Set<number>();
+    for (const sample of samples) {
+      present.add(sample.slot);
+      if (!connection.startedAt.has(sample.slot)) {
+        connection.startedAt.set(sample.slot, sample.receivedAtMs);
+      }
+      connection.slots.add(sample.slot);
+      const closed = connection.tracker.push(sample);
+      if (closed) {
+        emitLife(connection, closed);
+      }
+    }
+    for (const slot of [...connection.slots]) {
+      if (present.has(slot)) {
+        continue;
+      }
+      const closed = connection.tracker.end(slot, 'disconnect');
+      if (closed) {
+        emitLife(connection, closed);
+      }
+    }
+  }
+
+  function drop(connection: Connection, reason: 'disconnect' | 'map'): void {
+    clearRetry(connection);
+    for (const slot of [...connection.slots]) {
+      const closed = connection.tracker.end(slot, reason);
+      if (closed) {
+        emitLife(connection, closed);
+      }
+    }
+    connection.slots.clear();
+    connection.peer?.disconnect();
+    connection.peer = undefined;
+  }
+
+  function emitLife(connection: Connection, features: LifeFeatures): void {
+    const started = connection.startedAt.get(features.slot) ?? Date.now();
+    connection.startedAt.delete(features.slot);
+    connection.slots.delete(features.slot);
+    const picked: Record<string, number> = {};
+    for (const key of [
+      'snapOnAcquire',
+      'firedWhileLookingAway',
+      'viewErrorAtHit',
+      'timeToDamageMs',
+      'angularSpeedP95',
+      'speedOverG',
+    ] as const) {
+      const value = features[key];
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        picked[key] = value;
+      }
+    }
+    options.stdout.write(
+      `${JSON.stringify({
+        type: 'life',
+        serverAlias: connection.alias,
+        slot: features.slot,
+        endReason: features.endReason,
+        strippedName: '',
+        startedAtMs: started,
+        endedAtMs: Date.now(),
+        features: picked,
+      })}\n`,
     );
   }
-}
 
-function onSample(alias: string, sample: Sample): void {
-  const connection = connections.get(alias);
-  if (!connection) {
-    return;
-  }
-  if (!connection.startedAt.has(sample.slot)) {
-    connection.startedAt.set(sample.slot, sample.receivedAtMs);
-  }
-  connection.slots.add(sample.slot);
-  const closed = connection.tracker.push(sample);
-  if (closed) {
-    emitLife(connection, closed);
-  }
-}
-
-function drop(connection: Connection, reason: 'disconnect' | 'map'): void {
-  for (const slot of connection.slots) {
-    const closed = connection.tracker.end(slot, reason);
-    if (closed) {
-      emitLife(connection, closed);
+  function shutdown(): void {
+    if (stopped) {
+      return;
+    }
+    stopped = true;
+    generation += 1;
+    lines.close();
+    for (const connection of connections.values()) {
+      drop(connection, 'disconnect');
+    }
+    connections.clear();
+    if (options.exitOnStop) {
+      process.exit(0);
     }
   }
-  connection.slots.clear();
-  connection.peer?.disconnect();
-  connection.peer = undefined;
+
+  const onStop = (): void => shutdown();
+  options.stdin.on('end', onStop);
+  process.on('SIGTERM', onStop);
+  process.on('SIGINT', onStop);
+
+  return {
+    stop() {
+      options.stdin.off('end', onStop);
+      process.off('SIGTERM', onStop);
+      process.off('SIGINT', onStop);
+      shutdown();
+    },
+  };
 }
 
-function emitLife(connection: Connection, features: LifeFeatures): void {
-  const started = connection.startedAt.get(features.slot) ?? Date.now();
-  connection.startedAt.delete(features.slot);
-  connection.slots.delete(features.slot);
-  const picked: Record<string, number> = {};
-  for (const key of [
-    'snapOnAcquire',
-    'firedWhileLookingAway',
-    'viewErrorAtHit',
-    'timeToDamageMs',
-    'angularSpeedP95',
-    'speedOverG',
-  ] as const) {
-    const value = features[key];
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      picked[key] = value;
-    }
-  }
-  process.stdout.write(
-    `${JSON.stringify({
-      type: 'life',
-      serverAlias: connection.alias,
-      slot: features.slot,
-      endReason: features.endReason,
-      strippedName: '',
-      startedAtMs: started,
-      endedAtMs: Date.now(),
-      features: picked,
-    })}\n`,
-  );
+async function defaultConnect(
+  options: ChildConnectOptions,
+): Promise<PeerHandle> {
+  return GamePeer.connect({
+    host: options.host,
+    port: options.port,
+    serverAlias: options.serverAlias,
+    name: options.name,
+    onSnapshot: options.onSnapshot,
+  });
 }
 
-function shutdown(): void {
-  if (stopped) {
+function clearRetry(connection: Connection): void {
+  if (!connection.retry) {
     return;
   }
-  stopped = true;
-  generation += 1;
-  for (const connection of connections.values()) {
-    drop(connection, 'disconnect');
-  }
-  connections.clear();
-  process.exit(0);
+  clearTimeout(connection.retry);
+  connection.retry = undefined;
+}
+
+const entry = process.argv[1];
+if (entry && import.meta.url === pathToFileURL(entry).href) {
+  createWatchChild({
+    stdin: process.stdin,
+    stdout: process.stdout,
+    exitOnStop: true,
+  });
 }

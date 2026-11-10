@@ -57,6 +57,8 @@ export interface EntityObservation {
   eType: number;
   clientNum: number;
   origin: readonly [number, number, number];
+  /** `pos.trDelta`. Present because the entity state always carries it. */
+  velocity: readonly [number, number, number];
   viewangles: readonly [number, number, number];
   weapon: number;
 }
@@ -396,6 +398,9 @@ function readClients(
 const ORIGIN_X = fieldIndex(ENTITY_FIELDS, 'pos.trBase[0]');
 const ORIGIN_Y = fieldIndex(ENTITY_FIELDS, 'pos.trBase[1]');
 const ORIGIN_Z = fieldIndex(ENTITY_FIELDS, 'pos.trBase[2]');
+const DELTA_X = fieldIndex(ENTITY_FIELDS, 'pos.trDelta[0]');
+const DELTA_Y = fieldIndex(ENTITY_FIELDS, 'pos.trDelta[1]');
+const DELTA_Z = fieldIndex(ENTITY_FIELDS, 'pos.trDelta[2]');
 const ANGLE_PITCH = fieldIndex(ENTITY_FIELDS, 'apos.trBase[0]');
 const ANGLE_YAW = fieldIndex(ENTITY_FIELDS, 'apos.trBase[1]');
 const ANGLE_ROLL = fieldIndex(ENTITY_FIELDS, 'apos.trBase[2]');
@@ -420,6 +425,11 @@ function observe(
         bitsToFloat(state[ORIGIN_X] ?? 0),
         bitsToFloat(state[ORIGIN_Y] ?? 0),
         bitsToFloat(state[ORIGIN_Z] ?? 0),
+      ],
+      velocity: [
+        bitsToFloat(state[DELTA_X] ?? 0),
+        bitsToFloat(state[DELTA_Y] ?? 0),
+        bitsToFloat(state[DELTA_Z] ?? 0),
       ],
       viewangles: [
         bitsToFloat(state[ANGLE_PITCH] ?? 0),

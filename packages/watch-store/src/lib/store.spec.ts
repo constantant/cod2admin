@@ -509,7 +509,7 @@ describe('watch-store', () => {
       });
     }
 
-    it('counts flag, report, and a suppressed kick, not a cooldown row', async () => {
+    it('counts flag and report, not a suppressed kick or a cooldown row', async () => {
       const cooldownMs = 30 * 60 * 1000;
       await evidence('flag', 'flag', new Date(NOW.getTime() - 50 * 60 * 1000));
       await evidence(
@@ -536,11 +536,12 @@ describe('watch-store', () => {
         now: NOW,
         cooldownMs,
       });
-      // The other profile's report counts toward the server cap. The old
-      // kick does not. The cooldown row does not.
-      expect(caps.cardsThisHour).toBe(3);
+      // The flag is inside the hour and outside the cooldown. The other
+      // profile's report counts toward the server cap. Neither suppressed
+      // row does, and the kick is older than an hour.
+      expect(caps.cardsThisHour).toBe(2);
       expect(caps.kickedThisHour).toBe(0);
-      expect(caps.cooldownActive).toBe(true);
+      expect(caps.cooldownActive).toBe(false);
 
       const later = await store.loadCaps({
         serverAlias: SERVER,
@@ -548,10 +549,8 @@ describe('watch-store', () => {
         now: new Date(NOW.getTime() + 21 * 60 * 1000),
         cooldownMs,
       });
-      // The suppressed kick is now 31 minutes old. The cooldown row written
-      // after it must not have moved the clock.
       expect(later.cooldownActive).toBe(false);
-      expect(later.cardsThisHour).toBe(2);
+      expect(later.cardsThisHour).toBe(1);
     });
   });
 

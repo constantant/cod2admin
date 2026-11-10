@@ -7,7 +7,7 @@ import type {
   ServerConfig,
   ServerWatchSettings,
 } from '@cod2admin/admin-store';
-import { connectAllowedCvars } from '@cod2admin/game-client';
+import { connectAllowed } from '@cod2admin/game-client';
 import {
   decide,
   scoreLife,
@@ -97,11 +97,6 @@ export interface WatchSupervisorDeps {
       reason: string | null;
     }): Promise<{ id: number }>;
   };
-  /**
-   * Present so a caller can hand the player flood filter in and tests can
-   * see it was not used. Watch cards must not spend a player's slot.
-   */
-  reportAntiSpam?: unknown;
   createCardSender?: (report: MachineReport) => CardSender<string>;
   log?: {
     warn(message: string): void;
@@ -156,6 +151,8 @@ class Supervisor {
   private restartTimer?: NodeJS.Timeout;
   private pruneTimer?: NodeJS.Timeout;
   private lastHello: HelloServer[] = [];
+  /** Map name last sent to the child. Null is the tracker's starting map. */
+  private readonly childMaps = new Map<string, string | null>();
   private readonly held = new Map<string, HeldStatus>();
   private readonly pending = new Map<string, LifeMessage[]>();
   private readonly observed = new WeakSet<object>();
@@ -277,6 +274,7 @@ class Supervisor {
     while (this.dirty.size > 0) {
       const aliases = [...this.dirty];
       this.dirty.clear();
+      this.publishMaps();
       for (const alias of aliases) {
         await this.flush(alias);
       }
@@ -331,7 +329,17 @@ class Supervisor {
     let protocol: number;
     try {
       const status = await client.getStatus();
-      const gate = connectAllowedCvars(status.cvars);
+      const protocolText = status.cvars['protocol'];
+      const gate = connectAllowed({
+        protocol:
+          protocolText !== undefined && /^-?\d+$/.test(protocolText)
+            ? Number(protocolText)
+            : null,
+        sv_pure: status.cvars['sv_pure'] ?? null,
+        sv_punkbuster: status.cvars['sv_punkbuster'] ?? null,
+        sv_fps: null,
+        keys: {},
+      });
       if (!gate.ok) {
         this.log.warn(`watch: ${server.alias} not joining: ${gate.reason}`);
         return undefined;
@@ -410,6 +418,10 @@ class Supervisor {
       generation,
     };
     this.child = started;
+    this.childMaps.clear();
+    for (const server of hello) {
+      this.childMaps.set(server.alias, null);
+    }
     const reader = createInterface({ input: child.stdout });
     reader.on('line', (line) => {
       const life = parseLifeMessage(line);
@@ -466,7 +478,29 @@ class Supervisor {
       return;
     }
     this.childGeneration += 1;
+    this.childMaps.clear();
     this.signal(started.process);
+  }
+
+  /** A map change ends open lives in the child. The password stays off this line. */
+  private publishMaps(): void {
+    const child = this.child;
+    if (!child) {
+      return;
+    }
+    for (const server of this.lastHello) {
+      const mapName =
+        this.held.get(server.alias)?.status.mapName?.trim() || null;
+      if (this.childMaps.get(server.alias) === mapName) {
+        continue;
+      }
+      this.childMaps.set(server.alias, mapName);
+      this.write(child.process, {
+        type: 'map',
+        serverAlias: server.alias,
+        mapName,
+      });
+    }
   }
 
   private signal(child: SpawnedWatch): void {
@@ -600,8 +634,8 @@ class Supervisor {
       return;
     }
     const player = held.status.players.find((row) => row.num === life.slot);
+    // A fresh status with an empty slot is not the next person to reuse it.
     if (!player) {
-      this.hold(life);
       return;
     }
     const identity = await this.resolver(life.serverAlias, client).resolve({
@@ -728,7 +762,7 @@ class Supervisor {
       aimAgreeing: scored.aimAgreeing,
       livesThisSession,
       extremeLivesInLast5: recent.filter(
-        (row) => row.lifeScore !== null && row.lifeScore >= watch.flagZ,
+        (row) => row.lifeScore !== null && row.lifeScore >= watch.kickZ,
       ).length,
       selfLivesByFeature: {
         snapOnAcquire: self?.snapOnAcquire?.n ?? 0,
@@ -785,7 +819,7 @@ class Supervisor {
       return;
     }
     if (action === 'kick') {
-      // The drop itself is a later change. The row still counts as a card.
+      // The drop itself is a later change. A suppressed kick is not a card.
       const evidenceId = await this.writeEvidence(
         life,
         key,

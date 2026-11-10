@@ -12,7 +12,8 @@ import {
 } from './constants.js';
 import { HUFF_FREQ } from './huff-data.js';
 import { huffmanCompress, huffmanDecompress } from './huffman.js';
-import { ConnectRefusedError, GamePeer } from './peer.js';
+import { ConnectRefusedError, GamePeer, samplesFromSnapshot } from './peer.js';
+import type { EntityObservation } from './snapshot.js';
 import { parseServerMessage } from './snapshot.js';
 import {
   buildClientDatagram,
@@ -297,6 +298,43 @@ describe('disconnect packet', () => {
     );
   });
 });
+
+describe('samplesFromSnapshot', () => {
+  it('files every visible player under the subject slot and copies trDelta', () => {
+    const subject = observation(4, 10, [400, 0, 0]);
+    const other = observation(2, 10, [0, 0, 0]);
+    const samples = samplesFromSnapshot([subject, other], 10, 'ctf');
+    expect(samples.every((sample) => sample.event === undefined)).toBe(true);
+    expect(
+      samples
+        .filter((sample) => sample.slot === 4)
+        .map((sample) => sample.entityNum)
+        .sort(),
+    ).toEqual([2, 4]);
+    expect(
+      samples.find((sample) => sample.slot === 4 && sample.entityNum === 4)
+        ?.velocity,
+    ).toEqual({ x: 400, y: 0, z: 0 });
+    expect(samples.filter((sample) => sample.slot === 2)).toHaveLength(2);
+  });
+});
+
+function observation(
+  slot: number,
+  serverTimeMs: number,
+  velocity: readonly [number, number, number],
+): EntityObservation {
+  return {
+    serverTimeMs,
+    entityNum: slot,
+    eType: 1,
+    clientNum: slot,
+    origin: [1, 2, 3],
+    velocity,
+    viewangles: [0, 90, 0],
+    weapon: 0,
+  };
+}
 
 function listen(): Promise<Socket> {
   const socket = createSocket('udp4');

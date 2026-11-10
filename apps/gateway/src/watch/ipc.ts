@@ -19,7 +19,13 @@ export interface ReloadMessage {
   servers: Array<Omit<HelloServer, 'password'>>;
 }
 
-export type ParentMessage = HelloMessage | ReloadMessage;
+export interface MapMessage {
+  type: 'map';
+  serverAlias: string;
+  mapName: string | null;
+}
+
+export type ParentMessage = HelloMessage | ReloadMessage | MapMessage;
 
 const FEATURE_KEYS = [
   'snapOnAcquire',
@@ -60,7 +66,13 @@ export function reloadMessage(servers: readonly HelloServer[]): ReloadMessage {
 
 export function parseParentMessage(line: string): ParentMessage | undefined {
   const value = parseObject(line);
-  if (!value || !Array.isArray(value['servers'])) {
+  if (!value) {
+    return undefined;
+  }
+  if (value['type'] === 'map') {
+    return parseMap(value);
+  }
+  if (!Array.isArray(value['servers'])) {
     return undefined;
   }
   const servers: HelloServer[] = [];
@@ -78,6 +90,26 @@ export function parseParentMessage(line: string): ParentMessage | undefined {
     return { type: 'reload', servers: servers.map(stripPassword) };
   }
   return undefined;
+}
+
+function parseMap(value: Record<string, unknown>): MapMessage | undefined {
+  const serverAlias = text(value['serverAlias']);
+  const mapName = value['mapName'];
+  if (!serverAlias) {
+    return undefined;
+  }
+  if (mapName === null) {
+    return { type: 'map', serverAlias, mapName: null };
+  }
+  if (typeof mapName !== 'string') {
+    return undefined;
+  }
+  const trimmed = mapName.trim();
+  return {
+    type: 'map',
+    serverAlias,
+    mapName: trimmed.length > 0 ? trimmed : null,
+  };
 }
 
 function stripPassword(server: HelloServer): Omit<HelloServer, 'password'> {

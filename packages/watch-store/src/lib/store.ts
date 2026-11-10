@@ -191,16 +191,9 @@ function zScore(value: number, moments: PopulationMoments): number | undefined {
   return (value - moments.mean) / sd;
 }
 
-/**
- * Flag, report, kick, and a kick that was not sent (`suppressed` / `kick`)
- * spend the card cap and start the cooldown. A row written because the
- * cooldown or the cap was already open does not.
- */
-function countsTowardCard(action: string, reason: string | null): boolean {
-  if (action === 'flag' || action === 'report' || action === 'kick') {
-    return true;
-  }
-  return action === 'suppressed' && reason === 'kick';
+/** Flag, report, and a kick that was sent. A suppressed row is not a card. */
+function countsTowardCard(action: string): boolean {
+  return action === 'flag' || action === 'report' || action === 'kick';
 }
 
 function optionalText(
@@ -593,7 +586,7 @@ export class DrizzleWatchStore implements WatchStore {
     for (const row of rows) {
       const at = row.createdAt.getTime();
       if (row.action === 'kick' && at >= hourAgo) kickedThisHour += 1;
-      if (!countsTowardCard(row.action, row.reason)) continue;
+      if (!countsTowardCard(row.action)) continue;
       if (at >= hourAgo) cardsThisHour += 1;
       if (row.profileKey === profileKey && at >= cooldownSince) {
         cooldownActive = true;
