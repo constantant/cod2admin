@@ -249,6 +249,7 @@ describe('Mini App server', () => {
         server: 'default',
         hostname: 'Test server',
         mapName: 'mp_toujane',
+        gametype: null,
         players: [
           {
             num: 3,

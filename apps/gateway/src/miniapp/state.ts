@@ -44,6 +44,8 @@ export class ActionLimiter {
 
 /** How much of the note list the live player marks look at — far more than any server has. */
 const MAX_INDEXED_NOTES = 5000;
+/** How long a server's game mode is trusted for while the map stays the same. */
+const GAMETYPE_MAX_AGE_MS = 5 * 60_000;
 
 /** What notes are filed under for a name: lower case, no colour codes. */
 export function noteNameKey(name: string): string {
@@ -68,6 +70,14 @@ export class MiniAppState {
   readonly limiter = new ActionLimiter();
   /** Why the last update from the app failed, until the next try. */
   updateProblem: string | null = null;
+  /**
+   * The game mode per server: it only changes with the map, so it's read once per map (and again
+   * after a while, in case an admin changed it some other way) instead of on every status poll.
+   */
+  private readonly gametypes = new Map<
+    string,
+    { map: string | null; gametype: string | null; at: number }
+  >();
   /** `kind:value` → on the watchlist, for marking players live. Reloaded after any note change. */
   private noteIndex: Promise<Map<string, boolean>> | undefined;
 
@@ -148,16 +158,42 @@ export class MiniAppState {
     }));
   }
 
+  private async gametype(
+    alias: string,
+    rcon: RconClient,
+    map: string | null,
+  ): Promise<string | null> {
+    const known = this.gametypes.get(alias);
+    if (
+      known &&
+      known.map === map &&
+      Date.now() - known.at < GAMETYPE_MAX_AGE_MS
+    ) {
+      return known.gametype;
+    }
+    try {
+      const cvars = (await rcon.getStatus()).cvars;
+      const gametype = cvars['g_gametype'] ?? cvars['gametype'] ?? null;
+      this.gametypes.set(alias, { map, gametype, at: Date.now() });
+      return gametype;
+    } catch {
+      // The mode is a nicety on the player list: not worth failing the list over.
+      return known?.map === map ? known.gametype : null;
+    }
+  }
+
   async fetchStatus(alias: string): Promise<StatusResponse> {
     const rcon = this.rcon(alias);
     if (!rcon) {
       throw new Error(`Server "${alias}" is no longer configured.`);
     }
     const status = await rcon.status();
+    const mapName = status.mapName ?? null;
     return {
       server: alias,
       hostname: status.hostname ?? null,
-      mapName: status.mapName ?? null,
+      mapName,
+      gametype: await this.gametype(alias, rcon, mapName),
       players: await this.playerDtos(status.players),
       fetchedAt: new Date().toISOString(),
     };

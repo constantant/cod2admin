@@ -87,6 +87,8 @@ export interface StatusResponse {
   server: string;
   hostname: string | null;
   mapName: string | null;
+  /** The game mode now, e.g. `ctf`; `null` when the server didn't say. */
+  gametype: string | null;
   players: PlayerDto[];
   fetchedAt: string;
 }

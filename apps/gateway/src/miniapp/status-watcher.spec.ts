@@ -7,6 +7,7 @@ function status(mapName: string): StatusResponse {
     server: 'default',
     hostname: null,
     mapName,
+    gametype: 'ctf',
     players: [],
     fetchedAt: '2026-10-07T12:00:00.000Z',
   };

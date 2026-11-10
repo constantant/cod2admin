@@ -7,7 +7,7 @@
   } @if (status(); as status) {
   <section class="card summary">
     @if (status.mapName; as mapName) {
-    <c2a-map-banner [name]="mapName" />
+    <c2a-map-banner [name]="mapName" [mode]="status.gametype" />
     }
     <div class="row">
       <div class="hostname">
