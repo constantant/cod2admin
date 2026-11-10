@@ -27,7 +27,15 @@ export interface MapMessage {
   mapName: string | null;
 }
 
-export type ParentMessage = HelloMessage | ReloadMessage | MapMessage;
+/** The noted status is still this map. Held absences are disconnects. */
+export interface ConfirmMessage {
+  type: 'confirm';
+  serverAlias: string;
+  mapName: string | null;
+}
+
+export type ParentMessage =
+  HelloMessage | ReloadMessage | MapMessage | ConfirmMessage;
 
 const FEATURE_KEYS = [
   'snapOnAcquire',
@@ -67,6 +75,9 @@ export function parseParentMessage(line: string): ParentMessage | undefined {
   if (value['type'] === 'map') {
     return parseMap(value);
   }
+  if (value['type'] === 'confirm') {
+    return parseConfirm(value);
+  }
   if (!Array.isArray(value['servers'])) {
     return undefined;
   }
@@ -88,23 +99,47 @@ export function parseParentMessage(line: string): ParentMessage | undefined {
 }
 
 function parseMap(value: Record<string, unknown>): MapMessage | undefined {
+  const named = parseNamedMap(value);
+  if (!named) {
+    return undefined;
+  }
+  return {
+    type: 'map',
+    serverAlias: named.serverAlias,
+    mapName: named.mapName,
+  };
+}
+
+function parseConfirm(
+  value: Record<string, unknown>,
+): ConfirmMessage | undefined {
+  const named = parseNamedMap(value);
+  if (!named) {
+    return undefined;
+  }
+  return {
+    type: 'confirm',
+    serverAlias: named.serverAlias,
+    mapName: named.mapName,
+  };
+}
+
+function parseNamedMap(
+  value: Record<string, unknown>,
+): { serverAlias: string; mapName: string | null } | undefined {
   const serverAlias = text(value['serverAlias']);
   const mapName = value['mapName'];
   if (!serverAlias) {
     return undefined;
   }
   if (mapName === null) {
-    return { type: 'map', serverAlias, mapName: null };
+    return { serverAlias, mapName: null };
   }
   if (typeof mapName !== 'string') {
     return undefined;
   }
   const trimmed = mapName.trim();
-  return {
-    type: 'map',
-    serverAlias,
-    mapName: trimmed.length > 0 ? trimmed : null,
-  };
+  return { serverAlias, mapName: trimmed.length > 0 ? trimmed : null };
 }
 
 function stripPassword(server: HelloServer): Omit<HelloServer, 'password'> {

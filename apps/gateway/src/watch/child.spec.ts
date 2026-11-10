@@ -19,12 +19,13 @@ afterEach(() => {
 
 describe('watch child snapshots', () => {
   it('ends a slot that leaves, with the neighbor filed under that slot', async () => {
-    const seen = await runSnapshots(async (snap) => {
+    const seen = await runSnapshots(async (snap, send) => {
       for (let serverTimeMs = 0; serverTimeMs < 1100; serverTimeMs += 50) {
         snap([player(4, serverTimeMs, 90, 400)]);
       }
       snap([player(4, 1100, 0, 400), player(2, 1100, 0, 0, [100, 0, 0])]);
       snap([]);
+      send({ type: 'confirm', serverAlias: 'default', mapName: null });
     });
     const life = seen.find((row) => row['slot'] === 4);
     expect(life).toMatchObject({ type: 'life', endReason: 'disconnect' });
@@ -37,18 +38,57 @@ describe('watch child snapshots', () => {
     expect(seen.every((row) => row['event'] === undefined)).toBe(true);
   });
 
-  it('adopts the first map and ends a later change as map', async () => {
-    const seen = await runSnapshots(async (snap, send) => {
-      snap([player(4, 0, 0, 0)]);
+  it('ends a held absence as map when the rename arrives after the gap', async () => {
+    const seen = await runSnapshots(async (snap, send, read) => {
       send({ type: 'map', serverAlias: 'default', mapName: 'mp_toujane' });
       await new Promise((resolve) => setImmediate(resolve));
-      snap([player(4, 50, 0, 0)]);
+      snap([player(4, 0, 0, 0)]);
       snap([]);
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(read()).toEqual([]);
       send({ type: 'map', serverAlias: 'default', mapName: 'mp_carentan' });
     });
     expect(seen.map((row) => [row['slot'], row['endReason']])).toEqual([
       [4, 'map'],
     ]);
+  });
+
+  it('ends a held absence as disconnect when the same map is confirmed', async () => {
+    const seen = await runSnapshots(async (snap, send, read) => {
+      send({ type: 'map', serverAlias: 'default', mapName: 'mp_toujane' });
+      await new Promise((resolve) => setImmediate(resolve));
+      snap([player(4, 0, 0, 0)]);
+      snap([]);
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(read()).toEqual([]);
+      send({ type: 'confirm', serverAlias: 'default', mapName: 'mp_toujane' });
+    });
+    expect(seen.map((row) => [row['slot'], row['endReason']])).toEqual([
+      [4, 'disconnect'],
+    ]);
+  });
+
+  it('ends a held absence as disconnect after the status window', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const child = startChild(async (options) => {
+      child.snap = options.onSnapshot;
+      return { disconnect() {}, run() {} };
+    });
+    child.stdin.write(
+      `${JSON.stringify({ type: 'hello', servers: [server('default')] })}\n`,
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    if (!child.snap) {
+      throw new Error('child did not connect');
+    }
+    child.snap(samplesFromSnapshot([player(4, 0, 0, 0)], 0, 'default'));
+    child.snap([]);
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(parseLines(child.lines)).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(
+      parseLines(child.lines).map((row) => [row['slot'], row['endReason']]),
+    ).toEqual([[4, 'disconnect']]);
   });
 
   it('retries a timeout per server and does not retry a pure refusal', async () => {
@@ -96,6 +136,7 @@ async function runSnapshots(
   drive: (
     snap: (players: EntityObservation[]) => void,
     send: (message: unknown) => void,
+    read: () => Record<string, unknown>[],
   ) => Promise<void>,
 ): Promise<Record<string, unknown>[]> {
   const child = startChild(async (options) => {
@@ -117,9 +158,14 @@ async function runSnapshots(
   const send = (message: unknown): void => {
     child.stdin.write(`${JSON.stringify(message)}\n`);
   };
-  await drive(snap, send);
+  const read = (): Record<string, unknown>[] => parseLines(child.lines);
+  await drive(snap, send, read);
   await new Promise((resolve) => setImmediate(resolve));
-  return child.lines
+  return read();
+}
+
+function parseLines(lines: string[]): Record<string, unknown>[] {
+  return lines
     .flatMap((chunk) => chunk.split('\n'))
     .filter((line) => line.length > 0)
     .map((line) => JSON.parse(line) as Record<string, unknown>);

@@ -9,6 +9,7 @@ import {
 } from '@cod2admin/player-watch';
 import {
   parseParentMessage,
+  type ConfirmMessage,
   type HelloServer,
   type MapMessage,
   type ParentMessage,
@@ -31,7 +32,7 @@ interface Connection {
   slots: Set<number>;
   startedAt: Map<number, number>;
   pendingAbsent: Set<number>;
-  absenceTimer?: ReturnType<typeof setImmediate>;
+  absenceTimer?: ReturnType<typeof setTimeout>;
   attempt: number;
   retry?: ReturnType<typeof setTimeout>;
 }
@@ -58,6 +59,8 @@ export interface WatchChildOptions {
 }
 
 const BACKOFF_MS = [1000, 2000, 5000, 15_000, 30_000];
+/** Same window as a fresh parent status. A held absence ends if nothing arrives. */
+const ABSENCE_MS = 10_000;
 
 export function createWatchChild(options: WatchChildOptions): {
   stop(): void;
@@ -89,11 +92,15 @@ export function createWatchChild(options: WatchChildOptions): {
       applyMap(message);
       return Promise.resolve();
     }
+    if (message.type === 'confirm') {
+      applyConfirm(message);
+      return Promise.resolve();
+    }
     return apply(message);
   }
 
   async function apply(
-    message: Exclude<ParentMessage, MapMessage>,
+    message: Exclude<ParentMessage, MapMessage | ConfirmMessage>,
   ): Promise<void> {
     const gen = ++generation;
     const next = new Map(
@@ -254,8 +261,8 @@ export function createWatchChild(options: WatchChildOptions): {
       adoptMap(connection, next);
       return;
     }
-    // The map line is already on the stdin microtask. Absence waits for it.
-    cancelAbsence(connection);
+    clearAbsenceTimer(connection);
+    connection.pendingAbsent.clear();
     for (const slot of [...connection.slots]) {
       const closed = connection.tracker.end(slot, 'map');
       if (closed) {
@@ -290,47 +297,66 @@ export function createWatchChild(options: WatchChildOptions): {
       connection.pendingAbsent.add(slot);
       missing = true;
     }
+    if (connection.pendingAbsent.size === 0) {
+      clearAbsenceTimer(connection);
+      return;
+    }
     if (missing) {
       scheduleAbsence(connection);
     }
+  }
+
+  function applyConfirm(message: ConfirmMessage): void {
+    const connection = connections.get(message.serverAlias);
+    if (!connection || connection.mapName !== message.mapName) {
+      return;
+    }
+    commitAbsence(connection);
   }
 
   function scheduleAbsence(connection: Connection): void {
     if (connection.absenceTimer !== undefined) {
       return;
     }
-    connection.absenceTimer = setImmediate(() => {
+    const timer = setTimeout(() => {
       connection.absenceTimer = undefined;
       if (connections.get(connection.alias) !== connection) {
         return;
       }
-      for (const slot of [...connection.pendingAbsent]) {
-        connection.pendingAbsent.delete(slot);
-        if (!connection.slots.has(slot)) {
-          continue;
-        }
-        const closed = connection.tracker.end(slot, 'disconnect');
-        if (closed) {
-          emitLife(connection, closed);
-        } else {
-          connection.slots.delete(slot);
-          connection.startedAt.delete(slot);
-        }
-      }
-    });
+      commitAbsence(connection);
+    }, ABSENCE_MS);
+    timer.unref();
+    connection.absenceTimer = timer;
   }
 
-  function cancelAbsence(connection: Connection): void {
-    connection.pendingAbsent.clear();
+  function commitAbsence(connection: Connection): void {
+    clearAbsenceTimer(connection);
+    for (const slot of [...connection.pendingAbsent]) {
+      connection.pendingAbsent.delete(slot);
+      if (!connection.slots.has(slot)) {
+        continue;
+      }
+      const closed = connection.tracker.end(slot, 'disconnect');
+      if (closed) {
+        emitLife(connection, closed);
+      } else {
+        connection.slots.delete(slot);
+        connection.startedAt.delete(slot);
+      }
+    }
+  }
+
+  function clearAbsenceTimer(connection: Connection): void {
     if (connection.absenceTimer === undefined) {
       return;
     }
-    clearImmediate(connection.absenceTimer);
+    clearTimeout(connection.absenceTimer);
     connection.absenceTimer = undefined;
   }
 
   function drop(connection: Connection, reason: 'disconnect' | 'map'): void {
-    cancelAbsence(connection);
+    clearAbsenceTimer(connection);
+    connection.pendingAbsent.clear();
     clearRetry(connection);
     for (const slot of [...connection.slots]) {
       const closed = connection.tracker.end(slot, reason);

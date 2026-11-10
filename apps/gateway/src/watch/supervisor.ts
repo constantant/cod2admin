@@ -153,6 +153,8 @@ class Supervisor {
   private lastHello: HelloServer[] = [];
   /** Map name last sent to the child. Null is the tracker's starting map. */
   private readonly childMaps = new Map<string, string | null>();
+  /** Aliases whose status was noted and not yet told to the child. */
+  private readonly noted = new Set<string>();
   private readonly held = new Map<string, HeldStatus>();
   private readonly pending = new Map<string, LifeMessage[]>();
   private readonly observed = new WeakSet<object>();
@@ -231,6 +233,7 @@ class Supervisor {
   ): void {
     this.held.set(alias, { status, fetchedAt });
     this.dirty.add(alias);
+    this.noted.add(alias);
     if (this.draining) {
       return;
     }
@@ -497,9 +500,13 @@ class Supervisor {
 
   /**
    * A map line is only a rename between two real names. The first name is a
-   * reload, which the child adopts without ending open lives. No password.
+   * reload, which the child adopts without ending open lives. A noted status
+   * with the same name confirms the child so a leaver ends as disconnect.
+   * Neither line carries a password.
    */
   private publishMaps(): void {
+    const noted = new Set(this.noted);
+    this.noted.clear();
     const child = this.child;
     if (!child) {
       return;
@@ -510,6 +517,13 @@ class Supervisor {
         this.held.get(server.alias)?.status.mapName?.trim() || null;
       const previous = this.childMaps.get(server.alias) ?? null;
       if (previous === mapName) {
+        if (noted.has(server.alias)) {
+          this.write(child.process, {
+            type: 'confirm',
+            serverAlias: server.alias,
+            mapName,
+          });
+        }
         continue;
       }
       this.childMaps.set(server.alias, mapName);

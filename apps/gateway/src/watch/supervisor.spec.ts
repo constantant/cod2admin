@@ -358,6 +358,14 @@ describe('watch supervisor', () => {
     expect(
       messages(draft.children[0]!).filter((line) => line['type'] === 'map'),
     ).toEqual([]);
+    const confirms = messages(draft.children[0]!).filter(
+      (line) => line['type'] === 'confirm',
+    );
+    expect(confirms).toEqual([
+      { type: 'confirm', serverAlias: 'default', mapName: 'mp_toujane' },
+    ]);
+    expect(JSON.stringify(confirms)).not.toContain(SECRET);
+    expect(JSON.stringify(confirms)).not.toContain(RCON_SECRET);
 
     supervisor.noteStatus(
       'default',
@@ -702,6 +710,13 @@ async function snapshotLife(): Promise<Record<string, unknown>> {
       );
     }
     shoot([]);
+    stdin.write(
+      `${JSON.stringify({
+        type: 'confirm',
+        serverAlias: 'default',
+        mapName: null,
+      })}\n`,
+    );
     await new Promise((resolve) => setImmediate(resolve));
     const parsed = lines
       .flatMap((chunk) => chunk.split('\n'))
