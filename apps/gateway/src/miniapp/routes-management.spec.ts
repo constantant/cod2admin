@@ -24,6 +24,7 @@ import { parsePresets } from './routes-management.js';
 import { createMiniAppServer } from './server.js';
 import type { MiniAppIntegrations } from './state.js';
 import { takeSnapshots } from '../lib/snapshot-poller.js';
+import type { WatchSupervisor } from '../watch/supervisor.js';
 
 const applyUpdate = vi.hoisted(() => ({ run: vi.fn() }));
 vi.mock('../lib/update-apply.js', () => ({
@@ -1310,6 +1311,100 @@ describe('Mini App management routes', () => {
           since: expect.any(Date),
         }),
       );
+    });
+  });
+
+  describe('watch evidence', () => {
+    const row = {
+      id: 'ev-1',
+      serverAlias: 'default',
+      profileKey: 'guid:7',
+      action: 'flag' as const,
+      reason: 'flag',
+      createdAt: new Date('2026-11-10T12:00:00.000Z'),
+      lifeScore: 6.5,
+      features: { snapOnAcquire: 1 },
+      trace: null,
+    };
+
+    function supervisor(listEvidence: WatchSupervisor['listEvidence']) {
+      fake.deps.watchSupervisor = {
+        running: true,
+        sync: async () => undefined,
+        noteStatus: () => undefined,
+        whenIdle: async () => undefined,
+        stop: () => undefined,
+        profileForKick: async () => undefined,
+        listEvidence,
+      };
+    }
+
+    it('returns stored rows for any staff member, including an empty trace', async () => {
+      const listEvidence = vi
+        .fn<WatchSupervisor['listEvidence']>()
+        .mockResolvedValue([row]);
+      supervisor(listEvidence);
+
+      const response = await call(
+        'GET',
+        '/servers/default/watch-evidence?offset=0',
+        MODERATOR,
+      );
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        items: [
+          {
+            id: 'ev-1',
+            profileKey: 'guid:7',
+            action: 'flag',
+            reason: 'flag',
+            lifeScore: 6.5,
+            features: { snapOnAcquire: 1 },
+            createdAt: '2026-11-10T12:00:00.000Z',
+            trace: null,
+          },
+        ],
+        more: false,
+      });
+      expect(listEvidence).toHaveBeenCalledWith('default', 51, 0);
+    });
+
+    it('sets more when another row is waiting', async () => {
+      const listEvidence = vi
+        .fn<WatchSupervisor['listEvidence']>()
+        .mockResolvedValue(
+          Array.from({ length: 51 }, (_, index) => ({
+            ...row,
+            id: `ev-${index}`,
+          })),
+        );
+      supervisor(listEvidence);
+
+      const response = await call(
+        'GET',
+        '/servers/default/watch-evidence?offset=50',
+        MODERATOR,
+      );
+
+      expect(response.statusCode).toBe(200);
+      const body = response.json();
+      expect(body.items).toHaveLength(50);
+      expect(body.more).toBe(true);
+      expect(body.items[0].trace).toBeNull();
+      expect(listEvidence).toHaveBeenCalledWith('default', 51, 50);
+    });
+
+    it('is empty when the watcher never opened its store, and 404s an unknown server', async () => {
+      expect(
+        (
+          await call('GET', '/servers/default/watch-evidence', MODERATOR)
+        ).json(),
+      ).toEqual({ items: [], more: false });
+      expect(
+        (await call('GET', '/servers/gone/watch-evidence', MODERATOR))
+          .statusCode,
+      ).toBe(404);
     });
   });
 });

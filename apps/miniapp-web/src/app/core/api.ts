@@ -38,6 +38,7 @@ import type {
   RelayTestResponse,
   ReportsResponse,
   ResolveReportRequest,
+  WatchEvidenceResponse,
   RotationRequest,
   ServersResponse,
   SetCvarRequest,
@@ -266,6 +267,14 @@ export class ApiService {
   resolveReport(id: number, body: ResolveReportRequest) {
     return this.call<ActionResponse>(
       this.http.post(`/api/reports/${id}/resolve`, body),
+    );
+  }
+
+  watchEvidence(alias: string, offset: number) {
+    return this.call<WatchEvidenceResponse>(
+      this.http.get(`${server(alias)}/watch-evidence`, {
+        params: { offset: String(offset) },
+      }),
     );
   }
 

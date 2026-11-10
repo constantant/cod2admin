@@ -33,6 +33,10 @@ export const appRoutes: Route[] = [
     loadComponent: () => import('./pages/notes/notes').then((m) => m.NotesPage),
   },
   {
+    path: 'watch',
+    loadComponent: () => import('./pages/watch/watch').then((m) => m.WatchPage),
+  },
+  {
     path: 'mutes',
     loadComponent: () => import('./pages/mutes/mutes').then((m) => m.MutesPage),
   },

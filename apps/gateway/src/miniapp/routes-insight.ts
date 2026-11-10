@@ -1,6 +1,10 @@
 import type { AuditLogEntry, PlayerNote, Report } from '@cod2admin/admin-store';
 import { stripColorCodes } from '@cod2admin/rcon-client';
 import { matchPlayersByName } from '@cod2admin/report-pipeline';
+import type {
+  WatchEvidenceRow,
+  WatchLifeFeatures,
+} from '@cod2admin/watch-store';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { GatewayDeps } from '../lib/deps.js';
 import { formatTelegramUser } from '../lib/telegram-user.js';
@@ -20,6 +24,8 @@ import type {
   ReportsResponse,
   ResolveReportRequest,
   UpdateNoteRequest,
+  WatchEvidenceDto,
+  WatchEvidenceResponse,
 } from './api-types.js';
 import { actorLabel, hasPermission, type MiniAppActor } from './auth.js';
 import { summarizeSnapshots } from './dashboard.js';
@@ -88,6 +94,31 @@ function toNoteDto(
       note.createdBy === actor.telegramId ||
       hasPermission(actor, 'notes.manage'),
     updatedAt: note.updatedAt.toISOString(),
+  };
+}
+
+function featureNumbers(features: WatchLifeFeatures): {
+  [name: string]: number;
+} {
+  const out: { [name: string]: number } = {};
+  for (const [name, value] of Object.entries(features)) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      out[name] = value;
+    }
+  }
+  return out;
+}
+
+function toWatchEvidenceDto(row: WatchEvidenceRow): WatchEvidenceDto {
+  return {
+    id: row.id,
+    profileKey: row.profileKey,
+    action: row.action,
+    reason: row.reason,
+    lifeScore: row.lifeScore,
+    features: featureNumbers(row.features),
+    createdAt: row.createdAt.toISOString(),
+    trace: row.trace ?? null,
   };
 }
 
@@ -484,6 +515,31 @@ export function registerInsightRoutes(
           ...ipBans.map((ban) => toIpBanDto(ban, names, deps)),
         ].sort((a, b) => b.bannedAt.localeCompare(a.bannedAt)),
         actions: actions.map(toAuditEntryDto),
+      };
+    },
+  );
+
+  // Staff read, same gate as /reports. Trace stays null until the child sends a window.
+  app.get(
+    '/servers/:server/watch-evidence',
+    async (
+      request: FastifyRequest<{
+        Params: { server: string };
+        Querystring: { offset?: string };
+      }>,
+    ): Promise<WatchEvidenceResponse> => {
+      const alias = request.params.server;
+      serverParam(state, alias);
+      const offset = offsetParam(request.query.offset);
+      const rows =
+        (await deps.watchSupervisor?.listEvidence(
+          alias,
+          PAGE_SIZE + 1,
+          offset,
+        )) ?? [];
+      return {
+        items: rows.slice(0, PAGE_SIZE).map(toWatchEvidenceDto),
+        more: rows.length > PAGE_SIZE,
       };
     },
   );

@@ -24,6 +24,7 @@ import { stripColorCodes, type ServerStatus } from '@cod2admin/rcon-client';
 import {
   createWatchStore,
   migrate as migrateWatchStore,
+  type WatchEvidenceRow,
   type WatchIdentityKind,
   type WatchLifeFeatures,
   type WatchStore,
@@ -61,6 +62,12 @@ export interface WatchSupervisor {
     serverAlias: string,
     profileKey: string,
   ): Promise<{ lastGuid: string | null; distinctNames24h: number } | undefined>;
+  /** Newest first. Empty when the store never opened. */
+  listEvidence(
+    serverAlias: string,
+    limit: number,
+    offset: number,
+  ): Promise<WatchEvidenceRow[]>;
 }
 
 export interface SpawnedWatch {
@@ -212,7 +219,20 @@ class Supervisor {
       stop: () => self.stop(),
       profileForKick: (serverAlias, profileKey) =>
         self.profileForKick(serverAlias, profileKey),
+      // Not on the kick chain: a staff read must not delay a kick.
+      listEvidence: (serverAlias, limit, offset) =>
+        self.listEvidence(serverAlias, limit, offset),
     };
+  }
+
+  listEvidence(
+    serverAlias: string,
+    limit: number,
+    offset: number,
+  ): Promise<WatchEvidenceRow[]> {
+    const store = this.store;
+    if (!store) return Promise.resolve([]);
+    return store.listEvidence(serverAlias, limit, offset);
   }
 
   async open(): Promise<void> {

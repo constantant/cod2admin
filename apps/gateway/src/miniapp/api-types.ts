@@ -459,6 +459,28 @@ export interface ResolveReportRequest {
   outcome?: string;
 }
 
+// ── Watch evidence ──────────────────────────────────────────────────────────────────────────
+
+export type WatchEvidenceActionDto = 'flag' | 'report' | 'kick' | 'suppressed';
+
+export interface WatchEvidenceDto {
+  id: string;
+  profileKey: string;
+  action: WatchEvidenceActionDto;
+  reason: string | null;
+  lifeScore: number;
+  /** Feature numbers. Absent keys were not observed. */
+  features: { [name: string]: number };
+  createdAt: string;
+  /** Angle window. Null until the child sends one. */
+  trace: unknown;
+}
+
+export interface WatchEvidenceResponse {
+  items: WatchEvidenceDto[];
+  more: boolean;
+}
+
 // ── Player notes & history ──────────────────────────────────────────────────────────────────
 
 export type NoteKind = 'guid' | 'ip' | 'name';

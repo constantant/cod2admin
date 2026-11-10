@@ -554,6 +554,54 @@ describe('watch-store', () => {
     });
   });
 
+  describe('evidence list', () => {
+    it('returns one server, newest first, and keeps a null trace', async () => {
+      const older = await store.recordEvidence({
+        serverAlias: SERVER,
+        profileKey: 'guid:1',
+        action: 'flag',
+        reason: 'flag',
+        createdAt: new Date(NOW.getTime() - 1000),
+        lifeScore: 4,
+        features: { snapOnAcquire: 2 },
+      });
+      const newer = await store.recordEvidence({
+        serverAlias: SERVER,
+        profileKey: 'ip:203.0.113.9',
+        action: 'suppressed',
+        reason: 'cooldown',
+        createdAt: NOW,
+        lifeScore: 5.5,
+        features: { speedOverG: 1 },
+        trace: { mark: 1 },
+      });
+      await store.recordEvidence({
+        serverAlias: 'other',
+        profileKey: 'guid:1',
+        action: 'kick',
+        reason: 'sent',
+        createdAt: NOW,
+        lifeScore: 9,
+        features: {},
+      });
+
+      const rows = await store.listEvidence(SERVER, 10, 0);
+      expect(rows.map((row) => row.id)).toEqual([newer, older]);
+      expect(rows[0]).toMatchObject({
+        profileKey: 'ip:203.0.113.9',
+        action: 'suppressed',
+        reason: 'cooldown',
+        lifeScore: 5.5,
+        features: { speedOverG: 1 },
+        trace: { mark: 1 },
+      });
+      expect(rows[1]?.trace).toBeNull();
+      expect(await store.listEvidence(SERVER, 1, 1)).toMatchObject([
+        { id: older, trace: null },
+      ]);
+    });
+  });
+
   describe('retention', () => {
     it('drops lives and population days after 14 days and evidence after 90 days', async () => {
       const key = 'hwid:99';

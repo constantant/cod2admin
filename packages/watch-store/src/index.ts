@@ -11,6 +11,7 @@ export type {
   WatchCaps,
   WatchEndReason,
   WatchEvidenceAction,
+  WatchEvidenceRow,
   WatchFeature,
   WatchIdentityKind,
   WatchLifeFeatures,

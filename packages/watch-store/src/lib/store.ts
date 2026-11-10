@@ -20,6 +20,7 @@ import type {
   WatchCaps,
   WatchEndReason,
   WatchEvidenceAction,
+  WatchEvidenceRow,
   WatchFeature,
   WatchIdentityKind,
   WatchLifeFeatures,
@@ -551,6 +552,55 @@ export class DrizzleWatchStore implements WatchStore {
       reportId: input.reportId ?? null,
     });
     return id;
+  }
+
+  async listEvidence(
+    serverAlias: string,
+    limit: number,
+    offset: number,
+  ): Promise<WatchEvidenceRow[]> {
+    const alias = requireText(serverAlias, 'serverAlias');
+    const n = requireCount(limit, 'limit');
+    const skip = requireCount(offset, 'offset');
+    if (n === 0) return [];
+    const rows = await this.db
+      .select({
+        id: watchEvidence.id,
+        serverAlias: watchEvidence.serverAlias,
+        profileKey: watchEvidence.profileKey,
+        action: watchEvidence.action,
+        reason: watchEvidence.reason,
+        createdAt: watchEvidence.createdAt,
+        lifeScore: watchEvidence.lifeScore,
+        features: watchEvidence.features,
+        trace: watchEvidence.trace,
+      })
+      .from(watchEvidence)
+      .where(eq(watchEvidence.serverAlias, alias))
+      .orderBy(desc(watchEvidence.createdAt), desc(watchEvidence.id))
+      .limit(n)
+      .offset(skip);
+    return rows.flatMap((row) => {
+      const action = (EVIDENCE_ACTIONS as readonly string[]).includes(
+        row.action,
+      )
+        ? (row.action as WatchEvidenceAction)
+        : undefined;
+      if (!action || !Number.isFinite(Number(row.lifeScore))) return [];
+      return [
+        {
+          id: row.id,
+          serverAlias: row.serverAlias,
+          profileKey: row.profileKey,
+          action,
+          reason: row.reason,
+          createdAt: row.createdAt,
+          lifeScore: Number(row.lifeScore),
+          features: row.features ?? {},
+          trace: row.trace ?? null,
+        },
+      ];
+    });
   }
 
   async loadCaps(input: {

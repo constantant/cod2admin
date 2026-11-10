@@ -1240,6 +1240,24 @@ function memoryStore(): Memory {
         .reverse()
         .map((life) => ({ lifeScore: life.lifeScore, endedAt: life.endedAt }));
     },
+    async listEvidence(serverAlias, limit, offset) {
+      return evidence
+        .map((row, index) => ({ row, index }))
+        .filter((entry) => entry.row.serverAlias === serverAlias)
+        .sort((a, b) => b.row.createdAt.getTime() - a.row.createdAt.getTime())
+        .slice(offset, offset + limit)
+        .map(({ row, index }) => ({
+          id: `ev-${index + 1}`,
+          serverAlias: row.serverAlias,
+          profileKey: row.profileKey,
+          action: row.action,
+          reason: row.reason ?? null,
+          createdAt: row.createdAt,
+          lifeScore: row.lifeScore,
+          features: row.features,
+          trace: row.trace === undefined ? null : row.trace,
+        }));
+    },
     async pruneWatchRetention() {
       return undefined;
     },

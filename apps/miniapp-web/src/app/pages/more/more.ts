@@ -48,6 +48,12 @@ const LINKS: readonly Link[] = [
     icon: 'eye',
   },
   {
+    path: '/watch',
+    label: 'Watch evidence',
+    hint: 'Scores the watcher stored',
+    icon: 'flag',
+  },
+  {
     path: '/servers',
     label: 'Servers',
     hint: 'Every server the bot manages',

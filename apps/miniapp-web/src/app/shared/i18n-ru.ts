@@ -79,6 +79,8 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
   'Switch map, restart, edit the rotation': 'Смена карты, перезапуск, ротация',
   'Browse, edit, lift, add': 'Просмотр, изменение, снятие, добавление',
   'Keep an eye on a player': 'Присмотреть за игроком',
+  'Watch evidence': 'Записи наблюдателя',
+  'Scores the watcher stored': 'Оценки, которые он сохранил',
   'Every server the bot manages': 'Все серверы бота',
   'What the server reports': 'Что сообщает сервер',
   'Kick VPN players, exceptions, networks': 'Кик за VPN, исключения, сети',
@@ -246,6 +248,15 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
   'IP temp-banned (GUID unavailable)': 'Временно забанен по IP (нет GUID)',
   'Ignored.': 'Проигнорировано.',
   'Marked as handled.': 'Отмечено как решённая.',
+
+  // Watch evidence
+  'Scores and reasons the watcher stored for this server. The angle window is empty until a later change sends one.':
+    'Оценки и причины, которые наблюдатель сохранил для этого сервера. Окно углов пустое, пока более поздняя версия не начнёт его присылать.',
+  'Life score': 'Оценка жизни',
+  Profile: 'Профиль',
+  'No angle trace stored.': 'Окно углов не сохранено.',
+  'No watch evidence on this server yet.':
+    'На этом сервере пока нет записей наблюдателя.',
 
   // Notes
   'Name, IP, GUID or text': 'Имя, IP, GUID или текст',

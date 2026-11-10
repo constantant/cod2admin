@@ -81,6 +81,19 @@ export interface RecordEvidenceInput {
   reportId?: number | null;
 }
 
+/** One stored decision. `trace` is null when no angle window was kept. */
+export interface WatchEvidenceRow {
+  id: string;
+  serverAlias: string;
+  profileKey: string;
+  action: WatchEvidenceAction;
+  reason: string | null;
+  createdAt: Date;
+  lifeScore: number;
+  features: WatchLifeFeatures;
+  trace: unknown;
+}
+
 /**
  * Caps the parent passes to `decide`. Cards and kicks are per server.
  * The cooldown is per profile. Only `flag`, `report`, and `kick` count.
@@ -117,6 +130,12 @@ export interface WatchStore {
     query: PopulationQuery & { value: number },
   ): Promise<number | undefined>;
   recordEvidence(input: RecordEvidenceInput): Promise<string>;
+  /** Newest first. `trace` is whatever was stored, including null. */
+  listEvidence(
+    serverAlias: string,
+    limit: number,
+    offset: number,
+  ): Promise<WatchEvidenceRow[]>;
   /**
    * `cardsThisHour` and `kickedThisHour` count the whole server.
    * `cooldownActive` is only this profile. Suppressed rows count toward neither.
