@@ -258,6 +258,23 @@ describe('watch-store', () => {
       ).rejects.toThrow(/profileKey/);
       expect(await countRows('watch_lives')).toBe(0);
     });
+
+    it('rejects guid 0 and hwid 0 and still stores an ip key', async () => {
+      await expect(
+        store.recordLife(
+          life({ profileKey: 'guid:0', kind: 'guid', endedAt: NOW }),
+        ),
+      ).rejects.toThrow('profileKey cannot be guid:0');
+      await expect(
+        store.recordLife(
+          life({ profileKey: 'hwid:0', kind: 'hwid', endedAt: NOW }),
+        ),
+      ).rejects.toThrow('profileKey cannot be hwid:0');
+      await store.recordLife(
+        life({ profileKey: 'ip:0', kind: 'ip', endedAt: NOW }),
+      );
+      expect(await countRows('watch_lives')).toBe(1);
+    });
   });
 
   describe('population', () => {
@@ -374,7 +391,7 @@ describe('watch-store', () => {
       ).resolves.toBeUndefined();
     });
 
-    it('keeps the UTC day of the 14-day cutoff inside the window', async () => {
+    it('leaves out boundary-day samples older than 14 days', async () => {
       await recordValues(
         'ip:10.3.0.1',
         'mp_edge',
@@ -384,17 +401,24 @@ describe('watch-store', () => {
       await recordValues(
         'ip:10.3.0.1',
         'mp_edge',
-        [2],
+        [4],
+        new Date('2026-10-27T12:00:00.000Z'),
+      );
+      await recordValues(
+        'ip:10.3.0.1',
+        'mp_edge',
+        [9],
         new Date('2026-10-26T23:00:00.000Z'),
       );
 
-      const moments = await store.populationMoments({
-        serverAlias: SERVER,
-        mapName: 'mp_edge',
-        feature: 'speedOverG',
-        now: NOW,
-      });
-      expect(moments.n).toBe(1);
+      await expect(
+        store.populationMoments({
+          serverAlias: SERVER,
+          mapName: 'mp_edge',
+          feature: 'speedOverG',
+          now: NOW,
+        }),
+      ).resolves.toEqual({ n: 1, mean: 4, m2: 0 });
     });
   });
 
@@ -540,6 +564,14 @@ describe('watch-store', () => {
 
       const before = await store.getProfile(SERVER, key);
       expect(before?.lifeCount).toBe(4);
+      await expect(
+        store.populationMoments({
+          serverAlias: SERVER,
+          mapName: 'mp_toujane',
+          feature: 'speedOverG',
+          now: NOW,
+        }),
+      ).resolves.toEqual({ n: 2, mean: 2, m2: 2 });
 
       await store.pruneWatchRetention(NOW);
 
@@ -552,13 +584,19 @@ describe('watch-store', () => {
         '2026-11-09T12:00:00.000Z',
       ]);
 
-      const days = await pool.query<{ day: string }>(
-        `SELECT day::text AS day FROM watch_population_days WHERE server_alias = $1 ORDER BY day`,
+      const days = await pool.query<{
+        day: string;
+        n: number;
+        mean: number;
+        m2: number;
+      }>(
+        `SELECT day::text AS day, n, mean, m2 FROM watch_population_days
+         WHERE server_alias = $1 ORDER BY day`,
         [SERVER],
       );
-      expect(days.rows.map((row) => row.day)).toEqual([
-        '2026-10-27',
-        '2026-11-09',
+      expect(days.rows).toEqual([
+        { day: '2026-10-27', n: 1, mean: 1, m2: 0 },
+        { day: '2026-11-09', n: 1, mean: 3, m2: 0 },
       ]);
 
       const evidence = await pool.query<{ reason: string }>(

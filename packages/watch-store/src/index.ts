@@ -1,5 +1,5 @@
 export { migrate } from './lib/migrate.js';
-export { createWatchStore, pruneWatchRetention } from './lib/store.js';
+export { createWatchStore } from './lib/store.js';
 export type {
   PopulationMoments,
   PopulationQuery,

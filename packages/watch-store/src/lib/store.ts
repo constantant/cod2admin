@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq, gte, lt, sql } from 'drizzle-orm';
+import { and, eq, gte, isNotNull, lt, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import {
@@ -68,32 +68,15 @@ function requireDate(value: Date, label: string): Date {
   return value;
 }
 
-function requireKind(value: string): WatchIdentityKind {
-  if (!(IDENTITY_KINDS as readonly string[]).includes(value)) {
-    throw new Error(`kind must be one of ${IDENTITY_KINDS.join(', ')}`);
+function requireOneOf<T extends string>(
+  value: string,
+  allowed: readonly T[],
+  label: string,
+): T {
+  if (!(allowed as readonly string[]).includes(value)) {
+    throw new Error(`${label} must be one of ${allowed.join(', ')}`);
   }
-  return value as WatchIdentityKind;
-}
-
-function requireEndReason(value: string): WatchEndReason {
-  if (!(END_REASONS as readonly string[]).includes(value)) {
-    throw new Error(`endReason must be one of ${END_REASONS.join(', ')}`);
-  }
-  return value as WatchEndReason;
-}
-
-function requireAction(value: string): WatchEvidenceAction {
-  if (!(EVIDENCE_ACTIONS as readonly string[]).includes(value)) {
-    throw new Error(`action must be one of ${EVIDENCE_ACTIONS.join(', ')}`);
-  }
-  return value as WatchEvidenceAction;
-}
-
-function requireFeature(value: string): WatchFeature {
-  if (!(WATCH_FEATURES as readonly string[]).includes(value)) {
-    throw new Error(`Unknown watch feature: ${value}`);
-  }
-  return value as WatchFeature;
+  return value as T;
 }
 
 function requireCount(value: number, label: string): number {
@@ -110,9 +93,12 @@ function requireFinite(value: number, label: string): number {
   return value;
 }
 
-/** UTC calendar day. Population buckets and the 14-day window are both whole days. */
 function utcDay(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+function nextUtcDay(day: string): Date {
+  return new Date(new Date(`${day}T00:00:00.000Z`).getTime() + DAY_MS);
 }
 
 function isMoments(value: unknown): value is PopulationMoments {
@@ -157,14 +143,6 @@ function finiteFeatures(
     found.push([feature, requireFinite(value, feature)]);
   }
   return found;
-}
-
-function featurePayload(features: WatchLifeFeatures): WatchLifeFeatures {
-  const payload: WatchLifeFeatures = {};
-  for (const [feature, value] of finiteFeatures(features)) {
-    payload[feature] = value;
-  }
-  return payload;
 }
 
 /** Parallel Welford merge. A point is `{ n: 1, mean: value, m2: 0 }`. */
@@ -218,33 +196,67 @@ function optionalText(
   return requireText(value, label);
 }
 
-/**
- * Deletes lives and population days older than 14 days, and evidence older than 90 days.
- * Profiles and name rows stay. Name expiry is the 24-hour read, not this delete.
- * The day of `now - 14 days` is kept: a population row is one UTC day, not an instant.
- */
-async function deleteExpired(db: NodePgDatabase, now: Date): Promise<void> {
-  const at = requireDate(now, 'now');
-  const lifeCutoff = new Date(at.getTime() - LIFE_RETENTION_MS);
-  const evidenceCutoff = new Date(at.getTime() - EVIDENCE_RETENTION_MS);
-  const oldestDay = utcDay(lifeCutoff);
-  await db.transaction(async (tx) => {
-    await tx.delete(watchLives).where(lt(watchLives.endedAt, lifeCutoff));
-    await tx
-      .delete(watchPopulationDays)
-      .where(sql`${watchPopulationDays.day} < ${oldestDay}::date`);
-    await tx
-      .delete(watchEvidence)
-      .where(lt(watchEvidence.createdAt, evidenceCutoff));
-  });
+interface BoundaryLife {
+  serverAlias: string;
+  mapName: string | null;
+  features: WatchLifeFeatures;
 }
 
-/** Retention scheduler body. Does not start a timer. */
-export async function pruneWatchRetention(
-  db: NodePgDatabase,
-  now: Date,
-): Promise<void> {
-  await deleteExpired(db, now);
+interface RebuiltBucket {
+  serverAlias: string;
+  mapName: string;
+  feature: WatchFeature;
+  moments: PopulationMoments;
+}
+
+/** Lives still inside 14 days that share the cutoff's UTC day. */
+async function selectKeptBoundaryLives(
+  db: Pick<NodePgDatabase, 'select'>,
+  cutoff: Date,
+  oldestDay: string,
+  scope?: { serverAlias: string; mapName: string },
+): Promise<BoundaryLife[]> {
+  return db
+    .select({
+      serverAlias: watchLives.serverAlias,
+      mapName: watchLives.mapName,
+      features: watchLives.features,
+    })
+    .from(watchLives)
+    .where(
+      and(
+        eq(watchLives.excludedFromPopulation, false),
+        isNotNull(watchLives.mapName),
+        gte(watchLives.endedAt, cutoff),
+        lt(watchLives.endedAt, nextUtcDay(oldestDay)),
+        scope === undefined
+          ? undefined
+          : eq(watchLives.serverAlias, scope.serverAlias),
+        scope === undefined ? undefined : eq(watchLives.mapName, scope.mapName),
+      ),
+    );
+}
+
+function foldBuckets(lives: readonly BoundaryLife[]): RebuiltBucket[] {
+  const buckets = new Map<string, RebuiltBucket>();
+  for (const life of lives) {
+    if (life.mapName === null) continue;
+    const features = life.features;
+    if (typeof features !== 'object' || features === null) continue;
+    for (const feature of WATCH_FEATURES) {
+      const value = features[feature];
+      if (typeof value !== 'number' || !Number.isFinite(value)) continue;
+      const id = `${life.serverAlias}\0${life.mapName}\0${feature}`;
+      const existing = buckets.get(id);
+      buckets.set(id, {
+        serverAlias: life.serverAlias,
+        mapName: life.mapName,
+        feature,
+        moments: observe(existing?.moments, value),
+      });
+    }
+  }
+  return [...buckets.values()];
 }
 
 export class DrizzleWatchStore implements WatchStore {
@@ -258,19 +270,25 @@ export class DrizzleWatchStore implements WatchStore {
 
   async recordLife(input: RecordLifeInput): Promise<void> {
     const serverAlias = requireText(input.serverAlias, 'serverAlias');
-    const kind = requireKind(input.kind);
+    const kind = requireOneOf(input.kind, IDENTITY_KINDS, 'kind');
     const profileKey = requireText(input.profileKey, 'profileKey');
     const prefix = `${kind}:`;
     if (!profileKey.startsWith(prefix) || profileKey.length === prefix.length) {
       throw new Error('profileKey must be the kind prefix plus an id');
     }
-    const endReason = requireEndReason(input.endReason);
+    if (
+      (kind === 'guid' || kind === 'hwid') &&
+      profileKey.slice(prefix.length) === '0'
+    ) {
+      throw new Error(`profileKey cannot be ${kind}:0`);
+    }
+    const endReason = requireOneOf(input.endReason, END_REASONS, 'endReason');
     const startedAt = requireDate(input.startedAt, 'startedAt');
     const endedAt = requireDate(input.endedAt, 'endedAt');
     const mapName =
       input.mapName === null ? null : requireText(input.mapName, 'mapName');
-    const features = featurePayload(input.features);
-    const observed = finiteFeatures(features);
+    const observed = finiteFeatures(input.features);
+    const features = Object.fromEntries(observed) as WatchLifeFeatures;
     const lifeScore =
       input.lifeScore === null
         ? null
@@ -458,7 +476,7 @@ export class DrizzleWatchStore implements WatchStore {
     return {
       serverAlias: row.serverAlias,
       profileKey: row.profileKey,
-      kind: requireKind(row.kind),
+      kind: requireOneOf(row.kind, IDENTITY_KINDS, 'kind'),
       displayName: row.displayName,
       lastGuid: row.lastGuid,
       lastIp: row.lastIp,
@@ -500,10 +518,12 @@ export class DrizzleWatchStore implements WatchStore {
   async recordEvidence(input: RecordEvidenceInput): Promise<void> {
     const serverAlias = requireText(input.serverAlias, 'serverAlias');
     const profileKey = requireText(input.profileKey, 'profileKey');
-    const action = requireAction(input.action);
+    const action = requireOneOf(input.action, EVIDENCE_ACTIONS, 'action');
     const createdAt = requireDate(input.createdAt, 'createdAt');
     const lifeScore = requireFinite(input.lifeScore, 'lifeScore');
-    const features = featurePayload(input.features);
+    const features = Object.fromEntries(
+      finiteFeatures(input.features),
+    ) as WatchLifeFeatures;
     const reason =
       input.reason == null ? null : requireText(input.reason, 'reason');
     if (input.reportId != null && !Number.isSafeInteger(input.reportId)) {
@@ -524,7 +544,37 @@ export class DrizzleWatchStore implements WatchStore {
   }
 
   async pruneWatchRetention(now: Date): Promise<void> {
-    await deleteExpired(this.db, now);
+    const at = requireDate(now, 'now');
+    const lifeCutoff = new Date(at.getTime() - LIFE_RETENTION_MS);
+    const evidenceCutoff = new Date(at.getTime() - EVIDENCE_RETENTION_MS);
+    const oldestDay = utcDay(lifeCutoff);
+    await this.db.transaction(async (tx) => {
+      await tx.delete(watchLives).where(lt(watchLives.endedAt, lifeCutoff));
+      // The cutoff falls inside this UTC day, so the stored bucket still mixes
+      // lives that were just deleted with lives that are not yet 14 days old.
+      const lives = await selectKeptBoundaryLives(tx, lifeCutoff, oldestDay);
+      const rebuilt = foldBuckets(lives);
+      await tx
+        .delete(watchPopulationDays)
+        .where(sql`${watchPopulationDays.day} <= ${oldestDay}::date`);
+      if (rebuilt.length > 0) {
+        await tx.insert(watchPopulationDays).values(
+          rebuilt.map((bucket) => ({
+            serverAlias: bucket.serverAlias,
+            mapName: bucket.mapName,
+            weaponClass: WEAPON_CLASS_ALL,
+            feature: bucket.feature,
+            day: oldestDay,
+            n: bucket.moments.n,
+            mean: bucket.moments.mean,
+            m2: bucket.moments.m2,
+          })),
+        );
+      }
+      await tx
+        .delete(watchEvidence)
+        .where(lt(watchEvidence.createdAt, evidenceCutoff));
+    });
   }
 
   async close(): Promise<void> {
@@ -534,11 +584,12 @@ export class DrizzleWatchStore implements WatchStore {
   private async populationRows(query: PopulationQuery) {
     const serverAlias = requireText(query.serverAlias, 'serverAlias');
     const mapName = requireText(query.mapName, 'mapName');
-    const feature = requireFeature(query.feature);
+    const feature = requireOneOf(query.feature, WATCH_FEATURES, 'feature');
     const at = requireDate(query.now, 'now');
-    const oldestDay = utcDay(new Date(at.getTime() - LIFE_RETENTION_MS));
+    const lifeCutoff = new Date(at.getTime() - LIFE_RETENTION_MS);
+    const oldestDay = utcDay(lifeCutoff);
     const newestDay = utcDay(at);
-    return this.db
+    const stored = await this.db
       .select({
         n: watchPopulationDays.n,
         mean: watchPopulationDays.mean,
@@ -551,9 +602,17 @@ export class DrizzleWatchStore implements WatchStore {
           eq(watchPopulationDays.mapName, mapName),
           eq(watchPopulationDays.weaponClass, WEAPON_CLASS_ALL),
           eq(watchPopulationDays.feature, feature),
-          sql`${watchPopulationDays.day} >= ${oldestDay}::date AND ${watchPopulationDays.day} <= ${newestDay}::date`,
+          sql`${watchPopulationDays.day} > ${oldestDay}::date AND ${watchPopulationDays.day} <= ${newestDay}::date`,
         ),
       );
+    const boundary = foldBuckets(
+      await selectKeptBoundaryLives(this.db, lifeCutoff, oldestDay, {
+        serverAlias,
+        mapName,
+      }),
+    ).find((bucket) => bucket.feature === feature);
+    if (boundary === undefined) return stored;
+    return [...stored, boundary.moments];
   }
 }
 
