@@ -115,7 +115,10 @@ describe('hasPermission', () => {
 
   it('does not treat a moderator-shaped set as a ban', () => {
     expect(
-      hasPermission({ isOwner: false, permissions: ['kick', 'tempban', 'mute'] }, 'ban'),
+      hasPermission(
+        { isOwner: false, permissions: ['kick', 'tempban', 'mute'] },
+        'ban',
+      ),
     ).toBe(false);
     expect(
       OWNER_GRANTED_PERMISSIONS.includes('rcon') &&
