@@ -264,6 +264,9 @@ export function createBot(
       sessionsByServer: deps.sessionsByServer,
       reportQueue: deps.reportQueue,
       chatTemplates: deps.chatTemplates,
+      watchLookup: (serverAlias, profileKey) =>
+        deps.watchSupervisor?.profileForKick(serverAlias, profileKey) ??
+        Promise.resolve(undefined),
       describeIp: (ip) =>
         joinIpLabels(
           joinCountryAndProvider(

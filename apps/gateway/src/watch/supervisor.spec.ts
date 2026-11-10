@@ -435,6 +435,62 @@ describe('watch supervisor', () => {
     },
   );
 
+  it.each([
+    [
+      'stopped',
+      (_draft: Draft, supervisor: WatchSupervisor) => {
+        supervisor.stop();
+      },
+    ],
+    [
+      'disabled',
+      (draft: Draft) => {
+        const watch = draft.servers[0]?.watch;
+        if (!watch) {
+          throw new Error('missing watch');
+        }
+        watch.enabled = false;
+      },
+    ],
+    [
+      'mode',
+      (draft: Draft) => {
+        const watch = draft.servers[0]?.watch;
+        if (!watch) {
+          throw new Error('missing watch');
+        }
+        watch.mode = 'flag';
+      },
+    ],
+  ] as const)(
+    'does not kick when the watch is %s after the fresh status',
+    async (reason, apply) => {
+      let supervisor: WatchSupervisor | undefined;
+      const harness = await armed('kick', {
+        prepare(ready) {
+          ready.rcon.status.mockImplementation(async () => {
+            apply(ready, supervisor as WatchSupervisor);
+            ready.nowMs = NOW + 1000;
+            return { raw: '', mapName: 'mp_toujane', players: [PLAYER] };
+          });
+        },
+      });
+      supervisor = harness.supervisor;
+      await feed(
+        harness.supervisor,
+        harness.draft,
+        kickLife({ endedAtMs: NOW }),
+      );
+      expect(harness.draft.rcon.kick).not.toHaveBeenCalled();
+      expect(
+        harness.draft.memory.evidence.map((row) => [row.action, row.reason]),
+      ).toEqual([['suppressed', reason]]);
+      expect(harness.draft.adminStore.recordAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'watch_kick_suppressed' }),
+      );
+    },
+  );
+
   it('ignores an IPC selfLives claim when the stored count is 0', async () => {
     const { draft, supervisor } = await armed('kick');
     draft.memory.profiles.clear();

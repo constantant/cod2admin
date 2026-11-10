@@ -351,6 +351,9 @@ describe('reportActionCallback', () => {
       expect.objectContaining({ num: 1, name: 'Cheatr123' }),
       expect.objectContaining({ source: 'telegram_button' }),
     );
+    expect(
+      vi.mocked(executeModerationAction).mock.calls[0]?.[2],
+    ).not.toHaveProperty('slotOnly');
     expect(ctx.editMessageText).toHaveBeenCalledWith(
       expect.stringContaining('Kicked Cheatr123'),
     );
@@ -622,5 +625,136 @@ describe('reportActionCallback', () => {
         text: expect.stringContaining('no longer configured'),
       }),
     );
+  });
+
+  it('watch-card Kick clientkicks only a fresh one-row match', async () => {
+    vi.mocked(executeModerationAction).mockResolvedValue({
+      label: 'Kicked',
+      ipFallback: false,
+    });
+    const { deps, registry } = baseDeps();
+    const rcon = deps.rconClients.get('default');
+    expect(rcon).toBeDefined();
+    deps.watchLookup = vi.fn(async () => ({
+      lastGuid: 'abc',
+      distinctNames24h: 1,
+    }));
+    registry.setWatch('1', {
+      origin: 'watch',
+      chatId: 1,
+      messageId: 1,
+      serverAlias: 'default',
+      evidenceId: 'ev-1',
+      profileKey: 'guid:abc',
+      target: { num: 4, name: 'Cheater', guid: 'abc' },
+    });
+    rcon!.status = vi.fn().mockResolvedValue({
+      raw: '',
+      players: [
+        statusPlayer({ num: 4, name: 'Innocent', guid: '0' }),
+        statusPlayer({ num: 9, name: '^1Cheater', guid: 'abc' }),
+      ],
+    });
+    const ctx = createFakeCallbackCtx({ callbackData: 'report:1:kick' });
+
+    await reportActionCallback(ctx, deps);
+
+    expect(executeModerationAction).toHaveBeenCalledTimes(1);
+    expect(executeModerationAction).toHaveBeenCalledWith(
+      'kick',
+      expect.objectContaining({ num: 9, name: 'Cheater' }),
+      expect.objectContaining({
+        slotOnly: true,
+        source: 'telegram_button',
+        actorTelegramId: 1,
+      }),
+    );
+    const options = vi.mocked(executeModerationAction).mock.calls[0]?.[2];
+    expect(options?.auditAction).toBeUndefined();
+    expect(options?.chatTemplateId).toBeUndefined();
+    expect(ctx.editMessageText).toHaveBeenCalledWith(
+      expect.stringContaining('Kicked Cheater'),
+    );
+
+    vi.mocked(executeModerationAction).mockClear();
+    registry.setWatch('2', {
+      origin: 'watch',
+      chatId: 1,
+      messageId: 2,
+      serverAlias: 'default',
+      evidenceId: 'ev-2',
+      profileKey: 'ip:203.0.113.8',
+      target: { num: 4, name: 'Cheater', ip: '203.0.113.8' },
+    });
+    deps.watchLookup = vi.fn(async () => ({
+      lastGuid: null,
+      distinctNames24h: 1,
+    }));
+    rcon!.status = vi.fn().mockResolvedValue({
+      raw: '',
+      players: [
+        statusPlayer({ num: 4, name: 'Cheater', guid: '0', ip: '203.0.113.8' }),
+        statusPlayer({ num: 5, name: 'Other', guid: '0', ip: '203.0.113.8' }),
+      ],
+    });
+    const missed = createFakeCallbackCtx({ callbackData: 'report:2:kick' });
+
+    await reportActionCallback(missed, deps);
+
+    expect(executeModerationAction).not.toHaveBeenCalled();
+    expect(registry.getWatch('2')).toBeDefined();
+    expect(missed.answerCallbackQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ show_alert: true }),
+    );
+
+    registry.setWatch('3', {
+      origin: 'watch',
+      chatId: 1,
+      messageId: 3,
+      serverAlias: 'default',
+      evidenceId: 'ev-3',
+      profileKey: 'hwid:99',
+      target: { num: 4, name: 'Cheater' },
+    });
+    deps.watchLookup = vi.fn(async () => ({
+      lastGuid: '0',
+      distinctNames24h: 1,
+    }));
+    rcon!.status = vi.fn().mockResolvedValue({
+      raw: '',
+      players: [
+        statusPlayer({ num: 4, name: 'Cheater', guid: '0', ip: '203.0.113.8' }),
+      ],
+    });
+    await reportActionCallback(
+      createFakeCallbackCtx({ callbackData: 'report:3:kick' }),
+      deps,
+    );
+    expect(executeModerationAction).not.toHaveBeenCalled();
+
+    registry.setWatch('4', {
+      origin: 'watch',
+      chatId: 1,
+      messageId: 4,
+      serverAlias: 'default',
+      evidenceId: 'ev-4',
+      profileKey: 'ip:203.0.113.8',
+      target: { num: 4, name: 'Cheater', ip: '203.0.113.8' },
+    });
+    deps.watchLookup = vi.fn(async () => ({
+      lastGuid: null,
+      distinctNames24h: 0,
+    }));
+    rcon!.status = vi.fn().mockResolvedValue({
+      raw: '',
+      players: [
+        statusPlayer({ num: 4, name: 'Cheater', guid: '0', ip: '203.0.113.8' }),
+      ],
+    });
+    await reportActionCallback(
+      createFakeCallbackCtx({ callbackData: 'report:4:kick' }),
+      deps,
+    );
+    expect(executeModerationAction).not.toHaveBeenCalled();
   });
 });

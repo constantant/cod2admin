@@ -20,11 +20,7 @@ import {
   type CardSender,
   type MachineReport,
 } from '@cod2admin/report-pipeline';
-import {
-  stripColorCodes,
-  type ServerStatus,
-  type StatusPlayer,
-} from '@cod2admin/rcon-client';
+import { stripColorCodes, type ServerStatus } from '@cod2admin/rcon-client';
 import {
   createWatchStore,
   migrate as migrateWatchStore,
@@ -41,6 +37,7 @@ import {
   type HelloServer,
   type LifeMessage,
 } from './ipc.js';
+import { matchKickSlot, watchIdentityKind } from './match-kick.js';
 
 /** Same window as player-identity: a ban-sweep status is reused, not re-fetched. */
 const FRESH_STATUS_MS = 10_000;
@@ -56,6 +53,14 @@ export interface WatchSupervisor {
   noteStatus(alias: string, status: ServerStatus, fetchedAt?: number): void;
   whenIdle(): Promise<void>;
   stop(): void;
+  /**
+   * Profile guid and name count for a watch-card Kick. Undefined when the
+   * store never opened.
+   */
+  profileForKick(
+    serverAlias: string,
+    profileKey: string,
+  ): Promise<{ lastGuid: string | null; distinctNames24h: number } | undefined>;
 }
 
 export interface SpawnedWatch {
@@ -205,6 +210,8 @@ class Supervisor {
         self.noteStatus(alias, status, fetchedAt),
       whenIdle: () => self.chain,
       stop: () => self.stop(),
+      profileForKick: (serverAlias, profileKey) =>
+        self.profileForKick(serverAlias, profileKey),
     };
   }
 
@@ -707,7 +714,7 @@ class Supervisor {
       statusFetchedAt: held.fetchedAt,
     });
     const key = identity.key;
-    const kind = key ? identityKind(key) : undefined;
+    const kind = key ? watchIdentityKind(key) : undefined;
     if (!key || !kind) {
       this.hold(life);
       return;
@@ -983,7 +990,7 @@ class Supervisor {
     lifeScore: number;
     features: WatchLifeFeatures;
   }): Promise<void> {
-    const { life, server, watch, client, key, kind, target } = input;
+    const { life, client, key, kind, target } = input;
     if (life.endReason !== 'death') {
       await this.suppressKick(input, 'not_death');
       return;
@@ -997,6 +1004,20 @@ class Supervisor {
       await this.suppressKick(input, 'stale_status');
       return;
     }
+    // The status round trip can outlive a disable, a mode change, or stop().
+    const armed = await this.kickStillArmed(life.serverAlias, key);
+    if (!armed.ok) {
+      await this.suppressKick(
+        {
+          ...input,
+          server: armed.server ?? input.server,
+          watch: armed.watch ?? input.watch,
+        },
+        armed.reason,
+      );
+      return;
+    }
+    const { server, watch } = armed;
     const matched = matchKickSlot({
       kind,
       profileKey: key,
@@ -1116,6 +1137,78 @@ class Supervisor {
       evidenceId,
       kickSent: false,
     });
+  }
+
+  /**
+   * Settings and caps from after the status wait. A stop, a disable, or a
+   * mode other than kick discards the drop. The hour cap is read again
+   * because another kick can land during that wait.
+   */
+  private async kickStillArmed(
+    alias: string,
+    profileKey: string,
+  ): Promise<
+    | { ok: true; server: ServerConfig; watch: ServerWatchSettings }
+    | {
+        ok: false;
+        reason: string;
+        server?: ServerConfig;
+        watch?: ServerWatchSettings;
+      }
+  > {
+    if (!this.running || !this.store) {
+      return { ok: false, reason: 'stopped' };
+    }
+    const server = await this.deps.adminStore.getServer(alias);
+    const watch = server?.watch ?? undefined;
+    if (!this.running) {
+      return { ok: false, reason: 'stopped', server, watch };
+    }
+    if (!server || !watch?.enabled) {
+      return { ok: false, reason: 'disabled', server };
+    }
+    if (watch.mode !== 'kick') {
+      return { ok: false, reason: 'mode', server, watch };
+    }
+    const caps = await this.store.loadCaps({
+      serverAlias: alias,
+      profileKey,
+      now: new Date(this.now()),
+      cooldownMs: watch.cooldownMs,
+    });
+    if (!this.running) {
+      return { ok: false, reason: 'stopped', server, watch };
+    }
+    if (!(caps.kickedThisHour < watch.maxKicksPerHour)) {
+      return { ok: false, reason: 'kick_cap', server, watch };
+    }
+    if (caps.cooldownActive) {
+      return { ok: false, reason: 'cooldown', server, watch };
+    }
+    if (!(caps.cardsThisHour < watch.maxCardsPerHour)) {
+      return { ok: false, reason: 'card_cap', server, watch };
+    }
+    return { ok: true, server, watch };
+  }
+
+  private async profileForKick(
+    serverAlias: string,
+    profileKey: string,
+  ): Promise<
+    { lastGuid: string | null; distinctNames24h: number } | undefined
+  > {
+    if (!this.store) {
+      return undefined;
+    }
+    const [profile, distinctNames24h] = await Promise.all([
+      this.store.getProfile(serverAlias, profileKey),
+      this.store.distinctNames24h(
+        serverAlias,
+        profileKey,
+        new Date(this.now()),
+      ),
+    ]);
+    return { lastGuid: profile?.lastGuid ?? null, distinctNames24h };
   }
 
   /**
@@ -1270,19 +1363,6 @@ function thresholdsOf(watch: ServerWatchSettings): WatchThresholds {
   };
 }
 
-function identityKind(key: string): WatchIdentityKind | undefined {
-  if (key.startsWith('hwid:') && key.length > 'hwid:'.length) {
-    return 'hwid';
-  }
-  if (key.startsWith('guid:') && key.length > 'guid:'.length) {
-    return 'guid';
-  }
-  if (key.startsWith('ip:') && key.length > 'ip:'.length) {
-    return 'ip';
-  }
-  return undefined;
-}
-
 function presentGuid(guid: string | undefined): string | null {
   if (!guid || guid.trim() === '' || guid.trim() === '0') {
     return null;
@@ -1308,50 +1388,6 @@ function selfZ(
   }
   const z = (value - moments.mean) / sd;
   return Number.isFinite(z) ? z : undefined;
-}
-
-type KickMatch =
-  { ok: true; num: number; name: string } | { ok: false; reason: string };
-
-/**
- * One non-zero GUID row for `hwid:` and `guid:`. One IP row, and exactly one
- * name in 24h, for `ip:`. GUID 0 is not matched by IP. Two rows are not a guess.
- */
-function matchKickSlot(input: {
-  kind: WatchIdentityKind;
-  profileKey: string;
-  lastGuid: string | null;
-  distinctNames24h: number;
-  players: readonly StatusPlayer[];
-}): KickMatch {
-  if (input.kind === 'hwid' || input.kind === 'guid') {
-    const guid =
-      input.kind === 'guid'
-        ? input.profileKey.slice('guid:'.length)
-        : input.lastGuid;
-    if (!guid || guid === '0') {
-      return { ok: false, reason: 'guid0' };
-    }
-    return oneRow(
-      input.players.filter((row) => (row.guid ?? '').trim() === guid),
-    );
-  }
-  if (input.distinctNames24h === 0) {
-    return { ok: false, reason: 'no_name' };
-  }
-  if (input.distinctNames24h !== 1) {
-    return { ok: false, reason: 'shared_ip' };
-  }
-  const ip = input.profileKey.slice('ip:'.length);
-  return oneRow(input.players.filter((row) => (row.ip ?? '').trim() === ip));
-}
-
-function oneRow(rows: readonly StatusPlayer[]): KickMatch {
-  const row = rows[0];
-  if (!row || rows.length !== 1) {
-    return { ok: false, reason: rows.length === 0 ? 'gone' : 'ambiguous_slot' };
-  }
-  return { ok: true, num: row.num, name: stripColorCodes(row.name).trim() };
 }
 
 function reasonText(lifeScore: number, features: WatchLifeFeatures): string {

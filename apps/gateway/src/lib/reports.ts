@@ -32,6 +32,7 @@ import {
 } from './moderation-actions.js';
 import type { ReportQueue } from './report-queue.js';
 import { formatTelegramUser } from './telegram-user.js';
+import { matchKickSlot, watchIdentityKind } from '../watch/match-kick.js';
 
 const CALLBACK_PREFIX = 'report:';
 
@@ -377,6 +378,16 @@ export interface ReportCallbackDeps {
   chatTemplates?: ChatTemplates;
   describeIp?: (ip: string) => string | undefined;
   reportQueue?: ReportQueue;
+  /**
+   * Profile guid and 24h name count for a watch-card Kick. Absent, or a
+   * miss: that button does not kick.
+   */
+  watchLookup?: (
+    serverAlias: string,
+    profileKey: string,
+  ) => Promise<
+    { lastGuid: string | null; distinctNames24h: number } | undefined
+  >;
 }
 
 /** A card's button closed the report, so the saved one closes too. Never gets in the button's way. */
@@ -624,25 +635,37 @@ async function watchCardAction(
     return;
   }
   try {
-    const result = await executeModerationAction(
-      decoded.action.kind,
-      {
-        num: entry.target.num,
-        name: entry.target.name,
-        guid: entry.target.guid,
-        ip: entry.target.ip,
-      },
-      {
-        serverAlias: entry.serverAlias,
-        rcon,
-        banStore: deps.banStore,
-        adminStore: deps.adminStore,
-        actorTelegramId: admin.telegramId,
-        reason: 'watch',
-        source: 'telegram_button',
-        chatTemplates: deps.chatTemplates,
-      },
-    );
+    const target = {
+      num: entry.target.num,
+      name: entry.target.name,
+      guid: entry.target.guid,
+      ip: entry.target.ip,
+    };
+    // Same one-row rule as an automatic kick. The cached slot may be someone else.
+    const slotOnly = decoded.action.kind === 'kick';
+    if (slotOnly) {
+      const matched = await matchWatchKick(deps, entry, rcon);
+      if (!matched.ok) {
+        await ctx.answerCallbackQuery({
+          text: 'No single player matches that watch profile.',
+          show_alert: true,
+        });
+        return;
+      }
+      target.num = matched.num;
+      target.name = matched.name || entry.target.name;
+    }
+    const result = await executeModerationAction(decoded.action.kind, target, {
+      serverAlias: entry.serverAlias,
+      rcon,
+      banStore: deps.banStore,
+      adminStore: deps.adminStore,
+      actorTelegramId: admin.telegramId,
+      reason: 'watch',
+      source: 'telegram_button',
+      chatTemplates: deps.chatTemplates,
+      ...(slotOnly ? { slotOnly: true } : {}),
+    });
     await ctx.editMessageText(
       `${result.label} ${entry.target.name} — action taken by admin ${formatTelegramUser(admin.telegramId, admin.username, admin.firstName)} at ${new Date().toISOString()}.`,
     );
@@ -660,6 +683,28 @@ async function watchCardAction(
     }
     throw error;
   }
+}
+
+/** Current status, not the slot stored on the card. A miss sends no kick. */
+async function matchWatchKick(
+  deps: ReportCallbackDeps,
+  entry: WatchCardEntry,
+  rcon: RconClient,
+): Promise<{ ok: true; num: number; name: string } | { ok: false }> {
+  const kind = watchIdentityKind(entry.profileKey);
+  const loaded = await deps.watchLookup?.(entry.serverAlias, entry.profileKey);
+  if (!kind || !loaded) {
+    return { ok: false };
+  }
+  const status = await rcon.status();
+  const matched = matchKickSlot({
+    kind,
+    profileKey: entry.profileKey,
+    lastGuid: loaded.lastGuid,
+    distinctNames24h: loaded.distinctNames24h,
+    players: status.players,
+  });
+  return matched.ok ? matched : { ok: false };
 }
 
 async function closeWatchQueue(
