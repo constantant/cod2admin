@@ -149,7 +149,8 @@ class HuffTree {
       leaf.left = null;
       leaf.right = null;
       if (this.lhead?.parent) {
-        if (this.lhead.parent.left === this.lhead) this.lhead.parent.left = internal;
+        if (this.lhead.parent.left === this.lhead)
+          this.lhead.parent.left = internal;
         else this.lhead.parent.right = internal;
       } else {
         this.root = internal;
@@ -166,7 +167,12 @@ class HuffTree {
     this.increment(existing);
   }
 
-  transmit(symbol: number, out: Uint8Array, bloc: { n: number }, maxOut: number): boolean {
+  transmit(
+    symbol: number,
+    out: Uint8Array,
+    bloc: { n: number },
+    maxOut: number,
+  ): boolean {
     const node = this.loc[symbol];
     if (!node) return false;
     const bits: number[] = [];
@@ -183,7 +189,11 @@ class HuffTree {
     return true;
   }
 
-  receive(input: Uint8Array, bloc: { n: number }, inputBytes: number): number | null {
+  receive(
+    input: Uint8Array,
+    bloc: { n: number },
+    inputBytes: number,
+  ): number | null {
     let node = this.root;
     while (node && node.symbol === INTERNAL) {
       const bit = getBit(input, bloc, inputBytes);
@@ -195,7 +205,12 @@ class HuffTree {
   }
 }
 
-function putBit(bit: number, out: Uint8Array, bloc: { n: number }, maxOut: number): boolean {
+function putBit(
+  bit: number,
+  out: Uint8Array,
+  bloc: { n: number },
+  maxOut: number,
+): boolean {
   const index = bloc.n >> 3;
   if (index >= maxOut) return false;
   const shift = bloc.n & 7;
@@ -205,7 +220,11 @@ function putBit(bit: number, out: Uint8Array, bloc: { n: number }, maxOut: numbe
   return true;
 }
 
-function getBit(input: Uint8Array, bloc: { n: number }, inputBytes: number): number {
+function getBit(
+  input: Uint8Array,
+  bloc: { n: number },
+  inputBytes: number,
+): number {
   if (bloc.n >> 3 >= inputBytes) return -1;
   const bit = (input[bloc.n >> 3] >> (bloc.n & 7)) & 1;
   bloc.n++;
@@ -234,7 +253,8 @@ function tree(): HuffTree {
   return shared;
 }
 
-export type HuffResult = { ok: true; data: Uint8Array } | { ok: false; reason: 'cap' | 'truncated' };
+export type HuffResult =
+  { ok: true; data: Uint8Array } | { ok: false; reason: 'cap' | 'truncated' };
 
 /** Compress. Fails instead of growing past `maxOut`. */
 export function huffmanCompress(input: Uint8Array, maxOut: number): HuffResult {
@@ -243,7 +263,8 @@ export function huffmanCompress(input: Uint8Array, maxOut: number): HuffResult {
   const bloc = { n: 0 };
   const coder = tree();
   for (let i = 0; i < input.length; i++) {
-    if (!coder.transmit(input[i] ?? 0, out, bloc, maxOut)) return { ok: false, reason: 'cap' };
+    if (!coder.transmit(input[i] ?? 0, out, bloc, maxOut))
+      return { ok: false, reason: 'cap' };
   }
   const bytes = (bloc.n + 7) >> 3;
   if (bytes > maxOut) return { ok: false, reason: 'cap' };
@@ -254,7 +275,10 @@ export function huffmanCompress(input: Uint8Array, maxOut: number): HuffResult {
  * Decompress. A code cut off before it finishes fails. Zero bits that only pad
  * the last byte after a finished symbol are the compressor's byte align, not a cut.
  */
-export function huffmanDecompress(input: Uint8Array, maxOut: number): HuffResult {
+export function huffmanDecompress(
+  input: Uint8Array,
+  maxOut: number,
+): HuffResult {
   if (maxOut < 0) return { ok: false, reason: 'cap' };
   const out: number[] = [];
   const bloc = { n: 0 };
@@ -264,8 +288,10 @@ export function huffmanDecompress(input: Uint8Array, maxOut: number): HuffResult
     const started = bloc.n;
     const symbol = coder.receive(input, bloc, input.length);
     if (symbol === null) {
-      if (bloc.n !== started && !isZeroTailPad(input, started, bloc.n)) return { ok: false, reason: 'truncated' };
-      if (out.length === 0 && input.length > 0) return { ok: false, reason: 'truncated' };
+      if (bloc.n !== started && !isZeroTailPad(input, started, bloc.n))
+        return { ok: false, reason: 'truncated' };
+      if (out.length === 0 && input.length > 0)
+        return { ok: false, reason: 'truncated' };
       break;
     }
     if (out.length >= maxOut) return { ok: false, reason: 'cap' };
@@ -275,7 +301,11 @@ export function huffmanDecompress(input: Uint8Array, maxOut: number): HuffResult
 }
 
 /** True when the unfinished code is only the zero fill in the final byte. */
-function isZeroTailPad(input: Uint8Array, fromBit: number, toBit: number): boolean {
+function isZeroTailPad(
+  input: Uint8Array,
+  fromBit: number,
+  toBit: number,
+): boolean {
   if (input.length === 0 || fromBit < (input.length - 1) * 8) return false;
   for (let bit = fromBit; bit < toBit; bit++) {
     if (((input[bit >> 3] ?? 0) >> (bit & 7)) & 1) return false;

@@ -62,7 +62,8 @@ export class BitMsg {
       this.overflowed = true;
       return 0;
     }
-    const value = this.data[this.readcount] | (this.data[this.readcount + 1] << 8);
+    const value =
+      this.data[this.readcount] | (this.data[this.readcount + 1] << 8);
     this.readcount += 2;
     return value;
   }
@@ -74,7 +75,13 @@ export class BitMsg {
     }
     const i = this.readcount;
     this.readcount += 4;
-    return (this.data[i] | (this.data[i + 1] << 8) | (this.data[i + 2] << 16) | (this.data[i + 3] << 24)) | 0;
+    return (
+      this.data[i] |
+      (this.data[i + 1] << 8) |
+      (this.data[i + 2] << 16) |
+      (this.data[i + 3] << 24) |
+      0
+    );
   }
 
   writeBit(value: number): void {
