@@ -1,3 +1,19 @@
+## [1.22.0](https://github.com/constantant/cod2admin/releases/tag/v1.22.0) (2026-11-10)
+
+### 🚀 Features
+
+- map previews in the Mini App (Maps, Dashboard, Players) ([5490bb3](https://github.com/constantant/cod2admin/commit/5490bb3))
+- add loading-screen previews for 146 multiplayer maps ([5496966](https://github.com/constantant/cod2admin/commit/5496966))
+- add the cod2admin logo ([2ae897d](https://github.com/constantant/cod2admin/commit/2ae897d))
+- show the release notes properly on the Mini App's Update page ([693acae](https://github.com/constantant/cod2admin/commit/693acae))
+- show the current map as a banner on the Dashboard and Players page ([3d4bbfa](https://github.com/constantant/cod2admin/commit/3d4bbfa))
+- show the game mode on the Players page banner ([2350ff0](https://github.com/constantant/cod2admin/commit/2350ff0))
+
+### ❤️ Thank You
+
+- Claude Sonnet 5.5
+- kk
+
 ## [1.21.0](https://github.com/constantant/cod2admin/releases/tag/v1.21.0) (2026-11-09)
 
 ### 🚀 Features
