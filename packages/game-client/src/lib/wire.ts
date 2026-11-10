@@ -1,4 +1,8 @@
-import { buildOobPacket, encodeText, parseCvarBlock } from '@cod2admin/rcon-client';
+import {
+  buildOobPacket,
+  encodeText,
+  parseCvarBlock,
+} from '@cod2admin/rcon-client';
 import { BitMsg } from './bit-msg.js';
 import {
   CLC_CLIENT_COMMAND,
@@ -12,7 +16,11 @@ import {
   fragmentStartBytes,
   maxMessageLength,
 } from './constants.js';
-import { huffmanCompress, huffmanDecompress, type HuffResult } from './huffman.js';
+import {
+  huffmanCompress,
+  huffmanDecompress,
+  type HuffResult,
+} from './huffman.js';
 
 export const SPECTATOR_NAME = 'AdminWatch';
 export const SPECTATOR_RATE = 25000;
@@ -30,7 +38,10 @@ export interface StatusInfo {
 export function parseStatusBody(body: string): StatusInfo {
   const line = body.split('\n', 1)[0] ?? '';
   const keys = parseCvarBlock(line);
-  const protocol = keys['protocol'] !== undefined && /^-?\d+$/.test(keys['protocol']) ? Number(keys['protocol']) : null;
+  const protocol =
+    keys['protocol'] !== undefined && /^-?\d+$/.test(keys['protocol'])
+      ? Number(keys['protocol'])
+      : null;
   return {
     protocol,
     sv_pure: keys['sv_pure'] ?? null,
@@ -40,18 +51,27 @@ export function parseStatusBody(body: string): StatusInfo {
   };
 }
 
-export type ConnectGate = { ok: true; protocol: number } | { ok: false; reason: string };
+export type ConnectGate =
+  { ok: true; protocol: number } | { ok: false; reason: string };
 
 /**
  * Production connect. A missing key is not off. Anything other than the string `0`
  * refuses. The protocol is the `getstatus` value, not a hardcoded 115 or 118.
  */
 export function connectAllowed(info: StatusInfo): ConnectGate {
-  if (info.protocol === null) return { ok: false, reason: 'protocol missing from getstatus' };
-  if (info.sv_pure === null) return { ok: false, reason: 'sv_pure missing from getstatus' };
-  if (info.sv_pure !== '0') return { ok: false, reason: `sv_pure is ${JSON.stringify(info.sv_pure)}` };
-  if (info.sv_punkbuster === null) return { ok: false, reason: 'sv_punkbuster missing from getstatus' };
-  if (info.sv_punkbuster !== '0') return { ok: false, reason: `sv_punkbuster is ${JSON.stringify(info.sv_punkbuster)}` };
+  if (info.protocol === null)
+    return { ok: false, reason: 'protocol missing from getstatus' };
+  if (info.sv_pure === null)
+    return { ok: false, reason: 'sv_pure missing from getstatus' };
+  if (info.sv_pure !== '0')
+    return { ok: false, reason: `sv_pure is ${JSON.stringify(info.sv_pure)}` };
+  if (info.sv_punkbuster === null)
+    return { ok: false, reason: 'sv_punkbuster missing from getstatus' };
+  if (info.sv_punkbuster !== '0')
+    return {
+      ok: false,
+      reason: `sv_punkbuster is ${JSON.stringify(info.sv_punkbuster)}`,
+    };
   return { ok: true, protocol: info.protocol };
 }
 
@@ -93,12 +113,18 @@ export function buildConnectPacket(userinfo: string): Buffer {
 }
 
 /** XOR is its own inverse. Empty command leaves the key unchanged. */
-export function xorNetchan(data: Uint8Array, key0: number, command: string): void {
-  const bytes = command.length === 0 ? new Uint8Array() : encodeText(command, 'cp1251');
+export function xorNetchan(
+  data: Uint8Array,
+  key0: number,
+  command: string,
+): void {
+  const bytes =
+    command.length === 0 ? new Uint8Array() : encodeText(command, 'cp1251');
   let key = key0 & 0xff;
   let index = 0;
   for (let i = 0; i < data.length; i++) {
-    if (bytes.length === 0 || index >= bytes.length || bytes[index] === 0) index = 0;
+    if (bytes.length === 0 || index >= bytes.length || bytes[index] === 0)
+      index = 0;
     const symbol = bytes.length === 0 ? 0 : (bytes[index] ?? 0);
     key = (key ^ (symbol << (i & 1))) & 0xff;
     data[i] = (data[i] ?? 0) ^ key;
@@ -147,7 +173,11 @@ function writeClientBody(packet: ClientDatagram): BitMsg {
   if (packet.move) {
     msg.writeBits(CLC_MOVE_NO_DELTA, 3);
     msg.writeByte(1);
-    const key = (packet.checksumFeed ^ packet.messageAcknowledge ^ comHashKey(packet.ackedServerCommand, 32)) | 0;
+    const key =
+      (packet.checksumFeed ^
+        packet.messageAcknowledge ^
+        comHashKey(packet.ackedServerCommand, 32)) |
+      0;
     // serverTime from a zero cmd. Under 256 takes the delta path; otherwise a full time.
     if (packet.serverTime >= 0 && packet.serverTime < 256) {
       msg.writeBit(1);
@@ -182,8 +212,14 @@ export function buildClientDatagram(packet: ClientDatagram): Buffer {
   payload[7] = (packet.reliableAcknowledge >> 16) & 0xff;
   payload[8] = (packet.reliableAcknowledge >> 24) & 0xff;
   payload.set(compressed.data, CLIENT_CLEAR_HEADER);
-  const key = (packet.challenge ^ (packet.serverId & 0xff) ^ packet.messageAcknowledge) & 0xff;
-  xorNetchan(payload.subarray(CLIENT_CLEAR_HEADER), key, packet.ackedServerCommand);
+  const key =
+    (packet.challenge ^ (packet.serverId & 0xff) ^ packet.messageAcknowledge) &
+    0xff;
+  xorNetchan(
+    payload.subarray(CLIENT_CLEAR_HEADER),
+    key,
+    packet.ackedServerCommand,
+  );
   const out = Buffer.alloc(6 + payload.length);
   out.writeInt32LE(packet.sequence | 0, 0);
   out.writeUInt16LE(packet.qport & 0xffff, 4);
@@ -253,7 +289,15 @@ export function decodeClientDatagram(
     }
     return null;
   }
-  return { sequence, qport, serverId, messageAcknowledge, reliableAcknowledge, commands, move };
+  return {
+    sequence,
+    qport,
+    serverId,
+    messageAcknowledge,
+    reliableAcknowledge,
+    commands,
+    move,
+  };
 }
 
 export class FragmentAssembler {
@@ -266,16 +310,29 @@ export class FragmentAssembler {
   }
 
   /** `pending` means more fragments follow. Failure does not throw. */
-  push(datagram: Uint8Array): { ok: true; pending: boolean; sequence: number; message: Uint8Array } | { ok: false; reason: 'cap' | 'truncated' } {
+  push(
+    datagram: Uint8Array,
+  ):
+    | { ok: true; pending: boolean; sequence: number; message: Uint8Array }
+    | { ok: false; reason: 'cap' | 'truncated' } {
     if (datagram.length > MAX_DATAGRAM) return { ok: false, reason: 'cap' };
     if (datagram.length < 4) return { ok: false, reason: 'truncated' };
-    const sequenceWord = (datagram[0] ?? 0) | ((datagram[1] ?? 0) << 8) | ((datagram[2] ?? 0) << 16) | ((datagram[3] ?? 0) << 24);
+    const sequenceWord =
+      (datagram[0] ?? 0) |
+      ((datagram[1] ?? 0) << 8) |
+      ((datagram[2] ?? 0) << 16) |
+      ((datagram[3] ?? 0) << 24);
     const fragmented = (sequenceWord & FRAGMENT_BIT) !== 0;
-    const sequence = sequenceWord >>> 0 & ~FRAGMENT_BIT;
+    const sequence = (sequenceWord >>> 0) & ~FRAGMENT_BIT;
     if (!fragmented) {
       this.length = 0;
       this.sequence = sequence;
-      return { ok: true, pending: false, sequence, message: datagram.subarray(4) };
+      return {
+        ok: true,
+        pending: false,
+        sequence,
+        message: datagram.subarray(4),
+      };
     }
     const startBytes = fragmentStartBytes(this.protocol);
     const header = 4 + startBytes + 2;
@@ -283,23 +340,31 @@ export class FragmentAssembler {
     let fragmentStart = 0;
     if (startBytes === 4) {
       fragmentStart =
-        (datagram[4] ?? 0) | ((datagram[5] ?? 0) << 8) | ((datagram[6] ?? 0) << 16) | ((datagram[7] ?? 0) << 24);
+        (datagram[4] ?? 0) |
+        ((datagram[5] ?? 0) << 8) |
+        ((datagram[6] ?? 0) << 16) |
+        ((datagram[7] ?? 0) << 24);
     } else {
       fragmentStart = (datagram[4] ?? 0) | ((datagram[5] ?? 0) << 8);
     }
     const lengthOffset = 4 + startBytes;
-    const fragmentLength = (datagram[lengthOffset] ?? 0) | ((datagram[lengthOffset + 1] ?? 0) << 8);
+    const fragmentLength =
+      (datagram[lengthOffset] ?? 0) | ((datagram[lengthOffset + 1] ?? 0) << 8);
     const payload = datagram.subarray(header);
-    if (fragmentLength > payload.length || fragmentLength > FRAGMENT_SIZE) return { ok: false, reason: 'cap' };
+    if (fragmentLength > payload.length || fragmentLength > FRAGMENT_SIZE)
+      return { ok: false, reason: 'cap' };
     if (sequence !== this.sequence) {
       this.sequence = sequence;
       this.length = 0;
     }
-    if (fragmentStart !== this.length) return { ok: false, reason: 'truncated' };
-    if (this.length + fragmentLength > this.buffer.length) return { ok: false, reason: 'cap' };
+    if (fragmentStart !== this.length)
+      return { ok: false, reason: 'truncated' };
+    if (this.length + fragmentLength > this.buffer.length)
+      return { ok: false, reason: 'cap' };
     this.buffer.set(payload.subarray(0, fragmentLength), this.length);
     this.length += fragmentLength;
-    if (fragmentLength === FRAGMENT_SIZE) return { ok: true, pending: true, sequence, message: new Uint8Array() };
+    if (fragmentLength === FRAGMENT_SIZE)
+      return { ok: true, pending: true, sequence, message: new Uint8Array() };
     const message = this.buffer.slice(0, this.length);
     this.length = 0;
     return { ok: true, pending: false, sequence, message };
@@ -313,11 +378,15 @@ export function decodeServerPayload(
   clientCommand: string,
   protocol: number,
 ): HuffResult {
-  if (message.length < SV_ENCODE_START) return { ok: false, reason: 'truncated' };
+  if (message.length < SV_ENCODE_START)
+    return { ok: false, reason: 'truncated' };
   const compressed = message.slice(SV_ENCODE_START);
   const key = (challenge ^ sequence) & 0xff;
   xorNetchan(compressed, key, clientCommand);
-  const plain = huffmanDecompress(compressed, maxMessageLength(protocol) - SV_ENCODE_START);
+  const plain = huffmanDecompress(
+    compressed,
+    maxMessageLength(protocol) - SV_ENCODE_START,
+  );
   if (!plain.ok) return plain;
   const out = new Uint8Array(SV_ENCODE_START + plain.data.length);
   out.set(message.subarray(0, SV_ENCODE_START), 0);

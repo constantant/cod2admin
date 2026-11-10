@@ -12,11 +12,16 @@ import { buildOobPacket, parseOobPacket } from '@cod2admin/rcon-client';
 import { ET_PLAYER } from './lib/constants.js';
 import { connectPureProbe, GamePeer, type WatchResult } from './lib/peer.js';
 import type { EntityObservation } from './lib/snapshot.js';
-import { buildGetstatusPacket, parseStatusBody, type StatusInfo } from './lib/wire.js';
+import {
+  buildGetstatusPacket,
+  parseStatusBody,
+  type StatusInfo,
+} from './lib/wire.js';
 
 const host = '127.0.0.1';
 const port = 28960;
-const password = process.env['COD2_RCON_PASSWORD'] ?? 'dev_rcon_password_change_me';
+const password =
+  process.env['COD2_RCON_PASSWORD'] ?? 'dev_rcon_password_change_me';
 const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), '../fixtures');
 
 async function query(packet: Buffer, timeoutMs = 3000): Promise<string> {
@@ -43,7 +48,12 @@ function save(name: string, bytes: Buffer): void {
   writeFileSync(join(fixtureDir, name), bytes);
 }
 
-function spread(samples: EntityObservation[]): { enemies: number; areas: number; originChanged: number; anglesChanged: number } {
+function spread(samples: EntityObservation[]): {
+  enemies: number;
+  areas: number;
+  originChanged: number;
+  anglesChanged: number;
+} {
   const byEntity = new Map<number, EntityObservation[]>();
   for (const sample of samples) {
     if (sample.eType !== ET_PLAYER) continue;
@@ -58,8 +68,13 @@ function spread(samples: EntityObservation[]): { enemies: number; areas: number;
     const first = list[0];
     const last = list[list.length - 1];
     if (!first || !last) continue;
-    const moved = Math.hypot(last.origin[0] - first.origin[0], last.origin[1] - first.origin[1]);
-    const turned = Math.abs(last.viewangles[1] - first.viewangles[1]) + Math.abs(last.viewangles[0] - first.viewangles[0]);
+    const moved = Math.hypot(
+      last.origin[0] - first.origin[0],
+      last.origin[1] - first.origin[1],
+    );
+    const turned =
+      Math.abs(last.viewangles[1] - first.viewangles[1]) +
+      Math.abs(last.viewangles[0] - first.viewangles[0]);
     if (moved > 64) originChanged++;
     if (turned > 5) anglesChanged++;
     centers.push({ x: last.origin[0], y: last.origin[1] });
@@ -84,12 +99,16 @@ function spread(samples: EntityObservation[]): { enemies: number; areas: number;
 function intervals(times: number[]): number | null {
   if (times.length < 2) return null;
   const deltas: number[] = [];
-  for (let i = 1; i < times.length; i++) deltas.push((times[i] ?? 0) - (times[i - 1] ?? 0));
+  for (let i = 1; i < times.length; i++)
+    deltas.push((times[i] ?? 0) - (times[i - 1] ?? 0));
   deltas.sort((a, b) => a - b);
   return deltas[Math.floor(deltas.length / 2)] ?? null;
 }
 
-async function probe(label: string, gate: boolean): Promise<WatchResult & { error?: string }> {
+async function probe(
+  label: string,
+  gate: boolean,
+): Promise<WatchResult & { error?: string }> {
   const captured: Buffer[] = [];
   const open = gate ? GamePeer.connect.bind(GamePeer) : connectPureProbe;
   try {
@@ -98,7 +117,8 @@ async function probe(label: string, gate: boolean): Promise<WatchResult & { erro
       port,
       timeoutMs: 4000,
       onDatagram: (direction, bytes) => {
-        if (direction === 'in' && captured.length < 4) captured.push(Buffer.from(bytes));
+        if (direction === 'in' && captured.length < 4)
+          captured.push(Buffer.from(bytes));
       },
     });
     const watched = await peer.watch(label === 'pure-still-1' ? 8000 : 20000);
@@ -124,15 +144,26 @@ async function probe(label: string, gate: boolean): Promise<WatchResult & { erro
   }
 }
 
-function rejectionStored(run: { serverCommands: string[]; oobMessages: string[] } | null): boolean {
+function rejectionStored(
+  run: { serverCommands: string[]; oobMessages: string[] } | null,
+): boolean {
   if (!run) return false;
   const text = [...run.serverCommands, ...run.oobMessages].join('\n');
-  return text.includes('EXE_CANNOTVALIDATEPURECLIENT') || text.includes('EXE_UNPURECLIENTDETECTED');
+  return (
+    text.includes('EXE_CANNOTVALIDATEPURECLIENT') ||
+    text.includes('EXE_UNPURECLIENTDETECTED')
+  );
 }
 
-function summarize(status: StatusInfo | null, pureRun: Awaited<ReturnType<typeof probe>> | null, parseRun: Awaited<ReturnType<typeof probe>> | null) {
+function summarize(
+  status: StatusInfo | null,
+  pureRun: Awaited<ReturnType<typeof probe>> | null,
+  parseRun: Awaited<ReturnType<typeof probe>> | null,
+) {
   const movement = spread(parseRun?.samples ?? []);
-  const weapons = [...new Set((parseRun?.samples ?? []).map((sample) => sample.weapon))];
+  const weapons = [
+    ...new Set((parseRun?.samples ?? []).map((sample) => sample.weapon)),
+  ];
   return {
     date: new Date().toISOString().slice(0, 10),
     target: `${host}:${port}`,
@@ -181,7 +212,8 @@ async function main(): Promise<void> {
       process.stdout.write(`${JSON.stringify(failure, null, 2)}\n`);
       return;
     }
-    const pureRun = status.sv_pure === '0' ? null : await probe('pure-still-1', false);
+    const pureRun =
+      status.sv_pure === '0' ? null : await probe('pure-still-1', false);
     // Lower pure only after the rejection text is already in pureRun. A server that
     // was already 0 is left alone, and finally does not force it back to 1.
     if (status.sv_pure !== '0' && rejectionStored(pureRun)) {
@@ -189,7 +221,9 @@ async function main(): Promise<void> {
       try {
         await query(buildOobPacket(`rcon ${password} sv_pure 0`));
       } catch (error) {
-        process.stderr.write(`rcon sv_pure 0 failed: ${error instanceof Error ? error.message : String(error)}\n`);
+        process.stderr.write(
+          `rcon sv_pure 0 failed: ${error instanceof Error ? error.message : String(error)}\n`,
+        );
       }
       try {
         status = parseStatusBody(await query(buildGetstatusPacket()));
@@ -197,14 +231,21 @@ async function main(): Promise<void> {
         // keep the pre-change status; the parse run will say if the server is gone
       }
     }
-    const parseRun = status.sv_pure === '0' && status.sv_punkbuster === '0' ? await probe('pure-0', true) : null;
-    process.stdout.write(`${JSON.stringify(summarize(status, pureRun, parseRun), null, 2)}\n`);
+    const parseRun =
+      status.sv_pure === '0' && status.sv_punkbuster === '0'
+        ? await probe('pure-0', true)
+        : null;
+    process.stdout.write(
+      `${JSON.stringify(summarize(status, pureRun, parseRun), null, 2)}\n`,
+    );
   } finally {
     if (!lowered) return;
     try {
       await query(buildOobPacket(`rcon ${password} sv_pure 1`));
     } catch (error) {
-      process.stderr.write(`rcon sv_pure 1 failed: ${error instanceof Error ? error.message : String(error)}\n`);
+      process.stderr.write(
+        `rcon sv_pure 1 failed: ${error instanceof Error ? error.message : String(error)}\n`,
+      );
     }
   }
 }

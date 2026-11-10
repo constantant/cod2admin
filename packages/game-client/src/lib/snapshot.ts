@@ -118,16 +118,22 @@ function readValue(msg: BitMsg, bits: number): number {
   for (let shift = partial; shift < abs; shift += 8) {
     const byte = msg.readByte();
     if (byte < 0) return 0;
-    value = (value | (byte << shift)) | 0;
+    value = value | (byte << shift) | 0;
   }
   if (bits < 0 && abs > 0 && abs < 32 && value & (1 << (abs - 1))) {
-    value = (value | (~((1 << abs) - 1))) | 0;
+    value = value | ~((1 << abs) - 1) | 0;
   }
   return value | 0;
 }
 
 /** Entity / hud / objective field. Extra zero-bit that playerstate does not use. */
-function readDeltaField(msg: BitMsg, from: Int32Array, to: Int32Array, index: number, field: NetField): boolean {
+function readDeltaField(
+  msg: BitMsg,
+  from: Int32Array,
+  to: Int32Array,
+  index: number,
+  field: NetField,
+): boolean {
   if (msg.readBit() === 0) {
     to[index] = from[index] ?? 0;
     return !msg.overflowed;
@@ -168,7 +174,13 @@ function readDeltaField(msg: BitMsg, from: Int32Array, to: Int32Array, index: nu
 }
 
 /** Playerstate field. No leading zero-bit on floats or integers. */
-function readPlayerField(msg: BitMsg, from: Int32Array, to: Int32Array, index: number, field: NetField): boolean {
+function readPlayerField(
+  msg: BitMsg,
+  from: Int32Array,
+  to: Int32Array,
+  index: number,
+  field: NetField,
+): boolean {
   if (msg.readBit() === 0) {
     to[index] = from[index] ?? 0;
     return !msg.overflowed;
@@ -196,7 +208,11 @@ function readPlayerField(msg: BitMsg, from: Int32Array, to: Int32Array, index: n
   return !msg.overflowed;
 }
 
-function readDeltaStruct(msg: BitMsg, from: Int32Array, list: readonly NetField[]): Int32Array | 'removed' | null {
+function readDeltaStruct(
+  msg: BitMsg,
+  from: Int32Array,
+  list: readonly NetField[],
+): Int32Array | 'removed' | null {
   if (msg.readBit() !== 0) return msg.overflowed ? null : 'removed';
   if (msg.readBit() === 0) return msg.overflowed ? null : from.slice();
   const lc = msg.readByte();
@@ -221,7 +237,11 @@ function readCString(msg: BitMsg, maxChars: number): string | null {
   return decodeText(Buffer.from(bytes), 'cp1251');
 }
 
-function readPlayerstate(msg: BitMsg, from: Int32Array, protocol: number): Int32Array | null {
+function readPlayerstate(
+  msg: BitMsg,
+  from: Int32Array,
+  protocol: number,
+): Int32Array | null {
   const to = from.slice();
   const lc = msg.readByte();
   if (lc < 0 || lc > PLAYER_FIELDS.length) return null;
@@ -268,7 +288,8 @@ function readPlayerstate(msg: BitMsg, from: Int32Array, protocol: number): Int32
       if (msg.readBit() === 1) {
         for (let f = 0; f < OBJECTIVE_FIELDS.length; f++) {
           const field = OBJECTIVE_FIELDS[f];
-          if (!field || !readDeltaField(msg, dummy, dummy, f, field)) return null;
+          if (!field || !readDeltaField(msg, dummy, dummy, f, field))
+            return null;
         }
       }
     }
@@ -301,7 +322,9 @@ function readEntities(
   baselines: Map<number, Int32Array>,
   previous: Map<number, Int32Array>,
 ): Map<number, Int32Array> | null {
-  const oldNums = deltaFromPrevious ? [...previous.keys()].sort((a, b) => a - b) : [];
+  const oldNums = deltaFromPrevious
+    ? [...previous.keys()].sort((a, b) => a - b)
+    : [];
   let oldIndex = 0;
   const next = new Map<number, Int32Array>();
   const zero = new Int32Array(ENTITY_FIELDS.length);
@@ -316,7 +339,9 @@ function readEntities(
       oldIndex++;
     }
     const matches = oldIndex < oldNums.length && oldNums[oldIndex] === newNum;
-    const from = matches ? (previous.get(newNum) ?? zero) : (baselines.get(newNum) ?? zero);
+    const from = matches
+      ? (previous.get(newNum) ?? zero)
+      : (baselines.get(newNum) ?? zero);
     const parsed = readDeltaStruct(msg, from, ENTITY_FIELDS);
     if (parsed === null) return null;
     if (parsed !== 'removed') next.set(newNum, parsed);
@@ -336,7 +361,9 @@ function readClients(
   deltaFromPrevious: boolean,
   previous: Map<number, Int32Array>,
 ): Map<number, Int32Array> | null {
-  const oldNums = deltaFromPrevious ? [...previous.keys()].sort((a, b) => a - b) : [];
+  const oldNums = deltaFromPrevious
+    ? [...previous.keys()].sort((a, b) => a - b)
+    : [];
   let oldIndex = 0;
   const next = new Map<number, Int32Array>();
   const zero = new Int32Array(CLIENT_FIELDS.length);
@@ -377,7 +404,10 @@ const CLIENT_NUM = fieldIndex(ENTITY_FIELDS, 'clientNum');
 const WEAPON = fieldIndex(ENTITY_FIELDS, 'weapon');
 const TEAM = fieldIndex(CLIENT_FIELDS, 'team');
 
-function observe(serverTimeMs: number, entities: Map<number, Int32Array>): EntityObservation[] {
+function observe(
+  serverTimeMs: number,
+  entities: Map<number, Int32Array>,
+): EntityObservation[] {
   const players: EntityObservation[] = [];
   for (const [entityNum, state] of entities) {
     if ((state[ETYPE] ?? 0) !== ET_PLAYER) continue;
@@ -386,7 +416,11 @@ function observe(serverTimeMs: number, entities: Map<number, Int32Array>): Entit
       entityNum,
       eType: ET_PLAYER,
       clientNum: state[CLIENT_NUM] ?? 0,
-      origin: [bitsToFloat(state[ORIGIN_X] ?? 0), bitsToFloat(state[ORIGIN_Y] ?? 0), bitsToFloat(state[ORIGIN_Z] ?? 0)],
+      origin: [
+        bitsToFloat(state[ORIGIN_X] ?? 0),
+        bitsToFloat(state[ORIGIN_Y] ?? 0),
+        bitsToFloat(state[ORIGIN_Z] ?? 0),
+      ],
       viewangles: [
         bitsToFloat(state[ANGLE_PITCH] ?? 0),
         bitsToFloat(state[ANGLE_YAW] ?? 0),
@@ -417,7 +451,11 @@ function parseGamestate(msg: BitMsg, state: ParseState): boolean {
     if (op === SVC_BASELINE) {
       const num = msg.readBits(GENTITYNUM_BITS);
       if (msg.overflowed || num >= ENTITYNUM_NONE) return false;
-      const parsed = readDeltaStruct(msg, new Int32Array(ENTITY_FIELDS.length), ENTITY_FIELDS);
+      const parsed = readDeltaStruct(
+        msg,
+        new Int32Array(ENTITY_FIELDS.length),
+        ENTITY_FIELDS,
+      );
       if (parsed === null || parsed === 'removed') return false;
       state.baselines.set(num, parsed);
       continue;
@@ -430,13 +468,21 @@ function parseGamestate(msg: BitMsg, state: ParseState): boolean {
   return !msg.overflowed && end === SVC_EOF;
 }
 
-function parseSnapshot(msg: BitMsg, state: ParseState, protocol: number): ParsedSnapshot | null {
+function parseSnapshot(
+  msg: BitMsg,
+  state: ParseState,
+  protocol: number,
+): ParsedSnapshot | null {
   const serverTimeMs = msg.readLong();
   const lastframe = msg.readByte();
   const snapFlags = msg.readByte();
   if (msg.overflowed || lastframe < 0) return null;
   const delta = lastframe !== 0;
-  const player = readPlayerstate(msg, delta ? state.playerState : new Int32Array(PLAYER_FIELDS.length), protocol);
+  const player = readPlayerstate(
+    msg,
+    delta ? state.playerState : new Int32Array(PLAYER_FIELDS.length),
+    protocol,
+  );
   if (!player) return null;
   const entities = readEntities(msg, delta, state.baselines, state.entities);
   if (!entities) return null;
@@ -471,7 +517,11 @@ function serverIdFrom(configstrings: Map<number, string>): number | null {
 }
 
 /** Parse one decompressed server message. Truncation fails the parse and does not throw. */
-export function parseServerMessage(bytes: Uint8Array, protocol: number, previous: ParseState = emptyParseState()): ParseResult {
+export function parseServerMessage(
+  bytes: Uint8Array,
+  protocol: number,
+  previous: ParseState = emptyParseState(),
+): ParseResult {
   const msg = new BitMsg(bytes);
   const state: ParseState = {
     baselines: new Map(previous.baselines),
@@ -491,7 +541,8 @@ export function parseServerMessage(bytes: Uint8Array, protocol: number, previous
     serverId: null,
     snapshots: [],
   };
-  if (msg.overflowed) return { ok: false, reason: 'truncated', serverCommands: [] };
+  if (msg.overflowed)
+    return { ok: false, reason: 'truncated', serverCommands: [] };
   while (msg.readcount < msg.cursize) {
     const op = msg.readByte();
     if (op < 0) break;
@@ -500,12 +551,22 @@ export function parseServerMessage(bytes: Uint8Array, protocol: number, previous
     if (op === SVC_SERVER_COMMAND) {
       const seq = msg.readLong();
       const text = readCString(msg, MAX_STRING_CHARS);
-      if (text === null || msg.overflowed) return { ok: false, reason: 'truncated', serverCommands: message.serverCommands };
+      if (text === null || msg.overflowed)
+        return {
+          ok: false,
+          reason: 'truncated',
+          serverCommands: message.serverCommands,
+        };
       message.serverCommands.push({ seq, text });
       continue;
     }
     if (op === SVC_GAMESTATE) {
-      if (!parseGamestate(msg, state)) return { ok: false, reason: 'truncated', serverCommands: message.serverCommands };
+      if (!parseGamestate(msg, state))
+        return {
+          ok: false,
+          reason: 'truncated',
+          serverCommands: message.serverCommands,
+        };
       message.clientNum = state.clientNum;
       message.checksumFeed = state.checksumFeed;
       message.serverId = serverIdFrom(state.configstrings);
@@ -513,14 +574,27 @@ export function parseServerMessage(bytes: Uint8Array, protocol: number, previous
     }
     if (op === SVC_SNAPSHOT) {
       const snapshot = parseSnapshot(msg, state, protocol);
-      if (!snapshot) return { ok: false, reason: 'truncated', serverCommands: message.serverCommands };
+      if (!snapshot)
+        return {
+          ok: false,
+          reason: 'truncated',
+          serverCommands: message.serverCommands,
+        };
       message.snapshots.push(snapshot);
       continue;
     }
     if (op === SVC_DOWNLOAD || op === SVC_CONFIGSTRING || op === SVC_BASELINE) {
-      return { ok: false, reason: 'framing', serverCommands: message.serverCommands };
+      return {
+        ok: false,
+        reason: 'framing',
+        serverCommands: message.serverCommands,
+      };
     }
-    return { ok: false, reason: 'framing', serverCommands: message.serverCommands };
+    return {
+      ok: false,
+      reason: 'framing',
+      serverCommands: message.serverCommands,
+    };
   }
   message.serverId = message.serverId ?? serverIdFrom(state.configstrings);
   return { ok: true, message, state };

@@ -2,7 +2,11 @@ import dgram from 'node:dgram';
 import { parseOobPacket } from '@cod2admin/rcon-client';
 import { CS_SERVERINFO, CS_SYSTEMINFO, MAX_DATAGRAM } from './constants.js';
 import type { EntityObservation } from './snapshot.js';
-import { emptyParseState, parseServerMessage, type ParseState } from './snapshot.js';
+import {
+  emptyParseState,
+  parseServerMessage,
+  type ParseState,
+} from './snapshot.js';
 import {
   buildClientDatagram,
   buildConnectPacket,
@@ -63,7 +67,10 @@ interface Pending {
  * `connect` refuses unless getstatus has `sv_pure` and `sv_punkbuster` equal to `0`.
  */
 // Assigned from the class static block. `open` stays private, so the pure probe is not a GamePeer method.
-let openPeer!: (options: GamePeerOptions, enforceGate: boolean) => Promise<GamePeer>;
+let openPeer!: (
+  options: GamePeerOptions,
+  enforceGate: boolean,
+) => Promise<GamePeer>;
 
 export class GamePeer {
   static {
@@ -109,7 +116,13 @@ export class GamePeer {
     serverId: null,
   };
 
-  private constructor(options: GamePeerOptions, status: StatusInfo, protocol: number, socket: dgram.Socket, challenge: number) {
+  private constructor(
+    options: GamePeerOptions,
+    status: StatusInfo,
+    protocol: number,
+    socket: dgram.Socket,
+    challenge: number,
+  ) {
     this.status = status;
     this.protocol = protocol;
     this.socket = socket;
@@ -127,7 +140,10 @@ export class GamePeer {
     return GamePeer.open(options, true);
   }
 
-  private static async open(options: GamePeerOptions, enforceGate: boolean): Promise<GamePeer> {
+  private static async open(
+    options: GamePeerOptions,
+    enforceGate: boolean,
+  ): Promise<GamePeer> {
     const timeoutMs = options.timeoutMs ?? 3000;
     const socket = dgram.createSocket('udp4');
     await new Promise<void>((resolve, reject) => {
@@ -139,7 +155,11 @@ export class GamePeer {
     });
     const peer = new GamePeer(options, emptyStatus(), 0, socket, 0);
     try {
-      const statusBody = await peer.roundTrip(buildGetstatusPacket(), timeoutMs, (header) => header === 'statusResponse');
+      const statusBody = await peer.roundTrip(
+        buildGetstatusPacket(),
+        timeoutMs,
+        (header) => header === 'statusResponse',
+      );
       const status = parseStatusBody(statusBody);
       Object.assign(peer.status, status);
       const gate = connectAllowed(status);
@@ -149,10 +169,19 @@ export class GamePeer {
       }
       if (status.protocol === null) {
         peer.close();
-        throw new ConnectRefusedError('protocol missing from getstatus', status);
+        throw new ConnectRefusedError(
+          'protocol missing from getstatus',
+          status,
+        );
       }
-      const challengeLine = await peer.roundTrip(buildGetchallengePacket(), timeoutMs, (header) => header.startsWith('challengeResponse'));
-      const challenge = Number(/^challengeResponse\s+(-?\d+)/.exec(challengeLine)?.[1] ?? Number.NaN);
+      const challengeLine = await peer.roundTrip(
+        buildGetchallengePacket(),
+        timeoutMs,
+        (header) => header.startsWith('challengeResponse'),
+      );
+      const challenge = Number(
+        /^challengeResponse\s+(-?\d+)/.exec(challengeLine)?.[1] ?? Number.NaN,
+      );
       if (!Number.isInteger(challenge)) {
         peer.close();
         throw new Error(`bad challenge response: ${challengeLine}`);
@@ -163,9 +192,13 @@ export class GamePeer {
         challenge,
         qport: peer.qport,
       });
-      const connectBody = await peer.roundTrip(buildConnectPacket(userinfo), timeoutMs, (header) => {
-        return header === 'connectResponse' || header === 'error';
-      });
+      const connectBody = await peer.roundTrip(
+        buildConnectPacket(userinfo),
+        timeoutMs,
+        (header) => {
+          return header === 'connectResponse' || header === 'error';
+        },
+      );
       if (connectBody.startsWith('error')) {
         peer.close();
         throw new Error(connectBody.replace(/\0/g, ''));
@@ -195,7 +228,8 @@ export class GamePeer {
         serverId: this.serverId,
         messageAcknowledge: this.messageAcknowledge,
         reliableAcknowledge: this.reliableAcknowledge,
-        ackedServerCommand: this.serverCommandText.get(this.reliableAcknowledge) ?? '',
+        ackedServerCommand:
+          this.serverCommandText.get(this.reliableAcknowledge) ?? '',
         checksumFeed: this.checksumFeed,
         serverTime: this.cmdTime,
         commandSeq: this.commandSeq,
@@ -231,7 +265,11 @@ export class GamePeer {
     this.socket.send(packet, this.port, this.host);
   }
 
-  private roundTrip(packet: Buffer, timeoutMs: number, matchHeader: (header: string) => boolean): Promise<string> {
+  private roundTrip(
+    packet: Buffer,
+    timeoutMs: number,
+    matchHeader: (header: string) => boolean,
+  ): Promise<string> {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         const index = this.pending.findIndex((item) => item.timer === timer);
@@ -239,7 +277,14 @@ export class GamePeer {
         reject(new Error('timed out waiting for server'));
       }, timeoutMs);
       this.pending.push({
-        resolve: (header, body) => resolve(header === 'statusResponse' ? body : body.length === 0 ? header : `${header}\n${body}`),
+        resolve: (header, body) =>
+          resolve(
+            header === 'statusResponse'
+              ? body
+              : body.length === 0
+                ? header
+                : `${header}\n${body}`,
+          ),
         reject,
         timer,
         match: (header) => matchHeader(header),
@@ -255,7 +300,13 @@ export class GamePeer {
       return;
     }
     this.onDatagram?.('in', message);
-    if (message.length >= 4 && message[0] === 0xff && message[1] === 0xff && message[2] === 0xff && message[3] === 0xff) {
+    if (
+      message.length >= 4 &&
+      message[0] === 0xff &&
+      message[1] === 0xff &&
+      message[2] === 0xff &&
+      message[3] === 0xff
+    ) {
       this.onOob(message);
       return;
     }
@@ -293,21 +344,39 @@ export class GamePeer {
     }
     if (assembled.pending) return;
     this.messageAcknowledge = assembled.sequence;
-    const commandSeq = assembled.message.length >= 4 ? new DataView(assembled.message.buffer, assembled.message.byteOffset, assembled.message.byteLength).getInt32(0, true) : 0;
+    const commandSeq =
+      assembled.message.length >= 4
+        ? new DataView(
+            assembled.message.buffer,
+            assembled.message.byteOffset,
+            assembled.message.byteLength,
+          ).getInt32(0, true)
+        : 0;
     const command = this.sentCommands.get(commandSeq) ?? '';
-    const decoded = decodeServerPayload(assembled.message, this.challenge, assembled.sequence, command, this.protocol);
+    const decoded = decodeServerPayload(
+      assembled.message,
+      this.challenge,
+      assembled.sequence,
+      command,
+      this.protocol,
+    );
     if (!decoded.ok) {
       this.watchState.parseFailures++;
       return;
     }
-    const parsed = parseServerMessage(decoded.data, this.protocol, this.parseState);
+    const parsed = parseServerMessage(
+      decoded.data,
+      this.protocol,
+      this.parseState,
+    );
     if (!parsed.ok) {
       this.watchState.parseFailures++;
       this.noteCommands(parsed.serverCommands);
       return;
     }
     this.parseState = parsed.state;
-    if (parsed.message.clientNum !== null) this.watchState.clientNum = parsed.message.clientNum;
+    if (parsed.message.clientNum !== null)
+      this.watchState.clientNum = parsed.message.clientNum;
     if (parsed.message.checksumFeed !== null) {
       this.checksumFeed = parsed.message.checksumFeed;
       this.haveGamestate = true;
@@ -327,13 +396,18 @@ export class GamePeer {
       this.watchState.serverTimes.push(snapshot.serverTimeMs);
       this.watchState.receivedAt.push(Date.now());
       this.watchState.samples.push(...snapshot.players);
-      if (this.cmdTime < snapshot.serverTimeMs) this.cmdTime = snapshot.serverTimeMs;
-      const self = snapshot.clients.find((client) => client.clientIndex === this.watchState.clientNum);
+      if (this.cmdTime < snapshot.serverTimeMs)
+        this.cmdTime = snapshot.serverTimeMs;
+      const self = snapshot.clients.find(
+        (client) => client.clientIndex === this.watchState.clientNum,
+      );
       if (self) this.watchState.spectatorTeam = self.team;
     }
   }
 
-  private noteCommands(commands: readonly { seq: number; text: string }[]): void {
+  private noteCommands(
+    commands: readonly { seq: number; text: string }[],
+  ): void {
     for (const command of commands) {
       this.serverCommandText.set(command.seq, command.text);
       this.reliableAcknowledge = command.seq;
@@ -361,7 +435,10 @@ export class GamePeer {
     this.send(this.packet(commands, true));
   }
 
-  private packet(commands: readonly { seq: number; text: string }[], move: boolean): Buffer {
+  private packet(
+    commands: readonly { seq: number; text: string }[],
+    move: boolean,
+  ): Buffer {
     const datagram = buildClientDatagram({
       sequence: this.outgoing,
       qport: this.qport,
@@ -369,7 +446,8 @@ export class GamePeer {
       serverId: this.serverId,
       messageAcknowledge: this.messageAcknowledge,
       reliableAcknowledge: this.reliableAcknowledge,
-      ackedServerCommand: this.serverCommandText.get(this.reliableAcknowledge) ?? '',
+      ackedServerCommand:
+        this.serverCommandText.get(this.reliableAcknowledge) ?? '',
       checksumFeed: this.checksumFeed,
       serverTime: this.cmdTime,
       commands,
@@ -386,5 +464,11 @@ export function connectPureProbe(options: GamePeerOptions): Promise<GamePeer> {
 }
 
 function emptyStatus(): StatusInfo {
-  return { protocol: null, sv_pure: null, sv_punkbuster: null, sv_fps: null, keys: {} };
+  return {
+    protocol: null,
+    sv_pure: null,
+    sv_punkbuster: null,
+    sv_fps: null,
+    keys: {},
+  };
 }
