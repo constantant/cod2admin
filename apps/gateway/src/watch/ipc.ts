@@ -7,6 +7,8 @@ export interface HelloServer {
   protocol: number;
   gSpeed: number | null;
   password?: string;
+  /** Real map name once known. A map line is a later rename, not this field. */
+  mapName?: string;
 }
 
 export interface HelloMessage {
@@ -53,14 +55,7 @@ export interface LifeMessage {
 export function reloadMessage(servers: readonly HelloServer[]): ReloadMessage {
   return {
     type: 'reload',
-    servers: servers.map((server) => ({
-      alias: server.alias,
-      host: server.host,
-      port: server.port,
-      spectatorName: server.spectatorName,
-      protocol: server.protocol,
-      gSpeed: server.gSpeed,
-    })),
+    servers: servers.map(stripPassword),
   };
 }
 
@@ -113,7 +108,7 @@ function parseMap(value: Record<string, unknown>): MapMessage | undefined {
 }
 
 function stripPassword(server: HelloServer): Omit<HelloServer, 'password'> {
-  return {
+  const next: Omit<HelloServer, 'password'> = {
     alias: server.alias,
     host: server.host,
     port: server.port,
@@ -121,6 +116,10 @@ function stripPassword(server: HelloServer): Omit<HelloServer, 'password'> {
     protocol: server.protocol,
     gSpeed: server.gSpeed,
   };
+  if (server.mapName) {
+    next.mapName = server.mapName;
+  }
+  return next;
 }
 
 /**
@@ -211,6 +210,10 @@ function parseServer(value: unknown): HelloServer | undefined {
   const password = entry['password'];
   if (typeof password === 'string' && password.length > 0) {
     server.password = password;
+  }
+  const mapName = entry['mapName'];
+  if (typeof mapName === 'string' && mapName.trim().length > 0) {
+    server.mapName = mapName.trim();
   }
   return server;
 }

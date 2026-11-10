@@ -37,17 +37,17 @@ describe('watch child snapshots', () => {
     expect(seen.every((row) => row['event'] === undefined)).toBe(true);
   });
 
-  it('ends every slot as map when the held map changes', async () => {
+  it('adopts the first map and ends a later change as map', async () => {
     const seen = await runSnapshots(async (snap, send) => {
       snap([player(4, 0, 0, 0)]);
       send({ type: 'map', serverAlias: 'default', mapName: 'mp_toujane' });
       await new Promise((resolve) => setImmediate(resolve));
       snap([player(4, 50, 0, 0)]);
       snap([]);
+      send({ type: 'map', serverAlias: 'default', mapName: 'mp_carentan' });
     });
     expect(seen.map((row) => [row['slot'], row['endReason']])).toEqual([
       [4, 'map'],
-      [4, 'disconnect'],
     ]);
   });
 

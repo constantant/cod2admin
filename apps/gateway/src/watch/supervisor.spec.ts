@@ -321,6 +321,60 @@ describe('watch supervisor', () => {
     );
   });
 
+  it('sends a map line only when a real map name changes', async () => {
+    const draft = draftHarness();
+    draft.servers.push(
+      enabled({ join: 'private' }, { watchPrivatePassword: SECRET }),
+    );
+    draft.rcon.getStatus.mockResolvedValue(OPEN);
+    const supervisor = await boot(draft);
+    supervisor.noteStatus(
+      'default',
+      { raw: '', mapName: 'mp_toujane', players: [] },
+      NOW,
+    );
+    await supervisor.whenIdle();
+    const seeded = messages(draft.children[0]!).filter(
+      (line) => line['type'] !== 'hello',
+    );
+    expect(seeded.filter((line) => line['type'] === 'map')).toEqual([]);
+    expect(seeded).toEqual([
+      {
+        type: 'reload',
+        servers: [
+          expect.objectContaining({ alias: 'default', mapName: 'mp_toujane' }),
+        ],
+      },
+    ]);
+    expect(JSON.stringify(seeded)).not.toContain(SECRET);
+    expect(JSON.stringify(seeded)).not.toContain(RCON_SECRET);
+
+    supervisor.noteStatus(
+      'default',
+      { raw: '', mapName: 'mp_toujane', players: [] },
+      NOW,
+    );
+    await supervisor.whenIdle();
+    expect(
+      messages(draft.children[0]!).filter((line) => line['type'] === 'map'),
+    ).toEqual([]);
+
+    supervisor.noteStatus(
+      'default',
+      { raw: '', mapName: 'mp_carentan', players: [] },
+      NOW,
+    );
+    await supervisor.whenIdle();
+    const after = messages(draft.children[0]!).filter(
+      (line) => line['type'] !== 'hello',
+    );
+    expect(after.filter((line) => line['type'] === 'map')).toEqual([
+      { type: 'map', serverAlias: 'default', mapName: 'mp_carentan' },
+    ]);
+    expect(JSON.stringify(after)).not.toContain(SECRET);
+    expect(JSON.stringify(after)).not.toContain(RCON_SECRET);
+  });
+
   it('stores a null map and does not score it', async () => {
     const draft = draftHarness();
     draft.servers.push(enabled({ mode: 'flag' }));
@@ -648,6 +702,7 @@ async function snapshotLife(): Promise<Record<string, unknown>> {
       );
     }
     shoot([]);
+    await new Promise((resolve) => setImmediate(resolve));
     const parsed = lines
       .flatMap((chunk) => chunk.split('\n'))
       .filter((line) => line.length > 0)

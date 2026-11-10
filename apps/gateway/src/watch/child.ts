@@ -24,10 +24,14 @@ interface Connection {
   port: number;
   gSpeed: number | null;
   mapName: string | null;
+  /** Snapshots stay live while this matches the hello generation. */
+  liveGen: number;
   peer?: PeerHandle;
   tracker: LifeTracker;
   slots: Set<number>;
   startedAt: Map<number, number>;
+  pendingAbsent: Set<number>;
+  absenceTimer?: ReturnType<typeof setImmediate>;
   attempt: number;
   retry?: ReturnType<typeof setTimeout>;
 }
@@ -113,6 +117,10 @@ export function createWatchChild(options: WatchChildOptions): {
         current.port === server.port &&
         current.gSpeed === server.gSpeed
       ) {
+        current.liveGen = gen;
+        if (server.mapName) {
+          adoptMap(current, server.mapName);
+        }
         continue;
       }
       await connectServer(server, gen);
@@ -128,15 +136,18 @@ export function createWatchChild(options: WatchChildOptions): {
       drop(previous, 'disconnect');
       connections.delete(server.alias);
     }
+    const mapName = server.mapName ?? null;
     const connection: Connection = {
       alias: server.alias,
       host: server.host,
       port: server.port,
       gSpeed: server.gSpeed,
-      mapName: null,
-      tracker: new LifeTracker(null, server.gSpeed),
+      mapName,
+      liveGen: gen,
+      tracker: new LifeTracker(mapName, server.gSpeed),
       slots: new Set(),
       startedAt: new Map(),
+      pendingAbsent: new Set(),
       attempt: 0,
     };
     connections.set(server.alias, connection);
@@ -158,7 +169,7 @@ export function createWatchChild(options: WatchChildOptions): {
         name: server.spectatorName,
         onSnapshot: (samples) => {
           if (
-            gen !== generation ||
+            connection.liveGen !== generation ||
             current === undefined ||
             connections.get(server.alias) !== connection
           ) {
@@ -224,11 +235,27 @@ export function createWatchChild(options: WatchChildOptions): {
     connection.retry = timer;
   }
 
-  function applyMap(message: MapMessage): void {
-    const connection = connections.get(message.serverAlias);
-    if (!connection || connection.mapName === message.mapName) {
+  /** The first real name replaces the tracker and leaves open slots open. */
+  function adoptMap(connection: Connection, mapName: string): void {
+    if (connection.mapName !== null || mapName.length === 0) {
       return;
     }
+    connection.mapName = mapName;
+    connection.tracker = new LifeTracker(mapName, connection.gSpeed);
+  }
+
+  function applyMap(message: MapMessage): void {
+    const connection = connections.get(message.serverAlias);
+    const next = message.mapName;
+    if (!connection || next === null || connection.mapName === next) {
+      return;
+    }
+    if (connection.mapName === null) {
+      adoptMap(connection, next);
+      return;
+    }
+    // The map line is already on the stdin microtask. Absence waits for it.
+    cancelAbsence(connection);
     for (const slot of [...connection.slots]) {
       const closed = connection.tracker.end(slot, 'map');
       if (closed) {
@@ -236,14 +263,16 @@ export function createWatchChild(options: WatchChildOptions): {
       }
     }
     connection.slots.clear();
-    connection.mapName = message.mapName;
-    connection.tracker = new LifeTracker(message.mapName, connection.gSpeed);
+    connection.startedAt.clear();
+    connection.mapName = next;
+    connection.tracker = new LifeTracker(next, connection.gSpeed);
   }
 
   function ingest(connection: Connection, samples: readonly Sample[]): void {
     const present = new Set<number>();
     for (const sample of samples) {
       present.add(sample.slot);
+      connection.pendingAbsent.delete(sample.slot);
       if (!connection.startedAt.has(sample.slot)) {
         connection.startedAt.set(sample.slot, sample.receivedAtMs);
       }
@@ -253,18 +282,55 @@ export function createWatchChild(options: WatchChildOptions): {
         emitLife(connection, closed);
       }
     }
-    for (const slot of [...connection.slots]) {
+    let missing = false;
+    for (const slot of connection.slots) {
       if (present.has(slot)) {
         continue;
       }
-      const closed = connection.tracker.end(slot, 'disconnect');
-      if (closed) {
-        emitLife(connection, closed);
-      }
+      connection.pendingAbsent.add(slot);
+      missing = true;
+    }
+    if (missing) {
+      scheduleAbsence(connection);
     }
   }
 
+  function scheduleAbsence(connection: Connection): void {
+    if (connection.absenceTimer !== undefined) {
+      return;
+    }
+    connection.absenceTimer = setImmediate(() => {
+      connection.absenceTimer = undefined;
+      if (connections.get(connection.alias) !== connection) {
+        return;
+      }
+      for (const slot of [...connection.pendingAbsent]) {
+        connection.pendingAbsent.delete(slot);
+        if (!connection.slots.has(slot)) {
+          continue;
+        }
+        const closed = connection.tracker.end(slot, 'disconnect');
+        if (closed) {
+          emitLife(connection, closed);
+        } else {
+          connection.slots.delete(slot);
+          connection.startedAt.delete(slot);
+        }
+      }
+    });
+  }
+
+  function cancelAbsence(connection: Connection): void {
+    connection.pendingAbsent.clear();
+    if (connection.absenceTimer === undefined) {
+      return;
+    }
+    clearImmediate(connection.absenceTimer);
+    connection.absenceTimer = undefined;
+  }
+
   function drop(connection: Connection, reason: 'disconnect' | 'map'): void {
+    cancelAbsence(connection);
     clearRetry(connection);
     for (const slot of [...connection.slots]) {
       const closed = connection.tracker.end(slot, reason);

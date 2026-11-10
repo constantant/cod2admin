@@ -371,6 +371,13 @@ class Supervisor {
   }
 
   private applyChild(hello: HelloServer[]): void {
+    for (const server of hello) {
+      const held = this.held.get(server.alias)?.status.mapName?.trim() || null;
+      const known = held ?? this.childMaps.get(server.alias) ?? null;
+      if (known) {
+        server.mapName = known;
+      }
+    }
     this.lastHello = hello;
     if (hello.length === 0) {
       this.stopChild();
@@ -420,7 +427,13 @@ class Supervisor {
     this.child = started;
     this.childMaps.clear();
     for (const server of hello) {
-      this.childMaps.set(server.alias, null);
+      const mapName = server.mapName?.trim() || null;
+      if (mapName) {
+        server.mapName = mapName;
+      } else {
+        delete server.mapName;
+      }
+      this.childMaps.set(server.alias, mapName);
     }
     const reader = createInterface({ input: child.stdout });
     reader.on('line', (line) => {
@@ -482,24 +495,43 @@ class Supervisor {
     this.signal(started.process);
   }
 
-  /** A map change ends open lives in the child. The password stays off this line. */
+  /**
+   * A map line is only a rename between two real names. The first name is a
+   * reload, which the child adopts without ending open lives. No password.
+   */
   private publishMaps(): void {
     const child = this.child;
     if (!child) {
       return;
     }
+    let seed = false;
     for (const server of this.lastHello) {
       const mapName =
         this.held.get(server.alias)?.status.mapName?.trim() || null;
-      if (this.childMaps.get(server.alias) === mapName) {
+      const previous = this.childMaps.get(server.alias) ?? null;
+      if (previous === mapName) {
         continue;
       }
       this.childMaps.set(server.alias, mapName);
-      this.write(child.process, {
-        type: 'map',
-        serverAlias: server.alias,
-        mapName,
-      });
+      if (mapName) {
+        server.mapName = mapName;
+      } else {
+        delete server.mapName;
+      }
+      if (previous !== null && mapName !== null) {
+        this.write(child.process, {
+          type: 'map',
+          serverAlias: server.alias,
+          mapName,
+        });
+        continue;
+      }
+      if (previous === null && mapName !== null) {
+        seed = true;
+      }
+    }
+    if (seed) {
+      this.write(child.process, reloadMessage(this.lastHello));
     }
   }
 
