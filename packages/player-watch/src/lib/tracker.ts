@@ -5,8 +5,8 @@ const MIN_ANGLES_BEFORE_ACQUIRE = 4;
 const LOOKING_AWAY_DEGREES = 30;
 const SPEED_OVER_G = 1.5;
 const SPEED_RUN_MS = 1000;
-/** Spike snap interval. A slower server splits real runs until this is raised. */
-const SNAP_INTERVAL_MS = 51;
+/** Wider than two 50 ms snaps. A 100 ms cadence stays one run; a larger hole does not. */
+const SPEED_GAP_MS = 100;
 
 interface Vec3 {
   x: number;
@@ -338,7 +338,7 @@ function speedOverG(
     const gap =
       i > 0 &&
       i < points.length &&
-      points[i].t - points[i - 1].t > SNAP_INTERVAL_MS;
+      points[i].t - points[i - 1].t > SPEED_GAP_MS;
     if (gap) finish(i);
     const above = i < points.length && points[i].above;
     if (above && runStart < 0) runStart = i;

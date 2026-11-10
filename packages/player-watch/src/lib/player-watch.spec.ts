@@ -121,7 +121,7 @@ function speedLife(
   return close(tracker);
 }
 
-/** Own-entity samples at most one dev snap apart, covering `spanMs`. */
+/** Timestamps from 0 through `spanMs`, stepping by `step`. */
 function speedTimes(spanMs: number, step = 50): number[] {
   const times: number[] = [];
   for (let t = 0; t <= spanMs; t += step) times.push(t);
@@ -317,7 +317,7 @@ describe('LifeTracker', () => {
     expect(speedLife(100, speedTimes(1001), 150).speedOverG).toBeUndefined();
     expect(speedLife(null, speedTimes(1001), 500).speedOverG).toBeUndefined();
     expect(speedLife(0, speedTimes(1001), 500).speedOverG).toBeUndefined();
-    expect(speedLife(100, speedTimes(1020, 51), 160).speedOverG).toBeCloseTo(
+    expect(speedLife(100, speedTimes(2000, 100), 160).speedOverG).toBeCloseTo(
       1.6,
       5,
     );
@@ -530,14 +530,23 @@ describe('LifeTracker', () => {
     );
     expect(close(dropped).speedOverG).toBeUndefined();
 
-    const gapped = new LifeTracker('mp_toujane', 100);
-    for (const serverTimeMs of speedTimes(1000)) {
-      gapped.push(sample({ serverTimeMs, velocity: { x: 160, y: 0, z: 0 } }));
+    const jitter = speedTimes(1100);
+    const at500 = jitter.indexOf(500);
+    jitter[at500] = 502;
+    expect(speedLife(100, jitter, 160).speedOverG).toBeCloseTo(1.6, 5);
+
+    const droppedSnap = new LifeTracker('mp_toujane', 100);
+    for (const serverTimeMs of speedTimes(600)) {
+      droppedSnap.push(
+        sample({ serverTimeMs, velocity: { x: 160, y: 0, z: 0 } }),
+      );
     }
-    gapped.push(
-      sample({ serverTimeMs: 1052, velocity: { x: 160, y: 0, z: 0 } }),
-    );
-    expect(close(gapped).speedOverG).toBeUndefined();
+    for (let serverTimeMs = 750; serverTimeMs <= 1200; serverTimeMs += 50) {
+      droppedSnap.push(
+        sample({ serverTimeMs, velocity: { x: 160, y: 0, z: 0 } }),
+      );
+    }
+    expect(close(droppedSnap).speedOverG).toBeUndefined();
 
     const sameTickHole = new LifeTracker('mp_toujane', 100);
     for (const serverTimeMs of speedTimes(1100)) {
