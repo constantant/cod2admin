@@ -6,6 +6,9 @@
   <div class="banner">{{ error }}</div>
   } @if (status(); as status) {
   <section class="card summary">
+    @if (status.mapName; as mapName) {
+    <c2a-map-banner [name]="mapName" />
+    }
     <div class="row">
       <div class="hostname">
         @if (status.hostname) {
@@ -26,13 +29,7 @@
         <div class="value">{{ status.players.length }}</div>
         <div class="muted">{{ 'players' | t }}</div>
       </div>
-      <div>
-        <div class="value map">{{ status.mapName ?? '—' }}</div>
-        <div class="muted">{{ 'map' | t }}</div>
-      </div>
-      @if (status.mapName; as mapName) {
-      <c2a-map-thumb class="thumb" [name]="mapName" />
-      } @if (flagged() > 0) {
+      @if (flagged() > 0) {
       <div>
         <div class="value vpn">{{ flagged() }}</div>
         <div class="muted">{{ 'on VPN' | t }}</div>

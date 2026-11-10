@@ -20,6 +20,7 @@ import { Icon } from '../../shared/icon';
 import { LineChart } from '../../shared/line-chart';
 import { Notify } from '../../shared/notify';
 import { modeLabel } from '../maps/maps';
+import { MapBanner } from '../../shared/map-banner';
 import { MapThumb } from '../../shared/map-thumb';
 import { dateLocale, t, T } from '../../shared/i18n';
 
@@ -36,6 +37,7 @@ import { dateLocale, t, T } from '../../shared/i18n';
     GameName,
     Icon,
     LineChart,
+    MapBanner,
     MapThumb,
   ],
   template: `
@@ -45,6 +47,9 @@ import { dateLocale, t, T } from '../../shared/i18n';
     <div class="page">
       @if (data(); as data) {
         <section class="card">
+          @if (map(); as name) {
+            <c2a-map-banner [name]="name" [mode]="data.gametype" />
+          }
           <div class="row">
             <span class="state" [class.on]="data.online">{{
               (data.online ? 'Online' : 'Offline') | t
@@ -71,18 +76,6 @@ import { dateLocale, t, T } from '../../shared/i18n';
                 }
               </div>
               <div class="muted">{{ 'players now' | t }}</div>
-            </div>
-            <div class="now-map">
-              <div>
-                <div class="value text">{{ map() ?? '—' }}</div>
-                <div class="muted">
-                  {{ 'map' | t
-                  }}{{ data.gametype ? ' · ' + mode(data.gametype) : '' }}
-                </div>
-              </div>
-              @if (map(); as name) {
-                <c2a-map-thumb class="thumb" [name]="name" />
-              }
             </div>
           </div>
         </section>
@@ -252,18 +245,6 @@ import { dateLocale, t, T } from '../../shared/i18n';
     h2 {
       font: var(--mat-sys-title-small);
       margin: 0;
-    }
-    .now-map {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 12px;
-    }
-    .thumb {
-      flex: none;
-      width: 104px;
-      border-radius: 8px;
-      overflow: hidden;
     }
     .top-map {
       gap: 8px;

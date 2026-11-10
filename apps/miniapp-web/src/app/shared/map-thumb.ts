@@ -14,6 +14,7 @@ import { mapGradient, mapImageUrl, prettyMapName } from './map-art';
  */
 @Component({
   selector: 'c2a-map-thumb',
+  host: { '[class.fill]': 'fill()' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <span class="art" [style.background]="gradient()">
@@ -35,6 +36,11 @@ import { mapGradient, mapImageUrl, prettyMapName } from './map-art';
     :host {
       display: block;
       width: 100%;
+    }
+    :host(.fill),
+    :host(.fill) .art {
+      height: 100%;
+      aspect-ratio: auto;
     }
     .art {
       position: relative;
@@ -64,6 +70,8 @@ export class MapThumb {
   readonly name = input.required<string>();
   /** Off for small thumbnails, where the generated tile's name wouldn't fit. */
   readonly showName = input(true);
+  /** Fill the parent's height instead of keeping 4:3 (for a banner). */
+  readonly fill = input(false);
 
   protected readonly failedFor = signal<string | null>(null);
   protected readonly failed = computed(() => this.failedFor() === this.name());
