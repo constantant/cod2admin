@@ -12,6 +12,7 @@ import type {
 } from './telegram-routes.js';
 import type { ReportQueue } from './report-queue.js';
 import type { ReportRegistry } from './reports.js';
+import type { WatchSupervisor } from '../watch/supervisor.js';
 import type { UpdateRegistry } from './update-registry.js';
 import type { ChatTemplates } from './chat-templates.js';
 import type { KnownPlayers } from './known-players.js';
@@ -99,6 +100,11 @@ export interface GatewayDeps {
   githubReleaseClient: GithubReleaseClient;
   /** Pending `/update` confirm/cancel cards (docs/PLAN.md §13.3) — same shape/lifetime caveats as `reportRegistry`. */
   updateRegistry: UpdateRegistry;
+  /**
+   * Watcher parent. Absent in unit tests. A failed watch migration leaves
+   * this unset; bans and admins still run.
+   */
+  watchSupervisor?: WatchSupervisor;
   /** Set by the version-check poller so it notifies the owner once per new tag, not every tick. */
   lastNotifiedTag?: string;
 }

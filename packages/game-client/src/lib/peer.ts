@@ -1,4 +1,5 @@
 import dgram from 'node:dgram';
+import type { Sample } from '@cod2admin/player-watch';
 import { parseOobPacket } from '@cod2admin/rcon-client';
 import { CS_SERVERINFO, CS_SYSTEMINFO, MAX_DATAGRAM } from './constants.js';
 import type { EntityObservation } from './snapshot.js';
@@ -34,8 +35,14 @@ export class ConnectRefusedError extends Error {
 export interface GamePeerOptions {
   host: string;
   port: number;
+  /** Stamped on each `Sample`. Defaults to `host:port`. */
+  serverAlias?: string;
+  /** Spectator userinfo name. Omitted: `AdminWatch`. Never a password. */
+  name?: string;
   timeoutMs?: number;
   onDatagram?: (direction: 'in' | 'out', bytes: Buffer) => void;
+  /** Called as snapshots parse. The spike's `watch()` still collects them too. */
+  onSample?: (sample: Sample) => void;
 }
 
 export interface WatchResult {
@@ -46,7 +53,7 @@ export interface WatchResult {
   serverTimes: number[];
   /** Local receive time of each parsed snapshot. */
   receivedAt: number[];
-  samples: EntityObservation[];
+  samples: Sample[];
   spectatorTeam: number | null;
   clientNum: number | null;
   parseFailures: number;
@@ -82,7 +89,9 @@ export class GamePeer {
   private readonly socket: dgram.Socket;
   private readonly host: string;
   private readonly port: number;
+  private readonly serverAlias: string;
   private readonly onDatagram?: GamePeerOptions['onDatagram'];
+  private readonly onSample?: GamePeerOptions['onSample'];
   private challenge: number;
   private readonly qport: number;
   private fragments: FragmentAssembler;
@@ -96,6 +105,7 @@ export class GamePeer {
   private checksumFeed = 0;
   private haveGamestate = false;
   private sentTeam = false;
+  private keepalive: ReturnType<typeof setInterval> | undefined;
   private cmdTime = 50;
   private closed = false;
   private readonly sentCommands = new Map<number, string>();
@@ -128,7 +138,9 @@ export class GamePeer {
     this.socket = socket;
     this.host = options.host;
     this.port = options.port;
+    this.serverAlias = options.serverAlias ?? `${options.host}:${options.port}`;
     this.onDatagram = options.onDatagram;
+    this.onSample = options.onSample;
     this.challenge = challenge;
     this.qport = 1 + Math.floor(Math.random() * 65534);
     this.fragments = new FragmentAssembler(protocol);
@@ -191,6 +203,7 @@ export class GamePeer {
         protocol: status.protocol,
         challenge,
         qport: peer.qport,
+        name: options.name,
       });
       const connectBody = await peer.roundTrip(
         buildConnectPacket(userinfo),
@@ -216,6 +229,14 @@ export class GamePeer {
     await new Promise((resolve) => setTimeout(resolve, durationMs));
     clearInterval(timer);
     return this.watchState;
+  }
+
+  /** Keepalive until `disconnect`. The supervisor child uses this, not a timed `watch`. */
+  run(): void {
+    if (this.closed || this.keepalive) return;
+    this.sendTrigger();
+    this.keepalive = setInterval(() => this.sendKeepalive(), 50);
+    this.keepalive.unref?.();
   }
 
   disconnect(): void {
@@ -252,6 +273,7 @@ export class GamePeer {
   private close(): void {
     if (this.closed) return;
     this.closed = true;
+    if (this.keepalive) clearInterval(this.keepalive);
     for (const pending of this.pending.splice(0)) {
       clearTimeout(pending.timer);
       pending.reject(new Error('socket closed'));
@@ -394,8 +416,13 @@ export class GamePeer {
     for (const snapshot of parsed.message.snapshots) {
       this.watchState.snapshotCount++;
       this.watchState.serverTimes.push(snapshot.serverTimeMs);
-      this.watchState.receivedAt.push(Date.now());
-      this.watchState.samples.push(...snapshot.players);
+      const receivedAtMs = Date.now();
+      this.watchState.receivedAt.push(receivedAtMs);
+      for (const player of snapshot.players) {
+        const sample = toSample(player, receivedAtMs, this.serverAlias);
+        this.watchState.samples.push(sample);
+        this.onSample?.(sample);
+      }
       if (this.cmdTime < snapshot.serverTimeMs)
         this.cmdTime = snapshot.serverTimeMs;
       const self = snapshot.clients.find(
@@ -461,6 +488,23 @@ export class GamePeer {
 /** One connect with the pure/PB gate off. Not part of the package entry. Does not retry. */
 export function connectPureProbe(options: GamePeerOptions): Promise<GamePeer> {
   return openPeer(options, false);
+}
+
+function toSample(
+  player: EntityObservation,
+  receivedAtMs: number,
+  serverAlias: string,
+): Sample {
+  return {
+    serverTimeMs: player.serverTimeMs,
+    receivedAtMs,
+    serverAlias,
+    slot: player.clientNum,
+    entityNum: player.entityNum,
+    origin: { x: player.origin[0], y: player.origin[1], z: player.origin[2] },
+    viewangles: { pitch: player.viewangles[0], yaw: player.viewangles[1] },
+    weapon: player.weapon,
+  };
 }
 
 function emptyStatus(): StatusInfo {

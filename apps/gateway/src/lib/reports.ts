@@ -14,11 +14,13 @@ import {
   type CardSender,
   type ReportActionContext,
   type ReportAntiSpam,
+  type MachineReport,
   type ReportCard,
   type ReportCardAction,
   type ReportCardButton,
   type SessionLookup,
   type SessionSource,
+  type WatchCardEntry,
 } from '@cod2admin/report-pipeline';
 import type { RconClient } from '@cod2admin/rcon-client';
 import { Bot, InlineKeyboard } from 'grammy';
@@ -115,6 +117,7 @@ export interface PendingReport {
  */
 export class ReportRegistry {
   private readonly reports = new Map<string, PendingReport>();
+  private readonly watches = new Map<string, WatchCardEntry>();
   private nextId = 1;
 
   reserveId(): string {
@@ -135,6 +138,27 @@ export class ReportRegistry {
 
   findByQueueId(queueId: number): [string, PendingReport] | undefined {
     for (const entry of this.reports) {
+      if (entry[1].queueId === queueId) {
+        return entry;
+      }
+    }
+    return undefined;
+  }
+
+  setWatch(id: string, entry: WatchCardEntry): void {
+    this.watches.set(id, entry);
+  }
+
+  getWatch(id: string): WatchCardEntry | undefined {
+    return this.watches.get(id);
+  }
+
+  deleteWatch(id: string): void {
+    this.watches.delete(id);
+  }
+
+  findWatchByQueueId(queueId: number): [string, WatchCardEntry] | undefined {
+    for (const entry of this.watches) {
       if (entry[1].queueId === queueId) {
         return entry;
       }
@@ -184,6 +208,61 @@ export class GatewayCardSender implements CardSender<string> {
       );
     } catch (error) {
       // Telegram rejects a byte-identical edit (see status.ts's identical handling) - not an error.
+      if (
+        !(error instanceof Error) ||
+        !error.message.includes('message is not modified')
+      ) {
+        throw error;
+      }
+    }
+  }
+}
+
+/** Sends a watch card and remembers it apart from player `!report` entries. */
+export class WatchCardSender implements CardSender<string> {
+  constructor(
+    private readonly bot: Bot,
+    private readonly registry: ReportRegistry,
+    private readonly report: MachineReport,
+  ) {}
+
+  async send(chatId: number, card: ReportCard): Promise<string> {
+    const id = this.registry.reserveId();
+    const keyboard = buildInlineKeyboard(card.buttons, id);
+    const message = await this.bot.api.sendMessage(chatId, card.text, {
+      reply_markup: keyboard,
+    });
+    this.registry.setWatch(id, {
+      origin: 'watch',
+      chatId,
+      messageId: message.message_id,
+      serverAlias: this.report.serverAlias,
+      evidenceId: this.report.evidenceId,
+      profileKey: this.report.profileKey,
+      target: this.report.target,
+      detailText: card.detailText,
+      queueId: this.report.queueId,
+    });
+    return id;
+  }
+
+  async update(existing: string, card: ReportCard): Promise<void> {
+    const entry = this.registry.getWatch(existing);
+    if (!entry) {
+      return;
+    }
+    entry.detailText = card.detailText;
+    const keyboard = buildInlineKeyboard(card.buttons, existing);
+    try {
+      await this.bot.api.editMessageText(
+        entry.chatId,
+        entry.messageId,
+        card.text,
+        {
+          reply_markup: keyboard,
+        },
+      );
+    } catch (error) {
       if (
         !(error instanceof Error) ||
         !error.message.includes('message is not modified')
@@ -256,6 +335,13 @@ export async function closeReportCard(
     antiSpam: ReportAntiSpam<string>;
   },
 ): Promise<void> {
+  const watch = deps.registry.findWatchByQueueId(queueId);
+  if (watch) {
+    const [id, entry] = watch;
+    deps.registry.deleteWatch(id);
+    await deps.bot.api.editMessageText(entry.chatId, entry.messageId, text);
+    return;
+  }
   const found = deps.registry.findByQueueId(queueId);
   if (!found) {
     return;
@@ -343,6 +429,11 @@ export async function reportActionCallback(
 
   const entry = deps.registry.get(decoded.reportId);
   if (!entry) {
+    const watch = deps.registry.getWatch(decoded.reportId);
+    if (watch) {
+      await watchCardAction(ctx, deps, decoded, watch);
+      return;
+    }
     await ctx.answerCallbackQuery({
       text: 'This report card has expired (gateway restarted).',
       show_alert: true,
@@ -475,4 +566,117 @@ export async function reportActionCallback(
     }
     throw error;
   }
+}
+
+/**
+ * A human press on a watch card. No `ReportAntiSpam`: that filter is keyed
+ * by a player's chat slot, and this card did not come from one.
+ */
+async function watchCardAction(
+  ctx: ReportCallbackContext,
+  deps: ReportCallbackDeps,
+  decoded: DecodedCallback,
+  entry: WatchCardEntry,
+): Promise<void> {
+  const admin = ctx.admin;
+  if (!admin) {
+    await ctx.answerCallbackQuery({ text: 'Not authorized.' });
+    return;
+  }
+  const needed = actionPermission(decoded.action);
+  if (needed && !hasPermission(admin, needed)) {
+    await ctx.answerCallbackQuery({
+      text: `The ${needed} permission is required.`,
+      show_alert: true,
+    });
+    return;
+  }
+  const rcon = deps.rconClients.get(entry.serverAlias);
+  if (!rcon) {
+    await ctx.answerCallbackQuery({ text: 'Server no longer configured.' });
+    return;
+  }
+  if (decoded.action.kind === 'more-info') {
+    await ctx.answerCallbackQuery({
+      text: entry.detailText ?? 'No additional detail available.',
+      show_alert: true,
+    });
+    return;
+  }
+  if (decoded.action.kind === 'select') {
+    await ctx.answerCallbackQuery({
+      text: 'Watch cards have one target.',
+      show_alert: true,
+    });
+    return;
+  }
+  if (decoded.action.kind === 'ignore') {
+    await ctx.editMessageText(
+      `${entry.target.name}'s watch card was ignored by admin ${formatTelegramUser(admin.telegramId, admin.username, admin.firstName)}.`,
+    );
+    deps.registry.deleteWatch(decoded.reportId);
+    await closeWatchQueue(deps, entry, {
+      status: 'ignored',
+      resolvedBy: admin.telegramId,
+      outcome: 'Ignored',
+    });
+    await ctx.answerCallbackQuery();
+    return;
+  }
+  try {
+    const result = await executeModerationAction(
+      decoded.action.kind,
+      {
+        num: entry.target.num,
+        name: entry.target.name,
+        guid: entry.target.guid,
+        ip: entry.target.ip,
+      },
+      {
+        serverAlias: entry.serverAlias,
+        rcon,
+        banStore: deps.banStore,
+        adminStore: deps.adminStore,
+        actorTelegramId: admin.telegramId,
+        reason: 'watch',
+        source: 'telegram_button',
+        chatTemplates: deps.chatTemplates,
+      },
+    );
+    await ctx.editMessageText(
+      `${result.label} ${entry.target.name} — action taken by admin ${formatTelegramUser(admin.telegramId, admin.username, admin.firstName)} at ${new Date().toISOString()}.`,
+    );
+    deps.registry.deleteWatch(decoded.reportId);
+    await closeWatchQueue(deps, entry, {
+      status: 'handled',
+      resolvedBy: admin.telegramId,
+      outcome: result.label,
+    });
+    await ctx.answerCallbackQuery();
+  } catch (error) {
+    if (error instanceof ModerationActionError) {
+      await ctx.answerCallbackQuery({ text: error.message, show_alert: true });
+      return;
+    }
+    throw error;
+  }
+}
+
+async function closeWatchQueue(
+  deps: ReportCallbackDeps,
+  entry: WatchCardEntry,
+  resolution: {
+    status: 'handled' | 'ignored';
+    resolvedBy: number;
+    outcome: string;
+  },
+): Promise<void> {
+  if (entry.queueId === undefined) {
+    return;
+  }
+  await deps.reportQueue
+    ?.resolve(entry.queueId, resolution)
+    .catch((error: unknown) => {
+      console.error(`Failed to close saved report ${entry.queueId}:`, error);
+    });
 }

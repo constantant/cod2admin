@@ -489,6 +489,72 @@ describe('watch-store', () => {
     });
   });
 
+  describe('caps', () => {
+    const key = 'guid:7';
+
+    async function evidence(
+      action: 'flag' | 'report' | 'kick' | 'suppressed',
+      reason: string,
+      createdAt: Date,
+      profileKey = key,
+    ): Promise<void> {
+      await store.recordEvidence({
+        serverAlias: SERVER,
+        profileKey,
+        action,
+        reason,
+        createdAt,
+        lifeScore: 6,
+        features: { snapOnAcquire: 1 },
+      });
+    }
+
+    it('counts flag, report, and a suppressed kick, not a cooldown row', async () => {
+      const cooldownMs = 30 * 60 * 1000;
+      await evidence('flag', 'flag', new Date(NOW.getTime() - 50 * 60 * 1000));
+      await evidence(
+        'suppressed',
+        'cooldown',
+        new Date(NOW.getTime() - 60 * 1000),
+      );
+      await evidence(
+        'suppressed',
+        'kick',
+        new Date(NOW.getTime() - 10 * 60 * 1000),
+      );
+      await evidence(
+        'report',
+        'other',
+        new Date(NOW.getTime() - 4 * 60 * 1000),
+        'guid:8',
+      );
+      await evidence('kick', 'sent', new Date(NOW.getTime() - 2 * HOUR_MS));
+
+      const caps = await store.loadCaps({
+        serverAlias: SERVER,
+        profileKey: key,
+        now: NOW,
+        cooldownMs,
+      });
+      // The other profile's report counts toward the server cap. The old
+      // kick does not. The cooldown row does not.
+      expect(caps.cardsThisHour).toBe(3);
+      expect(caps.kickedThisHour).toBe(0);
+      expect(caps.cooldownActive).toBe(true);
+
+      const later = await store.loadCaps({
+        serverAlias: SERVER,
+        profileKey: key,
+        now: new Date(NOW.getTime() + 21 * 60 * 1000),
+        cooldownMs,
+      });
+      // The suppressed kick is now 31 minutes old. The cooldown row written
+      // after it must not have moved the clock.
+      expect(later.cooldownActive).toBe(false);
+      expect(later.cardsThisHour).toBe(2);
+    });
+  });
+
   describe('retention', () => {
     it('drops lives and population days after 14 days and evidence after 90 days', async () => {
       const key = 'hwid:99';

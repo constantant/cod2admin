@@ -11,6 +11,9 @@
   "include": ["src/**/*.ts"],
   "references": [
     {
+      "path": "../player-watch/tsconfig.lib.json"
+    },
+    {
       "path": "../rcon-client/tsconfig.lib.json"
     }
   ],

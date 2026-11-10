@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq, gte, isNotNull, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, isNotNull, lt, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import {
@@ -12,10 +12,12 @@ import {
 import type {
   PopulationMoments,
   PopulationQuery,
+  RecentLife,
   RecordEvidenceInput,
   RecordLifeInput,
   SelfMoments,
   UpsertProfileNameInput,
+  WatchCaps,
   WatchEndReason,
   WatchEvidenceAction,
   WatchFeature,
@@ -26,6 +28,7 @@ import type {
 } from './types.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
 const LIFE_RETENTION_MS = 14 * DAY_MS;
 const EVIDENCE_RETENTION_MS = 90 * DAY_MS;
 const NAME_WINDOW_MS = DAY_MS;
@@ -186,6 +189,18 @@ function zScore(value: number, moments: PopulationMoments): number | undefined {
   const sd = Math.sqrt(moments.m2 / (moments.n - 1));
   if (!Number.isFinite(sd) || sd === 0) return undefined;
   return (value - moments.mean) / sd;
+}
+
+/**
+ * Flag, report, kick, and a kick that was not sent (`suppressed` / `kick`)
+ * spend the card cap and start the cooldown. A row written because the
+ * cooldown or the cap was already open does not.
+ */
+function countsTowardCard(action: string, reason: string | null): boolean {
+  if (action === 'flag' || action === 'report' || action === 'kick') {
+    return true;
+  }
+  return action === 'suppressed' && reason === 'kick';
 }
 
 function optionalText(
@@ -515,7 +530,7 @@ export class DrizzleWatchStore implements WatchStore {
     return zScore(query.value, await this.populationMoments(query));
   }
 
-  async recordEvidence(input: RecordEvidenceInput): Promise<void> {
+  async recordEvidence(input: RecordEvidenceInput): Promise<string> {
     const serverAlias = requireText(input.serverAlias, 'serverAlias');
     const profileKey = requireText(input.profileKey, 'profileKey');
     const action = requireOneOf(input.action, EVIDENCE_ACTIONS, 'action');
@@ -529,8 +544,9 @@ export class DrizzleWatchStore implements WatchStore {
     if (input.reportId != null && !Number.isSafeInteger(input.reportId)) {
       throw new Error('reportId must be an integer');
     }
+    const id = randomUUID();
     await this.db.insert(watchEvidence).values({
-      id: randomUUID(),
+      id,
       serverAlias,
       profileKey,
       action,
@@ -541,6 +557,75 @@ export class DrizzleWatchStore implements WatchStore {
       trace: input.trace === undefined ? null : input.trace,
       reportId: input.reportId ?? null,
     });
+    return id;
+  }
+
+  async loadCaps(input: {
+    serverAlias: string;
+    profileKey: string;
+    now: Date;
+    cooldownMs: number;
+  }): Promise<WatchCaps> {
+    const alias = requireText(input.serverAlias, 'serverAlias');
+    const profileKey = requireText(input.profileKey, 'profileKey');
+    const now = requireDate(input.now, 'now');
+    const cooldownMs = requireCount(input.cooldownMs, 'cooldownMs');
+    const hourAgo = now.getTime() - HOUR_MS;
+    const cooldownSince = now.getTime() - cooldownMs;
+    const since = new Date(Math.min(hourAgo, cooldownSince));
+    const rows = await this.db
+      .select({
+        profileKey: watchEvidence.profileKey,
+        action: watchEvidence.action,
+        reason: watchEvidence.reason,
+        createdAt: watchEvidence.createdAt,
+      })
+      .from(watchEvidence)
+      .where(
+        and(
+          eq(watchEvidence.serverAlias, alias),
+          gte(watchEvidence.createdAt, since),
+        ),
+      );
+    let cardsThisHour = 0;
+    let kickedThisHour = 0;
+    let cooldownActive = false;
+    for (const row of rows) {
+      const at = row.createdAt.getTime();
+      if (row.action === 'kick' && at >= hourAgo) kickedThisHour += 1;
+      if (!countsTowardCard(row.action, row.reason)) continue;
+      if (at >= hourAgo) cardsThisHour += 1;
+      if (row.profileKey === profileKey && at >= cooldownSince) {
+        cooldownActive = true;
+      }
+    }
+    return { cardsThisHour, kickedThisHour, cooldownActive };
+  }
+
+  async recentLives(
+    serverAlias: string,
+    profileKey: string,
+    limit: number,
+  ): Promise<RecentLife[]> {
+    const alias = requireText(serverAlias, 'serverAlias');
+    const key = requireText(profileKey, 'profileKey');
+    const n = requireCount(limit, 'limit');
+    if (n === 0) return [];
+    const rows = await this.db
+      .select({
+        lifeScore: watchLives.lifeScore,
+        endedAt: watchLives.endedAt,
+      })
+      .from(watchLives)
+      .where(
+        and(eq(watchLives.serverAlias, alias), eq(watchLives.profileKey, key)),
+      )
+      .orderBy(desc(watchLives.endedAt))
+      .limit(n);
+    return rows.map((row) => ({
+      lifeScore: row.lifeScore === null ? null : Number(row.lifeScore),
+      endedAt: row.endedAt,
+    }));
   }
 
   async pruneWatchRetention(now: Date): Promise<void> {

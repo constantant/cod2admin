@@ -61,7 +61,12 @@ import {
 import { createGithubReleaseClient } from './lib/github-releases.js';
 import { ReportQueue } from './lib/report-queue.js';
 import { startReportTailer, startReportTailers } from './lib/report-tailers.js';
-import { closeReportCard, ReportRegistry } from './lib/reports.js';
+import {
+  closeReportCard,
+  ReportRegistry,
+  WatchCardSender,
+} from './lib/reports.js';
+import { startWatchSupervisor } from './watch/supervisor.js';
 import { startSnapshotPoller } from './lib/snapshot-poller.js';
 import { checkPendingUpdateOnBoot } from './lib/update-boot-check.js';
 import { UpdateRegistry } from './lib/update-registry.js';
@@ -382,6 +387,21 @@ if (config.miniapp.url) {
     .catch((error: unknown) => {
       console.error('Mini App: setting the bot menu button failed:', error);
     });
+}
+
+// Watch migrate is not on the ban/admin path: a failure leaves the supervisor
+// stopped and does not exit. The child is spawned only for enabled servers.
+try {
+  deps.watchSupervisor = await startWatchSupervisor({
+    databaseUrl: config.databaseUrl,
+    adminStore,
+    rconClients,
+    reportQueue: deps.reportQueue,
+    createCardSender: (report) =>
+      new WatchCardSender(bot, deps.reportRegistry, report),
+  });
+} catch (error) {
+  console.error('watch: supervisor failed to start:', error);
 }
 
 void bot.start({

@@ -194,6 +194,15 @@ async function writeSettings(
   }
   await audit(ctx, deps, server.alias, 'watch_settings', next);
   await ctx.reply(formatWatch({ ...server, watch: next }));
+  await syncWatch(deps);
+}
+
+async function syncWatch(deps: GatewayDeps): Promise<void> {
+  try {
+    await deps.watchSupervisor?.sync();
+  } catch (error) {
+    console.error('watch: settings saved, supervisor sync failed:', error);
+  }
 }
 
 /**
@@ -364,4 +373,5 @@ async function unreserve(
   await ctx.reply(
     `${server.alias}: join is spectator (${previous}). The game server is updated when the watcher applies settings.`,
   );
+  await syncWatch(deps);
 }

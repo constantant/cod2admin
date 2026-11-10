@@ -3,10 +3,12 @@ export { createWatchStore } from './lib/store.js';
 export type {
   PopulationMoments,
   PopulationQuery,
+  RecentLife,
   RecordEvidenceInput,
   RecordLifeInput,
   SelfMoments,
   UpsertProfileNameInput,
+  WatchCaps,
   WatchEndReason,
   WatchEvidenceAction,
   WatchFeature,

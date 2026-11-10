@@ -9,9 +9,8 @@ import { createSocket } from 'node:dgram';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildOobPacket, parseOobPacket } from '@cod2admin/rcon-client';
-import { ET_PLAYER } from './lib/constants.js';
+import type { Sample } from '@cod2admin/player-watch';
 import { connectPureProbe, GamePeer, type WatchResult } from './lib/peer.js';
-import type { EntityObservation } from './lib/snapshot.js';
 import {
   buildGetstatusPacket,
   parseStatusBody,
@@ -48,15 +47,14 @@ function save(name: string, bytes: Buffer): void {
   writeFileSync(join(fixtureDir, name), bytes);
 }
 
-function spread(samples: EntityObservation[]): {
+function spread(samples: Sample[]): {
   enemies: number;
   areas: number;
   originChanged: number;
   anglesChanged: number;
 } {
-  const byEntity = new Map<number, EntityObservation[]>();
+  const byEntity = new Map<number, Sample[]>();
   for (const sample of samples) {
-    if (sample.eType !== ET_PLAYER) continue;
     const list = byEntity.get(sample.entityNum) ?? [];
     list.push(sample);
     byEntity.set(sample.entityNum, list);
@@ -67,17 +65,17 @@ function spread(samples: EntityObservation[]): {
   for (const list of byEntity.values()) {
     const first = list[0];
     const last = list[list.length - 1];
-    if (!first || !last) continue;
+    if (!first?.origin || !last?.origin) continue;
     const moved = Math.hypot(
-      last.origin[0] - first.origin[0],
-      last.origin[1] - first.origin[1],
+      last.origin.x - first.origin.x,
+      last.origin.y - first.origin.y,
     );
     const turned =
-      Math.abs(last.viewangles[1] - first.viewangles[1]) +
-      Math.abs(last.viewangles[0] - first.viewangles[0]);
+      Math.abs((last.viewangles?.yaw ?? 0) - (first.viewangles?.yaw ?? 0)) +
+      Math.abs((last.viewangles?.pitch ?? 0) - (first.viewangles?.pitch ?? 0));
     if (moved > 64) originChanged++;
     if (turned > 5) anglesChanged++;
-    centers.push({ x: last.origin[0], y: last.origin[1] });
+    centers.push({ x: last.origin.x, y: last.origin.y });
   }
   let areas = 0;
   const used = new Set<number>();

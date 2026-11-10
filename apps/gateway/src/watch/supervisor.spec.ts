@@ -1,0 +1,747 @@
+import { PassThrough } from 'node:stream';
+import {
+  DEFAULT_SERVER_WATCH_SETTINGS,
+  type ServerConfig,
+  type ServerWatchSettings,
+} from '@cod2admin/admin-store';
+import { ReportAntiSpam } from '@cod2admin/report-pipeline';
+import type { StatusPlayer } from '@cod2admin/rcon-client';
+import type {
+  PopulationMoments,
+  RecordEvidenceInput,
+  RecordLifeInput,
+  WatchProfile,
+  WatchStore,
+} from '@cod2admin/watch-store';
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { ReportQueue } from '../lib/report-queue.js';
+import {
+  createFakeAdminStore,
+  type FakeAdminStore,
+} from '../lib/testing/fake-admin-store.js';
+import { createFakeRcon, type FakeRcon } from '../lib/testing/fake-rcon.js';
+import {
+  startWatchSupervisor,
+  type SpawnedWatch,
+  type WatchSpawn,
+  type WatchSupervisor,
+} from './supervisor.js';
+
+const NOW = 1_700_000_000_000;
+const HOUR_MS = 60 * 60 * 1000;
+const SECRET = 's3cret-private';
+const OTHER_SECRET = 'other-private-secret';
+const RCON_SECRET = 'rcon-pass-not-hello';
+
+const OPEN = {
+  cvars: { protocol: '118', sv_pure: '0', sv_punkbuster: '0' },
+  players: [],
+};
+
+const PLAYER: StatusPlayer = {
+  num: 4,
+  score: 10,
+  ping: 20,
+  name: '^1Cheater',
+  guid: 'abc',
+  ip: '203.0.113.8',
+};
+
+interface FakeChild extends Omit<SpawnedWatch, 'stdout'> {
+  stdout: PassThrough;
+  text(): string;
+  killed: boolean;
+}
+
+interface Memory {
+  store: WatchStore;
+  lives: RecordLifeInput[];
+  evidence: RecordEvidenceInput[];
+  profiles: Map<string, WatchProfile>;
+  moments: Map<string, PopulationMoments>;
+  populationReads: () => number;
+}
+
+interface Draft {
+  adminStore: FakeAdminStore;
+  rcon: FakeRcon;
+  rcons: Map<string, FakeRcon>;
+  servers: ServerConfig[];
+  memory: Memory;
+  children: FakeChild[];
+  spawn: Mock<WatchSpawn>;
+  cards: string[];
+  warnings: string[];
+  antiSpam: ReportAntiSpam<string>;
+  exit: ReturnType<typeof vi.spyOn>;
+}
+
+const stopped: WatchSupervisor[] = [];
+const drafts: Draft[] = [];
+
+afterEach(() => {
+  for (const supervisor of stopped.splice(0)) {
+    supervisor.stop();
+  }
+  for (const draft of drafts.splice(0)) {
+    expect(draft.exit).not.toHaveBeenCalled();
+    draft.exit.mockRestore();
+  }
+});
+
+describe('watch supervisor', () => {
+  it('spawns no child when every watch is null', async () => {
+    const draft = draftHarness();
+    draft.servers.push(
+      server({ watch: null }),
+      server({ alias: 'two', watch: null }),
+    );
+    const supervisor = await boot(draft);
+    expect(supervisor.running).toBe(true);
+    expect(draft.spawn).not.toHaveBeenCalled();
+    expect(draft.rcon.getStatus).not.toHaveBeenCalled();
+  });
+
+  it('spawns with pipes and detached false, and the spawn args carry no secret', async () => {
+    const draft = draftHarness();
+    draft.servers.push(
+      enabled({ join: 'private' }, { watchPrivatePassword: SECRET }),
+    );
+    draft.rcon.getStatus.mockResolvedValue(OPEN);
+    await boot(draft);
+    expect(draft.spawn).toHaveBeenCalledOnce();
+    const call = draft.spawn.mock.calls[0];
+    expect(call?.[1]).toEqual([expect.stringMatching(/child\.js$/)]);
+    expect(call?.[2]).toEqual({
+      stdio: ['pipe', 'pipe', 'pipe'],
+      detached: false,
+    });
+    expect(JSON.stringify(call)).not.toContain(SECRET);
+    expect(JSON.stringify(call)).not.toContain(RCON_SECRET);
+  });
+
+  it('names each enabled server on hello, and reload has no secret', async () => {
+    const draft = draftHarness();
+    const row = enabled(
+      { join: 'private', spectatorName: 'AdminWatch' },
+      {
+        watchPrivatePassword: SECRET,
+      },
+    );
+    draft.servers.push(row);
+    draft.rcon.getStatus.mockResolvedValue(OPEN);
+    const supervisor = await boot(draft);
+    const hello = messages(draft.children[0]!);
+    expect(hello).toHaveLength(1);
+    expect(hello[0]).toMatchObject({
+      type: 'hello',
+      servers: [{ alias: 'default', password: SECRET }],
+    });
+
+    row.watch = { ...row.watch!, spectatorName: 'Spotter' };
+    await supervisor.sync();
+    const lines = messages(draft.children[0]!);
+    expect(draft.spawn).toHaveBeenCalledOnce();
+    expect(lines[1]).toMatchObject({
+      type: 'reload',
+      servers: [{ alias: 'default', spectatorName: 'Spotter' }],
+    });
+    expect(JSON.stringify(lines[1])).not.toContain(SECRET);
+    expect(lines[1]).not.toHaveProperty('servers.0.password');
+  });
+
+  it('restarts the child when private join is turned on', async () => {
+    const draft = draftHarness();
+    const row = enabled(
+      { join: 'spectator' },
+      { watchPrivatePassword: SECRET },
+    );
+    draft.servers.push(row);
+    draft.rcon.getStatus.mockResolvedValue(OPEN);
+    const supervisor = await boot(draft);
+    expect(JSON.stringify(messages(draft.children[0]!))).not.toContain(SECRET);
+
+    row.watch = { ...row.watch!, join: 'private' };
+    await supervisor.sync();
+    expect(draft.spawn).toHaveBeenCalledTimes(2);
+    expect(draft.children[0]?.killed).toBe(true);
+    const again = messages(draft.children[1]!);
+    expect(again[0]).toMatchObject({
+      type: 'hello',
+      servers: [{ alias: 'default', password: SECRET }],
+    });
+    expect(JSON.stringify(messages(draft.children[0]!))).not.toContain(SECRET);
+    const reloads = again.filter((line) => line['type'] === 'reload');
+    expect(JSON.stringify(reloads)).not.toContain(SECRET);
+  });
+
+  it('puts two private servers on one hello', async () => {
+    const draft = draftHarness();
+    const second = createFakeRcon();
+    second.getStatus.mockResolvedValue(OPEN);
+    draft.rcons.set('two', second);
+    draft.rcon.getStatus.mockResolvedValue(OPEN);
+    draft.servers.push(
+      enabled(
+        { join: 'private' },
+        { alias: 'default', watchPrivatePassword: SECRET },
+      ),
+      enabled(
+        { join: 'private' },
+        {
+          alias: 'two',
+          rconHost: '10.0.0.8',
+          rconPort: 28961,
+          watchPrivatePassword: OTHER_SECRET,
+        },
+      ),
+    );
+    await boot(draft);
+    expect(draft.spawn).toHaveBeenCalledOnce();
+    const hello = messages(draft.children[0]!)[0] as {
+      type: string;
+      servers: { alias: string; password?: string }[];
+    };
+    expect(hello.type).toBe('hello');
+    expect(hello.servers.map((server) => server.alias).sort()).toEqual([
+      'default',
+      'two',
+    ]);
+    expect(
+      hello.servers.find((server) => server.alias === 'default')?.password,
+    ).toBe(SECRET);
+    expect(
+      hello.servers.find((server) => server.alias === 'two')?.password,
+    ).toBe(OTHER_SECRET);
+  });
+
+  it('does not call rcon.kick when a kick-shaped life is in flag mode', async () => {
+    const { draft, supervisor } = await armed('flag');
+    await feed(supervisor, draft, kickLife());
+    expect(draft.rcon.kick).not.toHaveBeenCalled();
+    expect(draft.memory.evidence.map((row) => row.action)).toEqual(['flag']);
+    expect(draft.adminStore.recordReport).not.toHaveBeenCalled();
+  });
+
+  it('audits a kick decision and does not call rcon.kick', async () => {
+    const { draft, supervisor } = await armed('kick');
+    await feed(supervisor, draft, kickLife({ selfLives: 8 }));
+    expect(draft.rcon.kick).not.toHaveBeenCalled();
+    expect(
+      draft.memory.evidence.map((row) => [row.action, row.reason]),
+    ).toEqual([['suppressed', 'kick']]);
+    expect(draft.adminStore.recordAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorTelegramId: 0,
+        action: 'watch_kick_suppressed',
+        source: 'auto',
+      }),
+    );
+    const detail = JSON.stringify(
+      draft.adminStore.recordAuditLog.mock.calls[0]?.[0],
+    );
+    expect(detail).not.toContain(PLAYER.ip);
+    expect(draft.adminStore.recordReport).not.toHaveBeenCalled();
+  });
+
+  it('ignores an IPC selfLives claim when the stored count is 0', async () => {
+    const { draft, supervisor } = await armed('kick');
+    draft.memory.profiles.clear();
+    await feed(supervisor, draft, kickLife({ selfLives: 8 }));
+    expect(draft.rcon.kick).not.toHaveBeenCalled();
+    expect(draft.memory.evidence.some((row) => row.reason === 'kick')).toBe(
+      false,
+    );
+  });
+
+  it('does not setCvar when a disabled server already has a private password', async () => {
+    const draft = draftHarness();
+    draft.servers.push(
+      enabled(
+        { enabled: false, join: 'private' },
+        { watchPrivatePassword: 'already-set' },
+      ),
+    );
+    await boot(draft);
+    expect(draft.rcon.setCvar).not.toHaveBeenCalled();
+    expect(draft.rcon.getStatus).not.toHaveBeenCalled();
+    expect(draft.spawn).not.toHaveBeenCalled();
+  });
+
+  it('does not spawn when sv_pure or sv_punkbuster is missing or not 0', async () => {
+    const pure = draftHarness();
+    pure.servers.push(enabled());
+    pure.rcon.getStatus.mockResolvedValue({
+      cvars: { protocol: '118', sv_pure: '1', sv_punkbuster: '0' },
+      players: [],
+    });
+    const pureSupervisor = await boot(pure);
+    expect(pure.spawn).not.toHaveBeenCalled();
+    expect(
+      pure.warnings.some(
+        (line) => line.includes('not joining') && line.includes('sv_pure'),
+      ),
+    ).toBe(true);
+    await pureSupervisor.sync();
+    expect(pure.rcon.getStatus).toHaveBeenCalledTimes(2);
+    expect(pure.spawn).not.toHaveBeenCalled();
+
+    const pb = draftHarness();
+    pb.servers.push(enabled());
+    pb.rcon.getStatus.mockResolvedValue({
+      cvars: { protocol: '118', sv_pure: '0' },
+      players: [],
+    });
+    await boot(pb);
+    expect(pb.spawn).not.toHaveBeenCalled();
+    expect(pb.warnings.some((line) => line.includes('sv_punkbuster'))).toBe(
+      true,
+    );
+  });
+
+  it('stores a null map and does not score it', async () => {
+    const draft = draftHarness();
+    draft.servers.push(enabled({ mode: 'flag' }));
+    draft.rcon.getStatus.mockResolvedValue(OPEN);
+    const supervisor = await boot(draft);
+    supervisor.noteStatus('default', { raw: '', players: [PLAYER] }, NOW);
+    await supervisor.whenIdle();
+    await feed(supervisor, draft, speedLife());
+    expect(draft.memory.lives).toHaveLength(1);
+    expect(draft.memory.lives[0]).toMatchObject({
+      mapName: null,
+      lifeScore: null,
+      profileKey: 'guid:abc',
+    });
+    expect(draft.memory.populationReads()).toBe(0);
+    expect(draft.memory.evidence).toHaveLength(0);
+    expect(draft.cards).toHaveLength(0);
+  });
+
+  it('mode off scores and stores an extreme life and emits nothing', async () => {
+    const draft = draftHarness();
+    draft.servers.push(enabled({ mode: 'off' }));
+    draft.rcon.getStatus.mockResolvedValue(OPEN);
+    draft.memory.moments.set('speedOverG', { n: 5000, mean: 0, m2: 4999 });
+    const supervisor = await boot(draft);
+    await seen(supervisor);
+    await feed(supervisor, draft, speedLife());
+    expect(draft.memory.lives[0]).toMatchObject({
+      mapName: 'mp_toujane',
+      excludedFromPopulation: true,
+    });
+    expect(draft.memory.lives[0]?.lifeScore ?? 0).toBeGreaterThanOrEqual(4);
+    expect(draft.memory.evidence).toHaveLength(0);
+    expect(draft.adminStore.recordReport).not.toHaveBeenCalled();
+    expect(draft.cards).toHaveLength(0);
+    expect(draft.rcon.kick).not.toHaveBeenCalled();
+    expect(draft.antiSpam.check).not.toHaveBeenCalled();
+  });
+
+  it('flag sends a card and does not insert a report', async () => {
+    const draft = draftHarness();
+    draft.servers.push(enabled({ mode: 'flag' }));
+    draft.rcon.getStatus.mockResolvedValue(OPEN);
+    draft.memory.moments.set('speedOverG', { n: 5000, mean: 0, m2: 4999 });
+    const supervisor = await boot(draft);
+    await seen(supervisor);
+    await feed(supervisor, draft, speedLife());
+    expect(draft.adminStore.recordReport).not.toHaveBeenCalled();
+    expect(draft.memory.evidence.map((row) => row.action)).toEqual(['flag']);
+    expect(draft.cards.some((text) => text.includes('flagged Cheater'))).toBe(
+      true,
+    );
+    expect(draft.antiSpam.check).not.toHaveBeenCalled();
+    expect(draft.antiSpam.resolve).not.toHaveBeenCalled();
+  });
+
+  it('report uses origin watch and does not use ReportAntiSpam', async () => {
+    const draft = draftHarness();
+    draft.servers.push(enabled({ mode: 'report' }));
+    draft.rcon.getStatus.mockResolvedValue(OPEN);
+    draft.memory.moments.set('speedOverG', { n: 5000, mean: 0, m2: 4999 });
+    const supervisor = await boot(draft);
+    await seen(supervisor);
+    await feed(supervisor, draft, speedLife());
+    expect(draft.adminStore.recordReport).toHaveBeenCalledWith(
+      expect.objectContaining({ origin: 'watch', targetName: 'Cheater' }),
+    );
+    expect(draft.memory.evidence[0]).toMatchObject({
+      action: 'report',
+      reportId: 1,
+    });
+    expect(draft.antiSpam.check).not.toHaveBeenCalled();
+    expect(draft.antiSpam.resolve).not.toHaveBeenCalled();
+    expect(draft.antiSpam.track).not.toHaveBeenCalled();
+  });
+
+  it('a suppressed row inside an open cooldown does not extend it', async () => {
+    const draft = draftHarness();
+    draft.servers.push(enabled({ mode: 'flag' }));
+    draft.rcon.getStatus.mockResolvedValue(OPEN);
+    draft.memory.moments.set('speedOverG', { n: 5000, mean: 0, m2: 4999 });
+    await draft.memory.store.recordEvidence({
+      serverAlias: 'default',
+      profileKey: 'guid:abc',
+      action: 'flag',
+      reason: 'flag',
+      createdAt: new Date(NOW - 20 * 60 * 1000),
+      lifeScore: 5,
+      features: { speedOverG: 2 },
+    });
+    const supervisor = await boot(draft);
+    await seen(supervisor);
+    await feed(supervisor, draft, speedLife());
+    expect(
+      draft.memory.evidence.map((row) => [row.action, row.reason]),
+    ).toEqual([
+      ['flag', 'flag'],
+      ['suppressed', 'cooldown'],
+    ]);
+    expect(draft.cards).toHaveLength(0);
+    const later = await draft.memory.store.loadCaps({
+      serverAlias: 'default',
+      profileKey: 'guid:abc',
+      now: new Date(NOW + 21 * 60 * 1000),
+      cooldownMs: 30 * 60 * 1000,
+    });
+    expect(later.cooldownActive).toBe(false);
+  });
+
+  it('stays stopped when watch migrate fails and does not exit', async () => {
+    const draft = draftHarness();
+    draft.servers.push(enabled());
+    const supervisor = await startWatchSupervisor({
+      ...depsFor(draft),
+      watchStore: undefined,
+      migrate: async () => {
+        throw new Error('watch schema failed');
+      },
+    });
+    stopped.push(supervisor);
+    expect(supervisor.running).toBe(false);
+    await expect(supervisor.sync()).resolves.toBeUndefined();
+    expect(draft.spawn).not.toHaveBeenCalled();
+    expect(draft.exit).not.toHaveBeenCalled();
+  });
+});
+
+async function armed(mode: 'flag' | 'kick'): Promise<{
+  draft: Draft;
+  supervisor: WatchSupervisor;
+}> {
+  const draft = draftHarness();
+  draft.servers.push(
+    enabled({
+      mode,
+      confirmedAimFeatures: 2,
+      kickExtremeLives: 1,
+      kickMinSessionLives: 1,
+      minSelfLives: 8,
+      minFeatureN: 5000,
+    }),
+  );
+  draft.rcon.getStatus.mockResolvedValue(OPEN);
+  const wide = { n: 5000, mean: 0, m2: 4999 };
+  draft.memory.moments.set('snapOnAcquire', wide);
+  draft.memory.moments.set('firedWhileLookingAway', wide);
+  const self = { n: 8, mean: 0, m2: 7 };
+  draft.memory.profiles.set('guid:abc', {
+    serverAlias: 'default',
+    profileKey: 'guid:abc',
+    kind: 'guid',
+    displayName: 'Cheater',
+    lastGuid: 'abc',
+    lastIp: PLAYER.ip ?? null,
+    lifeCount: 8,
+    selfMoments: { snapOnAcquire: self, firedWhileLookingAway: self },
+    lastSeenAt: new Date(NOW),
+  });
+  const supervisor = await boot(draft);
+  await seen(supervisor);
+  return { draft, supervisor };
+}
+
+async function seen(supervisor: WatchSupervisor): Promise<void> {
+  supervisor.noteStatus(
+    'default',
+    { raw: '', mapName: 'mp_toujane', players: [PLAYER] },
+    NOW,
+  );
+  await supervisor.whenIdle();
+}
+
+async function feed(
+  supervisor: WatchSupervisor,
+  draft: Draft,
+  life: Record<string, unknown>,
+): Promise<void> {
+  const child = draft.children[0];
+  expect(child).toBeDefined();
+  child!.stdout.write(`${JSON.stringify(life)}\n`);
+  await new Promise((resolve) => setImmediate(resolve));
+  await supervisor.whenIdle();
+}
+
+function speedLife(): Record<string, unknown> {
+  return {
+    type: 'life',
+    serverAlias: 'default',
+    slot: PLAYER.num,
+    endReason: 'death',
+    strippedName: 'ignored',
+    startedAtMs: NOW - 1000,
+    endedAtMs: NOW,
+    features: { speedOverG: 20 },
+  };
+}
+
+function kickLife(
+  extra: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    ...speedLife(),
+    features: { snapOnAcquire: 20, firedWhileLookingAway: 20 },
+    ...extra,
+  };
+}
+
+function messages(child: FakeChild): Record<string, unknown>[] {
+  return child
+    .text()
+    .split('\n')
+    .filter((line) => line.length > 0)
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+}
+
+function server(overrides: Partial<ServerConfig> = {}): ServerConfig {
+  return {
+    alias: 'default',
+    rconHost: '127.0.0.1',
+    rconPort: 28960,
+    rconPassword: RCON_SECRET,
+    logSourceConfig: null,
+    boundTelegramChatId: -100,
+    isDefault: true,
+    watch: null,
+    watchPrivatePassword: null,
+    watchPrivatePasswordOwned: false,
+    ...overrides,
+  };
+}
+
+function enabled(
+  watch: Partial<ServerWatchSettings> = {},
+  serverOverrides: Partial<ServerConfig> = {},
+): ServerConfig {
+  return server({
+    watch: {
+      ...DEFAULT_SERVER_WATCH_SETTINGS,
+      enabled: true,
+      mode: 'flag',
+      ...watch,
+    },
+    ...serverOverrides,
+  });
+}
+
+function draftHarness(): Draft {
+  const adminStore = createFakeAdminStore();
+  const rcon = createFakeRcon();
+  const rcons = new Map<string, FakeRcon>([['default', rcon]]);
+  const servers: ServerConfig[] = [];
+  adminStore.listServers.mockImplementation(async () => servers);
+  adminStore.getServer.mockImplementation(async (alias: string) =>
+    servers.find((row) => row.alias === alias),
+  );
+  const children: FakeChild[] = [];
+  const spawn = vi.fn<WatchSpawn>(() => {
+    let text = '';
+    let killed = false;
+    let onExit:
+      | ((code: number | null, signal: NodeJS.Signals | null) => void)
+      | undefined;
+    const stdout = new PassThrough();
+    const stderr = new PassThrough();
+    const child: FakeChild = {
+      stdin: {
+        write(chunk: string) {
+          text += chunk;
+          return true;
+        },
+      },
+      stdout,
+      stderr,
+      pid: 2_147_483_000 + children.length,
+      get killed() {
+        return killed;
+      },
+      kill() {
+        if (killed) {
+          return true;
+        }
+        killed = true;
+        onExit?.(0, 'SIGTERM');
+        stdout.end();
+        return true;
+      },
+      on(event, listener) {
+        if (event === 'exit') {
+          onExit = listener;
+        }
+      },
+      text: () => text,
+    };
+    children.push(child);
+    return child;
+  });
+  const draft: Draft = {
+    adminStore,
+    rcon,
+    rcons,
+    servers,
+    memory: memoryStore(),
+    children,
+    spawn,
+    cards: [],
+    warnings: [],
+    antiSpam: new ReportAntiSpam<string>({ now: () => NOW }),
+    exit: vi
+      .spyOn(process, 'exit')
+      .mockImplementation(() => undefined as never),
+  };
+  drafts.push(draft);
+  return draft;
+}
+
+async function boot(draft: Draft): Promise<WatchSupervisor> {
+  vi.spyOn(draft.antiSpam, 'check');
+  vi.spyOn(draft.antiSpam, 'resolve');
+  vi.spyOn(draft.antiSpam, 'track');
+  const supervisor = await startWatchSupervisor(depsFor(draft));
+  stopped.push(supervisor);
+  return supervisor;
+}
+
+function depsFor(draft: Draft) {
+  return {
+    databaseUrl: 'postgres://unused',
+    adminStore: draft.adminStore,
+    rconClients: draft.rcons,
+    watchStore: draft.memory.store,
+    migrate: async () => undefined,
+    spawn: draft.spawn,
+    now: () => NOW,
+    reportQueue: new ReportQueue(draft.adminStore),
+    reportAntiSpam: draft.antiSpam,
+    createCardSender: () => ({
+      async send(_chatId: number, card: { text: string }) {
+        draft.cards.push(card.text);
+        return 'card';
+      },
+      async update() {
+        return undefined;
+      },
+    }),
+    log: {
+      warn(message: string) {
+        draft.warnings.push(message);
+      },
+      error(message: string) {
+        draft.warnings.push(message);
+      },
+    },
+    pruneIntervalMs: 0,
+    killGroup: () => {
+      const error = new Error('no such process') as NodeJS.ErrnoException;
+      error.code = 'ESRCH';
+      throw error;
+    },
+  };
+}
+
+function memoryStore(): Memory {
+  const lives: RecordLifeInput[] = [];
+  const evidence: RecordEvidenceInput[] = [];
+  const profiles = new Map<string, WatchProfile>();
+  const moments = new Map<string, PopulationMoments>();
+  let reads = 0;
+  const empty = { n: 0, mean: 0, m2: 0 };
+  const store: WatchStore = {
+    async recordLife(input) {
+      lives.push(input);
+    },
+    async upsertProfileName() {
+      return undefined;
+    },
+    async distinctNames24h() {
+      return 1;
+    },
+    async getProfile(_alias, key) {
+      return profiles.get(key);
+    },
+    async populationMoments(query) {
+      reads += 1;
+      return moments.get(query.feature) ?? empty;
+    },
+    async populationZ() {
+      return undefined;
+    },
+    async recordEvidence(input) {
+      evidence.push(input);
+      return `ev-${evidence.length}`;
+    },
+    async loadCaps(input) {
+      const hourAgo = input.now.getTime() - HOUR_MS;
+      const cooldownSince = input.now.getTime() - input.cooldownMs;
+      let cardsThisHour = 0;
+      let kickedThisHour = 0;
+      let cooldownActive = false;
+      for (const row of evidence) {
+        if (row.serverAlias !== input.serverAlias) {
+          continue;
+        }
+        const at = row.createdAt.getTime();
+        if (row.action === 'kick' && at >= hourAgo) {
+          kickedThisHour += 1;
+        }
+        const counts =
+          row.action === 'flag' ||
+          row.action === 'report' ||
+          row.action === 'kick' ||
+          (row.action === 'suppressed' && row.reason === 'kick');
+        if (!counts) {
+          continue;
+        }
+        if (at >= hourAgo) {
+          cardsThisHour += 1;
+        }
+        if (row.profileKey === input.profileKey && at >= cooldownSince) {
+          cooldownActive = true;
+        }
+      }
+      return { cardsThisHour, kickedThisHour, cooldownActive };
+    },
+    async recentLives(alias, key, limit) {
+      return lives
+        .filter((life) => life.serverAlias === alias && life.profileKey === key)
+        .slice(-limit)
+        .reverse()
+        .map((life) => ({ lifeScore: life.lifeScore, endedAt: life.endedAt }));
+    },
+    async pruneWatchRetention() {
+      return undefined;
+    },
+    async close() {
+      return undefined;
+    },
+  };
+  return {
+    store,
+    lives,
+    evidence,
+    profiles,
+    moments,
+    populationReads: () => reads,
+  };
+}

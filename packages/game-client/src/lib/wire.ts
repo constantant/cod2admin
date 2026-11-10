@@ -75,6 +75,28 @@ export function connectAllowed(info: StatusInfo): ConnectGate {
   return { ok: true, protocol: info.protocol };
 }
 
+/** Same gate as `connectAllowed`, for a `getstatus` cvar map that has no body text. */
+export function connectAllowedCvars(
+  cvars: Readonly<Record<string, string | undefined>>,
+): ConnectGate {
+  const protocolText = cvars['protocol'];
+  const protocol =
+    protocolText !== undefined && /^-?\d+$/.test(protocolText)
+      ? Number(protocolText)
+      : null;
+  const keys: Record<string, string> = {};
+  for (const [key, value] of Object.entries(cvars)) {
+    if (value !== undefined) keys[key] = value;
+  }
+  return connectAllowed({
+    protocol,
+    sv_pure: cvars['sv_pure'] ?? null,
+    sv_punkbuster: cvars['sv_punkbuster'] ?? null,
+    sv_fps: cvars['sv_fps'] ?? null,
+    keys,
+  });
+}
+
 export function buildGetstatusPacket(): Buffer {
   return buildOobPacket('getstatus');
 }
@@ -93,8 +115,10 @@ export function buildSpectatorUserinfo(options: {
   protocol: number;
   challenge: number;
   qport: number;
+  /** Omitted: the disclosed `AdminWatch` name. Not a private-slot password. */
+  name?: string;
 }): string {
-  const name = sanitizeSpectatorName(SPECTATOR_NAME);
+  const name = sanitizeSpectatorName(options.name ?? SPECTATOR_NAME);
   // No checksum, password, cl_hwid, or private-slot key. Snaps is a request only.
   return [
     `\\protocol\\${options.protocol}`,

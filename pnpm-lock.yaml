@@ -126,15 +126,24 @@ importers:
       '@cod2admin/ban-store':
         specifier: workspace:*
         version: link:../../packages/ban-store
+      '@cod2admin/game-client':
+        specifier: workspace:*
+        version: link:../../packages/game-client
       '@cod2admin/log-tailer':
         specifier: workspace:*
         version: link:../../packages/log-tailer
+      '@cod2admin/player-watch':
+        specifier: workspace:*
+        version: link:../../packages/player-watch
       '@cod2admin/rcon-client':
         specifier: workspace:*
         version: link:../../packages/rcon-client
       '@cod2admin/report-pipeline':
         specifier: workspace:*
         version: link:../../packages/report-pipeline
+      '@cod2admin/watch-store':
+        specifier: workspace:*
+        version: link:../../packages/watch-store
       '@fastify/static':
         specifier: ^10.1.5
         version: 10.1.5
@@ -201,6 +210,9 @@ importers:
 
   packages/game-client:
     dependencies:
+      '@cod2admin/player-watch':
+        specifier: workspace:*
+        version: link:../player-watch
       '@cod2admin/rcon-client':
         specifier: workspace:*
         version: link:../rcon-client

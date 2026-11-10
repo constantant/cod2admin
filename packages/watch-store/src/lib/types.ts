@@ -81,6 +81,23 @@ export interface RecordEvidenceInput {
   reportId?: number | null;
 }
 
+/**
+ * Caps the parent passes to `decide`. Cards and kicks are per server.
+ * The cooldown is per profile. A `suppressed` row counts only when its
+ * reason is `kick` (the kick was not sent). A `cooldown` or `card_cap`
+ * row does not.
+ */
+export interface WatchCaps {
+  cardsThisHour: number;
+  kickedThisHour: number;
+  cooldownActive: boolean;
+}
+
+export interface RecentLife {
+  lifeScore: number | null;
+  endedAt: Date;
+}
+
 export interface WatchStore {
   recordLife(input: RecordLifeInput): Promise<void>;
   upsertProfileName(input: UpsertProfileNameInput): Promise<void>;
@@ -100,7 +117,24 @@ export interface WatchStore {
   populationZ(
     query: PopulationQuery & { value: number },
   ): Promise<number | undefined>;
-  recordEvidence(input: RecordEvidenceInput): Promise<void>;
+  recordEvidence(input: RecordEvidenceInput): Promise<string>;
+  /**
+   * `cardsThisHour` and `kickedThisHour` count the whole server.
+   * `cooldownActive` is only this profile. `suppressed` / `kick` counts
+   * as a card and starts the cooldown. `suppressed` / `cooldown` does not.
+   */
+  loadCaps(input: {
+    serverAlias: string;
+    profileKey: string;
+    now: Date;
+    cooldownMs: number;
+  }): Promise<WatchCaps>;
+  /** Newest first. Includes excluded lives. The parent counts the kick streak. */
+  recentLives(
+    serverAlias: string,
+    profileKey: string,
+    limit: number,
+  ): Promise<RecentLife[]>;
   pruneWatchRetention(now: Date): Promise<void>;
   close(): Promise<void>;
 }

@@ -52,7 +52,9 @@ describe('playerIdentityKey', () => {
 describe('createPlayerIdentityResolver', () => {
   it('does not call RCON until resolve, and strips the name it passes to dumpuser', async () => {
     let time = 10_000;
-    const dumpuser = vi.fn(async () => ({ cl_hwid: '7' }));
+    const dumpuser = vi.fn(async (_alias: string, _name: string) => ({
+      cl_hwid: '7',
+    }));
     const status = vi.fn();
     const resolver = createPlayerIdentityResolver({
       now: () => time,
@@ -163,9 +165,14 @@ describe('createPlayerIdentityResolver', () => {
 
   it('keeps guid or ip when dumpuser times out, without logging it', async () => {
     let time = 0;
-    const dumpuser = vi.fn(async () => {
-      throw new Error('timed out');
-    });
+    const dumpuser = vi.fn(
+      async (
+        _alias: string,
+        _name: string,
+      ): Promise<Record<string, string>> => {
+        throw new Error('timed out');
+      },
+    );
     const resolver = createPlayerIdentityResolver({
       now: () => time,
       dumpuser,
