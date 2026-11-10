@@ -34,14 +34,21 @@ describe('runApplyUpdate', () => {
   const settle = () => new Promise((resolve) => setTimeout(resolve, 150));
 
   it('reports a failed script with the end of its output', async () => {
-    const problems = await run('echo "sudo: a password is required" >&2; exit 1');
+    const problems = await run(
+      'echo "sudo: a password is required" >&2; exit 1',
+    );
 
     await vi.waitFor(() => expect(problems).toHaveLength(1));
-    expect(problems[0]).toEqual({ kind: 'failed', output: 'sudo: a password is required' });
+    expect(problems[0]).toEqual({
+      kind: 'failed',
+      output: 'sudo: a password is required',
+    });
   });
 
   it('keeps secrets from the bot log out of the report', async () => {
-    const problems = await run('echo "/claim secret: abc123"; echo "boom"; exit 1');
+    const problems = await run(
+      'echo "/claim secret: abc123"; echo "boom"; exit 1',
+    );
 
     await vi.waitFor(() => expect(problems).toHaveLength(1));
     expect(problems[0]).toEqual({ kind: 'failed', output: 'boom' });
@@ -67,7 +74,7 @@ describe('runApplyUpdate', () => {
     await vi.waitFor(() => expect(problems).toEqual([{ kind: 'timeout' }]));
   });
 
-  it("reports sudo not being installed instead of crashing the bot", async () => {
+  it('reports sudo not being installed instead of crashing the bot', async () => {
     await writeFile(join(dir, 'script.sh'), '');
     const problems: ApplyUpdateProblem[] = [];
 
@@ -77,7 +84,10 @@ describe('runApplyUpdate', () => {
     });
 
     await vi.waitFor(() => expect(problems).toHaveLength(1));
-    expect(problems[0]).toMatchObject({ kind: 'failed', output: expect.stringContaining('ENOENT') });
+    expect(problems[0]).toMatchObject({
+      kind: 'failed',
+      output: expect.stringContaining('ENOENT'),
+    });
   });
 });
 
@@ -86,7 +96,10 @@ function fakeFetch(body: Uint8Array, ok = true, status = 200): typeof fetch {
     ok,
     status,
     statusText: ok ? 'OK' : 'Error',
-    arrayBuffer: () => Promise.resolve(body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength)),
+    arrayBuffer: () =>
+      Promise.resolve(
+        body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength),
+      ),
   }) as unknown as typeof fetch;
 }
 
@@ -101,14 +114,22 @@ describe('downloadReleaseAsset', () => {
 
   it('writes the fetched bytes to destPath', async () => {
     const dest = join(dir, 'asset.tar.gz');
-    await downloadReleaseAsset('https://example.com/asset.tar.gz', dest, fakeFetch(Buffer.from('hello world')));
+    await downloadReleaseAsset(
+      'https://example.com/asset.tar.gz',
+      dest,
+      fakeFetch(Buffer.from('hello world')),
+    );
     expect((await readFile(dest)).toString()).toBe('hello world');
   });
 
   it('throws when the response is not ok', async () => {
     const dest = join(dir, 'asset.tar.gz');
     await expect(
-      downloadReleaseAsset('https://example.com/asset.tar.gz', dest, fakeFetch(Buffer.from(''), false, 404)),
+      downloadReleaseAsset(
+        'https://example.com/asset.tar.gz',
+        dest,
+        fakeFetch(Buffer.from(''), false, 404),
+      ),
     ).rejects.toThrow(/404/);
   });
 });
@@ -125,7 +146,9 @@ describe('verifyChecksum', () => {
   it('returns true when the file matches a sha256sum-format checksum file', async () => {
     const filePath = join(dir, 'cod2admin-gateway-0.0.5.tar.gz');
     await writeFile(filePath, 'fake tarball contents');
-    const hash = createHash('sha256').update('fake tarball contents').digest('hex');
+    const hash = createHash('sha256')
+      .update('fake tarball contents')
+      .digest('hex');
     const sha256Path = join(dir, 'cod2admin-gateway-0.0.5.tar.gz.sha256');
     await writeFile(sha256Path, `${hash}  cod2admin-gateway-0.0.5.tar.gz\n`);
 
@@ -136,7 +159,10 @@ describe('verifyChecksum', () => {
     const filePath = join(dir, 'cod2admin-gateway-0.0.5.tar.gz');
     await writeFile(filePath, 'tampered contents');
     const sha256Path = join(dir, 'cod2admin-gateway-0.0.5.tar.gz.sha256');
-    await writeFile(sha256Path, `${'0'.repeat(64)}  cod2admin-gateway-0.0.5.tar.gz\n`);
+    await writeFile(
+      sha256Path,
+      `${'0'.repeat(64)}  cod2admin-gateway-0.0.5.tar.gz\n`,
+    );
 
     await expect(verifyChecksum(filePath, sha256Path)).resolves.toBe(false);
   });

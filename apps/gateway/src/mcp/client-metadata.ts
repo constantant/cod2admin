@@ -1,5 +1,9 @@
 import { request as httpsRequest } from 'node:https';
-import { lookup as dnsLookup, type LookupAddress, type LookupOptions } from 'node:dns';
+import {
+  lookup as dnsLookup,
+  type LookupAddress,
+  type LookupOptions,
+} from 'node:dns';
 import {
   displayName,
   isAllowedRedirect,
@@ -45,8 +49,16 @@ export function guardLookup(lookup: AddressLookup): AddressLookup {
         : typeof address === 'string' && address
           ? [{ address, family: family ?? 4 }]
           : [];
-      if (error || list.length === 0 || list.some((entry) => isBlockedAddress(entry.address))) {
-        callback(error ?? new Error('blocked address'), options.all ? [] : '', 4);
+      if (
+        error ||
+        list.length === 0 ||
+        list.some((entry) => isBlockedAddress(entry.address))
+      ) {
+        callback(
+          error ?? new Error('blocked address'),
+          options.all ? [] : '',
+          4,
+        );
         return;
       }
       if (options.all) {
@@ -76,7 +88,9 @@ export async function loadClientMetadata(
     throw new ClientMetadataError('client_id must be an https URL.');
   }
   if (url.protocol !== 'https:' || url.username || url.password || url.hash) {
-    throw new ClientMetadataError('client_id must be an https URL with no credentials.');
+    throw new ClientMetadataError(
+      'client_id must be an https URL with no credentials.',
+    );
   }
   if (isBlockedHostname(url.hostname)) {
     throw new ClientMetadataError('client_id points at a blocked host.');
@@ -87,7 +101,9 @@ export async function loadClientMetadata(
     body = await fetchDocument(url);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'fetch failed';
-    throw new ClientMetadataError(`Could not read the client metadata: ${message}`);
+    throw new ClientMetadataError(
+      `Could not read the client metadata: ${message}`,
+    );
   }
 
   let parsed: unknown;
@@ -101,11 +117,19 @@ export async function loadClientMetadata(
   }
   const document = parsed as Record<string, unknown>;
   if (document['client_id'] !== clientId) {
-    throw new ClientMetadataError('client_id in the metadata does not match the URL.');
+    throw new ClientMetadataError(
+      'client_id in the metadata does not match the URL.',
+    );
   }
   const redirects = document['redirect_uris'];
-  if (!Array.isArray(redirects) || redirects.length === 0 || redirects.length > 10) {
-    throw new ClientMetadataError('Client metadata needs one to ten redirect URIs.');
+  if (
+    !Array.isArray(redirects) ||
+    redirects.length === 0 ||
+    redirects.length > 10
+  ) {
+    throw new ClientMetadataError(
+      'Client metadata needs one to ten redirect URIs.',
+    );
   }
   const redirectUris: string[] = [];
   for (const entry of redirects) {
@@ -161,7 +185,9 @@ export function fetchPublicHttps(
           }
           chunks.push(chunk);
         });
-        response.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+        response.on('end', () =>
+          resolve(Buffer.concat(chunks).toString('utf8')),
+        );
       },
     );
     req.on('timeout', () => req.destroy(new Error('timed out')));
@@ -192,7 +218,8 @@ export async function fetchClientDocument(
   url: URL,
   options: ClientDocumentOptions = {},
 ): Promise<string> {
-  const fetchDirect = options.fetchDirect ?? ((target: URL) => fetchPublicHttps(target));
+  const fetchDirect =
+    options.fetchDirect ?? ((target: URL) => fetchPublicHttps(target));
   try {
     return await fetchDirect(url);
   } catch (directError) {
@@ -250,9 +277,16 @@ export function knownClientDocument(url: URL): string | undefined {
   };
   const match = fixed[id];
   if (match) {
-    return JSON.stringify({ client_id: id, client_name: match.name, redirect_uris: match.redirects });
+    return JSON.stringify({
+      client_id: id,
+      client_name: match.name,
+      redirect_uris: match.redirects,
+    });
   }
-  const callback = /^https:\/\/chatgpt\.com\/oauth\/([A-Za-z0-9_-]{8,64})\/client\.json$/.exec(id);
+  const callback =
+    /^https:\/\/chatgpt\.com\/oauth\/([A-Za-z0-9_-]{8,64})\/client\.json$/.exec(
+      id,
+    );
   if (!callback) {
     return undefined;
   }
@@ -270,7 +304,13 @@ function relayMetadataEndpoint(relay: string, target: URL): URL | undefined {
   } catch {
     return undefined;
   }
-  if (base.protocol !== 'https:' || base.username || base.password || base.search || base.hash) {
+  if (
+    base.protocol !== 'https:' ||
+    base.username ||
+    base.password ||
+    base.search ||
+    base.hash
+  ) {
     return undefined;
   }
   const path = base.pathname.replace(/\/$/, '');
@@ -279,7 +319,9 @@ function relayMetadataEndpoint(relay: string, target: URL): URL | undefined {
   );
 }
 
-async function readRelay(endpoint: URL): Promise<{ status: number; body: string }> {
+async function readRelay(
+  endpoint: URL,
+): Promise<{ status: number; body: string }> {
   const response = await fetch(endpoint, {
     method: 'GET',
     redirect: 'manual',
@@ -289,6 +331,7 @@ async function readRelay(endpoint: URL): Promise<{ status: number; body: string 
   const body = await response.text();
   return {
     status: response.status,
-    body: body.length > DOCUMENT_BYTES ? body.slice(0, DOCUMENT_BYTES + 1) : body,
+    body:
+      body.length > DOCUMENT_BYTES ? body.slice(0, DOCUMENT_BYTES + 1) : body,
   };
 }

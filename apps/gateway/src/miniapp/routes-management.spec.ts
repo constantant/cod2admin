@@ -1094,6 +1094,60 @@ describe('Mini App management routes', () => {
       });
     });
 
+    it('lists every release newer than the running one when an update is available', async () => {
+      fake.githubReleaseClient.getLatestRelease.mockResolvedValue(
+        release('v99.0.0'),
+      );
+      fake.githubReleaseClient.listReleaseNotes.mockResolvedValue([
+        { tagName: 'v99.0.0', publishedAt: '2099-02-01T00:00:00Z', notes: 'b' },
+        { tagName: 'v98.0.0', publishedAt: '2099-01-01T00:00:00Z', notes: 'a' },
+        {
+          tagName: 'v0.0.1',
+          publishedAt: '2000-01-01T00:00:00Z',
+          notes: 'old',
+        },
+      ]);
+
+      const body = (await call('GET', '/update', OWNER)).json();
+      expect(body.available).toBe(true);
+      expect(body.releases.map((r: { tag: string }) => r.tag)).toEqual([
+        'v99.0.0',
+        'v98.0.0',
+      ]);
+    });
+
+    it('falls back to the latest release notes when the list cannot be read', async () => {
+      fake.githubReleaseClient.getLatestRelease.mockResolvedValue(
+        release('v99.0.0'),
+      );
+      fake.githubReleaseClient.listReleaseNotes.mockRejectedValue(
+        new Error('rate limited'),
+      );
+
+      expect((await call('GET', '/update', OWNER)).json().releases).toEqual([
+        { tag: 'v99.0.0', publishedAt: null, notes: 'notes' },
+      ]);
+    });
+
+    it('shows the latest few releases when already up to date', async () => {
+      fake.githubReleaseClient.getLatestRelease.mockResolvedValue(
+        release('v0.0.1'),
+      );
+      fake.githubReleaseClient.listReleaseNotes.mockResolvedValue(
+        ['v0.0.1', 'v0.0.0', 'v0.0.0-a', 'v0.0.0-b', 'v0.0.0-c'].map(
+          (tagName) => ({
+            tagName,
+            publishedAt: null,
+            notes: tagName,
+          }),
+        ),
+      );
+
+      const body = (await call('GET', '/update', OWNER)).json();
+      expect(body.available).toBe(false);
+      expect(body.releases).toHaveLength(3);
+    });
+
     it('applies only the version the owner agreed to, and marks this chat for the report', async () => {
       fake.githubReleaseClient.getLatestRelease.mockResolvedValue(
         release('v99.0.0'),

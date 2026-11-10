@@ -30,7 +30,10 @@ export function isLoopback(hostname: string): boolean {
 }
 
 export function isBlockedHostname(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/\.$/, '').replace(/^\[|\]$/g, '');
+  const host = hostname
+    .toLowerCase()
+    .replace(/\.$/, '')
+    .replace(/^\[|\]$/g, '');
   if (
     host === 'localhost' ||
     host.endsWith('.localhost') ||

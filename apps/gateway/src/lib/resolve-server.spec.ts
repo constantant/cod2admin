@@ -6,15 +6,24 @@ import { asRconClient, createFakeRcon } from './testing/fake-rcon.js';
 
 describe('extractServerFlag', () => {
   it('pulls a trailing --server <alias> token out and returns the rest', () => {
-    expect(extractServerFlag('3 griefing --server default')).toEqual({ alias: 'default', rest: '3 griefing' });
+    expect(extractServerFlag('3 griefing --server default')).toEqual({
+      alias: 'default',
+      rest: '3 griefing',
+    });
   });
 
   it('pulls a leading --server <alias> token out too', () => {
-    expect(extractServerFlag('--server default 3 griefing')).toEqual({ alias: 'default', rest: '3 griefing' });
+    expect(extractServerFlag('--server default 3 griefing')).toEqual({
+      alias: 'default',
+      rest: '3 griefing',
+    });
   });
 
   it('returns the text unchanged when there is no --server flag', () => {
-    expect(extractServerFlag('3 griefing')).toEqual({ alias: undefined, rest: '3 griefing' });
+    expect(extractServerFlag('3 griefing')).toEqual({
+      alias: undefined,
+      rest: '3 griefing',
+    });
   });
 });
 
@@ -25,7 +34,10 @@ describe('resolveServer', () => {
 
     const server = await resolveServer(ctx, deps, 'default');
 
-    expect(server).toEqual({ alias: 'default', rcon: deps.rconClients.get('default') });
+    expect(server).toEqual({
+      alias: 'default',
+      rcon: deps.rconClients.get('default'),
+    });
   });
 
   it('replies with "Unknown server" for an alias that is not configured', async () => {
@@ -35,7 +47,9 @@ describe('resolveServer', () => {
     const server = await resolveServer(ctx, deps, 'nope');
 
     expect(server).toBeUndefined();
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('Unknown server "nope"'));
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('Unknown server "nope"'),
+    );
   });
 
   it('falls back to the chat-bound server when no explicit alias is given', async () => {
@@ -84,9 +98,24 @@ describe('resolveServer', () => {
   it('prefers the chat-bound server over the default server', async () => {
     const { deps, adminStore } = createFakeDeps();
     deps.rconClients.set('other', asRconClient(createFakeRcon()));
-    const base = { rconHost: 'h', rconPort: 1, rconPassword: 'p', logSourceConfig: null };
-    adminStore.getServerForChat.mockResolvedValue({ ...base, alias: 'default', boundTelegramChatId: 100, isDefault: false });
-    adminStore.getDefaultServer.mockResolvedValue({ ...base, alias: 'other', boundTelegramChatId: null, isDefault: true });
+    const base = {
+      rconHost: 'h',
+      rconPort: 1,
+      rconPassword: 'p',
+      logSourceConfig: null,
+    };
+    adminStore.getServerForChat.mockResolvedValue({
+      ...base,
+      alias: 'default',
+      boundTelegramChatId: 100,
+      isDefault: false,
+    });
+    adminStore.getDefaultServer.mockResolvedValue({
+      ...base,
+      alias: 'other',
+      boundTelegramChatId: null,
+      isDefault: true,
+    });
     const ctx = createFakeCtx({ chat: { id: 100 } });
 
     const server = await resolveServer(ctx, deps, undefined);

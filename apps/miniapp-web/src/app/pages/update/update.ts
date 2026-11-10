@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
   type OnInit,
   signal,
@@ -10,7 +11,18 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import type { UpdateStatusResponse } from '@cod2admin/miniapp-api';
 import { ApiService } from '../../core/api';
 import { Notify } from '../../shared/notify';
-import { T } from '../../shared/i18n';
+import { dateLocale, T } from '../../shared/i18n';
+import {
+  parseReleaseNotes,
+  type NoteSection,
+} from '../../shared/release-notes';
+
+interface ReleaseView {
+  tag: string;
+  date: string;
+  installed: boolean;
+  sections: NoteSection[];
+}
 
 /** `/update` (docs/PLAN.md §13). Owner only. The new version's report comes to the owner's chat. */
 @Component({
@@ -63,9 +75,32 @@ import { T } from '../../shared/i18n';
             {{ 'Check again' | t }}
           </button>
         </section>
-        @if (data.available && data.notes) {
-          <h2>{{ "What's new" | t }}</h2>
-          <pre class="notes">{{ data.notes }}</pre>
+        @if (releases().length > 0) {
+          <h2>{{ (data.available ? "What's new" : 'Recent releases') | t }}</h2>
+          @for (release of releases(); track release.tag) {
+            <section class="card release">
+              <div class="row">
+                <span class="tag">{{ release.tag }}</span>
+                @if (release.installed) {
+                  <span class="chip">{{ 'installed' | t }}</span>
+                }
+                <span class="spacer"></span>
+                <span class="muted">{{ release.date }}</span>
+              </div>
+              @for (section of release.sections; track $index) {
+                @if (section.title) {
+                  <div class="group">{{ section.title | t }}</div>
+                }
+                <ul>
+                  @for (item of section.items; track $index) {
+                    <li>{{ item }}</li>
+                  }
+                </ul>
+              } @empty {
+                <p class="muted">{{ 'No notes for this release.' | t }}</p>
+              }
+            </section>
+          }
         }
       }
     </div>
@@ -85,6 +120,36 @@ import { T } from '../../shared/i18n';
       overflow-wrap: anywhere;
       margin: 0 0 12px;
     }
+    .release {
+      margin-bottom: 8px;
+    }
+    .tag {
+      font: var(--mat-sys-title-medium);
+    }
+    .chip {
+      margin-left: 8px;
+      padding: 0 8px;
+      border-radius: 8px;
+      font: var(--mat-sys-label-small);
+      background: var(--mat-sys-secondary-container);
+      color: var(--mat-sys-on-secondary-container);
+    }
+    .group {
+      margin-top: 12px;
+      font: var(--mat-sys-label-medium);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--mat-sys-on-surface-variant);
+    }
+    ul {
+      margin: 4px 0 0;
+      padding-left: 20px;
+      font: var(--mat-sys-body-medium);
+      overflow-wrap: anywhere;
+    }
+    li {
+      margin-bottom: 4px;
+    }
   `,
 })
 export class UpdatePage implements OnInit {
@@ -92,6 +157,21 @@ export class UpdatePage implements OnInit {
   private readonly notify = inject(Notify);
 
   protected readonly data = signal<UpdateStatusResponse | null>(null);
+  protected readonly releases = computed<ReleaseView[]>(() => {
+    const data = this.data();
+    return (data?.releases ?? []).map((release) => ({
+      tag: release.tag,
+      date: release.publishedAt
+        ? new Date(release.publishedAt).toLocaleDateString(dateLocale, {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+          })
+        : '',
+      installed: release.tag.replace(/^v/, '') === data?.running,
+      sections: parseReleaseNotes(release.notes),
+    }));
+  });
   protected readonly loading = signal(false);
   protected readonly applying = signal(false);
 

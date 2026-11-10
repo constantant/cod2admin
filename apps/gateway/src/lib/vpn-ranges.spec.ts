@@ -39,7 +39,9 @@ describe('IpRangeSet', () => {
   });
 
   it('skips comments, blanks, IPv6 and malformed lines', () => {
-    const set = IpRangeSet.parse('# comment\n\n2001:db8::/32\n1.2.3.4/33\n300.1.1.1\n1.2.3.4/\nnot an ip\n8.8.8.8\n');
+    const set = IpRangeSet.parse(
+      '# comment\n\n2001:db8::/32\n1.2.3.4/33\n300.1.1.1\n1.2.3.4/\nnot an ip\n8.8.8.8\n',
+    );
 
     expect(set.size).toBe(1);
     expect(set.has('8.8.8.8')).toBe(true);
@@ -79,14 +81,20 @@ describe('VpnRangeDatabase and labels', () => {
     expect(describeVpnShort(db, '45.0.0.1')).toBe('🛡 VPN');
     expect(describeVpnShort(db, '3.5.140.2')).toBe('🛡 hosting');
     expect(describeVpnLong(db, '5.9.10.10')).toBe('🛡 Tor exit');
-    expect(describeVpnLong(db, '3.5.140.2')).toBe('🛡 hosting IP (likely VPN/proxy)');
+    expect(describeVpnLong(db, '3.5.140.2')).toBe(
+      '🛡 hosting IP (likely VPN/proxy)',
+    );
     expect(describeVpnShort(db, '188.19.61.1')).toBeUndefined();
     expect(describeVpnShort(db, undefined)).toBeUndefined();
     expect(describeVpnShort(NO_VPN_LOOKUP, '45.0.0.1')).toBeUndefined();
   });
 
   it('flags provider networks named with /vpnnets, ahead of the hosting list', () => {
-    const asns: Record<string, number> = { '2.27.5.10': 202226, '5.9.11.1': 24940, '188.19.61.1': 12389 };
+    const asns: Record<string, number> = {
+      '2.27.5.10': 202226,
+      '5.9.11.1': 24940,
+      '188.19.61.1': 12389,
+    };
     const db = new VpnRangeDatabase((ip) => asns[ip]);
     db.setList('tor', IpRangeSet.parse('5.9.10.10'));
     db.setList('hosting', IpRangeSet.parse('5.9.0.0/16'));
@@ -97,7 +105,9 @@ describe('VpnRangeDatabase and labels', () => {
     expect(db.lookup('5.9.10.10')).toBe('tor');
     expect(db.lookup('188.19.61.1')).toBeUndefined();
     expect(describeVpnShort(db, '2.27.5.10')).toBe('🛡 VPN');
-    expect(describeVpnLong(db, '2.27.5.10')).toBe('🛡 VPN (provider on /vpnnets)');
+    expect(describeVpnLong(db, '2.27.5.10')).toBe(
+      '🛡 VPN (provider on /vpnnets)',
+    );
 
     db.setNetworks([]);
     expect(db.lookup('2.27.5.10')).toBeUndefined();
@@ -105,12 +115,20 @@ describe('VpnRangeDatabase and labels', () => {
   });
 
   it('reads the stored /vpnnets setting, dropping malformed entries', () => {
-    expect(parseVpnNetworks([{ asn: 202226, name: 'Great Flower' }, { asn: 9009 }, { asn: 9010, name: '' }])).toEqual([
+    expect(
+      parseVpnNetworks([
+        { asn: 202226, name: 'Great Flower' },
+        { asn: 9009 },
+        { asn: 9010, name: '' },
+      ]),
+    ).toEqual([
       { asn: 202226, name: 'Great Flower' },
       { asn: 9009 },
       { asn: 9010 },
     ]);
-    expect(parseVpnNetworks([{ asn: '1' }, { asn: -5 }, { asn: 1.5 }, null, 'AS1'])).toEqual([]);
+    expect(
+      parseVpnNetworks([{ asn: '1' }, { asn: -5 }, { asn: 1.5 }, null, 'AS1']),
+    ).toEqual([]);
     expect(parseVpnNetworks(undefined)).toEqual([]);
     expect(parseVpnNetworks({ asn: 1 })).toEqual([]);
   });
@@ -134,20 +152,31 @@ describe('VpnListUpdater', () => {
   let dir: string;
 
   function listOf(marker: string): string {
-    const filler = Array.from({ length: 150 }, (_, index) => `100.${Math.floor(index / 250)}.${index % 250}.1`);
+    const filler = Array.from(
+      { length: 150 },
+      (_, index) => `100.${Math.floor(index / 250)}.${index % 250}.1`,
+    );
     return [marker, ...filler].join('\n');
   }
 
   function okFetch(): typeof fetch {
     return vi.fn(async (url: string) => {
       const kind = VPN_LISTS.find((list) => list.url === url)?.kind;
-      return kind ? new Response(LIST_TEXT[kind]) : new Response('not found', { status: 404 });
+      return kind
+        ? new Response(LIST_TEXT[kind])
+        : new Response('not found', { status: 404 });
     }) as unknown as typeof fetch;
   }
 
   function updater(fetchImpl: typeof fetch = okFetch()) {
     const database = new VpnRangeDatabase();
-    const instance = new VpnListUpdater({ database, dir, fetchImpl, now: () => NOW, log: () => undefined });
+    const instance = new VpnListUpdater({
+      database,
+      dir,
+      fetchImpl,
+      now: () => NOW,
+      log: () => undefined,
+    });
     return { instance, database, fetchImpl };
   }
 
@@ -212,7 +241,9 @@ describe('VpnListUpdater', () => {
   });
 
   it('rejects a download that is too small to be a real list', async () => {
-    const fetchImpl = vi.fn(async () => new Response('<html>rate limited</html>\n1.2.3.4')) as unknown as typeof fetch;
+    const fetchImpl = vi.fn(
+      async () => new Response('<html>rate limited</html>\n1.2.3.4'),
+    ) as unknown as typeof fetch;
     const { instance, database } = updater(fetchImpl);
 
     await instance.check();

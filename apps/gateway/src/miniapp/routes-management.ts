@@ -80,6 +80,7 @@ import type {
   RelayTestResponse,
   ServersResponse,
   SetCvarRequest,
+  ReleaseNotesDto,
   UpdateStatusResponse,
   VpnResponse,
   KnownResponse,
@@ -105,6 +106,9 @@ export const DEFAULT_PRESETS: Presets = {
   durations: [30, 120, 1440, 10_080, 43_200],
   messages: [],
 };
+/** Release notes asked of GitHub, and how many show when the install is already up to date. */
+const RELEASE_NOTES_LIMIT = 15;
+const RELEASE_NOTES_WHEN_CURRENT = 3;
 const MAX_PRESETS = 20;
 const MAX_PRESET_TEXT = 100;
 const MAX_TEMPBAN_MINUTES = 365 * 24 * 60;
@@ -1347,11 +1351,35 @@ export function registerManagementRoutes(
       };
       try {
         const release = await deps.githubReleaseClient.getLatestRelease();
+        const available = isNewerVersion(release.tagName, running);
+        const recent = await deps.githubReleaseClient
+          .listReleaseNotes(RELEASE_NOTES_LIMIT)
+          .catch(() => []);
+        const releases = (
+          available
+            ? recent.filter((entry) => isNewerVersion(entry.tagName, running))
+            : recent.slice(0, RELEASE_NOTES_WHEN_CURRENT)
+        ).map((entry): ReleaseNotesDto => ({
+          tag: entry.tagName,
+          publishedAt: entry.publishedAt,
+          notes: entry.notes,
+        }));
         return {
           ...base,
           latest: release.tagName,
           notes: release.notes || null,
-          available: isNewerVersion(release.tagName, running),
+          // The list can fail or lag behind `latest`: fall back to the latest release's own notes.
+          releases:
+            releases.length > 0 || !release.notes
+              ? releases
+              : [
+                  {
+                    tag: release.tagName,
+                    publishedAt: null,
+                    notes: release.notes,
+                  },
+                ],
+          available,
           checkError: null,
         };
       } catch (error) {
@@ -1359,6 +1387,7 @@ export function registerManagementRoutes(
           ...base,
           latest: null,
           notes: null,
+          releases: [],
           available: false,
           checkError: error instanceof Error ? error.message : String(error),
         };

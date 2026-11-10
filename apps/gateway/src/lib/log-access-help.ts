@@ -26,7 +26,11 @@ export function detectBotRuntime(): BotRuntime {
 /** Every folder that has to let the bot through: `/a/b/c.log` gives `/a`, `/a/b`. */
 function parentFolders(path: string): string[] {
   const folders: string[] = [];
-  for (let dir = dirname(path); dir !== '/' && dir !== '.'; dir = dirname(dir)) {
+  for (
+    let dir = dirname(path);
+    dir !== '/' && dir !== '.';
+    dir = dirname(dir)
+  ) {
     folders.unshift(dir);
   }
   return folders;
@@ -71,7 +75,9 @@ export function unreadableLogHelp(
   return (
     `My user (${runtime.user}) isn't allowed to open the log here. Run this on the server as root:\n\n` +
     blocks.join('\n\n') +
-    (hidden > 0 ? `\n\n(${hidden} more files found: same commands for each.)` : '') +
+    (hidden > 0
+      ? `\n\n(${hidden} more files found: same commands for each.)`
+      : '') +
     '\n\nThese give access to my user only. The last line keeps it working if the server creates the file again. ' +
     'If setfacl is missing, install the acl package.\n\n' +
     `${AFTER_ACCESS}\n\n${guideLinks}`
@@ -90,7 +96,7 @@ export function logNotFoundHelp(
 
   const anotherMachine =
     "If the game server is on another machine, I can't read its log from here. Install the bot on that " +
-    'machine to get !report cards and the app\'s chat. All other commands keep working without the log.';
+    "machine to get !report cards and the app's chat. All other commands keep working without the log.";
 
   if (runtime.inContainer) {
     return (
@@ -106,7 +112,7 @@ export function logNotFoundHelp(
     `${intro}\n\n` +
     "I can't search folders my user can't open. If the game server is on this machine, find the log as root:\n\n" +
     'find / -name games_mp.log 2>/dev/null\n\n' +
-    'Then send /findlog <that path>, and I\'ll give you the commands to let me read it. If the game server ' +
+    "Then send /findlog <that path>, and I'll give you the commands to let me read it. If the game server " +
     'runs in Docker, its log folder has to be a bind mount, so the file exists on the machine.\n\n' +
     `${anotherMachine}\n\n${guideLinks}`
   );

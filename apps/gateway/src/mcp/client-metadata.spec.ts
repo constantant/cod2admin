@@ -19,7 +19,9 @@ function document(overrides: Record<string, unknown> = {}): string {
 
 describe('loadClientMetadata', () => {
   it('reads a matching document and cleans the client name', async () => {
-    const metadata = await loadClientMetadata(CLIENT_ID, async () => document());
+    const metadata = await loadClientMetadata(CLIENT_ID, async () =>
+      document(),
+    );
 
     expect(metadata).toEqual({
       clientId: CLIENT_ID,
@@ -39,32 +41,38 @@ describe('loadClientMetadata', () => {
       loadClientMetadata('https://127.0.0.1/client.json', fetchDocument),
     ).rejects.toThrow(/blocked/);
     await expect(
-      loadClientMetadata('https://metadata.google.internal/client.json', fetchDocument),
+      loadClientMetadata(
+        'https://metadata.google.internal/client.json',
+        fetchDocument,
+      ),
     ).rejects.toThrow(/blocked/);
-    await expect(loadClientMetadata('http://app.example/client.json', fetchDocument)).rejects.toThrow(
-      /https/,
-    );
     await expect(
-      loadClientMetadata('https://user:pass@app.example/client.json', fetchDocument),
+      loadClientMetadata('http://app.example/client.json', fetchDocument),
+    ).rejects.toThrow(/https/);
+    await expect(
+      loadClientMetadata(
+        'https://user:pass@app.example/client.json',
+        fetchDocument,
+      ),
     ).rejects.toThrow(/credentials/);
     expect(fetched).toBe(false);
   });
 
   it('rejects a document whose client id or redirects do not match the rules', async () => {
     await expect(
-      loadClientMetadata(
-        CLIENT_ID,
-        async () => document({ client_id: 'https://other.example/client.json' }),
+      loadClientMetadata(CLIENT_ID, async () =>
+        document({ client_id: 'https://other.example/client.json' }),
       ),
     ).rejects.toThrow(/does not match/);
     await expect(
-      loadClientMetadata(
-        CLIENT_ID,
-        async () => document({ redirect_uris: ['https://192.168.0.1/callback'] }),
+      loadClientMetadata(CLIENT_ID, async () =>
+        document({ redirect_uris: ['https://192.168.0.1/callback'] }),
       ),
     ).rejects.toThrow(/not allowed/);
     await expect(
-      loadClientMetadata(CLIENT_ID, async () => document({ redirect_uris: [] })),
+      loadClientMetadata(CLIENT_ID, async () =>
+        document({ redirect_uris: [] }),
+      ),
     ).rejects.toThrow(/one to ten/);
   });
 });
@@ -147,7 +155,10 @@ describe('fetchClientDocument', () => {
       },
       fetchRelay: async () => ({ status: 404, body: 'Not found' }),
     });
-    const metadata = await loadClientMetadata(claude.toString(), async () => body);
+    const metadata = await loadClientMetadata(
+      claude.toString(),
+      async () => body,
+    );
     expect(metadata).toEqual({
       clientId: claude.toString(),
       clientName: 'Claude',
@@ -163,7 +174,9 @@ describe('fetchClientDocument', () => {
           throw new Error('HTTP 403');
         },
       }),
-    ).resolves.toContain('https://chatgpt.com/connector/oauth/00000000-0000-4000-8000-000000000001');
+    ).resolves.toContain(
+      'https://chatgpt.com/connector/oauth/00000000-0000-4000-8000-000000000001',
+    );
   });
 
   it('reports the direct failure when every relay misses', async () => {

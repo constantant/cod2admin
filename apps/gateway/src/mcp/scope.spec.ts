@@ -22,7 +22,14 @@ describe('parseScope', () => {
   });
 
   it('rejects permissions that stay in Telegram, and unknown ids', () => {
-    for (const token of ['update', 'relays', 'admins.manage', 'servers.manage', 'mute', 'nope']) {
+    for (const token of [
+      'update',
+      'relays',
+      'admins.manage',
+      'servers.manage',
+      'mute',
+      'nope',
+    ]) {
       expect(parseScope(token)).toBe(`Unknown scope: ${token}`);
     }
   });
@@ -31,30 +38,35 @@ describe('parseScope', () => {
 describe('grantablePermissions', () => {
   it('returns the overlap of what was asked and what the person holds', () => {
     expect(
-      grantablePermissions(
-        { isOwner: false, permissions: ['kick', 'say'] },
-        ['kick', 'ban', 'rcon'],
-      ),
+      grantablePermissions({ isOwner: false, permissions: ['kick', 'say'] }, [
+        'kick',
+        'ban',
+        'rcon',
+      ]),
     ).toEqual(['kick']);
   });
 
   it('lets the owner grant rcon when it was asked, and nothing they were not asked', () => {
     expect(
-      grantablePermissions({ isOwner: true, permissions: [] }, ['kick', 'rcon']),
+      grantablePermissions({ isOwner: true, permissions: [] }, [
+        'kick',
+        'rcon',
+      ]),
     ).toEqual(['kick', 'rcon']);
-    expect(grantablePermissions({ isOwner: true, permissions: [] }, ['kick'])).toEqual([
-      'kick',
-    ]);
+    expect(
+      grantablePermissions({ isOwner: true, permissions: [] }, ['kick']),
+    ).toEqual(['kick']);
   });
 });
 
 describe('connectionPermissions', () => {
   it('keeps the snapshot, dropping a permission the person has since lost', () => {
     expect(
-      connectionPermissions(
-        { isOwner: false, permissions: ['kick'] },
-        ['kick', 'ban', 'update'],
-      ),
+      connectionPermissions({ isOwner: false, permissions: ['kick'] }, [
+        'kick',
+        'ban',
+        'update',
+      ]),
     ).toEqual(['kick']);
   });
 

@@ -64,7 +64,9 @@ describe('isAllowedRedirect', () => {
   it('rejects private hosts, credentials and fragments', () => {
     expect(isAllowedRedirect('http://192.168.1.1/callback')).toBe(false);
     expect(isAllowedRedirect('https://192.168.0.1/callback')).toBe(false);
-    expect(isAllowedRedirect('https://user:pass@app.example/callback')).toBe(false);
+    expect(isAllowedRedirect('https://user:pass@app.example/callback')).toBe(
+      false,
+    );
     expect(isAllowedRedirect('https://app.example/callback#code')).toBe(false);
     expect(isAllowedRedirect('javascript:alert(1)')).toBe(false);
   });

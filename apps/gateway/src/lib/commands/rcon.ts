@@ -14,7 +14,10 @@ import { extractServerFlag, resolveServer } from '../resolve-server.js';
  * `/rcon <raw command> [--server <alias>]` — owner-only raw passthrough (docs/PLAN.md §6/§8).
  * The one intentional exception to sanitizing rcon arguments — logged verbatim regardless.
  */
-export async function rconCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
+export async function rconCommand(
+  ctx: BotContext,
+  deps: GatewayDeps,
+): Promise<void> {
   const { alias: serverAlias, rest } = extractServerFlag(matchText(ctx));
   const server = await resolveServer(ctx, deps, serverAlias);
   if (!server) {
@@ -35,13 +38,21 @@ export async function rconCommand(ctx: BotContext, deps: GatewayDeps): Promise<v
     source: 'telegram_command',
     detailJson: { command: rest },
   });
-  await replyWithReport(ctx, buildRconReply(rest, server.alias, result || '(no output)'));
+  await replyWithReport(
+    ctx,
+    buildRconReply(rest, server.alias, result || '(no output)'),
+  );
 }
 
 /** How many output lines the short `/rcon` reply shows before pointing at the attached file. */
 const SUMMARY_LINES = 20;
 
-export function buildRconReply(command: string, serverAlias: string, output: string, now: Date = new Date()): LongReply {
+export function buildRconReply(
+  command: string,
+  serverAlias: string,
+  output: string,
+  now: Date = new Date(),
+): LongReply {
   const lines = output.split('\n');
   const shown = lines.slice(0, SUMMARY_LINES).join('\n');
   return {
@@ -49,7 +60,10 @@ export function buildRconReply(command: string, serverAlias: string, output: str
     summary: `${truncateText(shown, 3000)}\n\n… ${lines.length} lines in total — full output in the attached file.`,
     markdown: reportDocument({
       title: `rcon output — ${serverAlias}`,
-      meta: [`Server: ${serverAlias}`, `Command: ${command.replace(/[\r\n]+/g, ' ')}`],
+      meta: [
+        `Server: ${serverAlias}`,
+        `Command: ${command.replace(/[\r\n]+/g, ' ')}`,
+      ],
       body: markdownCodeBlock(output),
       now,
     }),

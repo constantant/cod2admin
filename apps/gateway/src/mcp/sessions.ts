@@ -1,8 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import type {
-  McpGrantRow,
-  McpRepository,
-} from '@cod2admin/admin-store';
+import type { McpGrantRow, McpRepository } from '@cod2admin/admin-store';
 import type { Permission } from '@cod2admin/admin-store';
 import { redirectHost } from './redirect.js';
 import { scopeFromPermissions } from './scope.js';
@@ -13,7 +10,8 @@ const ACCESS_TTL_MS = 10 * 60_000;
 const REFRESH_TTL_MS = 14 * 24 * 60 * 60_000;
 
 export interface OAuthFailure {
-  error: 'invalid_request' | 'invalid_grant' | 'invalid_client' | 'invalid_scope';
+  error:
+    'invalid_request' | 'invalid_grant' | 'invalid_client' | 'invalid_scope';
   description: string;
   status: number;
 }
@@ -82,7 +80,11 @@ export class McpSessions {
     resource: string;
     scope: string;
     state: string;
-  }): Promise<{ approveToken: string; browserToken: string; publicId: string }> {
+  }): Promise<{
+    approveToken: string;
+    browserToken: string;
+    publicId: string;
+  }> {
     const approveToken = token();
     const browserToken = token();
     const publicId = randomBytes(16).toString('hex');
@@ -112,7 +114,9 @@ export class McpSessions {
     approveToken: string,
     telegramId: number,
   ): Promise<PendingApproval | 'unknown' | 'expired' | 'taken' | 'decided'> {
-    const row = await this.repository.findPendingByApproveHash(hash(approveToken));
+    const row = await this.repository.findPendingByApproveHash(
+      hash(approveToken),
+    );
     if (!row) {
       return 'unknown';
     }
@@ -184,7 +188,9 @@ export class McpSessions {
     | { status: 'expired' }
     | { status: 'used' }
   > {
-    const row = await this.repository.findPendingByBrowserHash(hash(browserToken));
+    const row = await this.repository.findPendingByBrowserHash(
+      hash(browserToken),
+    );
     if (!row || row.expiresAt <= this.now()) {
       return { status: 'expired' };
     }
@@ -192,13 +198,19 @@ export class McpSessions {
       return { status: 'pending' };
     }
     if (row.decision === 'deny') {
-      return { status: 'denied', redirect: this.errorRedirect(row.redirectUri, row.state, issuer) };
+      return {
+        status: 'denied',
+        redirect: this.errorRedirect(row.redirectUri, row.state, issuer),
+      };
     }
     if (row.codeIssued) {
       return { status: 'used' };
     }
     const code = token();
-    const issued = await this.repository.markCodeIssued(row.browserHash, this.now());
+    const issued = await this.repository.markCodeIssued(
+      row.browserHash,
+      this.now(),
+    );
     if (!issued) {
       return { status: 'used' };
     }
@@ -245,9 +257,15 @@ export class McpSessions {
       row.redirectUri !== input.redirectUri ||
       row.resource !== input.resource
     ) {
-      return failure('invalid_grant', 'Authorization code does not match this client.');
+      return failure(
+        'invalid_grant',
+        'Authorization code does not match this client.',
+      );
     }
-    if (!pkceVerifierOk(input.verifier) || !same(pkceChallenge(input.verifier), row.codeChallenge)) {
+    if (
+      !pkceVerifierOk(input.verifier) ||
+      !same(pkceChallenge(input.verifier), row.codeChallenge)
+    ) {
       return failure('invalid_grant', 'PKCE verification failed.');
     }
 
@@ -291,8 +309,14 @@ export class McpSessions {
     if (current.revokedAt || current.refreshExpiresAt <= this.now()) {
       return failure('invalid_grant', 'This connection has ended.');
     }
-    if (current.clientId !== input.clientId || current.resource !== input.resource) {
-      return failure('invalid_grant', 'Refresh token does not match this client.');
+    if (
+      current.clientId !== input.clientId ||
+      current.resource !== input.resource
+    ) {
+      return failure(
+        'invalid_grant',
+        'Refresh token does not match this client.',
+      );
     }
 
     const nextRefresh = token();
@@ -418,7 +442,12 @@ export class McpSessions {
     };
   }
 
-  private codeRedirect(redirectUri: string, code: string, state: string, issuer: string): string {
+  private codeRedirect(
+    redirectUri: string,
+    code: string,
+    state: string,
+    issuer: string,
+  ): string {
     const target = new URL(redirectUri);
     target.searchParams.set('code', code);
     target.searchParams.set('state', state);
@@ -426,7 +455,11 @@ export class McpSessions {
     return target.toString();
   }
 
-  private errorRedirect(redirectUri: string, state: string, issuer: string): string {
+  private errorRedirect(
+    redirectUri: string,
+    state: string,
+    issuer: string,
+  ): string {
     const target = new URL(redirectUri);
     target.searchParams.set('error', 'access_denied');
     target.searchParams.set('state', state);
@@ -435,6 +468,9 @@ export class McpSessions {
   }
 }
 
-function failure(error: OAuthFailure['error'], description: string): OAuthFailure {
+function failure(
+  error: OAuthFailure['error'],
+  description: string,
+): OAuthFailure {
   return { error, description, status: 400 };
 }

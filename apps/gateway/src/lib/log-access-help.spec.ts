@@ -13,7 +13,9 @@ describe('unreadableLogHelp', () => {
       'setfacl -m u:cod2admin:x /home /home/cod2 /home/cod2/homedir /home/cod2/homedir/main',
     );
     expect(text).toContain(`setfacl -m u:cod2admin:r ${LOG}`);
-    expect(text).toContain('setfacl -d -m u:cod2admin:r /home/cod2/homedir/main');
+    expect(text).toContain(
+      'setfacl -d -m u:cod2admin:r /home/cod2/homedir/main',
+    );
     expect(text).toContain('/findlog again');
   });
 

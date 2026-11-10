@@ -130,7 +130,10 @@ export class ChatFeed {
  * gateway's log tailers, and rebuilt when `/findlog` replaces a tailer.
  */
 export class ChatFeeds {
-  private readonly feeds = new Map<string, { tailer: GameLogTailer; feed: ChatFeed }>();
+  private readonly feeds = new Map<
+    string,
+    { tailer: GameLogTailer; feed: ChatFeed }
+  >();
 
   constructor(private readonly tailers: Map<string, GameLogTailer>) {}
 

@@ -91,7 +91,9 @@ export async function inspectLogFile(
   if (!initGame) {
     return 'not-a-log';
   }
-  const block = initGame.slice(initGame.indexOf('InitGame: ') + 'InitGame: '.length);
+  const block = initGame.slice(
+    initGame.indexOf('InitGame: ') + 'InitGame: '.length,
+  );
   const cvars = parseCvarBlock(block);
   if (!live.hostname || cvars['sv_hostname']?.trim() !== live.hostname) {
     return 'other-server';
@@ -258,7 +260,8 @@ export async function findGameLog(
 
   return {
     log: current.length === 1 ? current[0] : undefined,
-    possible: current.length > 1 ? current : current.length === 0 ? sameName : [],
+    possible:
+      current.length > 1 ? current : current.length === 0 ? sameName : [],
     unreadable,
     reportedPath: reportedPaths[0],
     loggingOff: logCvar === '',

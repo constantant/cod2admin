@@ -15,10 +15,16 @@ const APPLY_UPDATE_TIMEOUT_MS = 5 * 60_000;
  * `fetchFn` is injectable (defaults to the global `fetch`) for the same DI-over-mocking-globals
  * reason as `github-releases.ts`.
  */
-export async function downloadReleaseAsset(url: string, destPath: string, fetchFn: FetchFn = fetch): Promise<void> {
+export async function downloadReleaseAsset(
+  url: string,
+  destPath: string,
+  fetchFn: FetchFn = fetch,
+): Promise<void> {
   const res = await fetchFn(url, { signal: AbortSignal.timeout(60_000) });
   if (!res.ok) {
-    throw new Error(`Failed to download ${url}: ${res.status} ${res.statusText}`);
+    throw new Error(
+      `Failed to download ${url}: ${res.status} ${res.statusText}`,
+    );
   }
   const buffer = Buffer.from(await res.arrayBuffer());
   await writeFile(destPath, buffer);
@@ -31,7 +37,10 @@ export async function downloadReleaseAsset(url: string, destPath: string, fetchF
  * anything is staged where `apply-update.sh` would act on it — defense in depth on top of that
  * script's own tar-member-path check, catching a corrupted/tampered download over the wire.
  */
-export async function verifyChecksum(filePath: string, sha256FilePath: string): Promise<boolean> {
+export async function verifyChecksum(
+  filePath: string,
+  sha256FilePath: string,
+): Promise<boolean> {
   const expectedLine = (await readFile(sha256FilePath, 'utf8')).trim();
   const expectedHash = expectedLine.split(/\s+/)[0]?.toLowerCase();
   if (!expectedHash) {
@@ -57,14 +66,16 @@ export interface RunApplyUpdateOptions {
 
 /** The end of the script's output, for the chat: it can repeat the bot's log, /claim secret included. */
 function summarizeOutput(output: string): string {
-  return output
-    .split('\n')
-    .map((line) => line.trim())
-    // Not "password": sudo's own "a password is required" is the message this exists to show.
-    .filter((line) => line && !/claim|secret|token/i.test(line))
-    .slice(-3)
-    .join('\n')
-    .slice(-400);
+  return (
+    output
+      .split('\n')
+      .map((line) => line.trim())
+      // Not "password": sudo's own "a password is required" is the message this exists to show.
+      .filter((line) => line && !/claim|secret|token/i.test(line))
+      .slice(-3)
+      .join('\n')
+      .slice(-400)
+  );
 }
 
 /**

@@ -5,12 +5,17 @@ import type { GatewayDeps } from './deps.js';
 const SERVER_FLAG = /(?:^|\s)--server\s+(\S+)/;
 
 /** Pulls a trailing `--server <alias>` token out of command text, if present. */
-export function extractServerFlag(text: string): { alias: string | undefined; rest: string } {
+export function extractServerFlag(text: string): {
+  alias: string | undefined;
+  rest: string;
+} {
   const match = SERVER_FLAG.exec(text);
   if (!match) {
     return { alias: undefined, rest: text };
   }
-  const rest = (text.slice(0, match.index) + text.slice(match.index + match[0].length)).trim();
+  const rest = (
+    text.slice(0, match.index) + text.slice(match.index + match[0].length)
+  ).trim();
   return { alias: match[1], rest };
 }
 
@@ -56,7 +61,9 @@ export async function resolveServer(
 
   const rcon = alias ? deps.rconClients.get(alias) : undefined;
   if (!rcon || !alias) {
-    await ctx.reply(`Unknown server "${alias}". Run /servers to see what's configured.`);
+    await ctx.reply(
+      `Unknown server "${alias}". Run /servers to see what's configured.`,
+    );
     return undefined;
   }
 

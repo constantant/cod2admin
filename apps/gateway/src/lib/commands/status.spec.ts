@@ -2,10 +2,18 @@ import type { CvarMap, OobStatusPlayer } from '@cod2admin/rcon-client';
 import { describe, expect, it, vi } from 'vitest';
 import { createFakeCtx, createFakeEditableCtx } from '../testing/fake-ctx.js';
 import { createFakeDeps } from '../testing/fake-deps.js';
-import { formatStatusMessage, statusCommand, statusRefreshCallback } from './status.js';
+import {
+  formatStatusMessage,
+  statusCommand,
+  statusRefreshCallback,
+} from './status.js';
 
 const SAMPLE_STATUS: { cvars: CvarMap; players: OobStatusPlayer[] } = {
-  cvars: { sv_hostname: 'Test Server', mapname: 'mp_toujane', sv_maxclients: '32' },
+  cvars: {
+    sv_hostname: 'Test Server',
+    mapname: 'mp_toujane',
+    sv_maxclients: '32',
+  },
   players: [{ score: 5, ping: 42, name: 'PlayerOne' }],
 };
 
@@ -17,7 +25,9 @@ describe('formatStatusMessage', () => {
   });
 
   it('strips color codes from the hostname', () => {
-    expect(formatStatusMessage({ sv_hostname: 'CoD2 ^2CTF ^7RU^4SS^1IA' }, 0)).toContain('Server: CoD2 CTF RUSSIA');
+    expect(
+      formatStatusMessage({ sv_hostname: 'CoD2 ^2CTF ^7RU^4SS^1IA' }, 0),
+    ).toContain('Server: CoD2 CTF RUSSIA');
   });
 
   it('falls back to placeholders for missing fields', () => {
@@ -61,7 +71,11 @@ describe('statusRefreshCallback', () => {
     const { deps, rcon } = createFakeDeps();
     rcon.getStatus.mockResolvedValue(SAMPLE_STATUS);
     const ctx = createFakeEditableCtx({
-      editMessageText: vi.fn().mockRejectedValue(new Error('Bad Request: message is not modified: blah')),
+      editMessageText: vi
+        .fn()
+        .mockRejectedValue(
+          new Error('Bad Request: message is not modified: blah'),
+        ),
     });
 
     await expect(statusRefreshCallback(ctx, deps)).resolves.toBeUndefined();
@@ -72,8 +86,12 @@ describe('statusRefreshCallback', () => {
   it('re-throws any other error from editMessageText', async () => {
     const { deps, rcon } = createFakeDeps();
     rcon.getStatus.mockResolvedValue(SAMPLE_STATUS);
-    const ctx = createFakeEditableCtx({ editMessageText: vi.fn().mockRejectedValue(new Error('network error')) });
+    const ctx = createFakeEditableCtx({
+      editMessageText: vi.fn().mockRejectedValue(new Error('network error')),
+    });
 
-    await expect(statusRefreshCallback(ctx, deps)).rejects.toThrow('network error');
+    await expect(statusRefreshCallback(ctx, deps)).rejects.toThrow(
+      'network error',
+    );
   });
 });

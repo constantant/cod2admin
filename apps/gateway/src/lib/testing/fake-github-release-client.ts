@@ -3,13 +3,19 @@ import type { GithubRelease, GithubReleaseClient } from '../github-releases.js';
 
 export interface FakeGithubReleaseClient extends GithubReleaseClient {
   getLatestRelease: Mock<GithubReleaseClient['getLatestRelease']>;
+  listReleaseNotes: Mock<GithubReleaseClient['listReleaseNotes']>;
 }
 
-export function sampleRelease(overrides: Partial<GithubRelease> = {}): GithubRelease {
+export function sampleRelease(
+  overrides: Partial<GithubRelease> = {},
+): GithubRelease {
   return {
     tagName: 'v0.0.5',
     notes: '- did a thing',
-    gatewayAsset: { name: 'cod2admin-gateway-0.0.5.tar.gz', downloadUrl: 'https://example.com/cod2admin-gateway-0.0.5.tar.gz' },
+    gatewayAsset: {
+      name: 'cod2admin-gateway-0.0.5.tar.gz',
+      downloadUrl: 'https://example.com/cod2admin-gateway-0.0.5.tar.gz',
+    },
     checksumAsset: {
       name: 'cod2admin-gateway-0.0.5.tar.gz.sha256',
       downloadUrl: 'https://example.com/cod2admin-gateway-0.0.5.tar.gz.sha256',
@@ -18,8 +24,11 @@ export function sampleRelease(overrides: Partial<GithubRelease> = {}): GithubRel
   };
 }
 
-export function createFakeGithubReleaseClient(release: GithubRelease = sampleRelease()): FakeGithubReleaseClient {
+export function createFakeGithubReleaseClient(
+  release: GithubRelease = sampleRelease(),
+): FakeGithubReleaseClient {
   return {
     getLatestRelease: vi.fn().mockResolvedValue(release),
+    listReleaseNotes: vi.fn().mockResolvedValue([]),
   };
 }

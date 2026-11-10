@@ -11,7 +11,9 @@ describe('bindServerCommand', () => {
     await bindServerCommand(ctx, deps);
 
     expect(adminStore.bindServerToChat).toHaveBeenCalledWith('default', 100);
-    expect(ctx.reply).toHaveBeenCalledWith('This chat is now bound to server "default".');
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'This chat is now bound to server "default".',
+    );
   });
 
   it('rejects an unknown server alias', async () => {
@@ -21,7 +23,9 @@ describe('bindServerCommand', () => {
     await bindServerCommand(ctx, deps);
 
     expect(adminStore.bindServerToChat).not.toHaveBeenCalled();
-    expect(ctx.reply).toHaveBeenCalledWith('Unknown server "nope". Run /servers to see what\'s configured.');
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'Unknown server "nope". Run /servers to see what\'s configured.',
+    );
   });
 
   it('prompts for usage when no alias is given', async () => {

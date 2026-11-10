@@ -1,4 +1,11 @@
-import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -35,7 +42,9 @@ describe('parseCvarReply', () => {
   });
 
   it('tells an empty value from a reply that has none', () => {
-    expect(parseCvarReply('"g_log" is: "^7" default: "games_mp.log^7"')).toBe('');
+    expect(parseCvarReply('"g_log" is: "^7" default: "games_mp.log^7"')).toBe(
+      '',
+    );
     expect(parseCvarReply('Bad rcon password.')).toBeUndefined();
   });
 });
@@ -60,7 +69,9 @@ describe('findGameLog', () => {
 
   it('finds the log at the path the server reports, without needing the disk search', async () => {
     const path = await put('home/main/games_mp.log', logText(LIVE));
-    const rcon = fakeRcon({ fs_homepath: `"fs_homepath" is: "${join(root, 'home')}^7" default: "^7"` });
+    const rcon = fakeRcon({
+      fs_homepath: `"fs_homepath" is: "${join(root, 'home')}^7" default: "^7"`,
+    });
 
     const result = await findGameLog(rcon, { root: join(root, 'empty') });
 
@@ -70,7 +81,9 @@ describe('findGameLog', () => {
   it("skips the disk search when the reported path is this server's log", async () => {
     const path = await put('home/main/games_mp.log', logText(LIVE));
     await put('copy/games_mp.log', logText(LIVE)); // a search would make this ambiguous
-    const rcon = fakeRcon({ fs_homepath: `"fs_homepath" is: "${join(root, 'home')}^7" default: "^7"` });
+    const rcon = fakeRcon({
+      fs_homepath: `"fs_homepath" is: "${join(root, 'home')}^7" default: "^7"`,
+    });
 
     const result = await findGameLog(rcon, { root });
 
@@ -80,25 +93,35 @@ describe('findGameLog', () => {
   });
 
   // Root can open any folder, so this can't fail the way it needs to when tests run as root.
-  it.skipIf(process.getuid?.() === 0)('reports a locked path without searching the disk', async () => {
-    const path = await put('home/main/games_mp.log', logText(LIVE));
-    await put('copy/games_mp.log', logText(LIVE));
-    const rcon = fakeRcon({ fs_homepath: `"fs_homepath" is: "${join(root, 'home')}^7" default: "^7"` });
-    await chmod(join(root, 'home'), 0o000);
+  it.skipIf(process.getuid?.() === 0)(
+    'reports a locked path without searching the disk',
+    async () => {
+      const path = await put('home/main/games_mp.log', logText(LIVE));
+      await put('copy/games_mp.log', logText(LIVE));
+      const rcon = fakeRcon({
+        fs_homepath: `"fs_homepath" is: "${join(root, 'home')}^7" default: "^7"`,
+      });
+      await chmod(join(root, 'home'), 0o000);
 
-    const result = await findGameLog(rcon, { root, maxDirs: 1 }).finally(() =>
-      chmod(join(root, 'home'), 0o755),
-    );
+      const result = await findGameLog(rcon, { root, maxDirs: 1 }).finally(() =>
+        chmod(join(root, 'home'), 0o755),
+      );
 
-    expect(result.unreadable).toEqual([path]);
-    expect(result.log).toBeUndefined();
-    expect(result.complete).toBe(true); // maxDirs: 1 would have cut a search short
-  });
+      expect(result.unreadable).toEqual([path]);
+      expect(result.log).toBeUndefined();
+      expect(result.complete).toBe(true); // maxDirs: 1 would have cut a search short
+    },
+  );
 
   it("searches the disk when the reported path holds another server's log", async () => {
-    await put('home/main/games_mp.log', logText({ ...LIVE, sv_hostname: 'Other' }));
+    await put(
+      'home/main/games_mp.log',
+      logText({ ...LIVE, sv_hostname: 'Other' }),
+    );
     const path = await put('real/main/games_mp.log', logText(LIVE));
-    const rcon = fakeRcon({ fs_homepath: `"fs_homepath" is: "${join(root, 'home')}^7" default: "^7"` });
+    const rcon = fakeRcon({
+      fs_homepath: `"fs_homepath" is: "${join(root, 'home')}^7" default: "^7"`,
+    });
 
     const result = await findGameLog(rcon, { root });
 
@@ -107,7 +130,9 @@ describe('findGameLog', () => {
 
   it('finds a log mounted somewhere else than the Docker path the server reports', async () => {
     const path = await put('cod2-live/main/games_mp.log', logText(LIVE));
-    const rcon = fakeRcon({ fs_homepath: '"fs_homepath" is: "/home/cod2/homedir^7" default: "^7"' });
+    const rcon = fakeRcon({
+      fs_homepath: '"fs_homepath" is: "/home/cod2/homedir^7" default: "^7"',
+    });
 
     const result = await findGameLog(rcon, { root });
 
@@ -116,7 +141,10 @@ describe('findGameLog', () => {
   });
 
   it("ignores another server's log on the same machine", async () => {
-    await put('other/main/games_mp.log', logText({ ...LIVE, sv_hostname: 'Other' }));
+    await put(
+      'other/main/games_mp.log',
+      logText({ ...LIVE, sv_hostname: 'Other' }),
+    );
     const path = await put('ctf/main/games_mp.log', logText(LIVE));
 
     const result = await findGameLog(fakeRcon(), { root });
@@ -138,7 +166,10 @@ describe('findGameLog', () => {
   });
 
   it("doesn't pick a log by itself when it's on a different map, but offers it", async () => {
-    const path = await put('a/games_mp.log', logText({ ...LIVE, mapname: 'mp_decoy' }));
+    const path = await put(
+      'a/games_mp.log',
+      logText({ ...LIVE, mapname: 'mp_decoy' }),
+    );
 
     const result = await findGameLog(fakeRcon(), { root });
 
@@ -159,7 +190,9 @@ describe('findGameLog', () => {
   it('counts a log reached through a symlink and directly as one file', async () => {
     const path = await put('real/main/games_mp.log', logText(LIVE));
     await symlink(join(root, 'real'), join(root, 'link'));
-    const rcon = fakeRcon({ fs_homepath: `"fs_homepath" is: "${join(root, 'link')}^7" default: "^7"` });
+    const rcon = fakeRcon({
+      fs_homepath: `"fs_homepath" is: "${join(root, 'link')}^7" default: "^7"`,
+    });
 
     const result = await findGameLog(rcon, { root });
 
@@ -180,7 +213,9 @@ describe('findGameLog', () => {
   });
 
   it('reports when the server has logging turned off', async () => {
-    const rcon = fakeRcon({ g_log: '"g_log" is: "^7" default: "games_mp.log^7"' });
+    const rcon = fakeRcon({
+      g_log: '"g_log" is: "^7" default: "games_mp.log^7"',
+    });
 
     const result = await findGameLog(rcon, { root });
 

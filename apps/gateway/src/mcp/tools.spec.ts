@@ -45,8 +45,12 @@ describe('toolsFor', () => {
   it('shows chat to a read-only connection and to one that can only speak', () => {
     expect(toolsFor([]).map((tool) => tool.name)).toContain('recent_chat');
     expect(toolsFor(['say']).map((tool) => tool.name)).toContain('recent_chat');
-    expect(toolsFor(['say', 'servers.view']).map((tool) => tool.name)).toContain('recent_chat');
-    expect(toolsFor(['say', 'kick']).map((tool) => tool.name)).not.toContain('recent_chat');
+    expect(
+      toolsFor(['say', 'servers.view']).map((tool) => tool.name),
+    ).toContain('recent_chat');
+    expect(toolsFor(['say', 'kick']).map((tool) => tool.name)).not.toContain(
+      'recent_chat',
+    );
   });
 
   it('has no tool for the permissions that stay in Telegram', () => {
@@ -86,7 +90,16 @@ describe('callTool', () => {
     const ctx = context(['kick']);
     ctx.record.rcon.status.mockResolvedValue({
       raw: '',
-      players: [{ num: 3, score: 0, ping: 10, name: 'Cheater', guid: '0', ip: '1.2.3.4' }],
+      players: [
+        {
+          num: 3,
+          score: 0,
+          ping: 10,
+          name: 'Cheater',
+          guid: '0',
+          ip: '1.2.3.4',
+        },
+      ],
     });
 
     const outcome = await callTool(ctx, 'kick', { player: '3', reason: 'aim' });
@@ -135,7 +148,9 @@ describe('callTool', () => {
 
   it('reports a game server that does not answer', async () => {
     const ctx = context([]);
-    ctx.record.rcon.status.mockRejectedValue(new UdpQueryTimeoutError('status'));
+    ctx.record.rcon.status.mockRejectedValue(
+      new UdpQueryTimeoutError('status'),
+    );
 
     const outcome = await callTool(ctx, 'server_status', {});
 
@@ -148,11 +163,16 @@ describe('callTool', () => {
     const lines = await callTool(watcher, 'recent_chat', {});
     expect(lines.text).toContain('no in-game chat');
 
-    watcher.deps.logTailers.set('default', fakeTailer([
-      chatLine('say', 'WOWOWOW', 'hello'),
-      chatLine('sayteam', 'Scout', 'x'.repeat(250)),
-    ]));
-    const page = JSON.parse((await callTool(watcher, 'recent_chat', {})).text) as {
+    watcher.deps.logTailers.set(
+      'default',
+      fakeTailer([
+        chatLine('say', 'WOWOWOW', 'hello'),
+        chatLine('sayteam', 'Scout', 'x'.repeat(250)),
+      ]),
+    );
+    const page = JSON.parse(
+      (await callTool(watcher, 'recent_chat', {})).text,
+    ) as {
       lines: { id: number; channel: string; text: string; source: string }[];
       note: string;
     };
@@ -164,12 +184,16 @@ describe('callTool', () => {
     expect(JSON.stringify(page)).not.toContain('games_mp.log');
 
     const next = JSON.parse(
-      (await callTool(watcher, 'recent_chat', { after: page.lines[0]?.id })).text,
+      (await callTool(watcher, 'recent_chat', { after: page.lines[0]?.id }))
+        .text,
     ) as { lines: { id: number }[] };
     expect(next.lines.map((line) => line.id)).toEqual([page.lines[1]?.id]);
 
     const kicker = await callTool(context(['kick']), 'recent_chat', {});
-    expect(kicker).toEqual({ text: 'This connection cannot do that.', isError: true });
+    expect(kicker).toEqual({
+      text: 'This connection cannot do that.',
+      isError: true,
+    });
   });
 
   it('speaks with the staff name and then waits', async () => {
@@ -192,10 +216,18 @@ describe('callTool', () => {
     expect(sent.isError).toBe(false);
     expect(ctx.record.rcon.say).toHaveBeenCalledWith('@mod: hello there');
     expect(ctx.record.adminStore.recordAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'say', target: '@mod: hello there', source: 'mcp' }),
+      expect.objectContaining({
+        action: 'say',
+        target: '@mod: hello there',
+        source: 'mcp',
+      }),
     );
     const feed = await ctx.deps.chatFeeds.get('default')?.history();
-    expect(feed?.at(-1)).toMatchObject({ source: 'admin', name: '@mod', message: 'hello there' });
+    expect(feed?.at(-1)).toMatchObject({
+      source: 'admin',
+      name: '@mod',
+      message: 'hello there',
+    });
 
     const waited = await callTool(ctx, 'say', { message: 'again' });
     expect(waited.text).toContain('10 seconds');
@@ -207,7 +239,11 @@ describe('callTool', () => {
   });
 });
 
-function chatLine(channel: 'say' | 'sayteam', name: string, message: string): ChatEvent {
+function chatLine(
+  channel: 'say' | 'sayteam',
+  name: string,
+  message: string,
+): ChatEvent {
   return {
     channel,
     guid: 'SECRET-GUID',

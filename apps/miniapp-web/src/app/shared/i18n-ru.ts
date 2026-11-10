@@ -554,6 +554,13 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
   'Update to': 'Обновить до',
   'Check again': 'Проверить снова',
   "What's new": 'Что нового',
+  'Recent releases': 'Последние версии',
+  installed: 'установлена',
+  'No notes for this release.': 'Для этой версии нет описания.',
+  Features: 'Новое',
+  Fixes: 'Исправления',
+  'Breaking Changes': 'Несовместимые изменения',
+  Performance: 'Скорость',
   'This restarts the bot. It rolls back by itself if the new version fails to start.':
     'Бот перезапустится. Если новая версия не запустится, он сам вернётся на старую.',
   Update: 'Обновить',

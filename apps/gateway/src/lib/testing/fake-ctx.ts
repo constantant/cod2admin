@@ -13,7 +13,9 @@ export function createFakeCtx(overrides: Partial<BotContext> = {}): BotContext {
   };
 }
 
-export function createFakeEditableCtx(overrides: Partial<EditableBotContext> = {}): EditableBotContext {
+export function createFakeEditableCtx(
+  overrides: Partial<EditableBotContext> = {},
+): EditableBotContext {
   return {
     from: { id: 1 },
     match: '',

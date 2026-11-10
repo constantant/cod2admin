@@ -32,7 +32,10 @@ export interface VpnFlags extends VpnLookup {
 }
 
 /** Used when the feature is off — flags nothing, and ignores `/vpnnets` changes. */
-export const NO_VPN_LOOKUP: VpnFlags = { lookup: () => undefined, setNetworks: () => undefined };
+export const NO_VPN_LOOKUP: VpnFlags = {
+  lookup: () => undefined,
+  setNetworks: () => undefined,
+};
 
 /** Where `/vpnnets` keeps its networks (admin-store settings). */
 export const VPN_NETWORKS_SETTING_KEY = 'vpn.networks';
@@ -63,8 +66,14 @@ export function parseVpnNetworks(value: unknown): VpnNetwork[] {
 /** The downloaded lists — an IP on several gets the first one's kind (`provider` sits before `hosting`). */
 export const VPN_LISTS: readonly { kind: VpnListKind; url: string }[] = [
   { kind: 'tor', url: 'https://check.torproject.org/torbulkexitlist' },
-  { kind: 'vpn', url: 'https://raw.githubusercontent.com/X4BNet/lists_vpn/main/output/vpn/ipv4.txt' },
-  { kind: 'hosting', url: 'https://raw.githubusercontent.com/X4BNet/lists_vpn/main/output/datacenter/ipv4.txt' },
+  {
+    kind: 'vpn',
+    url: 'https://raw.githubusercontent.com/X4BNet/lists_vpn/main/output/vpn/ipv4.txt',
+  },
+  {
+    kind: 'hosting',
+    url: 'https://raw.githubusercontent.com/X4BNet/lists_vpn/main/output/datacenter/ipv4.txt',
+  },
 ];
 
 const IPV4_PATTERN = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
@@ -103,7 +112,13 @@ export class IpRangeSet {
       const [ip, bitsText] = line.split('/');
       const start = ipv4ToNumber(ip ?? '');
       const bits = bitsText === undefined ? 32 : Number(bitsText);
-      if (start === undefined || !Number.isInteger(bits) || bits < 0 || bits > 32 || (bitsText !== undefined && !/^\d+$/.test(bitsText))) {
+      if (
+        start === undefined ||
+        !Number.isInteger(bits) ||
+        bits < 0 ||
+        bits > 32 ||
+        (bitsText !== undefined && !/^\d+$/.test(bitsText))
+      ) {
         continue;
       }
       const size = 2 ** (32 - bits);
@@ -159,7 +174,10 @@ export class VpnRangeDatabase implements VpnFlags {
   private readonly sets = new Map<VpnListKind, IpRangeSet>();
   private networks: ReadonlySet<number> = new Set();
 
-  constructor(private readonly asnOf: (ip: string) => number | undefined = () => undefined) {}
+  constructor(
+    private readonly asnOf: (ip: string) => number | undefined = () =>
+      undefined,
+  ) {}
 
   get loaded(): boolean {
     return this.sets.size > 0;
@@ -203,19 +221,27 @@ const LONG_LABELS: Record<VpnKind, string> = {
 };
 
 /** `🛡 VPN` for `/players`, or undefined when the IP isn't flagged. */
-export function describeVpnShort(lookup: VpnLookup, ip: string | undefined): string | undefined {
+export function describeVpnShort(
+  lookup: VpnLookup,
+  ip: string | undefined,
+): string | undefined {
   const kind = ip ? lookup.lookup(ip) : undefined;
   return kind ? SHORT_LABELS[kind] : undefined;
 }
 
 /** `🛡 hosting IP (likely VPN/proxy)` for report cards, or undefined when the IP isn't flagged. */
-export function describeVpnLong(lookup: VpnLookup, ip: string | undefined): string | undefined {
+export function describeVpnLong(
+  lookup: VpnLookup,
+  ip: string | undefined,
+): string | undefined {
   const kind = ip ? lookup.lookup(ip) : undefined;
   return kind ? LONG_LABELS[kind] : undefined;
 }
 
 /** Joins the labels that are known (`🇳🇱 NL 🛡 VPN`), or undefined when none is. */
-export function joinIpLabels(...labels: (string | undefined)[]): string | undefined {
+export function joinIpLabels(
+  ...labels: (string | undefined)[]
+): string | undefined {
   const known = labels.filter((label): label is string => Boolean(label));
   return known.length > 0 ? known.join(' ') : undefined;
 }
@@ -285,19 +311,25 @@ export class VpnListUpdater {
     let loaded = false;
     if (fileStat) {
       try {
-        this.options.database.setList(kind, IpRangeSet.parse(await readFile(filePath, 'utf8')));
+        this.options.database.setList(
+          kind,
+          IpRangeSet.parse(await readFile(filePath, 'utf8')),
+        );
         loaded = true;
       } catch (error) {
         this.log(`VPN list ${filePath} is unreadable (${String(error)})`);
       }
     }
 
-    const stale = !fileStat || this.now().getTime() - fileStat.mtime.getTime() > MAX_AGE_MS;
+    const stale =
+      !fileStat || this.now().getTime() - fileStat.mtime.getTime() > MAX_AGE_MS;
     if (!stale && loaded) {
       return;
     }
     try {
-      const response = await this.fetchImpl(url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
+      const response = await this.fetchImpl(url, {
+        signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+      });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
@@ -314,7 +346,9 @@ export class VpnListUpdater {
     } catch (error) {
       this.log(
         `VPN list "${kind}" download from ${url} failed: ${String(error)}` +
-          (loaded ? ' — keeping the current one.' : " — it won't flag anything until a download succeeds."),
+          (loaded
+            ? ' — keeping the current one.'
+            : " — it won't flag anything until a download succeeds."),
       );
     }
   }

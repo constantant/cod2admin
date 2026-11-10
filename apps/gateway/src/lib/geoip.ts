@@ -1,6 +1,11 @@
 import { readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { gunzipSync } from 'node:zlib';
-import { Reader, type AsnResponse, type CityResponse, type CountryResponse } from 'maxmind';
+import {
+  Reader,
+  type AsnResponse,
+  type CityResponse,
+  type CountryResponse,
+} from 'maxmind';
 
 /**
  * IP → country (optionally city) and provider, for showing admins where a player connects from
@@ -37,7 +42,10 @@ const IPV4_PATTERN = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
 /** Private, loopback, link-local, carrier-grade NAT and "this network" IPv4 ranges. */
 function isPrivateIpv4(ip: string): boolean {
   const parts = ip.split('.').map(Number);
-  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+  if (
+    parts.length !== 4 ||
+    parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)
+  ) {
     return false;
   }
   const [a, b] = parts;
@@ -57,7 +65,9 @@ export function flagEmoji(code: string): string {
   if (!/^[A-Z]{2}$/.test(code)) {
     return '';
   }
-  return String.fromCodePoint(...[...code].map((char) => 0x1f1e6 + char.charCodeAt(0) - 65));
+  return String.fromCodePoint(
+    ...[...code].map((char) => 0x1f1e6 + char.charCodeAt(0) - 65),
+  );
 }
 
 /** `🇷🇺 RU`, or `🇷🇺 RU, Yekaterinburg` with the city database — for `/players` and `/bans`. */
@@ -80,8 +90,11 @@ export function formatCountryLong(country: IpCountry): string {
   }
   const { city, region } = country;
   // Some city names already end in brackets ("Warsaw (Mokotów)") — then the region goes after a comma.
-  const withRegion = city?.includes('(') ? `${city}, ${region}` : `${city} (${region})`;
-  const place = city && region && city !== region ? withRegion : (city ?? region);
+  const withRegion = city?.includes('(')
+    ? `${city}, ${region}`
+    : `${city} (${region})`;
+  const place =
+    city && region && city !== region ? withRegion : (city ?? region);
   return `${flagEmoji(country.code)} ${country.name}${place ? `, ${place}` : ''}`;
 }
 
@@ -127,7 +140,10 @@ export class GeoIpDatabase implements CountryLookup {
     if (!country?.iso_code) {
       return undefined;
     }
-    const result: IpCountry = { code: country.iso_code, name: country.names?.en ?? country.iso_code };
+    const result: IpCountry = {
+      code: country.iso_code,
+      name: country.names?.en ?? country.iso_code,
+    };
     const city = record?.city?.names?.en?.trim();
     const region = record?.subdivisions?.[0]?.names?.en?.trim();
     if (city) {
@@ -150,7 +166,11 @@ export function parseCityDatabase(buffer: Buffer): CountryReader {
   return parseLocationDatabase(buffer, /city/i, 'city');
 }
 
-function parseLocationDatabase(buffer: Buffer, type: RegExp, label: string): CountryReader {
+function parseLocationDatabase(
+  buffer: Buffer,
+  type: RegExp,
+  label: string,
+): CountryReader {
   const reader = new Reader<CityResponse>(buffer);
   if (!type.test(reader.metadata.databaseType)) {
     throw new Error(`Not a ${label} database: ${reader.metadata.databaseType}`);
@@ -166,7 +186,10 @@ export interface ProviderLookup {
 }
 
 /** Used when the feature is off or no database could be loaded yet — shows nothing extra. */
-export const NO_PROVIDER_LOOKUP: ProviderLookup = { lookup: () => undefined, asn: () => undefined };
+export const NO_PROVIDER_LOOKUP: ProviderLookup = {
+  lookup: () => undefined,
+  asn: () => undefined,
+};
 
 /** The slice of maxmind's `Reader` this needs — lets tests use a fake instead of a real .mmdb. */
 export interface AsnReader {
@@ -280,7 +303,9 @@ export class GeoIpUpdater<R = CountryReader> {
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.now = options.now ?? (() => new Date());
     // Without `parse`, R is the default CountryReader — the cast only restates that.
-    this.parse = options.parse ?? (parseCountryDatabase as unknown as (buffer: Buffer) => R);
+    this.parse =
+      options.parse ??
+      (parseCountryDatabase as unknown as (buffer: Buffer) => R);
     this.downloadUrl = options.downloadUrl ?? dbIpDownloadUrl;
     this.label = options.label ?? 'IP country database';
     this.log = options.log ?? ((message) => console.log(message));
@@ -311,11 +336,15 @@ export class GeoIpUpdater<R = CountryReader> {
           database.setReader(this.parse(await readFile(filePath)));
           this.log(`${this.label} loaded from ${filePath}`);
         } catch (error) {
-          this.log(`${this.label} at ${filePath} is unreadable (${String(error)})`);
+          this.log(
+            `${this.label} at ${filePath} is unreadable (${String(error)})`,
+          );
         }
       }
 
-      const stale = !fileStat || this.now().getTime() - fileStat.mtime.getTime() > MAX_AGE_MS;
+      const stale =
+        !fileStat ||
+        this.now().getTime() - fileStat.mtime.getTime() > MAX_AGE_MS;
       if (autoDownload && (stale || !database.loaded)) {
         await this.download();
       }
@@ -327,10 +356,14 @@ export class GeoIpUpdater<R = CountryReader> {
   /** Tries this month's file, then last month's (a new month's file may not be published yet). */
   private async download(): Promise<void> {
     const now = this.now();
-    const lastMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15));
+    const lastMonth = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15),
+    );
     for (const url of [this.downloadUrl(now), this.downloadUrl(lastMonth)]) {
       try {
-        const response = await this.fetchImpl(url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
+        const response = await this.fetchImpl(url, {
+          signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+        });
         if (!response.ok) {
           continue;
         }
@@ -355,13 +388,19 @@ export class GeoIpUpdater<R = CountryReader> {
 }
 
 /** `🇷🇺 RU` for an IP, or undefined when the country isn't known. */
-export function describeIpShort(lookup: CountryLookup, ip: string | undefined): string | undefined {
+export function describeIpShort(
+  lookup: CountryLookup,
+  ip: string | undefined,
+): string | undefined {
   const country = ip ? lookup.lookup(ip) : undefined;
   return country ? formatCountryShort(country) : undefined;
 }
 
 /** `🇷🇺 Russia` for an IP, or undefined when the country isn't known. */
-export function describeIpLong(lookup: CountryLookup, ip: string | undefined): string | undefined {
+export function describeIpLong(
+  lookup: CountryLookup,
+  ip: string | undefined,
+): string | undefined {
   const country = ip ? lookup.lookup(ip) : undefined;
   return country ? formatCountryLong(country) : undefined;
 }
@@ -370,7 +409,10 @@ export function describeIpLong(lookup: CountryLookup, ip: string | undefined): s
 const SHORT_PROVIDER_LENGTH = 25;
 
 /** The IP's provider, cut to fit a `/players` line, or undefined when unknown. */
-export function describeProviderShort(lookup: ProviderLookup, ip: string | undefined): string | undefined {
+export function describeProviderShort(
+  lookup: ProviderLookup,
+  ip: string | undefined,
+): string | undefined {
   const provider = ip ? lookup.lookup(ip) : undefined;
   if (!provider || provider.length <= SHORT_PROVIDER_LENGTH) {
     return provider;
@@ -379,12 +421,18 @@ export function describeProviderShort(lookup: ProviderLookup, ip: string | undef
 }
 
 /** The IP's provider in full, for report cards, or undefined when unknown. */
-export function describeProviderLong(lookup: ProviderLookup, ip: string | undefined): string | undefined {
+export function describeProviderLong(
+  lookup: ProviderLookup,
+  ip: string | undefined,
+): string | undefined {
   return ip ? lookup.lookup(ip) : undefined;
 }
 
 /** `🇷🇺 RU · PJSC Rostelecom` — country and provider, either of which may be unknown. */
-export function joinCountryAndProvider(country: string | undefined, provider: string | undefined): string | undefined {
+export function joinCountryAndProvider(
+  country: string | undefined,
+  provider: string | undefined,
+): string | undefined {
   if (country && provider) {
     return `${country} · ${provider}`;
   }

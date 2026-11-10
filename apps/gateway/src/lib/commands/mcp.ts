@@ -11,7 +11,10 @@ function privateChat(ctx: BotContext): boolean {
 }
 
 /** `/mcp` lists this person's AI connections. `/mcp revoke <id>` and `/mcp revoke all` end them. */
-export async function mcpCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
+export async function mcpCommand(
+  ctx: BotContext,
+  deps: GatewayDeps,
+): Promise<void> {
   if (!deps.mcp) {
     await ctx.reply(
       "Connecting an AI needs the server manager's public address. Set MINIAPP_URL and MINIAPP_PORT.",
@@ -19,21 +22,36 @@ export async function mcpCommand(ctx: BotContext, deps: GatewayDeps): Promise<vo
     return;
   }
   if (!privateChat(ctx)) {
-    await ctx.reply('Open a private chat with the bot to manage AI connections.');
+    await ctx.reply(
+      'Open a private chat with the bot to manage AI connections.',
+    );
     return;
   }
-  const [verb, id] = String(ctx.match ?? '').trim().split(/\s+/);
+  const [verb, id] = String(ctx.match ?? '')
+    .trim()
+    .split(/\s+/);
   if (verb === 'revoke' && id === 'all') {
     const grants = await deps.mcp.sessions.list(ctx.admin!.telegramId);
     await Promise.all(
-      grants.map((grant) => deps.mcp!.sessions.revokeGrant(ctx.admin!.telegramId, grant.id)),
+      grants.map((grant) =>
+        deps.mcp!.sessions.revokeGrant(ctx.admin!.telegramId, grant.id),
+      ),
     );
-    await ctx.reply(grants.length ? `Ended ${grants.length} connection(s).` : 'No connections to end.');
+    await ctx.reply(
+      grants.length
+        ? `Ended ${grants.length} connection(s).`
+        : 'No connections to end.',
+    );
     return;
   }
   if (verb === 'revoke' && id) {
-    const revoked = await deps.mcp.sessions.revokeGrant(ctx.admin!.telegramId, id);
-    await ctx.reply(revoked ? 'Ended that connection.' : 'No connection with that id.');
+    const revoked = await deps.mcp.sessions.revokeGrant(
+      ctx.admin!.telegramId,
+      id,
+    );
+    await ctx.reply(
+      revoked ? 'Ended that connection.' : 'No connection with that id.',
+    );
     return;
   }
   const grants = await deps.mcp.sessions.list(ctx.admin!.telegramId);
@@ -73,7 +91,10 @@ export function approveTokenFromStart(payload: string): string | undefined {
 }
 
 /** `/start mcp_<token>` — show the approval. Opening the link does not approve it. */
-export async function mcpStart(ctx: BotContext, deps: GatewayDeps): Promise<void> {
+export async function mcpStart(
+  ctx: BotContext,
+  deps: GatewayDeps,
+): Promise<void> {
   const token = approveTokenFromStart(String(ctx.match ?? ''));
   if (token === undefined) {
     await ctx.reply('Use /help to see the commands.');
@@ -94,7 +115,9 @@ export async function mcpStart(ctx: BotContext, deps: GatewayDeps): Promise<void
   }
   const opened = await deps.mcp.sessions.open(token, admin.telegramId);
   if (opened === 'unknown' || opened === 'expired') {
-    await ctx.reply('This connection request has expired. Start it again from the app.');
+    await ctx.reply(
+      'This connection request has expired. Start it again from the app.',
+    );
     return;
   }
   if (opened === 'taken') {
@@ -111,7 +134,12 @@ export async function mcpStart(ctx: BotContext, deps: GatewayDeps): Promise<void
   const keyboard = new InlineKeyboard();
   if (giving.length > 0) {
     const label = `Allow ${giving.join(', ')}`;
-    keyboard.text(label.length <= 60 ? label : 'Allow what it asked', `mcp:allow:${opened.publicId}`).row();
+    keyboard
+      .text(
+        label.length <= 60 ? label : 'Allow what it asked',
+        `mcp:allow:${opened.publicId}`,
+      )
+      .row();
   }
   keyboard.text('Allow read only', `mcp:read:${opened.publicId}`).row();
   keyboard.text('Deny', `mcp:deny:${opened.publicId}`);
@@ -175,7 +203,12 @@ export async function mcpDecision(
   const asked = typeof requested === 'string' ? [] : requested.permissions;
   const giving = choice === 'allow' ? grantablePermissions(admin, asked) : [];
   const decision = choice === 'allow' && giving.length === 0 ? 'read' : choice;
-  const saved = await deps.mcp.sessions.decide(publicId, ctx.fromId, decision, giving);
+  const saved = await deps.mcp.sessions.decide(
+    publicId,
+    ctx.fromId,
+    decision,
+    giving,
+  );
   if (!saved) {
     await ctx.answer('This request was already answered.');
     return;
@@ -186,6 +219,8 @@ export async function mcpDecision(
       : decision === 'read'
         ? 'Connected, read only. Go back to the browser page. End it with /mcp revoke.'
         : `Connected with ${giving.join(', ')}. Go back to the browser page. End it with /mcp revoke.`;
-  await ctx.answer(decision === 'deny' ? 'Denied.' : 'Saved. Go back to the browser page.');
+  await ctx.answer(
+    decision === 'deny' ? 'Denied.' : 'Saved. Go back to the browser page.',
+  );
   await ctx.edit(text);
 }

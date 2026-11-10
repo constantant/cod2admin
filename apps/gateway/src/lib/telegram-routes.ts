@@ -31,7 +31,10 @@ export interface TelegramRouteSettings {
 }
 
 export function routesFrom(settings: TelegramRouteSettings): string[] {
-  return [...(settings.direct ? [DIRECT_TELEGRAM_ROOT] : []), ...settings.relays];
+  return [
+    ...(settings.direct ? [DIRECT_TELEGRAM_ROOT] : []),
+    ...settings.relays,
+  ];
 }
 
 /** `https://x.deno.dev/` → `https://x.deno.dev`; undefined for anything that isn't a plain https URL. */
@@ -42,14 +45,22 @@ export function normalizeRelayUrl(input: string): string | undefined {
   } catch {
     return undefined;
   }
-  if (url.protocol !== 'https:' || url.search || url.hash || url.username || url.password) {
+  if (
+    url.protocol !== 'https:' ||
+    url.search ||
+    url.hash ||
+    url.username ||
+    url.password
+  ) {
     return undefined;
   }
   return `${url.origin}${url.pathname}`.replace(/\/+$/, '');
 }
 
 /** Validates a stored `/relays` setting, so a malformed row falls back to the defaults. */
-export function parseRouteSettings(value: unknown): TelegramRouteSettings | undefined {
+export function parseRouteSettings(
+  value: unknown,
+): TelegramRouteSettings | undefined {
   if (typeof value !== 'object' || value === null) {
     return undefined;
   }
@@ -57,7 +68,9 @@ export function parseRouteSettings(value: unknown): TelegramRouteSettings | unde
   if (typeof direct !== 'boolean' || !Array.isArray(relays)) {
     return undefined;
   }
-  const valid = relays.map((relay) => (typeof relay === 'string' ? normalizeRelayUrl(relay) : undefined));
+  const valid = relays.map((relay) =>
+    typeof relay === 'string' ? normalizeRelayUrl(relay) : undefined,
+  );
   if (valid.some((relay) => relay === undefined)) {
     return undefined;
   }
@@ -75,7 +88,8 @@ export class TelegramRouter {
 
   constructor(
     routes: string[],
-    private readonly log: (message: string) => void = (message) => console.log(message),
+    private readonly log: (message: string) => void = (message) =>
+      console.log(message),
   ) {
     this.routes = routes;
   }
@@ -113,13 +127,16 @@ export class TelegramRouter {
     }
     if (this.current === failedRoot) {
       this.index = (this.index + 1) % this.routes.length;
-      this.log(`Telegram: ${describeRoute(failedRoot)} failed, switching to ${describeRoute(this.current)}`);
+      this.log(
+        `Telegram: ${describeRoute(failedRoot)} failed, switching to ${describeRoute(this.current)}`,
+      );
     }
     return true;
   }
 
   /** grammy's `client.buildUrl` — every request goes to whichever route is current right now. */
-  readonly buildUrl = (_root: string, token: string, method: string): string => `${this.current}/bot${token}/${method}`;
+  readonly buildUrl = (_root: string, token: string, method: string): string =>
+    `${this.current}/bot${token}/${method}`;
 }
 
 /**
@@ -187,18 +204,40 @@ export async function probeRoute(
 ): Promise<RouteProbeResult> {
   const started = Date.now();
   try {
-    const response = await fetchImpl(`${root}/bot${token}/getMe`, { signal: AbortSignal.timeout(timeoutMs) });
+    const response = await fetchImpl(`${root}/bot${token}/getMe`, {
+      signal: AbortSignal.timeout(timeoutMs),
+    });
     if (response.status === 401) {
-      return { ok: false, error: 'Telegram rejected the bot token', unauthorized: true };
+      return {
+        ok: false,
+        error: 'Telegram rejected the bot token',
+        unauthorized: true,
+      };
     }
-    const body = (await response.json()) as { ok?: boolean; result?: { username?: string }; description?: string };
+    const body = (await response.json()) as {
+      ok?: boolean;
+      result?: { username?: string };
+      description?: string;
+    };
     if (!body.ok) {
-      return { ok: false, error: body.description ?? `HTTP ${response.status}` };
+      return {
+        ok: false,
+        error: body.description ?? `HTTP ${response.status}`,
+      };
     }
-    return { ok: true, ms: Date.now() - started, username: body.result?.username ?? '?' };
+    return {
+      ok: true,
+      ms: Date.now() - started,
+      username: body.result?.username ?? '?',
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return { ok: false, error: /abort|timeout/i.test(message) ? `no answer within ${timeoutMs / 1000}s` : message };
+    return {
+      ok: false,
+      error: /abort|timeout/i.test(message)
+        ? `no answer within ${timeoutMs / 1000}s`
+        : message,
+    };
   }
 }
 

@@ -1,4 +1,7 @@
-import { createMemoryMcpRepository, type Permission } from '@cod2admin/admin-store';
+import {
+  createMemoryMcpRepository,
+  type Permission,
+} from '@cod2admin/admin-store';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 import { sampleAdmin } from '../lib/testing/fake-admin-store.js';
@@ -50,7 +53,13 @@ describe('MCP HTTP', () => {
     expect(body.registration_endpoint).toBeUndefined();
     expect(body.client_id_metadata_document_supported).toBe(true);
     expect(body.code_challenge_methods_supported).toEqual(['S256']);
-    for (const hidden of ['update', 'relays', 'admins.manage', 'servers.manage', 'mute']) {
+    for (const hidden of [
+      'update',
+      'relays',
+      'admins.manage',
+      'servers.manage',
+      'mute',
+    ]) {
       expect(body.scopes_supported).not.toContain(hidden);
     }
   });
@@ -58,7 +67,11 @@ describe('MCP HTTP', () => {
   it('requires a bearer token even when the Mini App dev login is on', async () => {
     const { deps, adminStore } = createFakeDeps();
     adminStore.getAdmin.mockResolvedValue(
-      sampleAdmin({ telegramId: TELEGRAM_ID, isOwner: false, permissions: ['kick'] }),
+      sampleAdmin({
+        telegramId: TELEGRAM_ID,
+        isOwner: false,
+        permissions: ['kick'],
+      }),
     );
     app = await createMiniAppServer(deps, {
       botToken: '123456:TEST-token',
@@ -118,8 +131,12 @@ describe('MCP HTTP', () => {
     expect(response.body).toContain('&lt;script&gt;');
     expect(response.body).not.toContain('<script>alert');
     expect(response.body).not.toContain(cookie(response));
-    expect(response.headers['content-security-policy']).toContain("default-src 'none'");
-    expect(response.headers['content-security-policy']).toContain("connect-src 'self'");
+    expect(response.headers['content-security-policy']).toContain(
+      "default-src 'none'",
+    );
+    expect(response.headers['content-security-policy']).toContain(
+      "connect-src 'self'",
+    );
     expect(response.body).toContain('target="_blank"');
     expect(response.body).toContain('Leave this page open');
     expect(response.headers['x-frame-options']).toBe('DENY');
@@ -149,13 +166,19 @@ describe('MCP HTTP', () => {
       name: 'list_servers',
       arguments: {},
     });
-    const text = servers.json<{ result: { content: { text: string }[] } }>().result.content[0]!.text;
+    const text = servers.json<{ result: { content: { text: string }[] } }>()
+      .result.content[0]!.text;
     expect(text).toContain('203.0.113.10');
     expect(text).not.toContain('super-secret-password');
     expect(text).not.toContain('games_mp.log');
 
-    const banned = await rpc(app, token, 'tools/call', { name: 'ban', arguments: { player: '1' } });
-    expect(banned.json<{ result: { isError: boolean } }>().result.isError).toBe(true);
+    const banned = await rpc(app, token, 'tools/call', {
+      name: 'ban',
+      arguments: { player: '1' },
+    });
+    expect(banned.json<{ result: { isError: boolean } }>().result.isError).toBe(
+      true,
+    );
 
     adminStore.getAdmin.mockResolvedValue(
       sampleAdmin({ telegramId: TELEGRAM_ID, isOwner: false, permissions: [] }),
@@ -205,11 +228,16 @@ describe('MCP HTTP', () => {
       payload: [{ jsonrpc: '2.0', id: 1, method: 'ping' }],
     });
     expect(batch.json<{ error: { code: number } }>().error.code).toBe(-32600);
-    expect(await app.inject({ method: 'GET', url: '/mcp' })).toMatchObject({ statusCode: 405 });
+    expect(await app.inject({ method: 'GET', url: '/mcp' })).toMatchObject({
+      statusCode: 405,
+    });
   });
 });
 
-function mcpOptions(deps: FakeDeps['deps'], sessions = new McpSessions(createMemoryMcpRepository())) {
+function mcpOptions(
+  deps: FakeDeps['deps'],
+  sessions = new McpSessions(createMemoryMcpRepository()),
+) {
   return {
     origin: ORIGIN,
     sessions,
@@ -223,7 +251,10 @@ function mcpOptions(deps: FakeDeps['deps'], sessions = new McpSessions(createMem
   };
 }
 
-async function start(options?: { permissions?: Permission[]; clientName?: string }) {
+async function start(options?: {
+  permissions?: Permission[];
+  clientName?: string;
+}) {
   const fake = createFakeDeps();
   fake.adminStore.getAdmin.mockResolvedValue(
     sampleAdmin({
@@ -288,7 +319,10 @@ async function approve(
 ): Promise<string> {
   const page = await authorize(started.app, 'kick ban servers.view');
   expect(page.statusCode).toBe(200);
-  const opened = await started.sessions.open(approveToken(page.body), TELEGRAM_ID);
+  const opened = await started.sessions.open(
+    approveToken(page.body),
+    TELEGRAM_ID,
+  );
   if (typeof opened !== 'object') {
     throw new Error(opened);
   }

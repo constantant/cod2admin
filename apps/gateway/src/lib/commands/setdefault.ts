@@ -2,14 +2,19 @@ import { matchText, type BotContext } from '../bot-context.js';
 import type { GatewayDeps } from '../deps.js';
 
 /** `/setdefault <alias>` — which server commands without `--server` go to (see resolve-server.ts). */
-export async function setDefaultCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
+export async function setDefaultCommand(
+  ctx: BotContext,
+  deps: GatewayDeps,
+): Promise<void> {
   const alias = matchText(ctx);
   if (!alias) {
     await ctx.reply('Usage: /setdefault <alias>');
     return;
   }
   if (!deps.rconClients.has(alias)) {
-    await ctx.reply(`Unknown server "${alias}". Run /servers to see what's configured.`);
+    await ctx.reply(
+      `Unknown server "${alias}". Run /servers to see what's configured.`,
+    );
     return;
   }
 

@@ -1,4 +1,7 @@
-import { createMemoryMcpRepository, type Permission } from '@cod2admin/admin-store';
+import {
+  createMemoryMcpRepository,
+  type Permission,
+} from '@cod2admin/admin-store';
 import { describe, expect, it } from 'vitest';
 import {
   McpSessions,
@@ -44,12 +47,16 @@ function isFailure(value: IssuedTokens | OAuthFailure): value is OAuthFailure {
   return 'error' in value;
 }
 
-async function exchange(sessions: McpSessions, code: string, overrides: Partial<{
-  verifier: string;
-  clientId: string;
-  redirectUri: string;
-  resource: string;
-}> = {}) {
+async function exchange(
+  sessions: McpSessions,
+  code: string,
+  overrides: Partial<{
+    verifier: string;
+    clientId: string;
+    redirectUri: string;
+    resource: string;
+  }> = {},
+) {
   return sessions.exchangeCode({
     code,
     verifier: overrides.verifier ?? VERIFIER,
@@ -74,7 +81,9 @@ describe('McpSessions', () => {
       clientName: 'Example App',
       redirectHost: '127.0.0.1:8787',
     });
-    expect(await sessions.poll(pending.browserToken, 'https://admin.example')).toEqual({
+    expect(
+      await sessions.poll(pending.browserToken, 'https://admin.example'),
+    ).toEqual({
       status: 'pending',
     });
     expect(await sessions.open(pending.approveToken, 8)).toBe('taken');
@@ -86,7 +95,10 @@ describe('McpSessions', () => {
     await sessions.open(pending.approveToken, 7);
     expect(await sessions.decide(pending.publicId, 7, 'read', [])).toBe(true);
 
-    const polled = await sessions.poll(pending.browserToken, 'https://admin.example');
+    const polled = await sessions.poll(
+      pending.browserToken,
+      'https://admin.example',
+    );
     expect(polled.status).toBe('approved');
     if (polled.status !== 'approved') {
       return;
@@ -107,7 +119,9 @@ describe('McpSessions', () => {
       telegramId: 7,
       permissions: [],
     });
-    expect(await sessions.poll(pending.browserToken, 'https://admin.example')).toEqual({
+    expect(
+      await sessions.poll(pending.browserToken, 'https://admin.example'),
+    ).toEqual({
       status: 'used',
     });
   });
@@ -116,17 +130,28 @@ describe('McpSessions', () => {
     const { sessions } = harness();
     const pending = await begin(sessions);
     await sessions.open(pending.approveToken, 7);
-    await sessions.decide(pending.publicId, 7, 'allow', ['kick'] as Permission[]);
-    const polled = await sessions.poll(pending.browserToken, 'https://admin.example');
+    await sessions.decide(pending.publicId, 7, 'allow', [
+      'kick',
+    ] as Permission[]);
+    const polled = await sessions.poll(
+      pending.browserToken,
+      'https://admin.example',
+    );
     if (polled.status !== 'approved') {
       throw new Error(polled.status);
     }
     const code = codeOf(polled.redirect);
 
-    expect(await exchange(sessions, code, { verifier: 'b'.repeat(50) })).toMatchObject({
+    expect(
+      await exchange(sessions, code, { verifier: 'b'.repeat(50) }),
+    ).toMatchObject({
       error: 'invalid_grant',
     });
-    expect(await exchange(sessions, code, { clientId: 'https://other.example/client.json' })).toMatchObject({
+    expect(
+      await exchange(sessions, code, {
+        clientId: 'https://other.example/client.json',
+      }),
+    ).toMatchObject({
       error: 'invalid_grant',
     });
     const tokens = await exchange(sessions, code);
@@ -140,14 +165,21 @@ describe('McpSessions', () => {
     const { sessions } = harness();
     const pending = await begin(sessions);
     await sessions.open(pending.approveToken, 7);
-    await sessions.decide(pending.publicId, 7, 'allow', ['kick'] as Permission[]);
-    const polled = await sessions.poll(pending.browserToken, 'https://admin.example');
+    await sessions.decide(pending.publicId, 7, 'allow', [
+      'kick',
+    ] as Permission[]);
+    const polled = await sessions.poll(
+      pending.browserToken,
+      'https://admin.example',
+    );
     if (polled.status !== 'approved') {
       throw new Error(polled.status);
     }
     const code = codeOf(polled.redirect);
     const tokens = await exchange(sessions, code);
-    expect(await exchange(sessions, code)).toMatchObject({ error: 'invalid_grant' });
+    expect(await exchange(sessions, code)).toMatchObject({
+      error: 'invalid_grant',
+    });
     if (!isFailure(tokens)) {
       expect(await sessions.authenticate(tokens.accessToken)).toBeUndefined();
     }
@@ -157,13 +189,21 @@ describe('McpSessions', () => {
     const { sessions } = harness();
     const pending = await begin(sessions);
     await sessions.open(pending.approveToken, 7);
-    await sessions.decide(pending.publicId, 7, 'allow', ['kick'] as Permission[]);
-    const polled = await sessions.poll(pending.browserToken, 'https://admin.example');
+    await sessions.decide(pending.publicId, 7, 'allow', [
+      'kick',
+    ] as Permission[]);
+    const polled = await sessions.poll(
+      pending.browserToken,
+      'https://admin.example',
+    );
     if (polled.status !== 'approved') {
       throw new Error(polled.status);
     }
     const code = codeOf(polled.redirect);
-    const [first, second] = await Promise.all([exchange(sessions, code), exchange(sessions, code)]);
+    const [first, second] = await Promise.all([
+      exchange(sessions, code),
+      exchange(sessions, code),
+    ]);
 
     expect([first, second].some(isFailure)).toBe(true);
     for (const result of [first, second]) {
@@ -177,8 +217,13 @@ describe('McpSessions', () => {
     const { sessions } = harness();
     const pending = await begin(sessions);
     await sessions.open(pending.approveToken, 7);
-    await sessions.decide(pending.publicId, 7, 'allow', ['kick'] as Permission[]);
-    const polled = await sessions.poll(pending.browserToken, 'https://admin.example');
+    await sessions.decide(pending.publicId, 7, 'allow', [
+      'kick',
+    ] as Permission[]);
+    const polled = await sessions.poll(
+      pending.browserToken,
+      'https://admin.example',
+    );
     if (polled.status !== 'approved') {
       throw new Error(polled.status);
     }
@@ -218,8 +263,13 @@ describe('McpSessions', () => {
     const { sessions, advance } = harness();
     const pending = await begin(sessions);
     await sessions.open(pending.approveToken, 7);
-    await sessions.decide(pending.publicId, 7, 'allow', ['kick'] as Permission[]);
-    const polled = await sessions.poll(pending.browserToken, 'https://admin.example');
+    await sessions.decide(pending.publicId, 7, 'allow', [
+      'kick',
+    ] as Permission[]);
+    const polled = await sessions.poll(
+      pending.browserToken,
+      'https://admin.example',
+    );
     if (polled.status !== 'approved') {
       throw new Error(polled.status);
     }
@@ -245,7 +295,10 @@ describe('McpSessions', () => {
     const pending = await begin(sessions);
     await sessions.open(pending.approveToken, 7);
     await sessions.decide(pending.publicId, 7, 'deny', []);
-    const polled = await sessions.poll(pending.browserToken, 'https://admin.example');
+    const polled = await sessions.poll(
+      pending.browserToken,
+      'https://admin.example',
+    );
 
     expect(polled.status).toBe('denied');
     if (polled.status === 'denied') {

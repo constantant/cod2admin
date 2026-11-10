@@ -11,7 +11,9 @@ describe('sanitizeRconArg', () => {
   });
 
   it('strips control characters and quotes', () => {
-    expect(sanitizeRconArg('line1\nline2\r\0"quoted"')).toBe('line1line2quoted');
+    expect(sanitizeRconArg('line1\nline2\r\0"quoted"')).toBe(
+      'line1line2quoted',
+    );
   });
 
   it('trims surrounding whitespace', () => {

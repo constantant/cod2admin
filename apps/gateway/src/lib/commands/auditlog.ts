@@ -1,7 +1,13 @@
 import type { AuditLogEntry } from '@cod2admin/admin-store';
 import { matchText, type BotContext } from '../bot-context.js';
 import type { GatewayDeps } from '../deps.js';
-import { markdownTable, replyWithReport, reportDocument, reportFileName, type LongReply } from '../long-reply.js';
+import {
+  markdownTable,
+  replyWithReport,
+  reportDocument,
+  reportFileName,
+  type LongReply,
+} from '../long-reply.js';
 import { formatTelegramUser } from '../telegram-user.js';
 
 const DEFAULT_LIMIT = 10;
@@ -12,7 +18,11 @@ const SUMMARY_ENTRIES = 5;
 function formatEntry(entry: AuditLogEntry): string {
   const target = entry.target ? ` → ${entry.target}` : '';
   const reason = entry.reason ? ` (${entry.reason})` : '';
-  const actor = formatTelegramUser(entry.actorTelegramId, entry.actorUsername, entry.actorFirstName);
+  const actor = formatTelegramUser(
+    entry.actorTelegramId,
+    entry.actorUsername,
+    entry.actorFirstName,
+  );
   return `${entry.createdAt.toISOString()} · ${actor} · ${entry.action}${target}${reason}`;
 }
 
@@ -35,10 +45,17 @@ export function formatAuditLogSummary(entries: AuditLogEntry[]): string {
 }
 
 /** The attached `/auditlog` report: one table row per entry. */
-export function formatAuditLogReport(entries: AuditLogEntry[], now: Date): string {
+export function formatAuditLogReport(
+  entries: AuditLogEntry[],
+  now: Date,
+): string {
   const rows = entries.map((entry) => [
     entry.createdAt.toISOString().slice(0, 19).replace('T', ' '),
-    formatTelegramUser(entry.actorTelegramId, entry.actorUsername, entry.actorFirstName),
+    formatTelegramUser(
+      entry.actorTelegramId,
+      entry.actorUsername,
+      entry.actorFirstName,
+    ),
     entry.action,
     entry.target,
     entry.serverAlias,
@@ -48,12 +65,18 @@ export function formatAuditLogReport(entries: AuditLogEntry[], now: Date): strin
   return reportDocument({
     title: 'Audit log',
     meta: [`Entries: ${entries.length} (newest first)`],
-    body: markdownTable(['Time (UTC)', 'Who', 'Action', 'Target', 'Server', 'Reason', 'Source'], rows),
+    body: markdownTable(
+      ['Time (UTC)', 'Who', 'Action', 'Target', 'Server', 'Reason', 'Source'],
+      rows,
+    ),
     now,
   });
 }
 
-export function buildAuditLogReply(entries: AuditLogEntry[], now: Date = new Date()): LongReply {
+export function buildAuditLogReply(
+  entries: AuditLogEntry[],
+  now: Date = new Date(),
+): LongReply {
   return {
     full: formatAuditLogMessage(entries),
     summary: formatAuditLogSummary(entries),
@@ -63,9 +86,14 @@ export function buildAuditLogReply(entries: AuditLogEntry[], now: Date = new Dat
 }
 
 /** `/auditlog [n]` — owner-only (docs/PLAN.md §4). */
-export async function auditLogCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
+export async function auditLogCommand(
+  ctx: BotContext,
+  deps: GatewayDeps,
+): Promise<void> {
   const requested = Number.parseInt(matchText(ctx), 10);
-  const limit = Number.isNaN(requested) ? DEFAULT_LIMIT : Math.min(Math.max(requested, 1), MAX_LIMIT);
+  const limit = Number.isNaN(requested)
+    ? DEFAULT_LIMIT
+    : Math.min(Math.max(requested, 1), MAX_LIMIT);
 
   const entries = await deps.adminStore.listAuditLog(limit);
   await replyWithReport(ctx, buildAuditLogReply(entries));

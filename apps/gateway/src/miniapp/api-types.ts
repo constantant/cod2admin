@@ -577,12 +577,24 @@ export interface RelayTestResponse {
 
 // ── Self-update ─────────────────────────────────────────────────────────────────────────────
 
+/** One release's notes, as GitHub has them (markdown). */
+export interface ReleaseNotesDto {
+  tag: string;
+  publishedAt: string | null;
+  notes: string;
+}
+
 export interface UpdateStatusResponse {
   /** `false`: this install can't update itself (re-run install.sh). */
   enabled: boolean;
   running: string;
   latest: string | null;
   notes: string | null;
+  /**
+   * What changed: every release newer than the running one when an update is available (so a
+   * jump over several versions shows all of them), else the latest few. Newest first.
+   */
+  releases: ReleaseNotesDto[];
   available: boolean;
   /** GitHub couldn't be asked. */
   checkError: string | null;

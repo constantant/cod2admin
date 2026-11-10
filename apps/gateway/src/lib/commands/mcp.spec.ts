@@ -1,4 +1,7 @@
-import { createMemoryMcpRepository, type Permission } from '@cod2admin/admin-store';
+import {
+  createMemoryMcpRepository,
+  type Permission,
+} from '@cod2admin/admin-store';
 import { describe, expect, it, vi } from 'vitest';
 import { McpSessions, pkceChallenge } from '../../mcp/sessions.js';
 import type { ActingAdmin } from '../bot-context.js';
@@ -64,8 +67,12 @@ describe('mcpCommand', () => {
 
     await mcpCommand(ctx, deps);
 
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('https://admin.example/mcp'));
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('Nothing is connected.'));
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('https://admin.example/mcp'),
+    );
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('Nothing is connected.'),
+    );
   });
 
   it('refuses a group', async () => {
@@ -100,7 +107,9 @@ describe('mcpStart', () => {
       'Allow read only',
       'Deny',
     ]);
-    expect(await sessions.poll(request.browserToken, 'https://admin.example')).toEqual({
+    expect(
+      await sessions.poll(request.browserToken, 'https://admin.example'),
+    ).toEqual({
       status: 'pending',
     });
   });
@@ -112,7 +121,9 @@ describe('mcpStart', () => {
     const stranger = privateCtx(`mcp_${request.approveToken}`);
 
     await mcpStart(stranger, deps);
-    expect(stranger.reply).toHaveBeenCalledWith('Only a staff account can connect an AI.');
+    expect(stranger.reply).toHaveBeenCalledWith(
+      'Only a staff account can connect an AI.',
+    );
 
     adminStore.getAdmin.mockResolvedValue(
       sampleAdmin({ telegramId: 5, isOwner: false, permissions: ['kick'] }),
@@ -136,10 +147,11 @@ describe('mcpStart', () => {
 
     await mcpStart(ctx, deps);
 
-    expect(buttonsOf(vi.mocked(ctx.reply).mock.calls[0]?.[1]).map((button) => button.text)).toEqual([
-      'Allow read only',
-      'Deny',
-    ]);
+    expect(
+      buttonsOf(vi.mocked(ctx.reply).mock.calls[0]?.[1]).map(
+        (button) => button.text,
+      ),
+    ).toEqual(['Allow read only', 'Deny']);
   });
 });
 
@@ -165,8 +177,12 @@ describe('mcpDecision', () => {
       },
       deps,
     );
-    expect(answer).toHaveBeenCalledWith('Open a private chat with the bot to connect an AI.');
-    expect(await sessions.poll(request.browserToken, 'https://admin.example')).toEqual({
+    expect(answer).toHaveBeenCalledWith(
+      'Open a private chat with the bot to connect an AI.',
+    );
+    expect(
+      await sessions.poll(request.browserToken, 'https://admin.example'),
+    ).toEqual({
       status: 'pending',
     });
 
@@ -184,7 +200,10 @@ describe('mcpDecision', () => {
     expect(edit).toHaveBeenCalledWith(
       'Connected with kick. Go back to the browser page. End it with /mcp revoke.',
     );
-    const polled = await sessions.poll(request.browserToken, 'https://admin.example');
+    const polled = await sessions.poll(
+      request.browserToken,
+      'https://admin.example',
+    );
     expect(polled.status).toBe('approved');
   });
 
@@ -217,7 +236,9 @@ describe('mcpDecision', () => {
 
 function buttonsOf(other: unknown): { text: string; callback_data: string }[] {
   const keyboard = other as {
-    reply_markup?: { inline_keyboard?: { text: string; callback_data: string }[][] };
+    reply_markup?: {
+      inline_keyboard?: { text: string; callback_data: string }[][];
+    };
   };
   return (keyboard.reply_markup?.inline_keyboard ?? []).flat();
 }

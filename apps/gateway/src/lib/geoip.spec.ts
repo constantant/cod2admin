@@ -30,7 +30,11 @@ function fakeReader(table: Record<string, string>): CountryReader {
         throw new Error(`invalid IP ${ip}`);
       }
       const code = table[ip];
-      return code ? ({ country: { iso_code: code, names: { en: `Name of ${code}` } } } as CountryResponse) : null;
+      return code
+        ? ({
+            country: { iso_code: code, names: { en: `Name of ${code}` } },
+          } as CountryResponse)
+        : null;
     },
   };
 }
@@ -74,16 +78,26 @@ describe('city database', () => {
       '5.167.234.1': {
         country: { iso_code: 'RU', names: { en: 'Russia' } },
         city: { geoname_id: 1, names: { en: 'Yekaterinburg' } },
-        subdivisions: [{ geoname_id: 2, iso_code: 'SVE', names: { en: 'Sverdlovsk Oblast' } }],
+        subdivisions: [
+          {
+            geoname_id: 2,
+            iso_code: 'SVE',
+            names: { en: 'Sverdlovsk Oblast' },
+          },
+        ],
       } as CityResponse,
       '46.34.143.1': {
         country: { iso_code: 'RU', names: { en: 'Russia' } },
         city: { geoname_id: 3, names: { en: 'Moscow' } },
-        subdivisions: [{ geoname_id: 3, iso_code: 'MOW', names: { en: 'Moscow' } }],
+        subdivisions: [
+          { geoname_id: 3, iso_code: 'MOW', names: { en: 'Moscow' } },
+        ],
       } as CityResponse,
       '93.170.213.1': {
         country: { iso_code: 'KZ', names: { en: 'Kazakhstan' } },
-        subdivisions: [{ geoname_id: 4, iso_code: 'AST', names: { en: 'Astana' } }],
+        subdivisions: [
+          { geoname_id: 4, iso_code: 'AST', names: { en: 'Astana' } },
+        ],
       } as CityResponse,
     };
     database.setReader({ get: (ip) => records[ip] ?? null });
@@ -102,14 +116,23 @@ describe('city database', () => {
   it('shows the city short in /players and with its region on report cards', () => {
     const database = cityDatabase();
 
-    expect(describeIpShort(database, '5.167.234.1')).toBe('🇷🇺 RU, Yekaterinburg');
-    expect(describeIpLong(database, '5.167.234.1')).toBe('🇷🇺 Russia, Yekaterinburg (Sverdlovsk Oblast)');
+    expect(describeIpShort(database, '5.167.234.1')).toBe(
+      '🇷🇺 RU, Yekaterinburg',
+    );
+    expect(describeIpLong(database, '5.167.234.1')).toBe(
+      '🇷🇺 Russia, Yekaterinburg (Sverdlovsk Oblast)',
+    );
   });
 
   it('puts the region after a comma when the city name already has brackets', () => {
-    expect(formatCountryLong({ code: 'PL', name: 'Poland', city: 'Warsaw (Mokotów)', region: 'Mazovia' })).toBe(
-      '🇵🇱 Poland, Warsaw (Mokotów), Mazovia',
-    );
+    expect(
+      formatCountryLong({
+        code: 'PL',
+        name: 'Poland',
+        city: 'Warsaw (Mokotów)',
+        region: 'Mazovia',
+      }),
+    ).toBe('🇵🇱 Poland, Warsaw (Mokotów), Mazovia');
   });
 
   it('skips a region that repeats the city, and falls back to the region with no city', () => {
@@ -117,7 +140,9 @@ describe('city database', () => {
 
     expect(describeIpLong(database, '46.34.143.1')).toBe('🇷🇺 Russia, Moscow');
     expect(describeIpShort(database, '93.170.213.1')).toBe('🇰🇿 KZ, Astana');
-    expect(describeIpLong(database, '93.170.213.1')).toBe('🇰🇿 Kazakhstan, Astana');
+    expect(describeIpLong(database, '93.170.213.1')).toBe(
+      '🇰🇿 Kazakhstan, Astana',
+    );
   });
 
   it('builds the city download URL', () => {
@@ -128,10 +153,20 @@ describe('city database', () => {
 });
 
 describe('GeoIpDatabase', () => {
-  it.each(['10.0.0.5', '192.168.1.5', '172.20.0.1', '127.0.0.1', '100.64.1.1', '169.254.0.9'])(
+  it.each([
+    '10.0.0.5',
+    '192.168.1.5',
+    '172.20.0.1',
+    '127.0.0.1',
+    '100.64.1.1',
+    '169.254.0.9',
+  ])(
     'labels private address %s as LAN, even before a database is loaded',
     (ip) => {
-      expect(new GeoIpDatabase().lookup(ip)).toEqual({ code: 'LAN', name: 'LAN' });
+      expect(new GeoIpDatabase().lookup(ip)).toEqual({
+        code: 'LAN',
+        name: 'LAN',
+      });
       expect(describeIpShort(new GeoIpDatabase(), ip)).toBe('LAN');
     },
   );
@@ -157,7 +192,12 @@ describe('AsnDatabase and provider labels', () => {
           throw new Error(`invalid IP ${ip}`);
         }
         const name = table[ip];
-        return name === undefined ? null : { autonomous_system_number: 1, autonomous_system_organization: name };
+        return name === undefined
+          ? null
+          : {
+              autonomous_system_number: 1,
+              autonomous_system_organization: name,
+            };
       },
     });
     return database;
@@ -174,7 +214,10 @@ describe('AsnDatabase and provider labels', () => {
   });
 
   it('returns nothing for private, unknown, invalid or blank-named IPs, or before loading', () => {
-    const database = asnWith({ '10.0.0.5': 'Should not show', '1.1.1.1': '  ' });
+    const database = asnWith({
+      '10.0.0.5': 'Should not show',
+      '1.1.1.1': '  ',
+    });
 
     expect(database.lookup('10.0.0.5')).toBeUndefined();
     expect(database.lookup('8.8.8.8')).toBeUndefined();
@@ -182,15 +225,24 @@ describe('AsnDatabase and provider labels', () => {
     expect(database.lookup('bot')).toBeUndefined();
     expect(database.lookup('50')).toBeUndefined();
     expect(new AsnDatabase().lookup('188.19.61.1')).toBeUndefined();
-    expect(describeProviderShort(NO_PROVIDER_LOOKUP, '188.19.61.1')).toBeUndefined();
+    expect(
+      describeProviderShort(NO_PROVIDER_LOOKUP, '188.19.61.1'),
+    ).toBeUndefined();
   });
 
   it('cuts long names for /players and keeps them whole for report cards', () => {
     const long = 'SOCIETE NATIONALE DES TELECOMMUNICATIONS (Tunisie Telecom)';
-    const database = asnWith({ '196.187.164.1': long, '188.19.61.1': 'PJSC Rostelecom' });
+    const database = asnWith({
+      '196.187.164.1': long,
+      '188.19.61.1': 'PJSC Rostelecom',
+    });
 
-    expect(describeProviderShort(database, '196.187.164.1')).toBe('SOCIETE NATIONALE DES TE…');
-    expect(describeProviderShort(database, '188.19.61.1')).toBe('PJSC Rostelecom');
+    expect(describeProviderShort(database, '196.187.164.1')).toBe(
+      'SOCIETE NATIONALE DES TE…',
+    );
+    expect(describeProviderShort(database, '188.19.61.1')).toBe(
+      'PJSC Rostelecom',
+    );
     expect(describeProviderLong(database, '196.187.164.1')).toBe(long);
     expect(describeProviderLong(database, undefined)).toBeUndefined();
   });
@@ -233,7 +285,13 @@ describe('GeoIpUpdater', () => {
     return new Response(gzipSync(DB_BYTES), { status: 200 });
   }
 
-  function updater(overrides: { fetchImpl?: typeof fetch; autoDownload?: boolean; database?: GeoIpDatabase } = {}) {
+  function updater(
+    overrides: {
+      fetchImpl?: typeof fetch;
+      autoDownload?: boolean;
+      database?: GeoIpDatabase;
+    } = {},
+  ) {
     const database = overrides.database ?? new GeoIpDatabase();
     const parse = vi.fn(() => fakeReader({ '77.37.210.26': 'RU' }));
     const fetchImpl = overrides.fetchImpl ?? vi.fn(async () => okResponse());
@@ -249,26 +307,36 @@ describe('GeoIpUpdater', () => {
     return { instance, database, parse, fetchImpl };
   }
 
-  it('downloads this month\'s database when none is on disk, saves it, and starts answering lookups', async () => {
+  it("downloads this month's database when none is on disk, saves it, and starts answering lookups", async () => {
     const { instance, database, fetchImpl } = updater();
 
     await instance.check();
 
-    expect(fetchImpl).toHaveBeenCalledWith(dbIpDownloadUrl(NOW), expect.anything());
+    expect(fetchImpl).toHaveBeenCalledWith(
+      dbIpDownloadUrl(NOW),
+      expect.anything(),
+    );
     expect(await readFile(filePath)).toEqual(DB_BYTES);
     expect(database.lookup('77.37.210.26')?.code).toBe('RU');
   });
 
   it('downloads the ASN database from its own URL into an AsnDatabase', async () => {
     const database = new AsnDatabase();
-    const fetchImpl = vi.fn(async () => okResponse()) as unknown as typeof fetch;
+    const fetchImpl = vi.fn(async () =>
+      okResponse(),
+    ) as unknown as typeof fetch;
     const instance = new GeoIpUpdater({
       database,
       filePath,
       autoDownload: true,
       fetchImpl,
       now: () => NOW,
-      parse: () => ({ get: () => ({ autonomous_system_number: 8492, autonomous_system_organization: 'OBIT Ltd.' }) }),
+      parse: () => ({
+        get: () => ({
+          autonomous_system_number: 8492,
+          autonomous_system_organization: 'OBIT Ltd.',
+        }),
+      }),
       downloadUrl: dbIpAsnDownloadUrl,
       label: 'IP provider database',
       log: () => undefined,
@@ -276,19 +344,27 @@ describe('GeoIpUpdater', () => {
 
     await instance.check();
 
-    expect(fetchImpl).toHaveBeenCalledWith(dbIpAsnDownloadUrl(NOW), expect.anything());
+    expect(fetchImpl).toHaveBeenCalledWith(
+      dbIpAsnDownloadUrl(NOW),
+      expect.anything(),
+    );
     expect(database.lookup('46.34.143.1')).toBe('OBIT Ltd.');
   });
 
-  it('falls back to last month\'s file when this month\'s isn\'t published yet', async () => {
+  it("falls back to last month's file when this month's isn't published yet", async () => {
     const fetchImpl = vi.fn(async (url: string | URL | Request) =>
-      String(url).includes('2026-10') ? new Response('', { status: 404 }) : okResponse(),
+      String(url).includes('2026-10')
+        ? new Response('', { status: 404 })
+        : okResponse(),
     ) as unknown as typeof fetch;
     const { instance, database } = updater({ fetchImpl });
 
     await instance.check();
 
-    expect(fetchImpl).toHaveBeenLastCalledWith(expect.stringContaining('2026-09'), expect.anything());
+    expect(fetchImpl).toHaveBeenLastCalledWith(
+      expect.stringContaining('2026-09'),
+      expect.anything(),
+    );
     expect(database.loaded).toBe(true);
   });
 

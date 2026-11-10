@@ -2,7 +2,10 @@ import { matchText, type BotContext } from '../bot-context.js';
 import type { GatewayDeps } from '../deps.js';
 
 /** `/bindserver <alias>` — binds this chat to a server (docs/PLAN.md §4). */
-export async function bindServerCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
+export async function bindServerCommand(
+  ctx: BotContext,
+  deps: GatewayDeps,
+): Promise<void> {
   const alias = matchText(ctx);
   if (!alias) {
     await ctx.reply('Usage: /bindserver <alias>');
@@ -13,7 +16,9 @@ export async function bindServerCommand(ctx: BotContext, deps: GatewayDeps): Pro
     return;
   }
   if (!deps.rconClients.has(alias)) {
-    await ctx.reply(`Unknown server "${alias}". Run /servers to see what's configured.`);
+    await ctx.reply(
+      `Unknown server "${alias}". Run /servers to see what's configured.`,
+    );
     return;
   }
 

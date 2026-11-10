@@ -88,7 +88,9 @@ export function connectionPermissions(
   return allowed;
 }
 
-export function scopeFromPermissions(permissions: readonly Permission[]): string {
+export function scopeFromPermissions(
+  permissions: readonly Permission[],
+): string {
   return ['read', ...permissions].join(' ');
 }
 

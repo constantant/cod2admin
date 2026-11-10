@@ -4,7 +4,10 @@ import { extractServerFlag, resolveServer } from '../resolve-server.js';
 import { sanitizeRconArg } from '../sanitize.js';
 
 /** `/say <message> [--server <alias>]` (docs/PLAN.md §6). */
-export async function sayCommand(ctx: BotContext, deps: GatewayDeps): Promise<void> {
+export async function sayCommand(
+  ctx: BotContext,
+  deps: GatewayDeps,
+): Promise<void> {
   const { alias: serverAlias, rest } = extractServerFlag(matchText(ctx));
   const server = await resolveServer(ctx, deps, serverAlias);
   if (!server) {

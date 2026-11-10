@@ -12,29 +12,56 @@ import {
   type PlayerIpLookups,
 } from './players.js';
 
-const PLAYER: StatusPlayer = { num: 3, score: 5, ping: 42, name: 'PlayerOne', ip: '123.45.67.89' };
+const PLAYER: StatusPlayer = {
+  num: 3,
+  score: 5,
+  ping: 42,
+  name: 'PlayerOne',
+  ip: '123.45.67.89',
+};
 
 describe('formatPlayersMessage', () => {
   it('formats one line per player with num/name/score/ping/ip', () => {
-    expect(formatPlayersMessage([PLAYER])).toBe('#3 PlayerOne — score 5, ping 42, ip 123.45.67.89');
+    expect(formatPlayersMessage([PLAYER])).toBe(
+      '#3 PlayerOne — score 5, ping 42, ip 123.45.67.89',
+    );
   });
 
   it('adds the IP country when it is known', () => {
-    const geoip = { lookup: (ip: string) => (ip === '123.45.67.89' ? { code: 'RU', name: 'Russia' } : undefined) };
+    const geoip = {
+      lookup: (ip: string) =>
+        ip === '123.45.67.89' ? { code: 'RU', name: 'Russia' } : undefined,
+    };
 
-    expect(formatPlayersMessage([PLAYER, { ...PLAYER, num: 4, ip: '9.9.9.9' }], { geoip })).toBe(
-      ['#3 PlayerOne — score 5, ping 42, ip 123.45.67.89 🇷🇺 RU', '#4 PlayerOne — score 5, ping 42, ip 9.9.9.9'].join('\n'),
+    expect(
+      formatPlayersMessage([PLAYER, { ...PLAYER, num: 4, ip: '9.9.9.9' }], {
+        geoip,
+      }),
+    ).toBe(
+      [
+        '#3 PlayerOne — score 5, ping 42, ip 123.45.67.89 🇷🇺 RU',
+        '#4 PlayerOne — score 5, ping 42, ip 9.9.9.9',
+      ].join('\n'),
     );
   });
 
   it('adds the VPN flag after the country when the IP is flagged', () => {
     const geoip = { lookup: () => ({ code: 'NL', name: 'Netherlands' }) };
-    const vpn = { lookup: (ip: string) => (ip === '123.45.67.89' ? ('vpn' as const) : undefined) };
+    const vpn = {
+      lookup: (ip: string) =>
+        ip === '123.45.67.89' ? ('vpn' as const) : undefined,
+    };
 
-    expect(formatPlayersMessage([PLAYER, { ...PLAYER, num: 4, ip: '9.9.9.9' }], { geoip, vpn })).toBe(
-      ['#3 PlayerOne — score 5, ping 42, ip 123.45.67.89 🇳🇱 NL 🛡 VPN', '#4 PlayerOne — score 5, ping 42, ip 9.9.9.9 🇳🇱 NL'].join(
-        '\n',
-      ),
+    expect(
+      formatPlayersMessage([PLAYER, { ...PLAYER, num: 4, ip: '9.9.9.9' }], {
+        geoip,
+        vpn,
+      }),
+    ).toBe(
+      [
+        '#3 PlayerOne — score 5, ping 42, ip 123.45.67.89 🇳🇱 NL 🛡 VPN',
+        '#4 PlayerOne — score 5, ping 42, ip 9.9.9.9 🇳🇱 NL',
+      ].join('\n'),
     );
   });
 
@@ -42,12 +69,23 @@ describe('formatPlayersMessage', () => {
     const geoip = { lookup: () => ({ code: 'RU', name: 'Russia' }) };
     const provider = {
       lookup: (ip: string) =>
-        ip === '123.45.67.89' ? 'PJSC Rostelecom' : 'SOCIETE NATIONALE DES TELECOMMUNICATIONS (Tunisie Telecom)',
+        ip === '123.45.67.89'
+          ? 'PJSC Rostelecom'
+          : 'SOCIETE NATIONALE DES TELECOMMUNICATIONS (Tunisie Telecom)',
       asn: () => undefined,
     };
-    const vpn = { lookup: (ip: string) => (ip === '9.9.9.9' ? ('hosting' as const) : undefined) };
+    const vpn = {
+      lookup: (ip: string) =>
+        ip === '9.9.9.9' ? ('hosting' as const) : undefined,
+    };
 
-    expect(formatPlayersMessage([PLAYER, { ...PLAYER, num: 4, ip: '9.9.9.9' }], { geoip, provider, vpn })).toBe(
+    expect(
+      formatPlayersMessage([PLAYER, { ...PLAYER, num: 4, ip: '9.9.9.9' }], {
+        geoip,
+        provider,
+        vpn,
+      }),
+    ).toBe(
       [
         '#3 PlayerOne — score 5, ping 42, ip 123.45.67.89 🇷🇺 RU · PJSC Rostelecom',
         '#4 PlayerOne — score 5, ping 42, ip 9.9.9.9 🇷🇺 RU · SOCIETE NATIONALE DES TE… 🛡 hosting',
@@ -58,7 +96,9 @@ describe('formatPlayersMessage', () => {
   it('shows the provider alone when the country is unknown', () => {
     const provider = { lookup: () => 'OBIT Ltd.', asn: () => 8492 };
 
-    expect(formatPlayersMessage([PLAYER], { provider })).toBe('#3 PlayerOne — score 5, ping 42, ip 123.45.67.89 OBIT Ltd.');
+    expect(formatPlayersMessage([PLAYER], { provider })).toBe(
+      '#3 PlayerOne — score 5, ping 42, ip 123.45.67.89 OBIT Ltd.',
+    );
   });
 
   it('reports no players connected when the list is empty', () => {
@@ -89,8 +129,19 @@ describe('playersCommand', () => {
       ip: `188.19.${i}.200`,
     }));
     rcon.status.mockResolvedValue({ raw: '', players, mapName: 'mp_toujane' });
-    deps.geoip = { lookup: () => ({ code: 'RU', name: 'Russia', city: 'Khanty-Mansiysk', region: 'Khanty-Mansia' }) };
-    deps.provider = { lookup: () => 'SOCIETE NATIONALE DES TELECOMMUNICATIONS (Tunisie Telecom)', asn: () => 12389 };
+    deps.geoip = {
+      lookup: () => ({
+        code: 'RU',
+        name: 'Russia',
+        city: 'Khanty-Mansiysk',
+        region: 'Khanty-Mansia',
+      }),
+    };
+    deps.provider = {
+      lookup: () =>
+        'SOCIETE NATIONALE DES TELECOMMUNICATIONS (Tunisie Telecom)',
+      asn: () => 12389,
+    };
     const ctx = createFakeCtx();
 
     await playersCommand(ctx, deps);
@@ -99,10 +150,15 @@ describe('playersCommand', () => {
     expect(formatPlayersMessage(players, deps).length).toBeGreaterThan(4096);
     const sentTexts = vi.mocked(ctx.reply).mock.calls.map(([text]) => text);
     const [file, other] = vi.mocked(ctx.replyWithDocument!).mock.calls[0]!;
-    for (const text of [...sentTexts, (other as { caption?: string } | undefined)?.caption ?? '']) {
+    for (const text of [
+      ...sentTexts,
+      (other as { caption?: string } | undefined)?.caption ?? '',
+    ]) {
       expect(text.length).toBeLessThanOrEqual(4096);
     }
-    expect((file as InputFile).filename).toMatch(/^players-default-\d{4}-\d{2}-\d{2}-\d{4}\.md$/);
+    expect((file as InputFile).filename).toMatch(
+      /^players-default-\d{4}-\d{2}-\d{2}-\d{4}\.md$/,
+    );
   });
 });
 
@@ -110,7 +166,14 @@ describe('players summary and report', () => {
   const CONTEXT = { serverAlias: 'ctfrussia', mapName: 'mp_toujane' };
   const NOW = new Date('2026-10-07T10:23:00Z');
   const players: StatusPlayer[] = [
-    { num: 0, score: 36, ping: 74, name: 'hutu boy^7', ip: '178.73.57.1', guid: '951247' },
+    {
+      num: 0,
+      score: 36,
+      ping: 74,
+      name: 'hutu boy^7',
+      ip: '178.73.57.1',
+      guid: '951247',
+    },
     { num: 13, score: 5, ping: 60, name: 'const', ip: '2.27.5.10', guid: '0' },
     { num: 8, score: 1, ping: 40, name: 'XMAO|SURGUT', ip: '188.19.61.1' },
   ];
@@ -118,14 +181,23 @@ describe('players summary and report', () => {
     geoip: {
       lookup: (ip) =>
         ip.startsWith('188.')
-          ? { code: 'RU', name: 'Russia', city: 'Khanty-Mansiysk', region: 'Khanty-Mansia' }
+          ? {
+              code: 'RU',
+              name: 'Russia',
+              city: 'Khanty-Mansiysk',
+              region: 'Khanty-Mansia',
+            }
           : { code: 'PL', name: 'Poland' },
     },
     provider: {
-      lookup: (ip) => (ip.startsWith('2.27.') ? 'Great Flower' : 'PJSC Rostelecom'),
+      lookup: (ip) =>
+        ip.startsWith('2.27.') ? 'Great Flower' : 'PJSC Rostelecom',
       asn: (ip) => (ip.startsWith('2.27.') ? 202226 : 12389),
     },
-    vpn: { lookup: (ip) => (ip.startsWith('2.27.') ? ('provider' as const) : undefined) },
+    vpn: {
+      lookup: (ip) =>
+        ip.startsWith('2.27.') ? ('provider' as const) : undefined,
+    },
   };
 
   it('summarises players by country and VPN, one short line each, without colour codes', () => {
@@ -149,10 +221,18 @@ describe('players summary and report', () => {
 
     expect(report).toContain('# Players — ctfrussia');
     expect(report).toContain('- Map: mp_toujane');
-    expect(report).toContain('| # | Name | Score | Ping | GUID | IP | Location | Provider | VPN |');
-    expect(report).toContain('| 0 | hutu boy | 36 | 74 | 951247 | 178.73.57.1 | 🇵🇱 Poland | PJSC Rostelecom (AS12389) | — |');
-    expect(report).toContain('| 13 | const | 5 | 60 | 0 | 2.27.5.10 | 🇵🇱 Poland | Great Flower (AS202226) | 🛡 VPN (provider on /vpnnets) |');
-    expect(report).toContain('| 8 | XMAO\\|SURGUT | 1 | 40 | 0 | 188.19.61.1 | 🇷🇺 Russia, Khanty-Mansiysk (Khanty-Mansia) |');
+    expect(report).toContain(
+      '| # | Name | Score | Ping | GUID | IP | Location | Provider | VPN |',
+    );
+    expect(report).toContain(
+      '| 0 | hutu boy | 36 | 74 | 951247 | 178.73.57.1 | 🇵🇱 Poland | PJSC Rostelecom (AS12389) | — |',
+    );
+    expect(report).toContain(
+      '| 13 | const | 5 | 60 | 0 | 2.27.5.10 | 🇵🇱 Poland | Great Flower (AS202226) | 🛡 VPN (provider on /vpnnets) |',
+    );
+    expect(report).toContain(
+      '| 8 | XMAO\\|SURGUT | 1 | 40 | 0 | 188.19.61.1 | 🇷🇺 Russia, Khanty-Mansiysk (Khanty-Mansia) |',
+    );
     expect(report).toContain('DB-IP.com');
   });
 
