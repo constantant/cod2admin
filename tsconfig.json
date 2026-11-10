@@ -29,6 +29,9 @@
     },
     {
       "path": "./packages/player-watch"
+    },
+    {
+      "path": "./packages/watch-store"
     }
   ],
   "compilerOptions": {}
