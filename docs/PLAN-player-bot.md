@@ -1,11 +1,11 @@
 # Player-watch game bot for CoD2 Admin
 
-| | |
-|---|---|
-| Status | Accepted. These product decisions are the plan. The protocol spike has not been run, and the Spike note is still empty. |
-| Author | _(placeholder)_ |
-| Date | 2026-11-08 |
-| Product version | v1.20.0 (`db0410c`, branch `feat/player-watch-bot`) |
+|                  |                                                                                                                                                              |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Status           | Accepted. These product decisions are the plan. The protocol spike has not been run, and the Spike note is still empty.                                      |
+| Author           | _(placeholder)_                                                                                                                                              |
+| Date             | 2026-11-08                                                                                                                                                   |
+| Product version  | v1.20.0 (`db0410c`, branch `feat/player-watch-bot`)                                                                                                          |
 | Future repo path | `docs/PLAN-player-bot.md` (this document). Russian owner summary `docs/PLAN-player-bot-ru.md` is a separate follow-up after this English design is accepted. |
 
 This is a design only. It does not add a package, a migration, or a client.
@@ -22,7 +22,7 @@ v1 is a classical score on a few aim and movement features. "Learning" means sto
 
 Admins on this stack can kick, temp-ban, and ban, and they can read a card built by `packages/report-pipeline` (`processReportTrigger` → `buildReportCard` → `apps/gateway/src/lib/reports.ts`). The card is only as good as the player who typed `!report`. On CTF RUSSIA there is no `!report` path: `startReportTailer` logs that automation is off when `servers.log_source_config` is null (`apps/gateway/src/lib/report-tailers.ts`). The 10-second sweep in `startExpiryPoller` (`apps/gateway/src/lib/expiry-poller.ts`) is ban and VPN enforcement via `rcon status`. It is not a sensor for aim.
 
-What the log *can* show, and why it is not enough, is in [Collectors](#collectors). `log-tailer` does not even parse `K;` / `D;` lines today (`packages/log-tailer/src/lib/session-event-parser.ts` returns null for them). A sample death line from `packages/log-tailer/test/fixtures/chat-lines.log` is:
+What the log _can_ show, and why it is not enough, is in [Collectors](#collectors). `log-tailer` does not even parse `K;` / `D;` lines today (`packages/log-tailer/src/lib/session-event-parser.ts` returns null for them). A sample death line from `packages/log-tailer/test/fixtures/chat-lines.log` is:
 
 ```text
 116:42 D;0;0;allies;WOWOWOW;0;0;allies;WOWOWOW;frag_grenade_british_mp;59;MOD_GRENADE_SPLASH;none
@@ -32,11 +32,11 @@ That is a kill with a weapon and a means-of-death. It has no viewangles. CTF RUS
 
 The owner wants three outputs, chosen per server:
 
-| Mode | What the admin sees | What the bot does by itself |
-|---|---|---|
-| `flag` | A suspicion card with evidence | Nothing to the player |
-| `report` | The same card, also queued like a `!report` | Nothing to the player |
-| `kick` | The card, after the drop | `RconClient.kick` through the shared moderation path |
+| Mode     | What the admin sees                         | What the bot does by itself                          |
+| -------- | ------------------------------------------- | ---------------------------------------------------- |
+| `flag`   | A suspicion card with evidence              | Nothing to the player                                |
+| `report` | The same card, also queued like a `!report` | Nothing to the player                                |
+| `kick`   | The card, after the drop                    | `RconClient.kick` through the shared moderation path |
 
 False kicks on a public 40-player server are worse than missed cheats. Kick mode ships off. Permanent ban is not an automatic action.
 
@@ -123,12 +123,12 @@ The child parses UDP and emits feature numbers. It does not open Postgres and it
 
 ### Collectors
 
-| Collector | Data | Works on CTF RUSSIA today | v1 role |
-|---|---|---|---|
-| Headless TS client, new `packages/game-client` | Origins, angles, events the server puts in this client's snapshots | **Not known.** RCON does not pass `sv_pure` or PunkBuster. A client with no `.iwd` set does not. Usable only where `getstatus` shows `sv_pure` `0` and `sv_punkbuster` `0`, and the spike saw enemies | Preferred only on a non-pure, non-PB server, behind the spike |
-| Wine + real `CoD2MP_s.exe`, hook or log export | Whatever the real client renders. It has the IWD set `sv_pure` checks, and it can answer PunkBuster | The realistic answer if `sv_pure` is `1` or `sv_punkbuster` is `1` | Required before any pure or PB server, including CTF if `getstatus` says so. Same `Sample` type. Not started until the spike note says the headless client cannot serve that server |
-| CoD2x / libcod module | Every player's viewangles, no PVS hole | No. We do not control that binary | Later optional collector, same `Sample` type |
-| `rcon status` + `games_mp.log` only | Names, IPs, score, ping; `K;`/`D;` weapon and means-of-death **if** the log is mounted | Status yes, log no on CTF | Rejected as the primary design |
+| Collector                                      | Data                                                                                                | Works on CTF RUSSIA today                                                                                                                                                                             | v1 role                                                                                                                                                                             |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Headless TS client, new `packages/game-client` | Origins, angles, events the server puts in this client's snapshots                                  | **Not known.** RCON does not pass `sv_pure` or PunkBuster. A client with no `.iwd` set does not. Usable only where `getstatus` shows `sv_pure` `0` and `sv_punkbuster` `0`, and the spike saw enemies | Preferred only on a non-pure, non-PB server, behind the spike                                                                                                                       |
+| Wine + real `CoD2MP_s.exe`, hook or log export | Whatever the real client renders. It has the IWD set `sv_pure` checks, and it can answer PunkBuster | The realistic answer if `sv_pure` is `1` or `sv_punkbuster` is `1`                                                                                                                                    | Required before any pure or PB server, including CTF if `getstatus` says so. Same `Sample` type. Not started until the spike note says the headless client cannot serve that server |
+| CoD2x / libcod module                          | Every player's viewangles, no PVS hole                                                              | No. We do not control that binary                                                                                                                                                                     | Later optional collector, same `Sample` type                                                                                                                                        |
+| `rcon status` + `games_mp.log` only            | Names, IPs, score, ping; `K;`/`D;` weapon and means-of-death **if** the log is mounted              | Status yes, log no on CTF                                                                                                                                                                             | Rejected as the primary design                                                                                                                                                      |
 
 The log's weak signals are kills, weapon name, and `MOD_*`. They support a K/D or a weapon-class oddity at best. They cannot show a snap onto a newly visible enemy or a kill while looking elsewhere. `packages/log-tailer` does not parse them, and CTF has no tail. Building v1 on that stream would report "this player is getting kills," which humans already see on the scoreboard. If a server does have a log, a later enricher may attach the matching `D;` line to a life as a label. It is not the sensor.
 
@@ -155,12 +155,12 @@ Do not start this child in local gateway dev against the shared bot token. The p
 
 ### Package split
 
-| Package | Responsibility | Depends on |
-|---|---|---|
-| `packages/game-client` | OOB connect, netchan, Huffman, snapshot parse, emit `Sample`, clean disconnect | `@cod2admin/rcon-client` **only** for `decodeText` / `encodeText` and the existing OOB prefix helpers (`buildOobPacket`). No `RconClient` instance. It imports `Sample` from `@cod2admin/player-watch` only after that type exists (PR 7). The spike PR keeps an internal unexported struct and does not depend on `player-watch` |
-| `packages/player-watch` | `Sample` type, feature extraction, distributions, policy. Pure | nothing in-repo |
-| `packages/watch-store` | Drizzle profiles, life rows, evidence. Own migrations | `drizzle-orm`, `pg` (same major versions as `admin-store`) |
-| `apps/gateway/src/watch/` | Supervisor, IPC, the only `watch-store` writer, settings command, `scoreLife` and `decide`, card and kick wiring | the three packages plus existing gateway deps |
+| Package                   | Responsibility                                                                                                   | Depends on                                                                                                                                                                                                                                                                                                                        |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/game-client`    | OOB connect, netchan, Huffman, snapshot parse, emit `Sample`, clean disconnect                                   | `@cod2admin/rcon-client` **only** for `decodeText` / `encodeText` and the existing OOB prefix helpers (`buildOobPacket`). No `RconClient` instance. It imports `Sample` from `@cod2admin/player-watch` only after that type exists (PR 7). The spike PR keeps an internal unexported struct and does not depend on `player-watch` |
+| `packages/player-watch`   | `Sample` type, feature extraction, distributions, policy. Pure                                                   | nothing in-repo                                                                                                                                                                                                                                                                                                                   |
+| `packages/watch-store`    | Drizzle profiles, life rows, evidence. Own migrations                                                            | `drizzle-orm`, `pg` (same major versions as `admin-store`)                                                                                                                                                                                                                                                                        |
+| `apps/gateway/src/watch/` | Supervisor, IPC, the only `watch-store` writer, settings command, `scoreLife` and `decide`, card and kick wiring | the three packages plus existing gateway deps                                                                                                                                                                                                                                                                                     |
 
 `player-watch` has no socket and no database, so CI can run it without Docker. `game-client` tests use committed packet fixtures, not the live server.
 
@@ -251,14 +251,14 @@ The 2.1 hour and 4.2 hour figures next to `minFeatureN` are the **single-map** c
 
 This table is the spec. A feature that is not scored does not affect `lifeScore`, `featuresOverFlag`, or `aimAgreeing`. Stored features still go in the life row.
 
-| Feature | Inputs | Cheat direction | Scored | Counts toward `aimAgreeing` |
-|---|---|---|---|---|
-| `snapOnAcquire` | At least four angle samples in the 500 ms before an enemy entity first appears, plus the acquisition sample. Needs enemy origin and attacker `viewangles` | Large population z (a flick onto the new entity) | Yes, and only if the spike note confirms enemy angles | Yes |
-| `firedWhileLookingAway` | A `hit` or `kill` event and view error **above 30°** at that sample | Large error. This is the silent-aim hint | Yes, and only if the spike note confirms a hit or kill event | Yes |
-| `viewErrorAtHit` | View error at the hit or kill, degrees | Not scored. Near-zero error is a different cheat (a perfect track) and is not the silent-aim test | No | No |
-| `timeToDamageMs` | Server time from first appearance to a hit or kill | Not scored. No threshold in v1 | No | No |
-| `angularSpeedP95` | 95th percentile of yaw rate while any enemy is in the snapshot | Not scored. Spinbot versus lag is deferred | No | No |
-| `speedOverG` | Horizontal speed / `g_speed`, sustained above `1.5 × g_speed` for more than one second of samples | Gross excess only. Strafe movement already exceeds `g_speed`, so this is not an aim check | Yes, flag only | **No.** It never counts as one of the two agreeing features |
+| Feature                 | Inputs                                                                                                                                                    | Cheat direction                                                                                   | Scored                                                       | Counts toward `aimAgreeing`                                 |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------- |
+| `snapOnAcquire`         | At least four angle samples in the 500 ms before an enemy entity first appears, plus the acquisition sample. Needs enemy origin and attacker `viewangles` | Large population z (a flick onto the new entity)                                                  | Yes, and only if the spike note confirms enemy angles        | Yes                                                         |
+| `firedWhileLookingAway` | A `hit` or `kill` event and view error **above 30°** at that sample                                                                                       | Large error. This is the silent-aim hint                                                          | Yes, and only if the spike note confirms a hit or kill event | Yes                                                         |
+| `viewErrorAtHit`        | View error at the hit or kill, degrees                                                                                                                    | Not scored. Near-zero error is a different cheat (a perfect track) and is not the silent-aim test | No                                                           | No                                                          |
+| `timeToDamageMs`        | Server time from first appearance to a hit or kill                                                                                                        | Not scored. No threshold in v1                                                                    | No                                                           | No                                                          |
+| `angularSpeedP95`       | 95th percentile of yaw rate while any enemy is in the snapshot                                                                                            | Not scored. Spinbot versus lag is deferred                                                        | No                                                           | No                                                          |
+| `speedOverG`            | Horizontal speed / `g_speed`, sustained above `1.5 × g_speed` for more than one second of samples                                                         | Gross excess only. Strafe movement already exceeds `g_speed`, so this is not an aim check         | Yes, flag only                                               | **No.** It never counts as one of the two agreeing features |
 
 `g_speed` is read once per map by the parent (`rcon g_speed`), not per snapshot, and cached. The dev config does not set it. The stock default is 190, and a modded server must not be scored against 190. This is a read, not a `set`. If the read fails, skip `speedOverG` for that map.
 
@@ -296,9 +296,9 @@ export type LifeEnd = 'death' | 'disconnect' | 'map';
 export interface PolicyInput {
   mode: Exclude<WatchMode, 'off'>;
   endReason: LifeEnd;
-  lifeScore: number;          // max population z, never z plus a count
-  featuresOverFlag: number;   // AND gate, not an addend
-  aimAgreeing: number;        // 0..2, snap and firedWhileLookingAway only
+  lifeScore: number; // max population z, never z plus a count
+  featuresOverFlag: number; // AND gate, not an addend
+  aimAgreeing: number; // 0..2, snap and firedWhileLookingAway only
   livesThisSession: number;
   extremeLivesInLast5: number;
   /** Non-excluded lives with that aim feature present. Kick needs >= minSelfLives on each agreeing feature. */
@@ -311,9 +311,9 @@ export interface PolicyInput {
   /** Parent recomputes this from watch_profile_names. The child's copy is not trusted at kick time. */
   distinctNames24h: number;
   confirmedAimFeatures: 0 | 1 | 2;
-  kickedThisHour: number;     // parent count of watch_evidence action = kick
-  cardsThisHour: number;      // parent count of flag + report + kick evidence
-  cooldownActive: boolean;    // parent: latest flag/report/kick evidence for this profile inside cooldownMs
+  kickedThisHour: number; // parent count of watch_evidence action = kick
+  cardsThisHour: number; // parent count of flag + report + kick evidence
+  cooldownActive: boolean; // parent: latest flag/report/kick evidence for this profile inside cooldownMs
 }
 
 export type PolicyAction = 'none' | 'flag' | 'report' | 'kick';
@@ -321,18 +321,18 @@ export type PolicyAction = 'none' | 'flag' | 'report' | 'kick';
 
 Defaults (owner-changeable numbers, not the mode):
 
-| Knob | Default | Why |
-|---|---|---|
-| `flagZ` | 4 | Compared to `lifeScore` (`max(z)`), not to `max(z) + count` |
-| `kickZ` | 6 | Same scale as `flagZ`. Stricter |
-| `minFeatureN` | 5000 | Per feature, per map key, in the 14-day window. At 2,400 lives/hour this is about 2.1 hours on a full 40-player server **only in the single-map case and only if every life records that feature**, and about 4.2 hours on the 20-player dev server under the same assumption. A map rotation multiplies those hours by the number of maps that actually get lives (CTF lists 13 in rotation). Sparse visibility makes it longer still. It is not 200 lives and it is not "a few hours" by magic |
-| `minSelfLives` | 8 | Stored on `ServerWatchSettings`. Below this the identity is flag/report only. A new IP cannot be kicked. Flagged lives do not count |
-| `kickExtremeLives` | 3 of the last 5 lives with `lifeScore >= kickZ` | One life cannot kick |
-| `kickMinSessionLives` | 3 | Same idea, session-scoped |
-| `cooldownMs` | 30 minutes after a **flag, report, or kick** for that identity | A second card inside the window is `none` |
-| `maxKicksPerHour` | 2 per server | Counted from `watch_evidence`, so a restart does not re-arm it |
-| `maxCardsPerHour` | 10 per server | Same store. Covers `flag`. A bad threshold cannot fill the admin chat |
-| `aimAgreeing` to kick | 2 | Fixed. Not a settings column. Both aim features on that life. Speed never counts |
+| Knob                  | Default                                                        | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| --------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `flagZ`               | 4                                                              | Compared to `lifeScore` (`max(z)`), not to `max(z) + count`                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `kickZ`               | 6                                                              | Same scale as `flagZ`. Stricter                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `minFeatureN`         | 5000                                                           | Per feature, per map key, in the 14-day window. At 2,400 lives/hour this is about 2.1 hours on a full 40-player server **only in the single-map case and only if every life records that feature**, and about 4.2 hours on the 20-player dev server under the same assumption. A map rotation multiplies those hours by the number of maps that actually get lives (CTF lists 13 in rotation). Sparse visibility makes it longer still. It is not 200 lives and it is not "a few hours" by magic |
+| `minSelfLives`        | 8                                                              | Stored on `ServerWatchSettings`. Below this the identity is flag/report only. A new IP cannot be kicked. Flagged lives do not count                                                                                                                                                                                                                                                                                                                                                              |
+| `kickExtremeLives`    | 3 of the last 5 lives with `lifeScore >= kickZ`                | One life cannot kick                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `kickMinSessionLives` | 3                                                              | Same idea, session-scoped                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `cooldownMs`          | 30 minutes after a **flag, report, or kick** for that identity | A second card inside the window is `none`                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `maxKicksPerHour`     | 2 per server                                                   | Counted from `watch_evidence`, so a restart does not re-arm it                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `maxCardsPerHour`     | 10 per server                                                  | Same store. Covers `flag`. A bad threshold cannot fill the admin chat                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `aimAgreeing` to kick | 2                                                              | Fixed. Not a settings column. Both aim features on that life. Speed never counts                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 Thresholds (`flagZ`, `kickZ`, `minFeatureN`, `minSelfLives`, `kickExtremeLives`, `kickMinSessionLives`, `maxKicksPerHour`, `maxCardsPerHour`) come from `ServerWatchSettings`. `decide` does not hardcode a second copy.
 
@@ -404,10 +404,10 @@ Players can call a vote (`scr_allow_vote 1` on dev). A votekick of `AdminWatch` 
 
 Both are connect-time facts from `getstatus` only. `getinfo`'s `pb` key is not this check. If the key is missing or not exactly `0`, do not connect, record the blocker, and do not retry-loop.
 
-| Server | What the repo shows | Headless client |
-|---|---|---|
-| Dev | Compose passes `+set sv_punkbuster 0`. `sv_punkbuster` is protected; the cfg comment says a `set` inside `server_mp.cfg` is too late. `punkbuster.cfg` does not turn PB on. `server_mp.cfg` sets `sv_pure 1` | PB should allow a stay, and the spike must show `getstatus` `sv_punkbuster` is `0` before that is believed. Pure will reject a client with no IWD set. Record that rejection before anyone sets `sv_pure 0`. A later dev run with pure off is labeled and does not transfer |
-| CTF RUSSIA | Not in the repo. `cl_punkbuster` in userinfo (`docs/PLAN.md` §2.4) is the **client** cvar. `sv_pure` is unverified. A public server that is not pure is the exception | Unknown until `getstatus`. Anything other than `sv_punkbuster` `0` and `sv_pure` `0` means the headless client stays down. The real client is the collector for that server, not a checksum echo and not a PB emulator |
+| Server     | What the repo shows                                                                                                                                                                                          | Headless client                                                                                                                                                                                                                                                             |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dev        | Compose passes `+set sv_punkbuster 0`. `sv_punkbuster` is protected; the cfg comment says a `set` inside `server_mp.cfg` is too late. `punkbuster.cfg` does not turn PB on. `server_mp.cfg` sets `sv_pure 1` | PB should allow a stay, and the spike must show `getstatus` `sv_punkbuster` is `0` before that is believed. Pure will reject a client with no IWD set. Record that rejection before anyone sets `sv_pure 0`. A later dev run with pure off is labeled and does not transfer |
+| CTF RUSSIA | Not in the repo. `cl_punkbuster` in userinfo (`docs/PLAN.md` §2.4) is the **client** cvar. `sv_pure` is unverified. A public server that is not pure is the exception                                        | Unknown until `getstatus`. Anything other than `sv_punkbuster` `0` and `sv_pure` `0` means the headless client stays down. The real client is the collector for that server, not a checksum echo and not a PB emulator                                                      |
 
 A headless client that cannot answer PunkBuster, or that fails pure, will be kicked. Reconnecting looks like a flood. The supervisor treats either key as a disabled server.
 
@@ -516,18 +516,18 @@ Stored on the server row, not in the global `settings` table. `vpn.kick` is glob
 
 ```typescript
 export interface ServerWatchSettings {
-  enabled: boolean;          // false: no socket. true + mode off: connect, score, exclude at flagZ, emit nothing
+  enabled: boolean; // false: no socket. true + mode off: connect, score, exclude at flagZ, emit nothing
   mode: 'off' | 'flag' | 'report' | 'kick';
   flagZ: number;
   kickZ: number;
-  minFeatureN: number;       // default 5000, per feature, per map key
-  minSelfLives: number;      // default 8, non-excluded lives per aim feature
+  minFeatureN: number; // default 5000, per feature, per map key
+  minSelfLives: number; // default 8, non-excluded lives per aim feature
   kickExtremeLives: number;
   kickMinSessionLives: number;
   cooldownMs: number;
   maxKicksPerHour: number;
   maxCardsPerHour: number;
-  spectatorName: string;     // default "AdminWatch"
+  spectatorName: string; // default "AdminWatch"
   join: 'spectator' | 'private';
   /** Value of sv_privateclients before we raised it. Not a secret. */
   privateClientsPrevious: number | null;
@@ -740,14 +740,14 @@ Rejected. GUID 0 means an IP ban hits every human behind that address, which is 
 
 **Permissions recap.**
 
-| Action | Gate |
-|---|---|
-| Change watch settings, arm kick, reserve or restore a private slot, show the private password | New `watch.manage`, owner-sticky (`OWNER_GRANTED_PERMISSIONS`). Not in `MCP_PERMISSIONS` |
-| Automatic kick | No human permission. Parent checks settings. Audit `watch_kick`, `source: 'auto'`, actor `0` |
-| Press Kick on the card | Existing `kick` |
-| Press Ban on the card | Existing `ban` |
-| See the card in the bound chat | Whoever is in that chat, same as `!report` |
-| See the queued row in the miniapp | Any staff, same as `GET /reports` |
+| Action                                                                                        | Gate                                                                                         |
+| --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Change watch settings, arm kick, reserve or restore a private slot, show the private password | New `watch.manage`, owner-sticky (`OWNER_GRANTED_PERMISSIONS`). Not in `MCP_PERMISSIONS`     |
+| Automatic kick                                                                                | No human permission. Parent checks settings. Audit `watch_kick`, `source: 'auto'`, actor `0` |
+| Press Kick on the card                                                                        | Existing `kick`                                                                              |
+| Press Ban on the card                                                                         | Existing `ban`                                                                               |
+| See the card in the bound chat                                                                | Whoever is in that chat, same as `!report`                                                   |
+| See the queued row in the miniapp                                                             | Any staff, same as `GET /reports`                                                            |
 
 ## Observability
 
@@ -759,15 +759,15 @@ Always log state changes: connect, disconnect reason, pure or PB refusal (key mi
 
 Audit rows:
 
-| action | when |
-|---|---|
-| `watch_settings` | settings change |
-| `watch_private_slot` | `sv_privateclients` raised or restored, no secret |
-| `watch_private_password_shown` | owner asked to see it, private chat, no secret in the row |
-| `watch_cvar_mismatch` | read-back after `setCvar` did not match; no secret |
-| `watch_flag` / `watch_report` | a card was sent |
-| `watch_kick` | automatic kick |
-| `watch_kick_suppressed` | parent refused (`gone`, `ambiguous_slot`, `guid0`, `no_name`, `no_clientkick`, `shared_ip`, `cooldown`, `card_cap`, …). No second RCON command was sent |
+| action                         | when                                                                                                                                                    |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `watch_settings`               | settings change                                                                                                                                         |
+| `watch_private_slot`           | `sv_privateclients` raised or restored, no secret                                                                                                       |
+| `watch_private_password_shown` | owner asked to see it, private chat, no secret in the row                                                                                               |
+| `watch_cvar_mismatch`          | read-back after `setCvar` did not match; no secret                                                                                                      |
+| `watch_flag` / `watch_report`  | a card was sent                                                                                                                                         |
+| `watch_kick`                   | automatic kick                                                                                                                                          |
+| `watch_kick_suppressed`        | parent refused (`gone`, `ambiguous_slot`, `guid0`, `no_name`, `no_clientkick`, `shared_ip`, `cooldown`, `card_cap`, …). No second RCON command was sent |
 
 The clock is `watch_evidence`, not `audit_log` and not process memory. A flag, report, or kick evidence row starts `cooldownMs`. `cardsThisHour` counts those three actions. `kickedThisHour` counts `action = kick`. A `suppressed` row, including reason `cooldown`, is not a card, does not count toward either cap, and does not move the clock. The audit row is the staff-facing copy of the same decision. A `docker stop -t 30` does not re-arm the caps.
 
@@ -811,22 +811,22 @@ The owner chose each of these on 2026-11-08. The body already matched them. Each
 
 ## Risks
 
-| Risk | Severity | Mitigation |
-|---|---|---|
-| Protocol 115 and 118 layouts differ; spike cannot find angles | High | Spike note is a gate. No tracker PR merges until it lists which features exist. No guessed offsets |
-| `sv_pure 1` rejects a client with no IWD set. Dev cfg sets it. CTF is unverified and likely pure | High | No checksum echo. Record the rejection before `sv_pure 0`. Headless supervisor connects only when `getstatus` `sv_pure` is `0`. Otherwise the real client is the collector |
-| PunkBuster, or a missing `sv_punkbuster` key, kicks the headless client | High until measured | `getstatus` only. Missing or not `0` does not connect and does not retry. Dev Compose forces `0`; the spike must show the key |
-| Spectate cvars hide enemies (`scr_spectatefree 0`, `scr_spectateenemy 0`, killcam off) or a private body sits at spawn | High for the score, medium for connectivity | Spike counts enemies across the map. Spawn-only does not confirm snap. Private join is not the first CTF connect |
-| False kick, including a reused slot after a 10s RCON wait, or `kick <slot>` after an unknown `clientkick` | High impact | Kick off by default. Death-ended lives only. Exactly one non-zero GUID row, or exactly one `ip:` row. Parent-loaded self baseline. `slotOnly` sends only `clientkick`. `n >= 5000` per feature, 2 kicks/hour |
-| Flag cards flood the admin chat | Medium | Cooldown starts on flag, report, and kick. `maxCardsPerHour` 10. Both counted from `watch_evidence` |
-| Shared NAT mixes two humans on `ip:`, or an `hwid:` profile with GUID 0 is matched by IP | High for kick, medium for flags | `ip:` kicks only when `distinctNames24h === 1` and exactly one status row has that IP. Zero names also suppress. `hwid:` and `guid:` kick only on exactly one non-zero GUID row. No IP fallback |
-| `dumpuser` load on an already lossy RCON path | Medium | One identity command per second, piggyback on the 10s sweep, best-effort |
-| Child bug, or a detached child left behind | Medium | Spawn with pipes, not `update-apply.ts`. Parent kills the process group. Watch migrate failure does not kill the bot |
-| Parser allocates from a hostile length | Medium | Caps, fixture tests, fuzz on captured packets plus truncated copies |
-| Private password rotated, or a raised slot left behind on rollback | Medium | Generate `sv_privatepassword` only when the current value is empty. Never replace a non-empty password. Dedicated column. Read-back is a separate `rcon(name)`. `enabled: false` restores the clients count and a password we generated |
-| Players votekick the bot, reconnect looks like a flood | Low | 30s cap, one connection, disclosed name |
-| `reports` queue fills with watch rows | Low | `flag` does not queue. Collapse includes `origin`. Card cap applies |
-| An AI connection is granted `watch.manage` | Medium | Id is not in `MCP_PERMISSIONS`. Owner-sticky, same as `update` |
+| Risk                                                                                                                   | Severity                                    | Mitigation                                                                                                                                                                                                                              |
+| ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Protocol 115 and 118 layouts differ; spike cannot find angles                                                          | High                                        | Spike note is a gate. No tracker PR merges until it lists which features exist. No guessed offsets                                                                                                                                      |
+| `sv_pure 1` rejects a client with no IWD set. Dev cfg sets it. CTF is unverified and likely pure                       | High                                        | No checksum echo. Record the rejection before `sv_pure 0`. Headless supervisor connects only when `getstatus` `sv_pure` is `0`. Otherwise the real client is the collector                                                              |
+| PunkBuster, or a missing `sv_punkbuster` key, kicks the headless client                                                | High until measured                         | `getstatus` only. Missing or not `0` does not connect and does not retry. Dev Compose forces `0`; the spike must show the key                                                                                                           |
+| Spectate cvars hide enemies (`scr_spectatefree 0`, `scr_spectateenemy 0`, killcam off) or a private body sits at spawn | High for the score, medium for connectivity | Spike counts enemies across the map. Spawn-only does not confirm snap. Private join is not the first CTF connect                                                                                                                        |
+| False kick, including a reused slot after a 10s RCON wait, or `kick <slot>` after an unknown `clientkick`              | High impact                                 | Kick off by default. Death-ended lives only. Exactly one non-zero GUID row, or exactly one `ip:` row. Parent-loaded self baseline. `slotOnly` sends only `clientkick`. `n >= 5000` per feature, 2 kicks/hour                            |
+| Flag cards flood the admin chat                                                                                        | Medium                                      | Cooldown starts on flag, report, and kick. `maxCardsPerHour` 10. Both counted from `watch_evidence`                                                                                                                                     |
+| Shared NAT mixes two humans on `ip:`, or an `hwid:` profile with GUID 0 is matched by IP                               | High for kick, medium for flags             | `ip:` kicks only when `distinctNames24h === 1` and exactly one status row has that IP. Zero names also suppress. `hwid:` and `guid:` kick only on exactly one non-zero GUID row. No IP fallback                                         |
+| `dumpuser` load on an already lossy RCON path                                                                          | Medium                                      | One identity command per second, piggyback on the 10s sweep, best-effort                                                                                                                                                                |
+| Child bug, or a detached child left behind                                                                             | Medium                                      | Spawn with pipes, not `update-apply.ts`. Parent kills the process group. Watch migrate failure does not kill the bot                                                                                                                    |
+| Parser allocates from a hostile length                                                                                 | Medium                                      | Caps, fixture tests, fuzz on captured packets plus truncated copies                                                                                                                                                                     |
+| Private password rotated, or a raised slot left behind on rollback                                                     | Medium                                      | Generate `sv_privatepassword` only when the current value is empty. Never replace a non-empty password. Dedicated column. Read-back is a separate `rcon(name)`. `enabled: false` restores the clients count and a password we generated |
+| Players votekick the bot, reconnect looks like a flood                                                                 | Low                                         | 30s cap, one connection, disclosed name                                                                                                                                                                                                 |
+| `reports` queue fills with watch rows                                                                                  | Low                                         | `flag` does not queue. Collapse includes `origin`. Card cap applies                                                                                                                                                                     |
+| An AI connection is granted `watch.manage`                                                                             | Medium                                      | Id is not in `MCP_PERMISSIONS`. Owner-sticky, same as `update`                                                                                                                                                                          |
 
 ## Test Plan
 
@@ -860,21 +860,21 @@ CI never opens the game port.
 
 Not run. This table stays empty until the protocol spike is run. PR 2 appends the spectator results here, in the design, not only in a PR description. PR 3 does not merge until this section lists which of `snapOnAcquire` and `firedWhileLookingAway` exist on that spectator run, the enemy-visible counts, and the pure and PunkBuster results. The private-slot row is not part of that gate. If spectators are refused or see nobody, `confirmedAimFeatures` stays 0 until a later dev-only private-slot step, and PR 3 still may merge for features the note says do not exist: it must not score them, and kick cannot arm.
 
-| Field | Result |
-|---|---|
-| Date | |
-| Target | `127.0.0.1:28960`, Compose service `cod2_server` |
-| `protocol` from `getstatus` | |
-| `sv_fps` | |
-| Received snap interval | |
-| `sv_punkbuster` from `getstatus` | |
-| `sv_pure` from `getstatus`, before anyone changes it | |
-| Pure rejection text, verbatim, still at `sv_pure 1` | |
-| Parser run after a local `sv_pure 0` | not evidence for CTF |
-| Spectator accepted? Enemy count across the map? | |
-| Private-slot body at spawn: entities seen | empty. A later dev-only step fills this only if spectators are refused or see nobody. PR 2 does not reserve a slot. PR 3 is not blocked on this row |
-| `confirmedAimFeatures` | 0, 1, or 2 |
-| Weapon id present? | if no, population key stays `all` |
+| Field                                                | Result                                                                                                                                              |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Date                                                 |                                                                                                                                                     |
+| Target                                               | `127.0.0.1:28960`, Compose service `cod2_server`                                                                                                    |
+| `protocol` from `getstatus`                          |                                                                                                                                                     |
+| `sv_fps`                                             |                                                                                                                                                     |
+| Received snap interval                               |                                                                                                                                                     |
+| `sv_punkbuster` from `getstatus`                     |                                                                                                                                                     |
+| `sv_pure` from `getstatus`, before anyone changes it |                                                                                                                                                     |
+| Pure rejection text, verbatim, still at `sv_pure 1`  |                                                                                                                                                     |
+| Parser run after a local `sv_pure 0`                 | not evidence for CTF                                                                                                                                |
+| Spectator accepted? Enemy count across the map?      |                                                                                                                                                     |
+| Private-slot body at spawn: entities seen            | empty. A later dev-only step fills this only if spectators are refused or see nobody. PR 2 does not reserve a slot. PR 3 is not blocked on this row |
+| `confirmedAimFeatures`                               | 0, 1, or 2                                                                                                                                          |
+| Weapon id present?                                   | if no, population key stays `all`                                                                                                                   |
 
 ## PR Plan
 
