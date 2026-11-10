@@ -92,7 +92,8 @@ export interface LifeScore {
 }
 
 export interface PolicyInput {
-  mode: 'flag' | 'report' | 'kick';
+  /** `off` is accepted so a forwarded settings mode cannot fall through to kick. */
+  mode: 'off' | 'flag' | 'report' | 'kick';
   endReason: LifeEnd;
   lifeScore: number;
   featuresOverFlag: number;

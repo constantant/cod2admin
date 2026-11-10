@@ -5,6 +5,8 @@ const MIN_ANGLES_BEFORE_ACQUIRE = 4;
 const LOOKING_AWAY_DEGREES = 30;
 const SPEED_OVER_G = 1.5;
 const SPEED_RUN_MS = 1000;
+/** Spike snap interval. A slower server splits real runs until this is raised. */
+const SNAP_INTERVAL_MS = 51;
 
 interface Vec3 {
   x: number;
@@ -19,16 +21,14 @@ interface AngleSample {
   order: number;
 }
 
-interface OpenLife {
-  samples: Sample[];
-}
-
 /**
  * Per-slot lives for one map. A map change is a new tracker; this one does not rename the map.
  * No socket.
  */
 export class LifeTracker {
-  private readonly lives = new Map<number, OpenLife>();
+  private readonly lives = new Map<number, Sample[]>();
+  /** Earliest own-entity death. Samples at or before this time still belong to that life. */
+  private readonly deathAtMs = new Map<number, number>();
 
   constructor(
     private readonly mapName: string | null,
@@ -36,33 +36,53 @@ export class LifeTracker {
   ) {}
 
   /**
-   * Updates the open life for `sample.slot`. A `death` of that slot's own entity closes the life
-   * and is the return value. Another entity dying in the snapshot does not.
+   * Updates the open life for `sample.slot`. An own-entity death stays open for the rest of
+   * that server time, so later entities in the same snapshot still count. The closed life is
+   * returned on the first later timestamp. `end` closes a life nothing followed.
    */
   push(sample: Sample): LifeFeatures | null {
-    let life = this.lives.get(sample.slot);
-    if (!life) {
-      life = { samples: [] };
-      this.lives.set(sample.slot, life);
+    const deathAt = this.deathAtMs.get(sample.slot);
+    let closed: LifeFeatures | null = null;
+    if (
+      deathAt !== undefined &&
+      Number.isFinite(sample.serverTimeMs) &&
+      sample.serverTimeMs > deathAt
+    ) {
+      closed = this.close(sample.slot, 'death');
     }
-    life.samples.push(sample);
-    // Client slot is the player entity. A death event on some other entity is not this life ending.
-    if (sample.event === 'death' && sample.entityNum === sample.slot) {
-      return this.close(sample.slot, 'death');
+    let samples = this.lives.get(sample.slot);
+    if (!samples) {
+      samples = [];
+      this.lives.set(sample.slot, samples);
     }
-    return null;
+    samples.push(sample);
+    if (
+      sample.event === 'death' &&
+      sample.entityNum === sample.slot &&
+      Number.isFinite(sample.serverTimeMs)
+    ) {
+      const prev = this.deathAtMs.get(sample.slot);
+      if (prev === undefined || sample.serverTimeMs < prev)
+        this.deathAtMs.set(sample.slot, sample.serverTimeMs);
+    }
+    return closed;
   }
 
-  /** Closes the open life. `disconnect` and `map` are not sample events. Null when nothing is open. */
+  /**
+   * Closes the open life. A death already in the samples wins over `reason`, because that
+   * life ended when the player died. Null when nothing is open.
+   */
   end(slot: number, reason: LifeEnd): LifeFeatures | null {
-    return this.close(slot, reason);
+    if (!this.lives.has(slot)) return null;
+    return this.close(slot, this.deathAtMs.has(slot) ? 'death' : reason);
   }
 
   private close(slot: number, reason: LifeEnd): LifeFeatures | null {
-    const life = this.lives.get(slot);
-    if (!life) return null;
+    const samples = this.lives.get(slot);
+    if (!samples) return null;
     this.lives.delete(slot);
-    return buildFeatures(life.samples, slot, reason, this.mapName, this.gSpeed);
+    this.deathAtMs.delete(slot);
+    return buildFeatures(samples, slot, reason, this.mapName, this.gSpeed);
   }
 }
 
@@ -80,22 +100,13 @@ function buildFeatures(
   const originAt = new Map<string, Vec3>();
 
   for (const sample of samples) {
-    if (sample.entityNum !== slot && isVec(sample.origin)) {
-      noteEnemy(firstSeen, sample.entityNum, sample.serverTimeMs);
-      originAt.set(
-        originKey(sample.entityNum, sample.serverTimeMs),
-        sample.origin,
-      );
-      enemyTimes.add(sample.serverTimeMs);
-    }
-    if (
-      (sample.event === 'hit' || sample.event === 'kill') &&
-      sample.otherEntityNum !== undefined &&
-      sample.otherEntityNum !== slot
-    ) {
-      noteEnemy(firstSeen, sample.otherEntityNum, sample.serverTimeMs);
-      enemyTimes.add(sample.serverTimeMs);
-    }
+    if (sample.entityNum === slot || !isVec(sample.origin)) continue;
+    noteEnemy(firstSeen, sample.entityNum, sample.serverTimeMs);
+    originAt.set(
+      originKey(sample.entityNum, sample.serverTimeMs),
+      sample.origin,
+    );
+    enemyTimes.add(sample.serverTimeMs);
   }
 
   const snap = snapOnAcquire(angles, firstSeen, originAt);
@@ -226,6 +237,8 @@ function hitFeatures(
         earliestDamage = dt;
     }
     if (!sample.viewangles || !isVec(sample.origin)) continue;
+    const { pitch, yaw } = sample.viewangles;
+    if (!Number.isFinite(pitch) || !Number.isFinite(yaw)) continue;
     const enemyOrigin = originAt.get(originKey(enemy, sample.serverTimeMs));
     if (!enemyOrigin) continue;
     const toward = {
@@ -233,11 +246,8 @@ function hitFeatures(
       y: enemyOrigin.y - sample.origin.y,
       z: enemyOrigin.z - sample.origin.z,
     };
-    const error = angleBetweenDeg(
-      forward(sample.viewangles.pitch, sample.viewangles.yaw),
-      toward,
-    );
-    if (error === undefined) continue;
+    const error = angleBetweenDeg(forward(pitch, yaw), toward);
+    if (error === undefined || !Number.isFinite(error)) continue;
     if (worstError === undefined || error > worstError) {
       worstError = error;
       worstEnemy = enemy;
@@ -295,38 +305,44 @@ function speedOverG(
   const limit = SPEED_OVER_G * gSpeed;
   const points: { t: number; ratio: number; above: boolean }[] = [];
   for (const sample of samples) {
-    if (
-      sample.entityNum !== slot ||
-      !isVec(sample.velocity) ||
-      !Number.isFinite(sample.serverTimeMs)
-    )
+    if (sample.entityNum !== slot || !Number.isFinite(sample.serverTimeMs))
       continue;
-    const horizontal = Math.hypot(sample.velocity.x, sample.velocity.y);
-    if (!Number.isFinite(horizontal)) continue;
-    points.push({
-      t: sample.serverTimeMs,
-      ratio: horizontal / gSpeed,
-      above: horizontal > limit,
-    });
+    let ratio = 0;
+    let above = false;
+    if (isVec(sample.velocity)) {
+      const horizontal = Math.hypot(sample.velocity.x, sample.velocity.y);
+      if (Number.isFinite(horizontal)) {
+        ratio = horizontal / gSpeed;
+        above = horizontal > limit;
+      }
+    }
+    points.push({ t: sample.serverTimeMs, ratio, above });
   }
   points.sort((a, b) => a.t - b.t);
 
   let best: number | undefined;
   let runStart = -1;
+  const finish = (end: number): void => {
+    if (runStart < 0) return;
+    const run = points.slice(runStart, end);
+    const span = run[run.length - 1].t - run[0].t;
+    if (span > SPEED_RUN_MS) {
+      let maxRatio = run[0].ratio;
+      for (const point of run)
+        if (point.ratio > maxRatio) maxRatio = point.ratio;
+      if (best === undefined || maxRatio > best) best = maxRatio;
+    }
+    runStart = -1;
+  };
   for (let i = 0; i <= points.length; i++) {
+    const gap =
+      i > 0 &&
+      i < points.length &&
+      points[i].t - points[i - 1].t > SNAP_INTERVAL_MS;
+    if (gap) finish(i);
     const above = i < points.length && points[i].above;
     if (above && runStart < 0) runStart = i;
-    if (!above && runStart >= 0) {
-      const run = points.slice(runStart, i);
-      const span = run[run.length - 1].t - run[0].t;
-      if (span > SPEED_RUN_MS) {
-        let maxRatio = run[0].ratio;
-        for (const point of run)
-          if (point.ratio > maxRatio) maxRatio = point.ratio;
-        if (best === undefined || maxRatio > best) best = maxRatio;
-      }
-      runStart = -1;
-    }
+    else if (!above) finish(i);
   }
   return best !== undefined && Number.isFinite(best) ? best : undefined;
 }
@@ -352,10 +368,13 @@ function forward(pitchDeg: number, yawDeg: number): Vec3 {
 function angleBetweenDeg(a: Vec3, b: Vec3): number | undefined {
   const am = Math.hypot(a.x, a.y, a.z);
   const bm = Math.hypot(b.x, b.y, b.z);
-  if (am === 0 || bm === 0) return undefined;
+  if (!Number.isFinite(am) || !Number.isFinite(bm) || am === 0 || bm === 0)
+    return undefined;
   const dot = (a.x * b.x + a.y * b.y + a.z * b.z) / (am * bm);
+  if (!Number.isFinite(dot)) return undefined;
   const clamped = Math.min(1, Math.max(-1, dot));
-  return (Math.acos(clamped) * 180) / Math.PI;
+  const degrees = (Math.acos(clamped) * 180) / Math.PI;
+  return Number.isFinite(degrees) ? degrees : undefined;
 }
 
 function wrap180(delta: number): number {

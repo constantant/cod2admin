@@ -50,12 +50,26 @@ export function scoreLife(
   };
 }
 
-/** First matching rule wins. `mode: 'off'` is not an input; callers in that mode only score. */
+/** First matching rule wins. Anything other than `flag`, `report`, or `kick` returns `none`. */
 export function decide(input: PolicyInput): PolicyAction {
-  const { thresholds } = input;
-  if (input.lifeScore < thresholds.flagZ || input.featuresOverFlag < 1)
+  if (input.mode !== 'flag' && input.mode !== 'report' && input.mode !== 'kick')
     return 'none';
-  if (input.cardsThisHour >= thresholds.maxCardsPerHour) return 'none';
+  const { thresholds } = input;
+  if (
+    !Number.isFinite(thresholds.flagZ) ||
+    !Number.isFinite(thresholds.kickZ) ||
+    !Number.isFinite(thresholds.minFeatureN) ||
+    !Number.isFinite(thresholds.minSelfLives) ||
+    !Number.isFinite(thresholds.kickExtremeLives) ||
+    !Number.isFinite(thresholds.kickMinSessionLives) ||
+    !Number.isFinite(thresholds.maxKicksPerHour) ||
+    !Number.isFinite(thresholds.maxCardsPerHour)
+  ) {
+    return 'none';
+  }
+  if (!(input.lifeScore >= thresholds.flagZ) || !(input.featuresOverFlag >= 1))
+    return 'none';
+  if (!(input.cardsThisHour < thresholds.maxCardsPerHour)) return 'none';
   if (input.cooldownActive) return 'none';
 
   const downgraded = input.mode === 'flag' ? 'flag' : 'report';
@@ -80,20 +94,22 @@ function kickAllowed(input: PolicyInput): boolean {
   if (input.endReason !== 'death') return false;
   if (input.confirmedAimFeatures !== 2) return false;
   if (input.aimAgreeing !== 2) return false;
-  if (input.featureN.snapOnAcquire < thresholds.minFeatureN) return false;
-  if (input.featureN.firedWhileLookingAway < thresholds.minFeatureN)
+  if (!(input.featureN.snapOnAcquire >= thresholds.minFeatureN)) return false;
+  if (!(input.featureN.firedWhileLookingAway >= thresholds.minFeatureN))
     return false;
-  if (input.selfLivesByFeature.snapOnAcquire < thresholds.minSelfLives)
+  if (!(input.selfLivesByFeature.snapOnAcquire >= thresholds.minSelfLives))
     return false;
-  if (input.selfLivesByFeature.firedWhileLookingAway < thresholds.minSelfLives)
+  if (
+    !(input.selfLivesByFeature.firedWhileLookingAway >= thresholds.minSelfLives)
+  )
     return false;
   const snapZ = input.selfZByFeature.snapOnAcquire;
   const awayZ = input.selfZByFeature.firedWhileLookingAway;
-  if (snapZ === undefined || snapZ < thresholds.kickZ) return false;
-  if (awayZ === undefined || awayZ < thresholds.kickZ) return false;
-  if (input.extremeLivesInLast5 < thresholds.kickExtremeLives) return false;
-  if (input.livesThisSession < thresholds.kickMinSessionLives) return false;
-  if (input.kickedThisHour >= thresholds.maxKicksPerHour) return false;
+  if (!(snapZ !== undefined && snapZ >= thresholds.kickZ)) return false;
+  if (!(awayZ !== undefined && awayZ >= thresholds.kickZ)) return false;
+  if (!(input.extremeLivesInLast5 >= thresholds.kickExtremeLives)) return false;
+  if (!(input.livesThisSession >= thresholds.kickMinSessionLives)) return false;
+  if (!(input.kickedThisHour < thresholds.maxKicksPerHour)) return false;
   return true;
 }
 

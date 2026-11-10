@@ -105,9 +105,8 @@ function calmLife(): LifeFeatures {
       otherEntityNum: 2,
     }),
   );
-  const life = tracker.push(sample({ serverTimeMs: 600, event: 'death' }));
-  if (!life) throw new Error('expected death to close the life');
-  return life;
+  tracker.push(sample({ serverTimeMs: 600, event: 'death' }));
+  return close(tracker);
 }
 
 function speedLife(
@@ -120,6 +119,14 @@ function speedLife(
     tracker.push(sample({ serverTimeMs, velocity: { x: vx, y: 0, z: 0 } }));
   }
   return close(tracker);
+}
+
+/** Own-entity samples at most one dev snap apart, covering `spanMs`. */
+function speedTimes(spanMs: number, step = 50): number[] {
+  const times: number[] = [];
+  for (let t = 0; t <= spanMs; t += step) times.push(t);
+  if (times[times.length - 1] !== spanMs) times.push(spanMs);
+  return times;
 }
 
 function viewErrorLife(
@@ -284,9 +291,12 @@ describe('LifeTracker', () => {
     ).toBeNull();
 
     tracker.push(sample({ slot: 2, entityNum: 2, serverTimeMs: 0 }));
-    const other = tracker.push(
-      sample({ slot: 2, entityNum: 2, serverTimeMs: 10, event: 'death' }),
-    );
+    expect(
+      tracker.push(
+        sample({ slot: 2, entityNum: 2, serverTimeMs: 10, event: 'death' }),
+      ),
+    ).toBeNull();
+    const other = tracker.end(2, 'disconnect');
     expect(other?.slot).toBe(2);
     expect(other?.endReason).toBe('death');
     expect(tracker.end(2, 'disconnect')).toBeNull();
@@ -299,21 +309,248 @@ describe('LifeTracker', () => {
   });
 
   it('records speedOverG only for a run above 1.5× the given gSpeed lasting more than a second', () => {
-    expect(speedLife(100, [0, 500, 1001], 160).speedOverG).toBeCloseTo(1.6, 5);
-    expect(speedLife(100, [0, 500, 1000], 160).speedOverG).toBeUndefined();
-    expect(speedLife(100, [0, 500, 1001], 150).speedOverG).toBeUndefined();
-    expect(speedLife(null, [0, 500, 1001], 500).speedOverG).toBeUndefined();
-    expect(speedLife(0, [0, 500, 1001], 500).speedOverG).toBeUndefined();
+    expect(speedLife(100, speedTimes(1001), 160).speedOverG).toBeCloseTo(
+      1.6,
+      5,
+    );
+    expect(speedLife(100, speedTimes(1000), 160).speedOverG).toBeUndefined();
+    expect(speedLife(100, speedTimes(1001), 150).speedOverG).toBeUndefined();
+    expect(speedLife(null, speedTimes(1001), 500).speedOverG).toBeUndefined();
+    expect(speedLife(0, speedTimes(1001), 500).speedOverG).toBeUndefined();
+    expect(speedLife(100, speedTimes(1020, 51), 160).speedOverG).toBeCloseTo(
+      1.6,
+      5,
+    );
 
     const broken = new LifeTracker('mp_toujane', 100);
-    for (const [serverTimeMs, vx] of [
-      [0, 200],
-      [500, 100],
-      [1100, 200],
-    ] as const) {
-      broken.push(sample({ serverTimeMs, velocity: { x: vx, y: 0, z: 0 } }));
+    for (const serverTimeMs of speedTimes(600)) {
+      broken.push(sample({ serverTimeMs, velocity: { x: 200, y: 0, z: 0 } }));
+    }
+    broken.push(
+      sample({ serverTimeMs: 650, velocity: { x: 100, y: 0, z: 0 } }),
+    );
+    for (let serverTimeMs = 700; serverTimeMs <= 1100; serverTimeMs += 50) {
+      broken.push(sample({ serverTimeMs, velocity: { x: 200, y: 0, z: 0 } }));
     }
     expect(close(broken).speedOverG).toBeUndefined();
+  });
+
+  it('acquires from the first origin, not from an earlier hit that only named the entity', () => {
+    const tracker = new LifeTracker('mp_toujane', null);
+    for (const serverTimeMs of [500, 600, 700, 800]) {
+      tracker.push(
+        sample({
+          serverTimeMs,
+          origin: { x: 0, y: 0, z: 0 },
+          viewangles: { pitch: 0, yaw: 90 },
+        }),
+      );
+    }
+    tracker.push(
+      sample({
+        serverTimeMs: 900,
+        origin: { x: 0, y: 0, z: 0 },
+        viewangles: { pitch: 0, yaw: 90 },
+        event: 'hit',
+        otherEntityNum: 2,
+      }),
+    );
+    tracker.push(
+      sample({
+        serverTimeMs: 1000,
+        entityNum: 2,
+        origin: { x: 100, y: 0, z: 0 },
+      }),
+    );
+    tracker.push(
+      sample({
+        serverTimeMs: 1000,
+        origin: { x: 0, y: 0, z: 0 },
+        viewangles: { pitch: 0, yaw: 0 },
+      }),
+    );
+    tracker.push(
+      sample({
+        serverTimeMs: 1500,
+        entityNum: 2,
+        origin: { x: 100, y: 0, z: 0 },
+      }),
+    );
+    tracker.push(
+      sample({
+        serverTimeMs: 1500,
+        origin: { x: 0, y: 0, z: 0 },
+        viewangles: { pitch: 0, yaw: 180 },
+        event: 'kill',
+        otherEntityNum: 2,
+      }),
+    );
+
+    const life = close(tracker);
+    expect(life.snapOnAcquire).toBeCloseTo(90, 5);
+    expect(life.timeToDamageMs).toBe(500);
+
+    const reversed = new LifeTracker('mp_toujane', null);
+    for (const serverTimeMs of [500, 600, 700, 800]) {
+      reversed.push(
+        sample({
+          serverTimeMs,
+          origin: { x: 0, y: 0, z: 0 },
+          viewangles: { pitch: 0, yaw: 90 },
+        }),
+      );
+    }
+    reversed.push(
+      sample({
+        serverTimeMs: 1000,
+        entityNum: 2,
+        origin: { x: 100, y: 0, z: 0 },
+      }),
+    );
+    reversed.push(
+      sample({
+        serverTimeMs: 1000,
+        origin: { x: 0, y: 0, z: 0 },
+        viewangles: { pitch: 0, yaw: 0 },
+      }),
+    );
+    reversed.push(
+      sample({
+        serverTimeMs: 900,
+        event: 'hit',
+        otherEntityNum: 2,
+      }),
+    );
+    expect(close(reversed).snapOnAcquire).toBeCloseTo(90, 5);
+  });
+
+  it('keeps same-tick samples that arrive after the death on that life', () => {
+    const tracker = new LifeTracker('mp_toujane', null);
+    for (const serverTimeMs of [500, 600, 700, 800]) {
+      tracker.push(
+        sample({
+          serverTimeMs,
+          origin: { x: 0, y: 0, z: 0 },
+          viewangles: { pitch: 0, yaw: 90 },
+        }),
+      );
+    }
+    expect(
+      tracker.push(
+        sample({
+          serverTimeMs: 1000,
+          origin: { x: 0, y: 0, z: 0 },
+          viewangles: { pitch: 0, yaw: 180 },
+          event: 'death',
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      tracker.push(
+        sample({
+          serverTimeMs: 1000,
+          entityNum: 2,
+          origin: { x: 100, y: 0, z: 0 },
+        }),
+      ),
+    ).toBeNull();
+
+    const closed = tracker.push(
+      sample({
+        serverTimeMs: 1100,
+        origin: { x: 1, y: 0, z: 0 },
+        viewangles: { pitch: 0, yaw: 0 },
+      }),
+    );
+    expect(closed?.endReason).toBe('death');
+    expect(closed?.snapOnAcquire).toBeCloseTo(90, 5);
+
+    const next = tracker.end(1, 'map');
+    expect(next?.endReason).toBe('map');
+    expect(next?.snapOnAcquire).toBeUndefined();
+  });
+
+  it('ignores a non-finite hit angle and still records a later finite one', () => {
+    const tracker = new LifeTracker('mp_toujane', null);
+    tracker.push(
+      sample({
+        serverTimeMs: 0,
+        entityNum: 2,
+        origin: { x: -100, y: 0, z: 0 },
+      }),
+    );
+    tracker.push(
+      sample({
+        serverTimeMs: 0,
+        origin: { x: 0, y: 0, z: 0 },
+        viewangles: { pitch: Number.NaN, yaw: 0 },
+        event: 'hit',
+        otherEntityNum: 2,
+      }),
+    );
+    tracker.push(
+      sample({
+        serverTimeMs: 100,
+        entityNum: 2,
+        origin: { x: -100, y: 0, z: 0 },
+      }),
+    );
+    tracker.push(
+      sample({
+        serverTimeMs: 100,
+        origin: { x: 0, y: 0, z: 0 },
+        viewangles: { pitch: 0, yaw: 0 },
+        event: 'kill',
+        otherEntityNum: 2,
+      }),
+    );
+
+    const life = close(tracker);
+    expect(life.viewErrorAtHit).toBeCloseTo(180, 5);
+    expect(life.firedWhileLookingAway).toBeCloseTo(180, 5);
+  });
+
+  it('does not join a speed run across a missing velocity or a dropped snapshot', () => {
+    const missingVelocity = new LifeTracker('mp_toujane', 100);
+    missingVelocity.push(
+      sample({ serverTimeMs: 0, velocity: { x: 200, y: 0, z: 0 } }),
+    );
+    missingVelocity.push(
+      sample({ serverTimeMs: 500, origin: { x: 0, y: 0, z: 0 } }),
+    );
+    missingVelocity.push(
+      sample({ serverTimeMs: 5000, velocity: { x: 200, y: 0, z: 0 } }),
+    );
+    expect(close(missingVelocity).speedOverG).toBeUndefined();
+
+    const dropped = new LifeTracker('mp_toujane', 100);
+    dropped.push(sample({ serverTimeMs: 0, velocity: { x: 200, y: 0, z: 0 } }));
+    dropped.push(
+      sample({ serverTimeMs: 5000, velocity: { x: 200, y: 0, z: 0 } }),
+    );
+    expect(close(dropped).speedOverG).toBeUndefined();
+
+    const gapped = new LifeTracker('mp_toujane', 100);
+    for (const serverTimeMs of speedTimes(1000)) {
+      gapped.push(sample({ serverTimeMs, velocity: { x: 160, y: 0, z: 0 } }));
+    }
+    gapped.push(
+      sample({ serverTimeMs: 1052, velocity: { x: 160, y: 0, z: 0 } }),
+    );
+    expect(close(gapped).speedOverG).toBeUndefined();
+
+    const sameTickHole = new LifeTracker('mp_toujane', 100);
+    for (const serverTimeMs of speedTimes(1100)) {
+      sameTickHole.push(
+        sample({ serverTimeMs, velocity: { x: 200, y: 0, z: 0 } }),
+      );
+      if (serverTimeMs === 500) {
+        sameTickHole.push(
+          sample({ serverTimeMs, origin: { x: 1, y: 0, z: 0 } }),
+        );
+      }
+    }
+    expect(close(sameTickHole).speedOverG).toBeUndefined();
   });
 
   it('returns a null map name when the tracker was not given one', () => {
@@ -416,7 +653,7 @@ describe('scoreLife', () => {
   });
 
   it('does not let speed count as aim, including when it is the only high z', () => {
-    const life = speedLife(100, [0, 500, 1100], 200);
+    const life = speedLife(100, speedTimes(1100), 200);
     expect(life.speedOverG).toBeCloseTo(2, 5);
 
     const onlySpeed = scoreLife(life, {
@@ -461,7 +698,7 @@ describe('scoreLife', () => {
   });
 
   it('stores a raw feature below n 30 or with no spread and does not score it', () => {
-    const life = speedLife(100, [0, 500, 1100], 200);
+    const life = speedLife(100, speedTimes(1100), 200);
     const belowN = scoreLife(life, {
       confirmedAimFeatures: 2,
       thresholds: DEFAULT_WATCH_THRESHOLDS,
@@ -608,6 +845,67 @@ describe('decide', () => {
   it('does not kick when the hourly kick cap is already spent', () => {
     expect(decide(kickInput({ kickedThisHour: 2 }))).toBe('report');
     expect(decide(kickInput({ kickedThisHour: 1 }))).toBe('kick');
+  });
+
+  it('returns none for mode off, a non-finite threshold, or a non-finite kick count', () => {
+    expect(decide(kickInput({ mode: 'off' }))).toBe('none');
+    expect(decide(kickInput({ mode: 'auto' as PolicyInput['mode'] }))).toBe(
+      'none',
+    );
+    expect(
+      decide(
+        kickInput({
+          thresholds: { ...DEFAULT_WATCH_THRESHOLDS, flagZ: Number.NaN },
+        }),
+      ),
+    ).toBe('none');
+    expect(
+      decide(
+        kickInput({
+          mode: 'flag',
+          thresholds: {
+            ...DEFAULT_WATCH_THRESHOLDS,
+            kickZ: null as unknown as number,
+          },
+        }),
+      ),
+    ).toBe('none');
+    expect(
+      decide(
+        kickInput({
+          thresholds: {
+            ...DEFAULT_WATCH_THRESHOLDS,
+            minSelfLives: Number.NaN,
+          },
+          selfLivesByFeature: { snapOnAcquire: 0, firedWhileLookingAway: 0 },
+          featureN: { snapOnAcquire: 0, firedWhileLookingAway: 0 },
+          extremeLivesInLast5: 0,
+          livesThisSession: 0,
+          kickedThisHour: 99,
+        }),
+      ),
+    ).toBe('none');
+    expect(
+      decide(
+        kickInput({
+          selfZByFeature: {
+            snapOnAcquire: Number.NaN,
+            firedWhileLookingAway: 6,
+          },
+        }),
+      ),
+    ).toBe('report');
+    expect(
+      decide(
+        kickInput({
+          featureN: { snapOnAcquire: Number.NaN, firedWhileLookingAway: 5000 },
+        }),
+      ),
+    ).toBe('report');
+    expect(decide(kickInput({ kickedThisHour: Number.NaN }))).toBe('report');
+    expect(decide(kickInput({ extremeLivesInLast5: Number.NaN }))).toBe(
+      'report',
+    );
   });
 
   it('returns none when the score is under flagZ or no feature cleared it', () => {
