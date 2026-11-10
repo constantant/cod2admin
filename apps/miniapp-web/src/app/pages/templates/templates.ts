@@ -19,6 +19,7 @@ import { T } from '../../shared/i18n';
 
 const LABEL: Record<ChatTemplateLineDto['id'], string> = {
   kick: 'Kick',
+  watch_kick: 'Watch kick',
   ban: 'Ban',
   tempban: 'Temp ban',
   vpn_kick: 'VPN kick',

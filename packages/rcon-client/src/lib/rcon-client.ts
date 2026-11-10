@@ -32,7 +32,7 @@ const DEFAULT_MAP_REPLY_TIMEOUT_MS = 3000;
 const KICK_FAILURE_PATTERN = /^Usage:|is not on the server/i;
 // A build that has no `clientkick` says so; anything else (including an empty
 // success, or "client is not active") must not fall through to a name kick.
-const UNKNOWN_COMMAND_PATTERN = /unknown command|unknown cmd/i;
+export const UNKNOWN_COMMAND_PATTERN = /unknown command|unknown cmd/i;
 // Quake `Info_Print` pads each userinfo key out to this column, then the value.
 const INFO_PRINT_WIDTH = 20;
 
@@ -244,7 +244,8 @@ export class RconClient {
    * the raw name, color codes included. The name `status` parsing keeps has those codes removed,
    * so a colored name is never dropped and a GUID-0 ban (the game will not drop those itself)
    * leaves him in the server. `nameIfSlot` is used only when this build answers that `clientkick`
-   * is an unknown command.
+   * is an unknown command. `slotOnly` returns that reply instead: `kick <slot>` does not drop
+   * the player, and after a slow round trip the slot may be someone else. Watch kicks set it.
    *
    * A string argument is a name. Confirmed on a real server: plain ASCII names tokenize unquoted,
    * but a name containing non-ASCII bytes (Cyrillic) only resolves when quoted. The opposite
@@ -254,10 +255,11 @@ export class RconClient {
   async kick(
     clientIdOrName: string | number,
     nameIfSlot?: string,
+    options?: { slotOnly?: boolean },
   ): Promise<string> {
     if (typeof clientIdOrName === 'number') {
       const bySlot = await this.rcon(`clientkick ${clientIdOrName}`);
-      if (!UNKNOWN_COMMAND_PATTERN.test(bySlot)) {
+      if (!UNKNOWN_COMMAND_PATTERN.test(bySlot) || options?.slotOnly) {
         return bySlot;
       }
       if (nameIfSlot) {

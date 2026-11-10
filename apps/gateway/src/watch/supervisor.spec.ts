@@ -15,6 +15,7 @@ import type {
   PopulationMoments,
   RecordEvidenceInput,
   RecordLifeInput,
+  WatchIdentityKind,
   WatchProfile,
   WatchStore,
 } from '@cod2admin/watch-store';
@@ -24,6 +25,10 @@ import {
   createFakeAdminStore,
   type FakeAdminStore,
 } from '../lib/testing/fake-admin-store.js';
+import {
+  createFakeBanStore,
+  type FakeBanStore,
+} from '../lib/testing/fake-ban-store.js';
 import { createFakeRcon, type FakeRcon } from '../lib/testing/fake-rcon.js';
 import { createWatchChild } from './child.js';
 import {
@@ -66,10 +71,13 @@ interface Memory {
   profiles: Map<string, WatchProfile>;
   moments: Map<string, PopulationMoments>;
   populationReads: () => number;
+  /** `distinctNames24h`. Default 1. */
+  nameCount: { value: number };
 }
 
 interface Draft {
   adminStore: FakeAdminStore;
+  banStore: FakeBanStore;
   rcon: FakeRcon;
   rcons: Map<string, FakeRcon>;
   servers: ServerConfig[];
@@ -80,6 +88,7 @@ interface Draft {
   warnings: string[];
   antiSpam: ReportAntiSpam<string>;
   exit: ReturnType<typeof vi.spyOn>;
+  nowMs: number;
 }
 
 const stopped: WatchSupervisor[] = [];
@@ -223,55 +232,219 @@ describe('watch supervisor', () => {
 
   it('does not call rcon.kick when a kick-shaped life is in flag mode', async () => {
     const { draft, supervisor } = await armed('flag');
-    await feed(supervisor, draft, kickLife());
+    await feed(supervisor, draft, kickLife({ endedAtMs: NOW - 1000 }));
     expect(draft.rcon.kick).not.toHaveBeenCalled();
     expect(draft.memory.evidence.map((row) => row.action)).toEqual(['flag']);
+    expect(draft.cards.some((text) => text.includes('flagged Cheater'))).toBe(
+      true,
+    );
     expect(draft.adminStore.recordReport).not.toHaveBeenCalled();
   });
 
-  it('audits a kick decision and does not call rcon.kick', async () => {
-    const { draft, supervisor } = await armed('kick');
-    await feed(supervisor, draft, kickLife({ selfLives: 8 }));
-    expect(draft.rcon.kick).not.toHaveBeenCalled();
-    expect(
-      draft.memory.evidence.map((row) => [row.action, row.reason]),
-    ).toEqual([['suppressed', 'kick']]);
+  it('sends one clientkick when one fresh guid row matches', async () => {
+    let status: FakeRcon['status'] | undefined;
+    const { draft, supervisor } = await armed('kick', {
+      prepare(ready) {
+        status = ready.rcon.status;
+      },
+    });
+    await feed(
+      supervisor,
+      draft,
+      kickLife({ selfLives: 8, endedAtMs: NOW - 1000 }),
+    );
+    expect(status).not.toHaveBeenCalled();
+    expect(draft.rcon.kick).toHaveBeenCalledTimes(1);
+    expect(draft.rcon.kick).toHaveBeenCalledWith(PLAYER.num, undefined, {
+      slotOnly: true,
+    });
+    expect(draft.rcon.say).toHaveBeenCalledWith('Cheater was kicked');
+    expect(draft.rcon.say).not.toHaveBeenCalledWith(
+      expect.stringContaining('admin'),
+    );
+    expect(draft.rcon.banClient).not.toHaveBeenCalled();
+    expect(draft.banStore.recordBan).not.toHaveBeenCalled();
+    expect(draft.banStore.recordIpBan).not.toHaveBeenCalled();
+    expect(draft.memory.evidence.map((row) => row.action)).toEqual(['kick']);
+    expect(draft.memory.lives[0]?.mapName).toBe('mp_toujane');
     expect(draft.adminStore.recordAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         actorTelegramId: 0,
-        action: 'watch_kick_suppressed',
+        action: 'watch_kick',
         source: 'auto',
+        detailJson: expect.objectContaining({
+          watch: true,
+          evidenceId: 'ev-1',
+        }),
       }),
     );
-    const detail = JSON.stringify(
-      draft.adminStore.recordAuditLog.mock.calls[0]?.[0],
-    );
+    const detail = JSON.stringify(draft.adminStore.recordAuditLog.mock.calls);
     expect(detail).not.toContain(PLAYER.ip);
-    expect(draft.adminStore.recordReport).not.toHaveBeenCalled();
-    await feed(supervisor, draft, kickLife());
+    expect(draft.adminStore.recordReport).toHaveBeenCalledWith(
+      expect.objectContaining({ origin: 'watch', targetName: 'Cheater' }),
+    );
+    expect(draft.cards.some((text) => text.includes('Already kicked.'))).toBe(
+      true,
+    );
+  });
+
+  it('does not rewrite the stored map from a later kick status', async () => {
+    const { draft, supervisor } = await armed('kick', {
+      prepare(ready) {
+        ready.rcon.status.mockImplementation(async () => {
+          ready.nowMs = NOW + 1000;
+          return {
+            raw: '',
+            mapName: 'mp_carentan',
+            players: [{ ...PLAYER, num: 9 }],
+          };
+        });
+      },
+    });
+    await feed(supervisor, draft, kickLife({ endedAtMs: NOW }));
+    expect(draft.memory.lives[0]?.mapName).toBe('mp_toujane');
+    expect(draft.rcon.kick).toHaveBeenCalledTimes(1);
+    expect(draft.rcon.kick).toHaveBeenCalledWith(9, undefined, {
+      slotOnly: true,
+    });
+  });
+
+  it('does not kick an hwid profile when the guid is 0', async () => {
+    const watched: StatusPlayer = { ...PLAYER, guid: '0' };
+    const innocent: StatusPlayer = {
+      ...PLAYER,
+      num: 5,
+      guid: 'abc',
+      name: 'Innocent',
+      ip: '198.51.100.9',
+    };
+    const { draft, supervisor } = await armed('kick', {
+      players: [watched, innocent],
+      profileKey: 'hwid:99',
+      kind: 'hwid',
+      lastGuid: 'abc',
+    });
+    draft.rcon.dumpuser = vi.fn(async () => ({ cl_hwid: '99' }));
+    await feed(
+      supervisor,
+      draft,
+      kickLife({ selfLives: 8, endedAtMs: NOW - 1000 }),
+    );
+    expect(draft.rcon.kick).not.toHaveBeenCalled();
     expect(
       draft.memory.evidence.map((row) => [row.action, row.reason]),
-    ).toEqual([
-      ['suppressed', 'kick'],
-      ['suppressed', 'kick'],
-    ]);
+    ).toEqual([['suppressed', 'guid0']]);
+    expect(
+      draft.cards.some((text) => text.includes('Kick was not sent.')),
+    ).toBe(true);
+    expect(draft.banStore.recordBan).not.toHaveBeenCalled();
+  });
+
+  it('does not kick when two status rows share an ip', async () => {
+    const ip = PLAYER.ip ?? '';
+    const { draft, supervisor } = await armed('kick', {
+      players: [
+        { ...PLAYER, guid: '0', ip },
+        { ...PLAYER, num: 5, guid: '0', name: 'Other', ip },
+      ],
+      profileKey: `ip:${ip}`,
+      kind: 'ip',
+      lastGuid: null,
+      names: 1,
+    });
+    await feed(
+      supervisor,
+      draft,
+      kickLife({ selfLives: 8, endedAtMs: NOW - 1000 }),
+    );
+    expect(draft.rcon.kick).not.toHaveBeenCalled();
+    expect(
+      draft.memory.evidence.map((row) => [row.action, row.reason]),
+    ).toEqual([['suppressed', 'ambiguous_slot']]);
+    const detail = JSON.stringify(draft.adminStore.recordAuditLog.mock.calls);
+    expect(detail).not.toContain(ip);
+    expect(
+      draft.cards.some((text) => text.includes('Kick was not sent.')),
+    ).toBe(true);
     const caps = await draft.memory.store.loadCaps({
       serverAlias: 'default',
-      profileKey: 'guid:abc',
+      profileKey: `ip:${ip}`,
       now: new Date(NOW),
       cooldownMs: 30 * 60 * 1000,
     });
     expect(caps.cardsThisHour).toBe(0);
     expect(caps.cooldownActive).toBe(false);
-    expect(draft.rcon.kick).not.toHaveBeenCalled();
   });
+
+  it('does not kick an ip profile when no name was stored', async () => {
+    const ip = PLAYER.ip ?? '';
+    const { draft, supervisor } = await armed('kick', {
+      players: [{ ...PLAYER, guid: '0', ip }],
+      profileKey: `ip:${ip}`,
+      kind: 'ip',
+      lastGuid: null,
+      names: 0,
+    });
+    await feed(
+      supervisor,
+      draft,
+      kickLife({ selfLives: 8, endedAtMs: NOW - 1000 }),
+    );
+    expect(draft.rcon.kick).not.toHaveBeenCalled();
+    expect(draft.memory.evidence.map((row) => row.action)).toEqual(['report']);
+  });
+
+  it('does not say or send kick <slot> when clientkick is unknown', async () => {
+    const { draft, supervisor } = await armed('kick');
+    draft.rcon.kick.mockResolvedValue('Unknown command "clientkick"');
+    await feed(
+      supervisor,
+      draft,
+      kickLife({ selfLives: 8, endedAtMs: NOW - 1000 }),
+    );
+    expect(draft.rcon.kick).toHaveBeenCalledTimes(1);
+    expect(draft.rcon.kick).toHaveBeenCalledWith(PLAYER.num, undefined, {
+      slotOnly: true,
+    });
+    expect(draft.rcon.say).not.toHaveBeenCalled();
+    expect(draft.rcon.banClient).not.toHaveBeenCalled();
+    expect(
+      draft.memory.evidence.map((row) => [row.action, row.reason]),
+    ).toEqual([['suppressed', 'no_clientkick']]);
+    expect(draft.adminStore.recordAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'watch_kick_suppressed' }),
+    );
+    expect(draft.adminStore.recordAuditLog).not.toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'watch_kick' }),
+    );
+    expect(
+      draft.cards.some((text) => text.includes('Kick was not sent.')),
+    ).toBe(true);
+  });
+
+  it.each(['map', 'disconnect'] as const)(
+    'does not kick a life that ended by %s',
+    async (endReason) => {
+      const { draft, supervisor } = await armed('kick');
+      await feed(
+        supervisor,
+        draft,
+        kickLife({ endReason, endedAtMs: NOW - 1000 }),
+      );
+      expect(draft.rcon.kick).not.toHaveBeenCalled();
+    },
+  );
 
   it('ignores an IPC selfLives claim when the stored count is 0', async () => {
     const { draft, supervisor } = await armed('kick');
     draft.memory.profiles.clear();
-    await feed(supervisor, draft, kickLife({ selfLives: 8 }));
+    await feed(
+      supervisor,
+      draft,
+      kickLife({ selfLives: 8, endedAtMs: NOW - 1000 }),
+    );
     expect(draft.rcon.kick).not.toHaveBeenCalled();
-    expect(draft.memory.evidence.some((row) => row.reason === 'kick')).toBe(
+    expect(draft.memory.evidence.some((row) => row.action === 'kick')).toBe(
       false,
     );
   });
@@ -604,7 +777,18 @@ describe('watch supervisor', () => {
   });
 });
 
-async function armed(mode: 'flag' | 'kick'): Promise<{
+async function armed(
+  mode: 'flag' | 'kick',
+  setup: {
+    players?: StatusPlayer[];
+    profileKey?: string;
+    kind?: WatchIdentityKind;
+    lastGuid?: string | null;
+    names?: number;
+    /** Before boot: observeStatus replaces `rcon.status` with a wrapper. */
+    prepare?: (draft: Draft) => void;
+  } = {},
+): Promise<{
   draft: Draft;
   supervisor: WatchSupervisor;
 }> {
@@ -624,26 +808,33 @@ async function armed(mode: 'flag' | 'kick'): Promise<{
   draft.memory.moments.set('snapOnAcquire', wide);
   draft.memory.moments.set('firedWhileLookingAway', wide);
   const self = { n: 8, mean: 0, m2: 7 };
-  draft.memory.profiles.set('guid:abc', {
+  const profileKey = setup.profileKey ?? 'guid:abc';
+  const kind = setup.kind ?? 'guid';
+  draft.memory.nameCount.value = setup.names ?? 1;
+  draft.memory.profiles.set(profileKey, {
     serverAlias: 'default',
-    profileKey: 'guid:abc',
-    kind: 'guid',
+    profileKey,
+    kind,
     displayName: 'Cheater',
-    lastGuid: 'abc',
+    lastGuid: setup.lastGuid === undefined ? 'abc' : setup.lastGuid,
     lastIp: PLAYER.ip ?? null,
     lifeCount: 8,
     selfMoments: { snapOnAcquire: self, firedWhileLookingAway: self },
     lastSeenAt: new Date(NOW),
   });
+  setup.prepare?.(draft);
   const supervisor = await boot(draft);
-  await seen(supervisor);
+  await seen(supervisor, setup.players ?? [PLAYER]);
   return { draft, supervisor };
 }
 
-async function seen(supervisor: WatchSupervisor): Promise<void> {
+async function seen(
+  supervisor: WatchSupervisor,
+  players: StatusPlayer[] = [PLAYER],
+): Promise<void> {
   supervisor.noteStatus(
     'default',
-    { raw: '', mapName: 'mp_toujane', players: [PLAYER] },
+    { raw: '', mapName: 'mp_toujane', players },
     NOW,
   );
   await supervisor.whenIdle();
@@ -859,6 +1050,7 @@ function draftHarness(): Draft {
   });
   const draft: Draft = {
     adminStore,
+    banStore: createFakeBanStore(),
     rcon,
     rcons,
     servers,
@@ -871,6 +1063,7 @@ function draftHarness(): Draft {
     exit: vi
       .spyOn(process, 'exit')
       .mockImplementation(() => undefined as never),
+    nowMs: NOW,
   };
   drafts.push(draft);
   return draft;
@@ -889,11 +1082,12 @@ function depsFor(draft: Draft) {
   return {
     databaseUrl: 'postgres://unused',
     adminStore: draft.adminStore,
+    banStore: draft.banStore,
     rconClients: draft.rcons,
     watchStore: draft.memory.store,
     migrate: async () => undefined,
     spawn: draft.spawn,
-    now: () => NOW,
+    now: () => draft.nowMs,
     reportQueue: new ReportQueue(draft.adminStore),
     createCardSender: () => ({
       async send(_chatId: number, card: { text: string }) {
@@ -926,6 +1120,7 @@ function memoryStore(): Memory {
   const evidence: RecordEvidenceInput[] = [];
   const profiles = new Map<string, WatchProfile>();
   const moments = new Map<string, PopulationMoments>();
+  const nameCount = { value: 1 };
   let reads = 0;
   const empty = { n: 0, mean: 0, m2: 0 };
   const store: WatchStore = {
@@ -936,7 +1131,7 @@ function memoryStore(): Memory {
       return undefined;
     },
     async distinctNames24h() {
-      return 1;
+      return nameCount.value;
     },
     async getProfile(_alias, key) {
       return profiles.get(key);
@@ -1003,5 +1198,6 @@ function memoryStore(): Memory {
     profiles,
     moments,
     populationReads: () => reads,
+    nameCount,
   };
 }

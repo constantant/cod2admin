@@ -673,6 +673,65 @@ describe('RconClient', () => {
       expect(received).toEqual(['rcon secret clientkick 3']);
     });
 
+    it('sends one clientkick payload when slotOnly is set', async () => {
+      const received: string[] = [];
+      peer = await createMockPeer((payload, respond) => {
+        received.push(payload);
+        respond('print\n');
+      });
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'secret',
+      });
+
+      await client.kick(3, undefined, { slotOnly: true });
+
+      expect(received).toEqual(['rcon secret clientkick 3']);
+    });
+
+    it('does not send kick <slot> when slotOnly clientkick is unknown', async () => {
+      const received: string[] = [];
+      peer = await createMockPeer((payload, respond) => {
+        received.push(payload);
+        respond('print\nUnknown command "clientkick"\n');
+      });
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'secret',
+      });
+
+      const result = await client.kick(3, 'Cheater', { slotOnly: true });
+
+      expect(received).toEqual(['rcon secret clientkick 3']);
+      expect(result).toContain('Unknown command');
+    });
+
+    it('still sends kick <slot> when clientkick is unknown and slotOnly is not set', async () => {
+      const received: string[] = [];
+      peer = await createMockPeer((payload, respond) => {
+        received.push(payload);
+        if (payload === 'rcon secret clientkick 3') {
+          respond('print\nUnknown command "clientkick"\n');
+        } else {
+          respond('print\nPlayer 3 is not on the server\n');
+        }
+      });
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'secret',
+      });
+
+      await client.kick(3);
+
+      expect(received).toEqual([
+        'rcon secret clientkick 3',
+        'rcon secret kick 3',
+      ]);
+    });
+
     it('falls back to a name kick when the server has no clientkick', async () => {
       const received: string[] = [];
       peer = await createMockPeer((payload, respond) => {

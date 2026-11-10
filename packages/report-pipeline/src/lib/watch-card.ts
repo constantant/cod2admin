@@ -25,6 +25,8 @@ export interface MachineReport {
   queueId?: number;
   /** False: the target is gone, so the card only offers Ignore. */
   connected?: boolean;
+  /** Kick cards only. True after `clientkick` was sent. */
+  kickSent?: boolean;
 }
 
 /** Registry value for a watch card. No chat event and no anti-spam slot. */
@@ -123,8 +125,12 @@ export async function processMachineReport<TCardRef>(
     verb,
     target: report.target,
     reason: report.reason,
-    // Kick execution is a later change. This card is the review, not the drop.
-    note: report.disposition === 'kick' ? 'Kick was not sent.' : undefined,
+    note:
+      report.disposition === 'kick'
+        ? report.kickSent
+          ? 'Already kicked.'
+          : 'Kick was not sent.'
+        : undefined,
     connected: report.connected !== false,
     detailText: report.reason,
   });

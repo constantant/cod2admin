@@ -395,6 +395,8 @@ try {
   deps.watchSupervisor = await startWatchSupervisor({
     databaseUrl: config.databaseUrl,
     adminStore,
+    banStore,
+    chatTemplates,
     rconClients,
     reportQueue: deps.reportQueue,
     createCardSender: (report) =>

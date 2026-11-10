@@ -1,6 +1,10 @@
-import type { AdminStore, AuditSource } from '@cod2admin/admin-store';
+import type { AuditSource, RecordAuditLogInput } from '@cod2admin/admin-store';
 import type { BanStore } from '@cod2admin/ban-store';
-import { isBanFileSafeName, type RconClient } from '@cod2admin/rcon-client';
+import {
+  isBanFileSafeName,
+  UNKNOWN_COMMAND_PATTERN,
+  type RconClient,
+} from '@cod2admin/rcon-client';
 import { broadcastModerationAction } from './broadcast.js';
 import {
   DEFAULT_CHAT_TEMPLATES,
@@ -21,9 +25,11 @@ export interface ModerationTarget {
 
 export interface ExecuteModerationActionOptions {
   serverAlias: string;
-  rcon: RconClient;
+  rcon: Pick<RconClient, 'kick' | 'say' | 'banClient'>;
   banStore: BanStore;
-  adminStore: AdminStore;
+  adminStore: {
+    recordAuditLog(entry: RecordAuditLogInput): Promise<unknown>;
+  };
   actorTelegramId: number;
   reason?: string | null;
   source: AuditSource;
@@ -33,6 +39,20 @@ export interface ExecuteModerationActionOptions {
   detailJson?: Record<string, unknown>;
   /** The live game-chat lines. Absent in a test: the built-in text. */
   chatTemplates?: ChatTemplates;
+  /** Audit `action`. Defaults to the kind, so `/kick` stays `kick`. */
+  auditAction?: string;
+  /** Game-chat line for a kick. Defaults to the human kick line. */
+  chatTemplateId?: ChatTemplateId;
+  /**
+   * Watch only. One `clientkick <slot>`. An unknown command is not a kick:
+   * no chat line and no audit.
+   */
+  slotOnly?: boolean;
+  /**
+   * After the player is dropped and before the audit. Watch stores evidence
+   * here so the id is on the audit, and skips it when `clientkick` is unknown.
+   */
+  beforeAudit?: () => Promise<Record<string, unknown> | void>;
 }
 
 export interface ModerationActionResult {
@@ -40,6 +60,8 @@ export interface ModerationActionResult {
   label: string;
   ipFallback: boolean;
   durationMs?: number;
+  /** `slotOnly` and the server has no `clientkick`. Nothing else was sent. */
+  unknownCommand?: boolean;
 }
 
 /** Thrown when neither a usable GUID nor an IP is available — nothing left to ban by. */
@@ -59,10 +81,15 @@ function announcement(
  * on the list we just read), which has to go through `kick <name>`.
  */
 function dropPlayer(
-  rcon: RconClient,
+  rcon: Pick<RconClient, 'kick'>,
   target: ModerationTarget,
+  slotOnly: boolean,
 ): Promise<string> {
   if (target.num >= 0) {
+    if (slotOnly) {
+      // `kick <slot>` does not drop the player, and the slot may have been reused.
+      return rcon.kick(target.num, undefined, { slotOnly: true });
+    }
     return rcon.kick(target.num, target.name);
   }
   return rcon.kick(target.name);
@@ -112,9 +139,20 @@ export async function executeModerationAction(
     });
 
   if (kind === 'kick') {
-    await dropPlayer(options.rcon, target);
-    await say('kick');
-    await recordAudit('kick');
+    const reply = await dropPlayer(
+      options.rcon,
+      target,
+      options.slotOnly === true,
+    );
+    if (options.slotOnly && UNKNOWN_COMMAND_PATTERN.test(reply)) {
+      return { label: 'Not kicked', ipFallback: false, unknownCommand: true };
+    }
+    await say(options.chatTemplateId ?? 'kick');
+    const extra = options.beforeAudit ? await options.beforeAudit() : undefined;
+    await recordAudit(
+      options.auditAction ?? 'kick',
+      extra && typeof extra === 'object' ? extra : undefined,
+    );
     return { label: 'Kicked', ipFallback: false };
   }
 
@@ -132,7 +170,7 @@ export async function executeModerationAction(
       isBanFileSafeName(target.name) &&
       !(await options.rcon.banClient(target.num)).trim();
     if (!bannedNatively) {
-      await dropPlayer(options.rcon, target);
+      await dropPlayer(options.rcon, target, false);
     }
     await options.banStore.recordBan({
       serverAlias: options.serverAlias,
@@ -146,7 +184,7 @@ export async function executeModerationAction(
     // Broadcast uses a plain player-facing verb, not the (admin-facing) detailed label below —
     // players don't need "GUID unavailable" jargon in an in-game chat announcement.
     await say(kind);
-    await recordAudit(kind, { guid: target.guid });
+    await recordAudit(options.auditAction ?? kind, { guid: target.guid });
     return {
       label,
       ipFallback: false,
@@ -161,7 +199,7 @@ export async function executeModerationAction(
       `Cannot ${kind} ${target.name}: no GUID and no known IP to fall back to.`,
     );
   }
-  await dropPlayer(options.rcon, target);
+  await dropPlayer(options.rcon, target, false);
   await options.banStore.recordIpBan({
     serverAlias: options.serverAlias,
     ip: target.ip,
@@ -175,7 +213,7 @@ export async function executeModerationAction(
       ? 'IP temp-banned (GUID unavailable)'
       : 'IP-banned (GUID unavailable)';
   await say(kind);
-  await recordAudit(kind, { ip: target.ip });
+  await recordAudit(options.auditAction ?? kind, { ip: target.ip });
   return {
     label,
     ipFallback: true,

@@ -538,7 +538,14 @@ export interface KnownResponse {
 // ── Game-chat lines (/templates) ────────────────────────────────────────────────────────────
 
 export interface ChatTemplateLineDto {
-  id: 'kick' | 'ban' | 'tempban' | 'vpn_kick' | 'known_kick' | 'mute_warn';
+  id:
+    | 'kick'
+    | 'watch_kick'
+    | 'ban'
+    | 'tempban'
+    | 'vpn_kick'
+    | 'known_kick'
+    | 'mute_warn';
   channel: 'say' | 'tell';
   placeholders: string;
   text: string;

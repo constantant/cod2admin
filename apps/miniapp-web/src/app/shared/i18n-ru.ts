@@ -459,6 +459,7 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
   'Players see now': 'Сейчас игроки видят',
   'Sends nothing.': 'Ничего не отправляется.',
   'VPN kick': 'Кик за VPN',
+  'Watch kick': 'Кик наблюдателя',
   'Mute warning': 'Предупреждение о заглушении',
   'Never kicked': 'Никогда не кикать',
   'GUID or name': 'GUID или имя',

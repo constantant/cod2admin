@@ -7,6 +7,7 @@ import type {
   ServerConfig,
   ServerWatchSettings,
 } from '@cod2admin/admin-store';
+import type { BanStore } from '@cod2admin/ban-store';
 import { connectAllowed } from '@cod2admin/game-client';
 import {
   decide,
@@ -19,7 +20,11 @@ import {
   type CardSender,
   type MachineReport,
 } from '@cod2admin/report-pipeline';
-import { stripColorCodes, type ServerStatus } from '@cod2admin/rcon-client';
+import {
+  stripColorCodes,
+  type ServerStatus,
+  type StatusPlayer,
+} from '@cod2admin/rcon-client';
 import {
   createWatchStore,
   migrate as migrateWatchStore,
@@ -27,6 +32,8 @@ import {
   type WatchLifeFeatures,
   type WatchStore,
 } from '@cod2admin/watch-store';
+import type { ChatTemplates } from '../lib/chat-templates.js';
+import { executeModerationAction } from '../lib/moderation-actions.js';
 import { createPlayerIdentityResolver } from '../lib/player-identity.js';
 import {
   parseLifeMessage,
@@ -74,6 +81,13 @@ interface WatchRcon {
   status: () => Promise<ServerStatus>;
   rcon(command: string): Promise<string>;
   dumpuser?: (name: string) => Promise<Record<string, string>>;
+  kick(
+    clientIdOrName: string | number,
+    nameIfSlot?: string,
+    options?: { slotOnly?: boolean },
+  ): Promise<string>;
+  say(message: string): Promise<string>;
+  banClient(clientId: number): Promise<string>;
 }
 
 export interface WatchSupervisorDeps {
@@ -84,6 +98,9 @@ export interface WatchSupervisorDeps {
     recordAuditLog(input: RecordAuditLogInput): Promise<unknown>;
   };
   rconClients: ReadonlyMap<string, WatchRcon>;
+  banStore: BanStore;
+  /** Live game-chat lines. Absent: the built-in `{name} was kicked`. */
+  chatTemplates?: ChatTemplates;
   watchStore?: WatchStore;
   migrate?: (connectionString: string) => Promise<void>;
   createWatchStore?: (connectionString: string) => WatchStore;
@@ -865,35 +882,19 @@ class Supervisor {
       return;
     }
     if (action === 'kick') {
-      // The drop itself is a later change. A suppressed kick is not a card.
-      const evidenceId = await this.writeEvidence(
+      await this.finishKick({
         life,
+        server,
+        watch,
+        client,
         key,
-        scored.lifeScore,
-        features,
-        {
-          action: 'suppressed',
-          reason: 'kick',
-        },
-      );
-      await this.audit(
-        life.serverAlias,
-        'watch_kick_suppressed',
-        target.name,
-        'kick',
-        {
-          evidenceId,
-          lifeScore: scored.lifeScore,
-          kind,
-          ...(kind === 'ip' ? {} : { profileKey: key }),
-        },
-      );
-      await this.sendCard(server, watch, {
-        profileKey: key,
+        kind,
+        lastGuid,
+        names,
         target,
-        reason,
-        disposition: 'kick',
-        evidenceId,
+        scoreReason: reason,
+        lifeScore: scored.lifeScore,
+        features,
       });
       return;
     }
@@ -963,13 +964,194 @@ class Supervisor {
     });
   }
 
+  /**
+   * Death only, and only the slot on a status newer than the life. The map
+   * on that status is not stored: `watch_lives.map_name` was written at score time.
+   * GUID 0 does not fall through to the IP. An unknown `clientkick` sends nothing else.
+   */
+  private async finishKick(input: {
+    life: LifeMessage;
+    server: ServerConfig;
+    watch: ServerWatchSettings;
+    client: WatchRcon;
+    key: string;
+    kind: WatchIdentityKind;
+    lastGuid: string | null;
+    names: number;
+    target: MachineReport['target'];
+    scoreReason: string;
+    lifeScore: number;
+    features: WatchLifeFeatures;
+  }): Promise<void> {
+    const { life, server, watch, client, key, kind, target } = input;
+    if (life.endReason !== 'death') {
+      await this.suppressKick(input, 'not_death');
+      return;
+    }
+    const status = await this.statusForKick(
+      life.serverAlias,
+      client,
+      life.endedAtMs,
+    );
+    if (!status) {
+      await this.suppressKick(input, 'stale_status');
+      return;
+    }
+    const matched = matchKickSlot({
+      kind,
+      profileKey: key,
+      lastGuid: input.lastGuid,
+      distinctNames24h: input.names,
+      players: status.players,
+    });
+    if (!matched.ok) {
+      await this.suppressKick(input, matched.reason);
+      return;
+    }
+    const kicked: MachineReport['target'] = {
+      ...target,
+      num: matched.num,
+      name: matched.name || target.name,
+    };
+    let evidenceId = '';
+    const result = await executeModerationAction(
+      'kick',
+      {
+        num: kicked.num,
+        name: kicked.name,
+        ...(kicked.guid ? { guid: kicked.guid } : {}),
+        ...(kicked.ip ? { ip: kicked.ip } : {}),
+      },
+      {
+        serverAlias: life.serverAlias,
+        rcon: client,
+        banStore: this.deps.banStore,
+        adminStore: this.deps.adminStore,
+        actorTelegramId: 0,
+        source: 'auto',
+        reason: 'kick',
+        auditAction: 'watch_kick',
+        chatTemplateId: 'watch_kick',
+        slotOnly: true,
+        chatTemplates: this.deps.chatTemplates,
+        detailJson: { watch: true, lifeScore: input.lifeScore },
+        beforeAudit: async () => {
+          evidenceId = await this.writeEvidence(
+            life,
+            key,
+            input.lifeScore,
+            input.features,
+            { action: 'kick', reason: 'kick' },
+          );
+          return { evidenceId };
+        },
+      },
+    );
+    if (result.unknownCommand) {
+      await this.suppressKick(input, 'no_clientkick');
+      return;
+    }
+    let queueId: number | undefined;
+    if (this.deps.reportQueue) {
+      const saved = await this.deps.reportQueue.recordMachine({
+        serverAlias: life.serverAlias,
+        reporterName: watch.spectatorName,
+        targetName: kicked.name,
+        reason: input.scoreReason,
+      });
+      queueId = saved.id;
+    }
+    await this.sendCard(server, watch, {
+      profileKey: key,
+      target: kicked,
+      reason: input.scoreReason,
+      disposition: 'kick',
+      evidenceId,
+      queueId,
+      kickSent: true,
+    });
+  }
+
+  /** The card is still sent. No second RCON command. */
+  private async suppressKick(
+    input: {
+      life: LifeMessage;
+      server: ServerConfig;
+      watch: ServerWatchSettings;
+      key: string;
+      kind: WatchIdentityKind;
+      target: MachineReport['target'];
+      scoreReason: string;
+      lifeScore: number;
+      features: WatchLifeFeatures;
+    },
+    why: string,
+  ): Promise<void> {
+    const { life, key, kind, target } = input;
+    const evidenceId = await this.writeEvidence(
+      life,
+      key,
+      input.lifeScore,
+      input.features,
+      { action: 'suppressed', reason: why },
+    );
+    await this.audit(
+      life.serverAlias,
+      'watch_kick_suppressed',
+      target.name,
+      why,
+      {
+        evidenceId,
+        lifeScore: input.lifeScore,
+        kind,
+        reason: why,
+        ...(kind === 'ip' ? {} : { profileKey: key }),
+      },
+    );
+    await this.sendCard(input.server, input.watch, {
+      profileKey: key,
+      target,
+      reason: input.scoreReason,
+      disposition: 'kick',
+      evidenceId,
+      kickSent: false,
+    });
+  }
+
+  /**
+   * Slot match only. A cached row counts when it was fetched after the death.
+   * This does not write `map_name`.
+   */
+  private async statusForKick(
+    alias: string,
+    client: WatchRcon,
+    endedAtMs: number,
+  ): Promise<ServerStatus | undefined> {
+    const held = this.held.get(alias);
+    if (held && held.fetchedAt > endedAtMs) {
+      return held.status;
+    }
+    try {
+      await client.status();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'error';
+      this.log.warn(`watch: ${alias} kick status failed: ${message}`);
+      return undefined;
+    }
+    const again = this.held.get(alias);
+    if (again && again.fetchedAt > endedAtMs) {
+      return again.status;
+    }
+    return undefined;
+  }
+
   private async writeEvidence(
     life: LifeMessage,
     profileKey: string,
     lifeScore: number,
     features: WatchLifeFeatures,
     extra: {
-      action: 'flag' | 'report' | 'suppressed';
+      action: 'flag' | 'report' | 'kick' | 'suppressed';
       reason: string;
       reportId?: number | null;
     },
@@ -1126,6 +1308,50 @@ function selfZ(
   }
   const z = (value - moments.mean) / sd;
   return Number.isFinite(z) ? z : undefined;
+}
+
+type KickMatch =
+  { ok: true; num: number; name: string } | { ok: false; reason: string };
+
+/**
+ * One non-zero GUID row for `hwid:` and `guid:`. One IP row, and exactly one
+ * name in 24h, for `ip:`. GUID 0 is not matched by IP. Two rows are not a guess.
+ */
+function matchKickSlot(input: {
+  kind: WatchIdentityKind;
+  profileKey: string;
+  lastGuid: string | null;
+  distinctNames24h: number;
+  players: readonly StatusPlayer[];
+}): KickMatch {
+  if (input.kind === 'hwid' || input.kind === 'guid') {
+    const guid =
+      input.kind === 'guid'
+        ? input.profileKey.slice('guid:'.length)
+        : input.lastGuid;
+    if (!guid || guid === '0') {
+      return { ok: false, reason: 'guid0' };
+    }
+    return oneRow(
+      input.players.filter((row) => (row.guid ?? '').trim() === guid),
+    );
+  }
+  if (input.distinctNames24h === 0) {
+    return { ok: false, reason: 'no_name' };
+  }
+  if (input.distinctNames24h !== 1) {
+    return { ok: false, reason: 'shared_ip' };
+  }
+  const ip = input.profileKey.slice('ip:'.length);
+  return oneRow(input.players.filter((row) => (row.ip ?? '').trim() === ip));
+}
+
+function oneRow(rows: readonly StatusPlayer[]): KickMatch {
+  const row = rows[0];
+  if (!row || rows.length !== 1) {
+    return { ok: false, reason: rows.length === 0 ? 'gone' : 'ambiguous_slot' };
+  }
+  return { ok: true, num: row.num, name: stripColorCodes(row.name).trim() };
 }
 
 function reasonText(lifeScore: number, features: WatchLifeFeatures): string {
