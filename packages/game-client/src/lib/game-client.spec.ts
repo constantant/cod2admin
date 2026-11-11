@@ -229,40 +229,62 @@ describe('getstatus gate', () => {
   });
 });
 
-describe('zero-button keepalive', () => {
-  it('is a no-change usercmd for both even and odd keys', () => {
-    for (const checksumFeed of [0, 1]) {
-      const command = '';
-      const messageAcknowledge = 0;
+describe('jump keepalive', () => {
+  it('holds jump only, for a short time and a wide time, and for a negative key', () => {
+    const cases = [
+      { checksumFeed: 0, messageAcknowledge: 0, serverTime: 100, command: '' },
+      { checksumFeed: 1, messageAcknowledge: 0, serverTime: 100, command: '' },
+      {
+        checksumFeed: 0,
+        messageAcknowledge: 0x80000000,
+        serverTime: 100_000,
+        command: '',
+      },
+    ];
+    for (const sample of cases) {
       const key =
-        (checksumFeed ^ messageAcknowledge ^ comHashKey(command, 32)) | 0;
+        (sample.checksumFeed ^
+          sample.messageAcknowledge ^
+          comHashKey(sample.command, 32)) |
+        0;
       const packet = buildClientDatagram({
         sequence: 1,
         qport: 1,
         challenge: 0,
         serverId: 0,
-        messageAcknowledge,
+        messageAcknowledge: sample.messageAcknowledge,
         reliableAcknowledge: 0,
-        ackedServerCommand: command,
-        checksumFeed,
-        serverTime: 100,
+        ackedServerCommand: sample.command,
+        checksumFeed: sample.checksumFeed,
+        serverTime: sample.serverTime,
         commands: [],
         move: true,
       });
       const payload = packet.subarray(6);
-      const compressed = Uint8Array.from(payload.subarray(CLIENT_CLEAR_HEADER));
+      const compressed = Uint8Array.from(
+        payload.subarray(CLIENT_CLEAR_HEADER),
+      );
       const plain = huffmanDecompress(compressed, 2048);
       expect(plain.ok).toBe(true);
       if (!plain.ok) return;
       const msg = new BitMsg(plain.data);
       expect(msg.readBits(3)).toBe(CLC_MOVE_NO_DELTA);
       expect(msg.readByte()).toBe(1);
-      expect(msg.readBit()).toBe(1);
-      expect(msg.readByte()).toBe(100);
-      const wire = msg.readBit();
-      // MSG_ReadKey is the wire bit XOR (key & 1). Value 0 stops before buttons.
-      expect(wire ^ (key & 1)).toBe(0);
-      expect(wire).toBe(key & 1);
+      const serverTime =
+        msg.readBit() === 1 ? msg.readByte() : msg.readLong();
+      expect(serverTime).toBe(sample.serverTime);
+      // MSG_ReadDeltaUsercmdKey long form against a zero command.
+      expect(readKey(msg, key, 1)).toBe(1);
+      expect(readKey(msg, key, 1)).toBe(1);
+      expect(readKey(msg, key, 1)).toBe(0);
+      expect(msg.readBit()).toBe(0);
+      expect(msg.readBit()).toBe(0);
+      expect(msg.readBit()).toBe(0);
+      const keyed = (key ^ serverTime) | 0;
+      expect(msg.readBit()).toBe(0);
+      expect(readDeltaKey(msg, keyed, 0, 18)).toBe(512);
+      expect(msg.readBit()).toBe(0);
+      expect(msg.readBit()).toBe(0);
       const shift = msg.bit & 7;
       const partial = shift === 0 ? 0 : (msg.data[msg.bit >> 3] ?? 0) >> shift;
       expect(partial).toBe(0);
@@ -271,6 +293,23 @@ describe('zero-button keepalive', () => {
     }
   });
 });
+
+/** `MSG_ReadKey`: bits on the wire, then XOR with the low bits of the key. */
+function readKey(msg: BitMsg, key: number, bits: number): number {
+  const mask = (1 << bits) - 1;
+  return (msg.readBits(bits) ^ (key & mask)) & mask;
+}
+
+/** `MSG_ReadDeltaKey`: a 0 bit keeps `oldV`. */
+function readDeltaKey(
+  msg: BitMsg,
+  key: number,
+  oldValue: number,
+  bits: number,
+): number {
+  if (msg.readBit() === 0) return oldValue;
+  return readKey(msg, key, bits);
+}
 
 describe('disconnect packet', () => {
   it('is a sequenced reliable command, not an OOB disconnect', () => {

@@ -208,6 +208,27 @@ describe('watch child snapshots', () => {
       2,
     );
   });
+
+  it('reconnects after the server stops answering', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const calls: string[] = [];
+    let drop: (() => void) | undefined;
+    const child = startChild(async (options) => {
+      calls.push(options.serverAlias);
+      drop = options.onDropped;
+      return { disconnect() {}, run() {} };
+    });
+    child.stdin.write(
+      `${JSON.stringify({ type: 'hello', servers: [server('default')] })}\n`,
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(calls).toEqual(['default']);
+    drop?.();
+    await vi.advanceTimersByTimeAsync(999);
+    expect(calls).toEqual(['default']);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(calls).toEqual(['default', 'default']);
+  });
 });
 
 async function runSnapshots(

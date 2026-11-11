@@ -51,6 +51,8 @@ export interface ChildConnectOptions {
   serverAlias: string;
   name?: string;
   onSnapshot: (samples: Sample[]) => void;
+  /** The peer already closed. Reconnect on the normal backoff. */
+  onDropped?: () => void;
 }
 
 export interface WatchChildOptions {
@@ -190,6 +192,22 @@ export function createWatchChild(options: WatchChildOptions): {
             return;
           }
           ingest(connection, samples);
+        },
+        onDropped: () => {
+          if (
+            stopped ||
+            gen !== generation ||
+            connections.get(server.alias) !== connection ||
+            current === undefined ||
+            connection.peer !== current
+          ) {
+            return;
+          }
+          connection.peer = undefined;
+          console.error(
+            `watch child: ${server.alias} lost the server, reconnecting`,
+          );
+          scheduleRetry(connection, server, gen);
         },
       });
       if (
@@ -457,6 +475,7 @@ async function defaultConnect(
     serverAlias: options.serverAlias,
     name: options.name,
     onSnapshot: options.onSnapshot,
+    onDropped: options.onDropped,
   });
 }
 

@@ -166,8 +166,28 @@ export interface ClientDatagram {
   checksumFeed: number;
   serverTime: number;
   commands: readonly { seq: number; text: string }[];
-  /** Keepalive. Zero buttons, zero movement. Omitted for a bare reliable command. */
+  /**
+   * Keepalive. Omitted for a bare reliable command. A move holds jump and
+   * nothing else: CoD2 counts jump as activity, and it does not walk or fire.
+   */
   move: boolean;
+}
+
+/** `MSG_WriteKey`: the wire bit is `value ^ (key & 1)`. */
+function writeKeyedBit(msg: BitMsg, key: number, value: number): void {
+  msg.writeBit((value ^ key) & 1);
+}
+
+/**
+ * `buttons >> 1` after `key ^= serverTime`. 512 is `BUTTON_JUMP >> 1`.
+ * Weapon, off-hand, and roll stay equal to the zero cmd.
+ */
+function writeJumpButton(msg: BitMsg, key: number): void {
+  msg.writeBit(0);
+  msg.writeBit(1);
+  msg.writeBits((512 ^ key) | 0, 18);
+  msg.writeBit(0);
+  msg.writeBit(0);
 }
 
 function writeClientBody(packet: ClientDatagram): BitMsg {
@@ -196,9 +216,17 @@ function writeClientBody(packet: ClientDatagram): BitMsg {
       msg.writeBit(0);
       msg.writeLong(packet.serverTime);
     }
-    // Keyed 0 (`key & 1`) is no-change: MSG_ReadKey returns 0 and the reader stops.
-    // `(key & 1) ^ 1` is value 1, which continues into buttons.
-    msg.writeBits(key & 1, 1);
+    // Long form against a zero cmd: jump only. A no-change cmd leaves forward,
+    // right, attack, and jump at 0, and ClientInactivityTimer then drops the
+    // spectator. Jump is BUTTON_JUMP (1024), not attack, and the move mask and
+    // angles stay 0, so the body does not walk or aim.
+    writeKeyedBit(msg, key, 1);
+    writeKeyedBit(msg, key, 1);
+    writeKeyedBit(msg, key, 0);
+    msg.writeBit(0);
+    msg.writeBit(0);
+    msg.writeBit(0);
+    writeJumpButton(msg, (key ^ packet.serverTime) | 0);
   } else {
     msg.writeBits(CLC_EOF, 3);
   }

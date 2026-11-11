@@ -50,6 +50,11 @@ export interface GamePeerOptions {
    * subject slot, including the other visible players.
    */
   onSnapshot?: (samples: Sample[]) => void;
+  /**
+   * The server stopped answering after connect. The socket is already closed.
+   * The caller reconnects; this peer does not.
+   */
+  onDropped?: () => void;
 }
 
 export interface WatchResult {
@@ -77,7 +82,8 @@ interface Pending {
 }
 
 /**
- * Spectator-only peer. Sends no movement buttons and no private-slot password.
+ * Spectator-only peer. The keepalive holds jump so the server does not drop an
+ * idle client. It does not walk, aim, or fire, and it sends no private password.
  * `connect` refuses unless getstatus has `sv_punkbuster` equal to `0`.
  * `sv_pure` is answered with an empty `cp`, not by turning the cvar off.
  */
@@ -101,6 +107,7 @@ export class GamePeer {
   private readonly onDatagram?: GamePeerOptions['onDatagram'];
   private readonly onSample?: GamePeerOptions['onSample'];
   private readonly onSnapshot?: GamePeerOptions['onSnapshot'];
+  private readonly onDropped?: GamePeerOptions['onDropped'];
   private challenge: number;
   private readonly qport: number;
   private fragments: FragmentAssembler;
@@ -117,6 +124,8 @@ export class GamePeer {
   private needPure = false;
   private sentTeam = false;
   private keepalive: ReturnType<typeof setInterval> | undefined;
+  /** Last datagram from the server. `run` starts the silence clock. */
+  private lastPacketAt = 0;
   private cmdTime = 50;
   private closed = false;
   /** Set before the leave packet is built, so a keepalive cannot sneak out after it. */
@@ -156,6 +165,7 @@ export class GamePeer {
     this.onDatagram = options.onDatagram;
     this.onSample = options.onSample;
     this.onSnapshot = options.onSnapshot;
+    this.onDropped = options.onDropped;
     this.challenge = challenge;
     this.qport = 1 + Math.floor(Math.random() * 65534);
     this.fragments = new FragmentAssembler(protocol);
@@ -255,6 +265,7 @@ export class GamePeer {
   /** Keepalive until `disconnect`. The supervisor child uses this, not a timed `watch`. */
   run(): void {
     if (this.closed || this.keepalive) return;
+    this.lastPacketAt = Date.now();
     this.sendTrigger();
     this.keepalive = setInterval(() => this.sendKeepalive(), 50);
     this.keepalive.unref?.();
@@ -390,7 +401,15 @@ export class GamePeer {
     });
   }
 
+  /** The server stopped sending. Close without a leave packet and tell the child. */
+  private droppedByServer(): void {
+    if (this.closed || this.leaving) return;
+    this.close();
+    this.onDropped?.();
+  }
+
   private onMessage(message: Buffer, rinfo: dgram.RemoteInfo): void {
+    this.lastPacketAt = Date.now();
     if (rinfo.address !== this.host || rinfo.port !== this.port) return;
     if (message.length > MAX_DATAGRAM) {
       this.watchState.parseFailures++;
@@ -528,6 +547,14 @@ export class GamePeer {
   }
 
   private sendKeepalive(): void {
+    if (this.closed || this.leaving) return;
+    if (
+      this.lastPacketAt !== 0 &&
+      Date.now() - this.lastPacketAt >= SERVER_SILENCE_MS
+    ) {
+      this.droppedByServer();
+      return;
+    }
     if (!this.haveGamestate || !this.learnedServerId) {
       this.sendTrigger();
       return;
@@ -572,6 +599,9 @@ export class GamePeer {
     return datagram;
   }
 }
+
+/** No datagram from the server for this long means the slot is already gone. */
+const SERVER_SILENCE_MS = 15_000;
 
 /** Retransmits of one disconnect datagram. A single lost UDP packet used to leave the bot in game. */
 const DISCONNECT_SENDS = 3;
