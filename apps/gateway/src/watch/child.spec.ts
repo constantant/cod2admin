@@ -8,11 +8,11 @@ import type { Sample } from '@cod2admin/player-watch';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createWatchChild, type ChildConnectOptions } from './child.js';
 
-const children: { stop(): void }[] = [];
+const children: { stop(): Promise<void> }[] = [];
 
-afterEach(() => {
+afterEach(async () => {
   for (const child of children.splice(0)) {
-    child.stop();
+    await child.stop();
   }
   vi.useRealTimers();
 });
@@ -89,6 +89,84 @@ describe('watch child snapshots', () => {
     expect(
       parseLines(child.lines).map((row) => [row['slot'], row['endReason']]),
     ).toEqual([[4, 'disconnect']]);
+  });
+
+  it('reconnects when the spectator name changes and keeps the peer otherwise', async () => {
+    const names: string[] = [];
+    const dropped: string[] = [];
+    const child = startChild(async (options) => {
+      names.push(options.name ?? '');
+      return {
+        disconnect() {
+          dropped.push(options.name ?? '');
+        },
+        run() {},
+      };
+    });
+    const send = (message: unknown): void => {
+      child.stdin.write(`${JSON.stringify(message)}\n`);
+    };
+    send({ type: 'hello', servers: [server('default')] });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(names).toEqual(['AdminWatch']);
+
+    send({ type: 'reload', servers: [server('default')] });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(names).toEqual(['AdminWatch']);
+    expect(dropped).toEqual([]);
+
+    send({
+      type: 'reload',
+      servers: [{ ...server('default'), spectatorName: 'Spotter' }],
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(dropped).toEqual(['AdminWatch']);
+    expect(names).toEqual(['AdminWatch', 'Spotter']);
+  });
+
+  it('leaves the game before the process exits', async () => {
+    const exit = vi
+      .spyOn(process, 'exit')
+      .mockImplementation(() => undefined as never);
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let left = false;
+    const stdin = new PassThrough();
+    const child = createWatchChild({
+      stdin,
+      stdout: { write: () => true },
+      exitOnStop: true,
+      connect: async () => ({
+        disconnect() {
+          return gate.then(() => {
+            left = true;
+          });
+        },
+        run() {},
+      }),
+    });
+    children.push(child);
+    let stopped: Promise<void> = Promise.resolve();
+    try {
+      stdin.write(
+        `${JSON.stringify({ type: 'hello', servers: [server('default')] })}\n`,
+      );
+      await new Promise((resolve) => setImmediate(resolve));
+      stopped = child.stop();
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(left).toBe(false);
+      expect(exit).not.toHaveBeenCalled();
+      release?.();
+      await stopped;
+      expect(left).toBe(true);
+      expect(exit).toHaveBeenCalledWith(0);
+    } finally {
+      release?.();
+      await stopped;
+      exit.mockRestore();
+    }
   });
 
   it('retries a timeout per server and does not retry a pure refusal', async () => {
@@ -173,14 +251,14 @@ function parseLines(lines: string[]): Record<string, unknown>[] {
 
 function startChild(
   connect: (options: ChildConnectOptions) => Promise<{
-    disconnect(): void;
+    disconnect(): void | Promise<void>;
     run(): void;
   }>,
 ): {
   stdin: PassThrough;
   lines: string[];
   snap?: (samples: Sample[]) => void;
-  stop(): void;
+  stop(): Promise<void>;
 } {
   const stdin = new PassThrough();
   const lines: string[] = [];

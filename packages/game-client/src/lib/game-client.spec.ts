@@ -12,7 +12,7 @@ import {
 } from './constants.js';
 import { HUFF_FREQ } from './huff-data.js';
 import { huffmanCompress, huffmanDecompress } from './huffman.js';
-import { ConnectRefusedError, GamePeer, samplesFromSnapshot } from './peer.js';
+import { GamePeer, samplesFromSnapshot } from './peer.js';
 import type { EntityObservation } from './snapshot.js';
 import { parseServerMessage } from './snapshot.js';
 import {
@@ -23,6 +23,7 @@ import {
   comHashKey,
   connectAllowed,
   decodeClientDatagram,
+  pureClientCommand,
   FragmentAssembler,
   parseStatusBody,
   sanitizeSpectatorName,
@@ -130,6 +131,8 @@ describe('getstatus gate', () => {
     const protocol115 = parseStatusBody(fixture('getstatus-115.txt'));
     expect(connectAllowed(protocol118)).toEqual({ ok: true, protocol: 118 });
     expect(connectAllowed(protocol115)).toEqual({ ok: true, protocol: 115 });
+    expect(pureClientCommand(0)).toBe('cp @ 0');
+    expect(pureClientCommand(-41)).toBe('cp @ -41');
     expect(
       buildSpectatorUserinfo({
         protocol: protocol118.protocol ?? 0,
@@ -175,18 +178,18 @@ describe('getstatus gate', () => {
     expect(fragment).toMatchObject({ ok: true, pending: true, sequence: 1 });
   });
 
-  it('refuses a missing or non-zero pure or punkbuster key', () => {
+  it('allows sv_pure 1 and refuses a missing or non-zero punkbuster key', () => {
     expect(
-      connectAllowed(parseStatusBody(fixture('getstatus-pure-missing.txt'))).ok,
-    ).toBe(false);
+      connectAllowed(parseStatusBody(fixture('getstatus-pure-missing.txt'))),
+    ).toEqual({ ok: true, protocol: 118 });
     expect(
       connectAllowed(parseStatusBody(fixture('getstatus-pb-1.txt'))).ok,
     ).toBe(false);
     expect(
       connectAllowed(
         parseStatusBody('\\protocol\\118\\sv_pure\\1\\sv_punkbuster\\0'),
-      ).ok,
-    ).toBe(false);
+      ),
+    ).toEqual({ ok: true, protocol: 118 });
     expect(
       connectAllowed(parseStatusBody('\\protocol\\118\\sv_pure\\0')).ok,
     ).toBe(false);
@@ -195,7 +198,7 @@ describe('getstatus gate', () => {
     ).toBe(false);
   });
 
-  it('does not send connect when getstatus pure is not 0', async () => {
+  it('keeps going when getstatus sv_pure is 1', async () => {
     const socket = await listen();
     const seen: string[] = [];
     socket.on('message', (msg, rinfo) => {
@@ -218,10 +221,10 @@ describe('getstatus gate', () => {
       GamePeer.connect({
         host: '127.0.0.1',
         port: address.port,
-        timeoutMs: 1000,
+        timeoutMs: 300,
       }),
-    ).rejects.toBeInstanceOf(ConnectRefusedError);
-    expect(seen.some((line) => line.startsWith('connect'))).toBe(false);
+    ).rejects.toThrow('timed out waiting for server');
+    expect(seen.some((line) => line.startsWith('getchallenge'))).toBe(true);
     socket.close();
   });
 });
@@ -297,6 +300,63 @@ describe('disconnect packet', () => {
       '010000003412000000000000000000ba7de4035bcff2481717c9f2bd',
     );
   });
+
+  it('delivers the disconnect command before it closes the socket', async () => {
+    const socket = await listen();
+    const copies: Buffer[] = [];
+    socket.on('message', (msg, rinfo) => {
+      const oob =
+        msg.length >= 4 &&
+        msg[0] === 0xff &&
+        msg[1] === 0xff &&
+        msg[2] === 0xff &&
+        msg[3] === 0xff;
+      if (!oob) {
+        copies.push(Buffer.from(msg));
+        return;
+      }
+      const text = msg.subarray(4).toString('latin1').replace(/\0/g, '');
+      if (text.startsWith('getstatus')) {
+        reply(
+          socket,
+          rinfo,
+          `statusResponse\n${fixture('getstatus-pure-missing.txt')}`,
+        );
+        return;
+      }
+      if (text.startsWith('getchallenge')) {
+        reply(socket, rinfo, 'challengeResponse 17');
+        return;
+      }
+      if (text.startsWith('connect')) {
+        reply(socket, rinfo, 'connectResponse');
+        return;
+      }
+      copies.push(Buffer.from(msg));
+    });
+    const address = socket.address();
+    const peer = await GamePeer.connect({
+      host: '127.0.0.1',
+      port: address.port,
+      timeoutMs: 500,
+    });
+    try {
+      await peer.disconnect();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(copies).toHaveLength(3);
+      expect(copies.every((copy) => copy.equals(copies[0]!))).toBe(true);
+      expect(decodeClientDatagram(copies[0]!, 17, '')?.commands).toEqual([
+        'disconnect',
+      ]);
+      expect(
+        copies[0]!.subarray(0, 4).equals(Buffer.from([0xff, 0xff, 0xff, 0xff])),
+      ).toBe(false);
+      await peer.disconnect();
+      expect(copies).toHaveLength(3);
+    } finally {
+      socket.close();
+    }
+  });
 });
 
 describe('samplesFromSnapshot', () => {
@@ -334,6 +394,18 @@ function observation(
     viewangles: [0, 90, 0],
     weapon: 0,
   };
+}
+
+function reply(
+  socket: Socket,
+  rinfo: { port: number; address: string },
+  text: string,
+): void {
+  socket.send(
+    Buffer.concat([Buffer.from([0xff, 0xff, 0xff, 0xff]), Buffer.from(text)]),
+    rinfo.port,
+    rinfo.address,
+  );
 }
 
 function listen(): Promise<Socket> {

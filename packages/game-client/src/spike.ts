@@ -120,7 +120,7 @@ async function probe(
       },
     });
     const watched = await peer.watch(label === 'pure-still-1' ? 8000 : 20000);
-    peer.disconnect();
+    await peer.disconnect();
     captured.forEach((bytes, index) => save(`${label}-${index}.bin`, bytes));
     return watched;
   } catch (error) {

@@ -23,6 +23,8 @@ interface Connection {
   alias: string;
   host: string;
   port: number;
+  /** Sent in userinfo only while connecting, so a rename has to open a new peer. */
+  spectatorName: string;
   gSpeed: number | null;
   mapName: string | null;
   /** Snapshots stay live while this matches the hello generation. */
@@ -38,7 +40,8 @@ interface Connection {
 }
 
 interface PeerHandle {
-  disconnect(): void;
+  /** Resolves after the leave packet is queued. A sync mock is fine. */
+  disconnect(): void | Promise<void>;
   run(): void;
 }
 
@@ -63,12 +66,13 @@ const BACKOFF_MS = [1000, 2000, 5000, 15_000, 30_000];
 const ABSENCE_MS = 10_000;
 
 export function createWatchChild(options: WatchChildOptions): {
-  stop(): void;
+  stop(): Promise<void>;
 } {
   const connectPeer = options.connect ?? defaultConnect;
   const connections = new Map<string, Connection>();
   let generation = 0;
   let stopped = false;
+  let stopping: Promise<void> | null = null;
   let chain: Promise<void> = Promise.resolve();
 
   const lines = createInterface({ input: options.stdin });
@@ -110,7 +114,7 @@ export function createWatchChild(options: WatchChildOptions): {
       if (next.has(alias)) {
         continue;
       }
-      drop(connection, 'disconnect');
+      await drop(connection, 'disconnect');
       connections.delete(alias);
     }
     for (const server of message.servers) {
@@ -118,11 +122,13 @@ export function createWatchChild(options: WatchChildOptions): {
         return;
       }
       const current = connections.get(server.alias);
+      // The userinfo name is fixed at connect. A new name drops this peer.
       if (
         current?.peer &&
         current.host === server.host &&
         current.port === server.port &&
-        current.gSpeed === server.gSpeed
+        current.gSpeed === server.gSpeed &&
+        current.spectatorName === server.spectatorName
       ) {
         current.liveGen = gen;
         if (server.mapName) {
@@ -140,7 +146,7 @@ export function createWatchChild(options: WatchChildOptions): {
   ): Promise<void> {
     const previous = connections.get(server.alias);
     if (previous) {
-      drop(previous, 'disconnect');
+      await drop(previous, 'disconnect');
       connections.delete(server.alias);
     }
     const mapName = server.mapName ?? null;
@@ -148,6 +154,7 @@ export function createWatchChild(options: WatchChildOptions): {
       alias: server.alias,
       host: server.host,
       port: server.port,
+      spectatorName: server.spectatorName,
       gSpeed: server.gSpeed,
       mapName,
       liveGen: gen,
@@ -190,7 +197,7 @@ export function createWatchChild(options: WatchChildOptions): {
         stopped ||
         connections.get(server.alias) !== connection
       ) {
-        peer.disconnect();
+        await peer.disconnect();
         return;
       }
       current = peer;
@@ -354,7 +361,10 @@ export function createWatchChild(options: WatchChildOptions): {
     connection.absenceTimer = undefined;
   }
 
-  function drop(connection: Connection, reason: 'disconnect' | 'map'): void {
+  async function drop(
+    connection: Connection,
+    reason: 'disconnect' | 'map',
+  ): Promise<void> {
     clearAbsenceTimer(connection);
     connection.pendingAbsent.clear();
     clearRetry(connection);
@@ -365,8 +375,9 @@ export function createWatchChild(options: WatchChildOptions): {
       }
     }
     connection.slots.clear();
-    connection.peer?.disconnect();
+    const peer = connection.peer;
     connection.peer = undefined;
+    await peer?.disconnect();
   }
 
   function emitLife(connection: Connection, features: LifeFeatures): void {
@@ -401,23 +412,28 @@ export function createWatchChild(options: WatchChildOptions): {
     );
   }
 
-  function shutdown(): void {
-    if (stopped) {
-      return;
+  function shutdown(): Promise<void> {
+    if (stopping) {
+      return stopping;
     }
     stopped = true;
     generation += 1;
     lines.close();
-    for (const connection of connections.values()) {
-      drop(connection, 'disconnect');
-    }
+    const pending = [...connections.values()];
     connections.clear();
-    if (options.exitOnStop) {
-      process.exit(0);
-    }
+    stopping = Promise.all(
+      pending.map((connection) => drop(connection, 'disconnect')),
+    ).then(() => {
+      if (options.exitOnStop) {
+        process.exit(0);
+      }
+    });
+    return stopping;
   }
 
-  const onStop = (): void => shutdown();
+  const onStop = (): void => {
+    void shutdown();
+  };
   options.stdin.on('end', onStop);
   process.on('SIGTERM', onStop);
   process.on('SIGINT', onStop);
@@ -427,7 +443,7 @@ export function createWatchChild(options: WatchChildOptions): {
       options.stdin.off('end', onStop);
       process.off('SIGTERM', onStop);
       process.off('SIGINT', onStop);
-      shutdown();
+      return shutdown();
     },
   };
 }

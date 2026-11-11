@@ -1,3 +1,4 @@
+import { lookup } from 'node:dns/promises';
 import dgram from 'node:dgram';
 import type { Sample } from '@cod2admin/player-watch';
 import { parseOobPacket } from '@cod2admin/rcon-client';
@@ -17,6 +18,7 @@ import {
   buildSpectatorUserinfo,
   connectAllowed,
   decodeServerPayload,
+  pureClientCommand,
   FragmentAssembler,
   parseStatusBody,
   type StatusInfo,
@@ -76,7 +78,8 @@ interface Pending {
 
 /**
  * Spectator-only peer. Sends no movement buttons and no private-slot password.
- * `connect` refuses unless getstatus has `sv_pure` and `sv_punkbuster` equal to `0`.
+ * `connect` refuses unless getstatus has `sv_punkbuster` equal to `0`.
+ * `sv_pure` is answered with an empty `cp`, not by turning the cvar off.
  */
 // Assigned from the class static block. `open` stays private, so the pure probe is not a GamePeer method.
 let openPeer!: (
@@ -110,10 +113,15 @@ export class GamePeer {
   private reliableAcknowledge = 0;
   private checksumFeed = 0;
   private haveGamestate = false;
+  /** A new gamestate resets the server's pure flag, so `cp` has to be sent again. */
+  private needPure = false;
   private sentTeam = false;
   private keepalive: ReturnType<typeof setInterval> | undefined;
   private cmdTime = 50;
   private closed = false;
+  /** Set before the leave packet is built, so a keepalive cannot sneak out after it. */
+  private suppressSend = false;
+  private leaving: Promise<void> | null = null;
   private readonly sentCommands = new Map<number, string>();
   private readonly serverCommandText = new Map<number, string>();
   private readonly pending: Pending[] = [];
@@ -164,6 +172,12 @@ export class GamePeer {
     enforceGate: boolean,
   ): Promise<GamePeer> {
     const timeoutMs = options.timeoutMs ?? 3000;
+    const host = (await lookup(options.host, { family: 4 })).address;
+    const resolved: GamePeerOptions = {
+      ...options,
+      host,
+      serverAlias: options.serverAlias ?? `${options.host}:${options.port}`,
+    };
     const socket = dgram.createSocket('udp4');
     await new Promise<void>((resolve, reject) => {
       socket.once('error', reject);
@@ -172,7 +186,7 @@ export class GamePeer {
         resolve();
       });
     });
-    const peer = new GamePeer(options, emptyStatus(), 0, socket, 0);
+    const peer = new GamePeer(resolved, emptyStatus(), 0, socket, 0);
     try {
       const statusBody = await peer.roundTrip(
         buildGetstatusPacket(),
@@ -210,7 +224,7 @@ export class GamePeer {
         protocol: status.protocol,
         challenge,
         qport: peer.qport,
-        name: options.name,
+        name: resolved.name,
       });
       const connectBody = await peer.roundTrip(
         buildConnectPacket(userinfo),
@@ -246,29 +260,16 @@ export class GamePeer {
     this.keepalive.unref?.();
   }
 
-  disconnect(): void {
-    if (this.closed) return;
-    try {
-      const packet = buildDisconnectDatagram({
-        sequence: this.outgoing,
-        qport: this.qport,
-        challenge: this.challenge,
-        serverId: this.serverId,
-        messageAcknowledge: this.messageAcknowledge,
-        reliableAcknowledge: this.reliableAcknowledge,
-        ackedServerCommand:
-          this.serverCommandText.get(this.reliableAcknowledge) ?? '',
-        checksumFeed: this.checksumFeed,
-        serverTime: this.cmdTime,
-        commandSeq: this.commandSeq,
-      });
-      this.outgoing++;
-      this.commandSeq++;
-      this.send(packet);
-    } catch {
-      // A failed disconnect packet still closes the socket.
-    }
-    this.close();
+  /**
+   * Reliable `disconnect`, then close. The promise settles after the datagram
+   * has been handed to the kernel. Closing or exiting first drops it, and the
+   * server keeps the spectator until it times out.
+   */
+  disconnect(): Promise<void> {
+    if (this.leaving) return this.leaving;
+    this.suppressSend = true;
+    this.leaving = this.leave();
+    return this.leaving;
   }
 
   private adopt(protocol: number, challenge: number): void {
@@ -288,8 +289,75 @@ export class GamePeer {
     this.socket.close();
   }
 
+  private async leave(): Promise<void> {
+    if (this.keepalive) {
+      clearInterval(this.keepalive);
+      this.keepalive = undefined;
+    }
+    let packet: Buffer | null = null;
+    if (!this.closed) {
+      try {
+        packet = buildDisconnectDatagram({
+          sequence: this.outgoing,
+          qport: this.qport,
+          challenge: this.challenge,
+          serverId: this.serverId,
+          messageAcknowledge: this.messageAcknowledge,
+          reliableAcknowledge: this.reliableAcknowledge,
+          ackedServerCommand:
+            this.serverCommandText.get(this.reliableAcknowledge) ?? '',
+          checksumFeed: this.checksumFeed,
+          serverTime: this.cmdTime,
+          commandSeq: this.commandSeq,
+        });
+        this.outgoing++;
+        this.commandSeq++;
+      } catch {
+        packet = null;
+      }
+    }
+    // One UDP loss must not leave the spectator in the game. Same bytes each time.
+    if (packet) {
+      for (
+        let attempt = 0;
+        attempt < DISCONNECT_SENDS && !this.closed;
+        attempt++
+      ) {
+        await this.flush(packet);
+        if (attempt + 1 < DISCONNECT_SENDS && !this.closed) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, DISCONNECT_GAP_MS),
+          );
+        }
+      }
+    }
+    this.close();
+  }
+
+  /** Resolves when `socket.send` accepts the datagram, or after a short wait. */
+  private flush(packet: Buffer): Promise<void> {
+    if (this.closed) return Promise.resolve();
+    this.onDatagram?.('out', packet);
+    return new Promise((resolve) => {
+      let settled = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const finish = (): void => {
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
+        resolve();
+      };
+      timer = setTimeout(() => finish(), 250);
+      try {
+        this.socket.send(packet, this.port, this.host, () => finish());
+      } catch {
+        finish();
+      }
+    });
+  }
+
   private send(packet: Buffer): void {
-    if (this.closed) return;
+    if (this.closed || this.suppressSend) return;
     this.onDatagram?.('out', packet);
     this.socket.send(packet, this.port, this.host);
   }
@@ -409,6 +477,7 @@ export class GamePeer {
     if (parsed.message.checksumFeed !== null) {
       this.checksumFeed = parsed.message.checksumFeed;
       this.haveGamestate = true;
+      this.needPure = true;
     }
     if (parsed.message.serverId !== null) {
       this.serverId = parsed.message.serverId;
@@ -464,6 +533,13 @@ export class GamePeer {
       return;
     }
     const commands: { seq: number; text: string }[] = [];
+    if (this.needPure) {
+      const seq = this.commandSeq++;
+      const text = pureClientCommand(this.checksumFeed);
+      commands.push({ seq, text });
+      this.sentCommands.set(seq, text);
+      this.needPure = false;
+    }
     if (!this.sentTeam) {
       const seq = this.commandSeq++;
       commands.push({ seq, text: 'team spectator' });
@@ -496,6 +572,10 @@ export class GamePeer {
     return datagram;
   }
 }
+
+/** Retransmits of one disconnect datagram. A single lost UDP packet used to leave the bot in game. */
+const DISCONNECT_SENDS = 3;
+const DISCONNECT_GAP_MS = 40;
 
 /** One connect with the pure/PB gate off. Not part of the package entry. Does not retry. */
 export function connectPureProbe(options: GamePeerOptions): Promise<GamePeer> {

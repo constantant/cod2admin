@@ -55,16 +55,13 @@ export type ConnectGate =
   { ok: true; protocol: number } | { ok: false; reason: string };
 
 /**
- * Production connect. A missing key is not off. Anything other than the string `0`
- * refuses. The protocol is the `getstatus` value, not a hardcoded 115 or 118.
+ * Production connect. A missing PunkBuster key is not off. `sv_pure` is not a
+ * gate: the peer answers it with {@link pureClientCommand}. The protocol is
+ * the `getstatus` value, not a hardcoded 115 or 118.
  */
 export function connectAllowed(info: StatusInfo): ConnectGate {
   if (info.protocol === null)
     return { ok: false, reason: 'protocol missing from getstatus' };
-  if (info.sv_pure === null)
-    return { ok: false, reason: 'sv_pure missing from getstatus' };
-  if (info.sv_pure !== '0')
-    return { ok: false, reason: `sv_pure is ${JSON.stringify(info.sv_pure)}` };
   if (info.sv_punkbuster === null)
     return { ok: false, reason: 'sv_punkbuster missing from getstatus' };
   if (info.sv_punkbuster !== '0')
@@ -73,6 +70,17 @@ export function connectAllowed(info: StatusInfo): ConnectGate {
       reason: `sv_punkbuster is ${JSON.stringify(info.sv_punkbuster)}`,
     };
   return { ok: true, protocol: info.protocol };
+}
+
+/**
+ * CoD2 `cp` for a client that referenced no iwds.
+ *
+ * `SV_VerifyIwds_f` rejects a checksum the server did not load, then checks
+ * `checksumFeed ^ each checksum ^ count`. An empty list leaves the trailer
+ * equal to `checksumFeed`. It does not echo `sv_iwds`.
+ */
+export function pureClientCommand(checksumFeed: number): string {
+  return `cp @ ${checksumFeed | 0}`;
 }
 
 export function buildGetstatusPacket(): Buffer {

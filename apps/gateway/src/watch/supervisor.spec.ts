@@ -519,23 +519,16 @@ describe('watch supervisor', () => {
     expect(draft.spawn).not.toHaveBeenCalled();
   });
 
-  it('does not spawn when sv_pure or sv_punkbuster is missing or not 0', async () => {
+  it('spawns when sv_pure is 1 and stays down when punkbuster is missing', async () => {
     const pure = draftHarness();
     pure.servers.push(enabled());
     pure.rcon.getStatus.mockResolvedValue({
       cvars: { protocol: '118', sv_pure: '1', sv_punkbuster: '0' },
       players: [],
     });
-    const pureSupervisor = await boot(pure);
-    expect(pure.spawn).not.toHaveBeenCalled();
-    expect(
-      pure.warnings.some(
-        (line) => line.includes('not joining') && line.includes('sv_pure'),
-      ),
-    ).toBe(true);
-    await pureSupervisor.sync();
-    expect(pure.rcon.getStatus).toHaveBeenCalledTimes(2);
-    expect(pure.spawn).not.toHaveBeenCalled();
+    await boot(pure);
+    expect(pure.spawn).toHaveBeenCalledTimes(1);
+    expect(pure.warnings.some((line) => line.includes('sv_pure'))).toBe(false);
 
     const pb = draftHarness();
     pb.servers.push(enabled());
@@ -975,7 +968,7 @@ async function snapshotLife(): Promise<Record<string, unknown>> {
     }
     return life;
   } finally {
-    child.stop();
+    await child.stop();
   }
 }
 
