@@ -1,3 +1,13 @@
+## [1.23.1](https://github.com/constantant/cod2admin/releases/tag/v1.23.1) (2026-11-11)
+
+### 🩹 Fixes
+
+- keep the game bot connected past the inactivity timer ([31e7c02](https://github.com/constantant/cod2admin/commit/31e7c02))
+
+### ❤️ Thank You
+
+- kk
+
 ## [1.23.0](https://github.com/constantant/cod2admin/releases/tag/v1.23.0) (2026-11-11)
 
 ### 🚀 Features
