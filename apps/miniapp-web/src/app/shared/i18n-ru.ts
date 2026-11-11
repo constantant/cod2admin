@@ -81,6 +81,9 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
   'Keep an eye on a player': 'Присмотреть за игроком',
   'Watch evidence': 'Записи наблюдателя',
   'Scores the watcher stored': 'Оценки, которые он сохранил',
+  'Game bot': 'Игровой бот',
+  'Turn it on, change its settings, read the scores':
+    'Включить, настроить, смотреть оценки',
   'Every server the bot manages': 'Все серверы бота',
   'What the server reports': 'Что сообщает сервер',
   'Kick VPN players, exceptions, networks': 'Кик за VPN, исключения, сети',
@@ -249,7 +252,58 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
   'Ignored.': 'Проигнорировано.',
   'Marked as handled.': 'Отмечено как решённая.',
 
-  // Watch evidence
+  // Game bot and watch evidence
+  'Game bot is on': 'Игровой бот включён',
+  'Connects a spectator on this server. The mode says whether it stays quiet, flags, reports, or kicks.':
+    'Подключает зрителя на этот сервер. Режим решает, молчать ему, ставить метку, жаловаться или кикать.',
+  Off: 'Выкл',
+  Report: 'Жалоба',
+  Join: 'Вход',
+  Spectator: 'Зритель',
+  'Private slot': 'Приватный слот',
+  'Confirmed aim features': 'Подтверждённые признаки прицеливания',
+  'Flag score': 'Порог метки',
+  'Kick score': 'Порог кика',
+  'Samples needed': 'Нужно сэмплов',
+  'Lives of this player': 'Жизни этого игрока',
+  'Extreme lives': 'Крайние жизни',
+  'Session lives': 'Жизни за сессию',
+  'Cooldown (ms)': 'Пауза (мс)',
+  'Kicks per hour': 'Киков в час',
+  'Cards per hour': 'Карточек в час',
+  'Private slots before': 'Приватных слотов было',
+  Protocol: 'Протокол',
+  'Blank leaves an optional number unset.':
+    'Пустое поле оставляет необязательное число незаданным.',
+  'Kick needs two confirmed aim features.':
+    'Для кика нужны два подтверждённых признака прицеливания.',
+  'The bot generated the private password. /watch password in a private chat shows it.':
+    'Пароль придумал бот. /watch password в личном чате его показывает.',
+  'The server already had a private password. The bot kept it.':
+    'На сервере уже был приватный пароль. Бот его не менял.',
+  'No private password yet. The bot creates one when it reserves a slot.':
+    'Приватного пароля ещё нет. Бот создаст его, когда займёт слот.',
+  'Fix the game bot settings before turning it on.':
+    'Сначала исправьте настройки игрового бота.',
+  'The private password is not stored in watch settings.':
+    'Приватный пароль не хранится в настройках наблюдателя.',
+  'Kick mode needs confirmedAimFeatures 2.':
+    'Режим кика требует confirmedAimFeatures 2.',
+  'Say what to change on the game bot.':
+    'Напишите, что изменить у игрового бота.',
+  'confirmedAimFeatures must be 0, 1, or 2.':
+    'confirmedAimFeatures должно быть 0, 1 или 2.',
+  'Bot name': 'Имя бота',
+  'Players see this name. A new name reconnects the bot.':
+    'Это имя видят игроки. Новое имя переподключает бота.',
+  'Turn the game bot on?': 'Включить игрового бота?',
+  'A spectator with this name joins the selected server.':
+    'Зритель с этим именем зайдёт на выбранный сервер.',
+  'The game bot name must be 1-32 characters.':
+    'Имя игрового бота — от 1 до 32 символов.',
+  'The game bot needs a name.': 'Игровому боту нужно имя.',
+  'Say whether the game bot is on, or give it a name.':
+    'Скажите, включён ли игровой бот, или дайте ему имя.',
   'Scores and reasons the watcher stored for this server. The angle window is empty until a later change sends one.':
     'Оценки и причины, которые наблюдатель сохранил для этого сервера. Окно углов пустое, пока более поздняя версия не начнёт его присылать.',
   'Life score': 'Оценка жизни',

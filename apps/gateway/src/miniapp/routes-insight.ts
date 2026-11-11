@@ -1,4 +1,12 @@
-import type { AuditLogEntry, PlayerNote, Report } from '@cod2admin/admin-store';
+import {
+  DEFAULT_SERVER_WATCH_SETTINGS,
+  WatchSettingsError,
+  watchSettingsForStorage,
+  type AuditLogEntry,
+  type PlayerNote,
+  type Report,
+  type ServerWatchSettings,
+} from '@cod2admin/admin-store';
 import { stripColorCodes } from '@cod2admin/rcon-client';
 import { matchPlayersByName } from '@cod2admin/report-pipeline';
 import type {
@@ -24,6 +32,8 @@ import type {
   ReportsResponse,
   ResolveReportRequest,
   UpdateNoteRequest,
+  GameBotResponse,
+  WatchPrivatePasswordStatus,
   WatchEvidenceDto,
   WatchEvidenceResponse,
 } from './api-types.js';
@@ -40,6 +50,162 @@ const DASHBOARD_HOURS = [24, 168, 720];
 
 function offsetParam(value: string | undefined): number {
   return Math.max(0, Number.parseInt(value ?? '0', 10) || 0);
+}
+
+const WATCH_MODES = new Set(['off', 'flag', 'report', 'kick']);
+const WATCH_JOINS = new Set(['spectator', 'private']);
+const WATCH_NUMBERS = [
+  'flagZ',
+  'kickZ',
+  'minFeatureN',
+  'minSelfLives',
+  'kickExtremeLives',
+  'kickMinSessionLives',
+  'cooldownMs',
+  'maxKicksPerHour',
+  'maxCardsPerHour',
+] as const;
+const WATCH_OPTIONAL_INTS = [
+  'privateClientsPrevious',
+  'negotiatedProtocol',
+] as const;
+const WATCH_SECRET_KEYS = [
+  'password',
+  'privatePassword',
+  'watchPrivatePassword',
+  'sv_privatepassword',
+] as const;
+
+/** Nothing stored reads as the defaults. The secret itself is never copied. */
+function gameBotView(
+  watch: ServerWatchSettings | null,
+  privatePassword: WatchPrivatePasswordStatus,
+): GameBotResponse {
+  const settings = watch ?? DEFAULT_SERVER_WATCH_SETTINGS;
+  return {
+    enabled: settings.enabled,
+    mode: settings.mode,
+    flagZ: settings.flagZ,
+    kickZ: settings.kickZ,
+    minFeatureN: settings.minFeatureN,
+    minSelfLives: settings.minSelfLives,
+    kickExtremeLives: settings.kickExtremeLives,
+    kickMinSessionLives: settings.kickMinSessionLives,
+    cooldownMs: settings.cooldownMs,
+    maxKicksPerHour: settings.maxKicksPerHour,
+    maxCardsPerHour: settings.maxCardsPerHour,
+    spectatorName: settings.spectatorName,
+    join: settings.join,
+    privateClientsPrevious: settings.privateClientsPrevious,
+    negotiatedProtocol: settings.negotiatedProtocol,
+    confirmedAimFeatures: settings.confirmedAimFeatures,
+    privatePassword,
+  };
+}
+
+function privatePasswordStatus(server: {
+  watchPrivatePassword: string | null;
+  watchPrivatePasswordOwned: boolean;
+}): WatchPrivatePasswordStatus {
+  if (!server.watchPrivatePassword) return 'none';
+  return server.watchPrivatePasswordOwned ? 'owned' : 'adopted';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Known fields only. A password key is a refusal, not something to drop quietly. */
+function gameBotPatch(body: unknown): Partial<ServerWatchSettings> {
+  if (!isRecord(body)) {
+    throw new ApiProblem(
+      400,
+      'bad_request',
+      'Say what to change on the game bot.',
+    );
+  }
+  for (const key of WATCH_SECRET_KEYS) {
+    if (body[key] != null && body[key] !== '') {
+      throw new ApiProblem(
+        400,
+        'bad_request',
+        'The private password is not stored in watch settings.',
+      );
+    }
+  }
+  const patch: Partial<ServerWatchSettings> = {};
+  if ('enabled' in body) {
+    if (typeof body['enabled'] !== 'boolean') {
+      throw new ApiProblem(400, 'bad_request', 'On or off?');
+    }
+    patch.enabled = body['enabled'];
+  }
+  if ('spectatorName' in body) {
+    if (typeof body['spectatorName'] !== 'string') {
+      throw new ApiProblem(400, 'bad_request', 'The game bot needs a name.');
+    }
+    patch.spectatorName = body['spectatorName'].trim();
+  }
+  if ('mode' in body) {
+    const mode = body['mode'];
+    if (typeof mode !== 'string' || !WATCH_MODES.has(mode)) {
+      throw new ApiProblem(
+        400,
+        'bad_request',
+        `Unknown watch mode: ${String(mode)}.`,
+      );
+    }
+    patch.mode = mode as ServerWatchSettings['mode'];
+  }
+  if ('join' in body) {
+    const join = body['join'];
+    if (typeof join !== 'string' || !WATCH_JOINS.has(join)) {
+      throw new ApiProblem(
+        400,
+        'bad_request',
+        `Unknown watch join: ${String(join)}.`,
+      );
+    }
+    patch.join = join as ServerWatchSettings['join'];
+  }
+  if ('confirmedAimFeatures' in body) {
+    const value = body['confirmedAimFeatures'];
+    if (value !== 0 && value !== 1 && value !== 2) {
+      throw new ApiProblem(
+        400,
+        'bad_request',
+        'confirmedAimFeatures must be 0, 1, or 2.',
+      );
+    }
+    patch.confirmedAimFeatures = value;
+  }
+  for (const key of WATCH_NUMBERS) {
+    if (!(key in body)) continue;
+    const value = body[key];
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      throw new ApiProblem(400, 'bad_request', `${key} must be a number.`);
+    }
+    patch[key] = value;
+  }
+  for (const key of WATCH_OPTIONAL_INTS) {
+    if (!(key in body)) continue;
+    const value = body[key];
+    if (
+      value !== null &&
+      (typeof value !== 'number' || !Number.isFinite(value))
+    ) {
+      throw new ApiProblem(400, 'bad_request', `${key} must be a number.`);
+    }
+    patch[key] = value as number | null;
+  }
+  if (Object.keys(patch).length === 0) {
+    throw new ApiProblem(
+      400,
+      'bad_request',
+      'Say what to change on the game bot.',
+    );
+  }
+  return patch;
 }
 
 function userLabel(id: number | null, names: AdminNames): string | null {
@@ -541,6 +707,99 @@ export function registerInsightRoutes(
         items: rows.slice(0, PAGE_SIZE).map(toWatchEvidenceDto),
         more: rows.length > PAGE_SIZE,
       };
+    },
+  );
+
+  // Owner only, same gate as `/watch`. A null column reads as off and is not written.
+  app.get(
+    '/servers/:server/game-bot',
+    { config: { permission: 'watch.manage' } },
+    async (
+      request: FastifyRequest<{ Params: { server: string } }>,
+    ): Promise<GameBotResponse> => {
+      const alias = request.params.server;
+      serverParam(state, alias);
+      const server = await deps.adminStore.getServer(alias);
+      if (!server) {
+        throw new ApiProblem(
+          404,
+          'unknown_server',
+          `There's no server "${alias}" any more.`,
+        );
+      }
+      return gameBotView(server.watch, privatePasswordStatus(server));
+    },
+  );
+
+  app.put(
+    '/servers/:server/game-bot',
+    { config: { permission: 'watch.manage', action: true } },
+    async (
+      request: FastifyRequest<{
+        Params: { server: string };
+        Body: unknown;
+      }>,
+    ): Promise<GameBotResponse> => {
+      const alias = request.params.server;
+      serverParam(state, alias);
+      const patch = gameBotPatch(request.body);
+      const server = await deps.adminStore.getServer(alias);
+      if (!server) {
+        throw new ApiProblem(
+          404,
+          'unknown_server',
+          `There's no server "${alias}" any more.`,
+        );
+      }
+      const password = privatePasswordStatus(server);
+      // `/watch off` on a server with nothing stored leaves the column null.
+      if (
+        patch.enabled === false &&
+        Object.keys(patch).length === 1 &&
+        !server.watch
+      ) {
+        return gameBotView(null, password);
+      }
+      const next: ServerWatchSettings = {
+        ...(server.watch ?? { ...DEFAULT_SERVER_WATCH_SETTINGS }),
+        ...patch,
+      };
+      let stored: ServerWatchSettings;
+      try {
+        stored = watchSettingsForStorage(next);
+      } catch (error) {
+        if (error instanceof WatchSettingsError) {
+          throw new ApiProblem(
+            400,
+            'bad_request',
+            error.message === 'spectatorName must be 1-32 characters.'
+              ? 'The game bot name must be 1-32 characters.'
+              : error.message,
+          );
+        }
+        throw error;
+      }
+      const saved = await deps.adminStore.setServerWatch(alias, stored);
+      if (!saved) {
+        throw new ApiProblem(
+          404,
+          'unknown_server',
+          `There's no server "${alias}" any more.`,
+        );
+      }
+      await deps.adminStore.recordAuditLog({
+        actorTelegramId: request.actor.telegramId,
+        action: 'watch_settings',
+        serverAlias: alias,
+        source: 'miniapp',
+        detailJson: stored,
+      });
+      try {
+        await deps.watchSupervisor?.sync();
+      } catch (error) {
+        console.error('watch: settings saved, supervisor sync failed:', error);
+      }
+      return gameBotView(stored, password);
     },
   );
 }

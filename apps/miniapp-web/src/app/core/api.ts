@@ -38,6 +38,8 @@ import type {
   RelayTestResponse,
   ReportsResponse,
   ResolveReportRequest,
+  GameBotResponse,
+  GameBotUpdate,
   WatchEvidenceResponse,
   RotationRequest,
   ServersResponse,
@@ -275,6 +277,19 @@ export class ApiService {
       this.http.get(`${server(alias)}/watch-evidence`, {
         params: { offset: String(offset) },
       }),
+    );
+  }
+
+  /** Owner only. Nothing stored comes back as off, with the default name. */
+  gameBot(alias: string) {
+    return this.call<GameBotResponse>(
+      this.http.get(`${server(alias)}/game-bot`),
+    );
+  }
+
+  setGameBot(alias: string, body: GameBotUpdate) {
+    return this.call<GameBotResponse>(
+      this.http.put(`${server(alias)}/game-bot`, body),
     );
   }
 

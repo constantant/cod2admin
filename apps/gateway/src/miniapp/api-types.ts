@@ -481,6 +481,59 @@ export interface WatchEvidenceResponse {
   more: boolean;
 }
 
+export type WatchBotMode = 'off' | 'flag' | 'report' | 'kick';
+export type WatchBotJoin = 'spectator' | 'private';
+/** Set by the bot, already on the server, or not stored. Never the secret itself. */
+export type WatchPrivatePasswordStatus = 'none' | 'owned' | 'adopted';
+
+/**
+ * The spectator on one server, plus the `/watch` thresholds.
+ * `privatePassword` is only a status. The secret stays out of this response.
+ */
+export interface GameBotResponse {
+  /** False, including when nothing is stored yet: the bot is not connected. */
+  enabled: boolean;
+  mode: WatchBotMode;
+  flagZ: number;
+  kickZ: number;
+  minFeatureN: number;
+  minSelfLives: number;
+  kickExtremeLives: number;
+  kickMinSessionLives: number;
+  /** Milliseconds. */
+  cooldownMs: number;
+  maxKicksPerHour: number;
+  maxCardsPerHour: number;
+  /** What players see. 1–32 characters. */
+  spectatorName: string;
+  join: WatchBotJoin;
+  /** Recorded `sv_privateclients` from before a reserve. Not a secret. */
+  privateClientsPrevious: number | null;
+  negotiatedProtocol: number | null;
+  confirmedAimFeatures: 0 | 1 | 2;
+  privatePassword: WatchPrivatePasswordStatus;
+}
+
+/** Omitted fields stay as they are. Password keys are refused. */
+export interface GameBotUpdate {
+  enabled?: boolean;
+  mode?: WatchBotMode;
+  flagZ?: number;
+  kickZ?: number;
+  minFeatureN?: number;
+  minSelfLives?: number;
+  kickExtremeLives?: number;
+  kickMinSessionLives?: number;
+  cooldownMs?: number;
+  maxKicksPerHour?: number;
+  maxCardsPerHour?: number;
+  spectatorName?: string;
+  join?: WatchBotJoin;
+  privateClientsPrevious?: number | null;
+  negotiatedProtocol?: number | null;
+  confirmedAimFeatures?: 0 | 1 | 2;
+}
+
 // ── Player notes & history ──────────────────────────────────────────────────────────────────
 
 export type NoteKind = 'guid' | 'ip' | 'name';

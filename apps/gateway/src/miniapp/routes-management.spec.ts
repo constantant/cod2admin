@@ -1,9 +1,12 @@
 import {
   ADMIN_PERMISSIONS,
+  DEFAULT_SERVER_WATCH_SETTINGS,
   MODERATOR_PERMISSIONS,
   OWNER_GRANTED_PERMISSIONS,
   PERMISSIONS,
   type Permission,
+  type ServerConfig,
+  type ServerWatchSettings,
 } from '@cod2admin/admin-store';
 import { UdpQueryTimeoutError } from '@cod2admin/rcon-client';
 import type { FastifyInstance } from 'fastify';
@@ -142,6 +145,8 @@ describe('Mini App management routes', () => {
       ['POST', '/servers/default/level', MODERATOR],
       ['PUT', '/servers/default/rotation', MODERATOR],
       ['GET', '/servers/default/cvars', MODERATOR],
+      ['GET', '/servers/default/game-bot', ADMIN],
+      ['PUT', '/servers/default/game-bot', ADMIN],
     ] as const)(
       '%s %s refuses a caller without that permission',
       async (method, url, as) => {
@@ -1404,6 +1409,270 @@ describe('Mini App management routes', () => {
       expect(
         (await call('GET', '/servers/gone/watch-evidence', MODERATOR))
           .statusCode,
+      ).toBe(404);
+    });
+  });
+
+  describe('game bot', () => {
+    const SECRET = 'private-secret';
+
+    function gameServer(
+      watch: ServerWatchSettings | null = null,
+    ): ServerConfig {
+      return {
+        alias: 'default',
+        rconHost: '10.0.0.8',
+        rconPort: 28960,
+        rconPassword: 'rcon-secret',
+        logSourceConfig: null,
+        boundTelegramChatId: null,
+        isDefault: true,
+        watch,
+        watchPrivatePassword: SECRET,
+        watchPrivatePasswordOwned: true,
+      };
+    }
+
+    function view(
+      over: Partial<ServerWatchSettings> = {},
+      privatePassword: 'none' | 'owned' | 'adopted' = 'owned',
+    ) {
+      return {
+        ...DEFAULT_SERVER_WATCH_SETTINGS,
+        ...over,
+        privatePassword,
+      };
+    }
+
+    function supervisor() {
+      const sync = vi.fn().mockResolvedValue(undefined);
+      fake.deps.watchSupervisor = {
+        running: true,
+        sync,
+        noteStatus: () => undefined,
+        whenIdle: async () => undefined,
+        stop: () => undefined,
+        profileForKick: async () => undefined,
+        listEvidence: async () => [],
+      };
+      return sync;
+    }
+
+    it('reads a missing watcher as off and does not store anything', async () => {
+      fake.adminStore.getServer.mockResolvedValue(gameServer());
+
+      const response = await call('GET', '/servers/default/game-bot', OWNER);
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual(view());
+      expect(JSON.stringify(response.json())).not.toContain(SECRET);
+      expect(fake.adminStore.setServerWatch).not.toHaveBeenCalled();
+    });
+
+    it('turns the bot on without changing mode, audits it, and syncs', async () => {
+      fake.adminStore.getServer.mockResolvedValue(
+        gameServer({
+          ...DEFAULT_SERVER_WATCH_SETTINGS,
+          flagZ: 9,
+          spectatorName: 'AdminWatch',
+        }),
+      );
+      const sync = supervisor();
+
+      const response = await call('PUT', '/servers/default/game-bot', OWNER, {
+        enabled: true,
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual(view({ enabled: true, flagZ: 9 }));
+      expect(fake.adminStore.setServerWatch).toHaveBeenCalledWith(
+        'default',
+        expect.objectContaining({
+          enabled: true,
+          mode: 'off',
+          flagZ: 9,
+          spectatorName: 'AdminWatch',
+        }),
+      );
+      const detail = fake.adminStore.recordAuditLog.mock.calls[0]?.[0];
+      expect(detail).toMatchObject({
+        action: 'watch_settings',
+        serverAlias: 'default',
+        source: 'miniapp',
+      });
+      expect(JSON.stringify(detail)).not.toContain(SECRET);
+      expect(JSON.stringify(detail)).not.toContain('rcon-secret');
+      expect(sync).toHaveBeenCalledOnce();
+    });
+
+    it('renames the bot, keeps the other settings, and trims the name', async () => {
+      fake.adminStore.getServer.mockResolvedValue(
+        gameServer({
+          ...DEFAULT_SERVER_WATCH_SETTINGS,
+          enabled: true,
+          mode: 'flag',
+          spectatorName: 'AdminWatch',
+        }),
+      );
+      supervisor();
+
+      const response = await call('PUT', '/servers/default/game-bot', OWNER, {
+        spectatorName: '  Spotter  ',
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual(
+        view({ enabled: true, mode: 'flag', spectatorName: 'Spotter' }),
+      );
+      expect(fake.adminStore.setServerWatch).toHaveBeenCalledWith(
+        'default',
+        expect.objectContaining({
+          enabled: true,
+          mode: 'flag',
+          spectatorName: 'Spotter',
+        }),
+      );
+    });
+
+    it('leaves a null watcher null when switched off', async () => {
+      fake.adminStore.getServer.mockResolvedValue(gameServer());
+      const sync = supervisor();
+
+      const response = await call('PUT', '/servers/default/game-bot', OWNER, {
+        enabled: false,
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual(view());
+      expect(fake.adminStore.setServerWatch).not.toHaveBeenCalled();
+      expect(sync).not.toHaveBeenCalled();
+    });
+
+    it('rejects a blank or overlong name and an empty change', async () => {
+      fake.adminStore.getServer.mockResolvedValue(gameServer());
+
+      expect(
+        (await call('PUT', '/servers/default/game-bot', OWNER, {})).statusCode,
+      ).toBe(400);
+      expect(
+        (
+          await call('PUT', '/servers/default/game-bot', OWNER, {
+            spectatorName: '   ',
+          })
+        ).statusCode,
+      ).toBe(400);
+      expect(
+        (
+          await call('PUT', '/servers/default/game-bot', OWNER, {
+            spectatorName: 'x'.repeat(33),
+          })
+        ).json().message,
+      ).toBe('The game bot name must be 1-32 characters.');
+      expect(fake.adminStore.setServerWatch).not.toHaveBeenCalled();
+    });
+
+    it('saves mode and thresholds and refuses a password or an unarmed kick', async () => {
+      fake.adminStore.getServer.mockResolvedValue(
+        gameServer({
+          ...DEFAULT_SERVER_WATCH_SETTINGS,
+          enabled: true,
+        }),
+      );
+      supervisor();
+
+      const saved = await call('PUT', '/servers/default/game-bot', OWNER, {
+        mode: 'report',
+        join: 'private',
+        flagZ: 3.5,
+        confirmedAimFeatures: 1,
+        privateClientsPrevious: null,
+      });
+      expect(saved.statusCode).toBe(200);
+      expect(saved.json()).toEqual(
+        view({
+          enabled: true,
+          mode: 'report',
+          join: 'private',
+          flagZ: 3.5,
+          confirmedAimFeatures: 1,
+          privateClientsPrevious: null,
+        }),
+      );
+      expect(JSON.stringify(saved.json())).not.toContain(SECRET);
+
+      const kick = await call('PUT', '/servers/default/game-bot', OWNER, {
+        mode: 'kick',
+      });
+      expect(kick.statusCode).toBe(400);
+      expect(kick.json().message).toBe(
+        'Kick mode needs confirmedAimFeatures 2.',
+      );
+
+      const secret = await call('PUT', '/servers/default/game-bot', OWNER, {
+        privatePassword: 'do-not-store',
+      });
+      expect(secret.statusCode).toBe(400);
+      expect(JSON.stringify(secret.json())).not.toContain('do-not-store');
+      expect(fake.adminStore.setServerWatch).toHaveBeenCalledTimes(1);
+      expect(
+        JSON.stringify(fake.adminStore.recordAuditLog.mock.calls),
+      ).not.toContain('do-not-store');
+    });
+
+    it('says whether the private password was generated, adopted, or missing', async () => {
+      fake.adminStore.getServer.mockResolvedValue({
+        ...gameServer(),
+        watchPrivatePassword: null,
+        watchPrivatePasswordOwned: false,
+      });
+      expect(
+        (await call('GET', '/servers/default/game-bot', OWNER)).json()
+          .privatePassword,
+      ).toBe('none');
+
+      fake.adminStore.getServer.mockResolvedValue({
+        ...gameServer(),
+        watchPrivatePasswordOwned: false,
+      });
+      const adopted = await call('GET', '/servers/default/game-bot', OWNER);
+      expect(adopted.json().privatePassword).toBe('adopted');
+      expect(JSON.stringify(adopted.json())).not.toContain(SECRET);
+    });
+
+    it('still reports the save when the supervisor sync fails', async () => {
+      fake.adminStore.getServer.mockResolvedValue(gameServer());
+      const sync = supervisor();
+      sync.mockRejectedValue(new Error('down'));
+      const error = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined);
+
+      const response = await call('PUT', '/servers/default/game-bot', OWNER, {
+        enabled: true,
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json().enabled).toBe(true);
+      expect(fake.adminStore.recordAuditLog).toHaveBeenCalled();
+      error.mockRestore();
+    });
+
+    it('404s an unknown server and a store that did not update', async () => {
+      expect(
+        (await call('GET', '/servers/default/game-bot', OWNER)).statusCode,
+      ).toBe(404);
+      expect(
+        (await call('GET', '/servers/gone/game-bot', OWNER)).statusCode,
+      ).toBe(404);
+
+      fake.adminStore.getServer.mockResolvedValue(gameServer());
+      fake.adminStore.setServerWatch.mockResolvedValue(false);
+      expect(
+        (
+          await call('PUT', '/servers/default/game-bot', OWNER, {
+            spectatorName: 'Spotter',
+          })
+        ).statusCode,
       ).toBe(404);
     });
   });

@@ -49,8 +49,8 @@ const LINKS: readonly Link[] = [
   },
   {
     path: '/watch',
-    label: 'Watch evidence',
-    hint: 'Scores the watcher stored',
+    label: 'Game bot',
+    hint: 'Turn it on, change its settings, read the scores',
     icon: 'flag',
   },
   {
