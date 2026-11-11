@@ -124,6 +124,38 @@ describe('watch child snapshots', () => {
     expect(names).toEqual(['AdminWatch', 'Spotter']);
   });
 
+  it('keeps an in-flight connect when the same server is reloaded', async () => {
+    let release: (peer: { disconnect(): void; run(): void }) => void = () =>
+      undefined;
+    const gate = new Promise<{ disconnect(): void; run(): void }>((resolve) => {
+      release = resolve;
+    });
+    const names: string[] = [];
+    const dropped: string[] = [];
+    const child = startChild((options) => {
+      names.push(options.name ?? '');
+      return gate.then(() => ({
+        disconnect() {
+          dropped.push(options.name ?? '');
+        },
+        run() {},
+      }));
+    });
+    const send = (message: unknown): void => {
+      child.stdin.write(`${JSON.stringify(message)}\n`);
+    };
+    send({ type: 'hello', servers: [server('default')] });
+    await new Promise((resolve) => setImmediate(resolve));
+    send({ type: 'reload', servers: [server('default')] });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(names).toEqual(['AdminWatch']);
+    release({ disconnect() {}, run() {} });
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(names).toEqual(['AdminWatch']);
+    expect(dropped).toEqual([]);
+  });
+
   it('leaves the game before the process exits', async () => {
     const exit = vi
       .spyOn(process, 'exit')

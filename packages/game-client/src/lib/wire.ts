@@ -83,6 +83,70 @@ export function pureClientCommand(checksumFeed: number): string {
   return `cp @ ${checksumFeed | 0}`;
 }
 
+/**
+ * Reliable client commands. CoD2 drops the client with
+ * `EXE_LOSTRELIABLECOMMANDS` when a sequence skips even one number, and it
+ * ignores the whole packet across a map change. Unacked commands are resent
+ * with the same sequence. A new gamestate rewrites an unacked `cp` in place
+ * so the old feed is never executed.
+ */
+export interface ReliableCommandState {
+  commandSeq: number;
+  /** Highest client-command sequence the server has executed. */
+  ack: number;
+  sent: Map<number, string>;
+  needPure: boolean;
+  checksumFeed: number;
+  /** `team spectator` has been queued. */
+  sentTeam: boolean;
+}
+
+export function acknowledgeReliableCommands(
+  state: ReliableCommandState,
+  ack: number,
+): void {
+  if (ack > state.ack) state.ack = ack;
+  // Keep the acked text. The next server packet XORs with it.
+  for (const seq of state.sent.keys()) {
+    if (seq < state.ack) state.sent.delete(seq);
+  }
+}
+
+export function unackedReliableCommands(
+  state: ReliableCommandState,
+): { seq: number; text: string }[] {
+  return [...state.sent.entries()]
+    .filter(([seq]) => seq > state.ack)
+    .sort((left, right) => left[0] - right[0])
+    .map(([seq, text]) => ({ seq, text }));
+}
+
+/** Queue `cp` and `team spectator` once, then return every command still unacked. */
+export function collectReliableCommands(
+  state: ReliableCommandState,
+): { seq: number; text: string }[] {
+  if (state.needPure) {
+    const text = pureClientCommand(state.checksumFeed);
+    const pending = unackedReliableCommands(state).find((command) =>
+      command.text.startsWith('cp '),
+    );
+    if (pending) {
+      pending.text = text;
+      state.sent.set(pending.seq, text);
+    } else {
+      state.sent.set(state.commandSeq, text);
+      state.commandSeq += 1;
+    }
+    state.needPure = false;
+  }
+  if (!state.sentTeam) {
+    state.sent.set(state.commandSeq, 'team spectator');
+    state.commandSeq += 1;
+    state.sentTeam = true;
+  }
+  return unackedReliableCommands(state);
+}
+
 export function buildGetstatusPacket(): Buffer {
   return buildOobPacket('getstatus');
 }

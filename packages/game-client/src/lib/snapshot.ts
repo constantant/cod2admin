@@ -77,6 +77,8 @@ export interface ParsedMessage {
   configstrings: Map<number, string>;
   clientNum: number | null;
   checksumFeed: number | null;
+  /** True only when this message contained `svc_gamestate`. The feed is also carried forward on later snapshots. */
+  gamestate: boolean;
   serverId: number | null;
   snapshots: ParsedSnapshot[];
 }
@@ -548,6 +550,7 @@ export function parseServerMessage(
     configstrings: state.configstrings,
     clientNum: state.clientNum,
     checksumFeed: state.checksumFeed,
+    gamestate: false,
     serverId: null,
     snapshots: [],
   };
@@ -579,6 +582,7 @@ export function parseServerMessage(
         };
       message.clientNum = state.clientNum;
       message.checksumFeed = state.checksumFeed;
+      message.gamestate = true;
       message.serverId = serverIdFrom(state.configstrings);
       continue;
     }

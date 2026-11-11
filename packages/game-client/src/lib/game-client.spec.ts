@@ -8,6 +8,8 @@ import { BitMsg } from './bit-msg.js';
 import {
   CLC_MOVE_NO_DELTA,
   CLIENT_CLEAR_HEADER,
+  SVC_EOF,
+  SVC_GAMESTATE,
   SVC_SNAPSHOT,
 } from './constants.js';
 import { HUFF_FREQ } from './huff-data.js';
@@ -16,14 +18,17 @@ import { GamePeer, samplesFromSnapshot } from './peer.js';
 import type { EntityObservation } from './snapshot.js';
 import { parseServerMessage } from './snapshot.js';
 import {
+  acknowledgeReliableCommands,
   buildClientDatagram,
   buildDisconnectDatagram,
   buildGetchallengePacket,
   buildSpectatorUserinfo,
+  collectReliableCommands,
   comHashKey,
   connectAllowed,
   decodeClientDatagram,
   pureClientCommand,
+  type ReliableCommandState,
   FragmentAssembler,
   parseStatusBody,
   sanitizeSpectatorName,
@@ -261,17 +266,14 @@ describe('jump keepalive', () => {
         move: true,
       });
       const payload = packet.subarray(6);
-      const compressed = Uint8Array.from(
-        payload.subarray(CLIENT_CLEAR_HEADER),
-      );
+      const compressed = Uint8Array.from(payload.subarray(CLIENT_CLEAR_HEADER));
       const plain = huffmanDecompress(compressed, 2048);
       expect(plain.ok).toBe(true);
       if (!plain.ok) return;
       const msg = new BitMsg(plain.data);
       expect(msg.readBits(3)).toBe(CLC_MOVE_NO_DELTA);
       expect(msg.readByte()).toBe(1);
-      const serverTime =
-        msg.readBit() === 1 ? msg.readByte() : msg.readLong();
+      const serverTime = msg.readBit() === 1 ? msg.readByte() : msg.readLong();
       expect(serverTime).toBe(sample.serverTime);
       // MSG_ReadDeltaUsercmdKey long form against a zero command.
       expect(readKey(msg, key, 1)).toBe(1);
@@ -310,6 +312,75 @@ function readDeltaKey(
   if (msg.readBit() === 0) return oldValue;
   return readKey(msg, key, bits);
 }
+
+describe('reliable client commands', () => {
+  function queue(): ReliableCommandState {
+    return {
+      commandSeq: 1,
+      ack: 0,
+      sent: new Map(),
+      needPure: true,
+      checksumFeed: 41,
+      sentTeam: false,
+    };
+  }
+
+  it('sends cp and team once, then repeats them until the server acks', () => {
+    const state = queue();
+    const first = collectReliableCommands(state);
+    expect(first.map((command) => command.text)).toEqual([
+      'cp @ 41',
+      'team spectator',
+    ]);
+    expect(first.map((command) => command.seq)).toEqual([1, 2]);
+
+    const repeated = collectReliableCommands(state);
+    expect(repeated).toEqual(first);
+    expect(state.commandSeq).toBe(3);
+
+    acknowledgeReliableCommands(state, 2);
+    expect(collectReliableCommands(state)).toEqual([]);
+  });
+
+  it('rewrites an unacked cp when the map changes, and does not skip a sequence', () => {
+    const state = queue();
+    collectReliableCommands(state);
+    acknowledgeReliableCommands(state, 0);
+    state.needPure = true;
+    state.checksumFeed = 99;
+    const next = collectReliableCommands(state);
+    expect(next).toEqual([
+      { seq: 1, text: 'cp @ 99' },
+      { seq: 2, text: 'team spectator' },
+    ]);
+    expect(state.commandSeq).toBe(3);
+  });
+
+  it('does not treat a carried checksum feed as a new gamestate', () => {
+    const msg = BitMsg.alloc(32);
+    msg.writeLong(0);
+    msg.writeByte(SVC_GAMESTATE);
+    msg.writeLong(1);
+    msg.writeByte(SVC_EOF);
+    msg.writeLong(0);
+    msg.writeLong(41);
+    msg.writeByte(SVC_EOF);
+    const gamestate = parseServerMessage(msg.bytes(), 118);
+    expect(gamestate.ok).toBe(true);
+    if (!gamestate.ok) return;
+    expect(gamestate.message.gamestate).toBe(true);
+    expect(gamestate.message.checksumFeed).toBe(41);
+
+    const later = BitMsg.alloc(4);
+    later.writeLong(2);
+    const snapshot = parseServerMessage(later.bytes(), 118, gamestate.state);
+    expect(snapshot.ok).toBe(true);
+    if (!snapshot.ok) return;
+    expect(snapshot.message.gamestate).toBe(false);
+    expect(snapshot.message.checksumFeed).toBe(41);
+    expect(snapshot.message.lastClientCommand).toBe(2);
+  });
+});
 
 describe('disconnect packet', () => {
   it('is a sequenced reliable command, not an OOB disconnect', () => {

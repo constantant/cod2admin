@@ -10,17 +10,19 @@ import {
   type ParseState,
 } from './snapshot.js';
 import {
+  acknowledgeReliableCommands,
   buildClientDatagram,
   buildConnectPacket,
-  buildDisconnectDatagram,
   buildGetchallengePacket,
   buildGetstatusPacket,
   buildSpectatorUserinfo,
+  collectReliableCommands,
   connectAllowed,
   decodeServerPayload,
-  pureClientCommand,
   FragmentAssembler,
   parseStatusBody,
+  unackedReliableCommands,
+  type ReliableCommandState,
   type StatusInfo,
 } from './wire.js';
 
@@ -113,16 +115,12 @@ export class GamePeer {
   private fragments: FragmentAssembler;
   private parseState: ParseState = emptyParseState();
   private outgoing = 1;
-  private commandSeq = 1;
   private serverId = 0;
   private learnedServerId = false;
   private messageAcknowledge = 0;
   private reliableAcknowledge = 0;
   private checksumFeed = 0;
   private haveGamestate = false;
-  /** A new gamestate resets the server's pure flag, so `cp` has to be sent again. */
-  private needPure = false;
-  private sentTeam = false;
   private keepalive: ReturnType<typeof setInterval> | undefined;
   /** Last datagram from the server. `run` starts the silence clock. */
   private lastPacketAt = 0;
@@ -132,6 +130,18 @@ export class GamePeer {
   private suppressSend = false;
   private leaving: Promise<void> | null = null;
   private readonly sentCommands = new Map<number, string>();
+  /**
+   * Client commands are reliable. The server acks them with the first long of
+   * each server message. A skipped sequence is `EXE_LOSTRELIABLECOMMANDS`.
+   */
+  private readonly reliable: ReliableCommandState = {
+    commandSeq: 1,
+    ack: 0,
+    sent: this.sentCommands,
+    needPure: false,
+    checksumFeed: 0,
+    sentTeam: false,
+  };
   private readonly serverCommandText = new Map<number, string>();
   private readonly pending: Pending[] = [];
   private readonly watchState: WatchResult = {
@@ -308,7 +318,12 @@ export class GamePeer {
     let packet: Buffer | null = null;
     if (!this.closed) {
       try {
-        packet = buildDisconnectDatagram({
+        const commands = unackedReliableCommands(this.reliable);
+        const commandSeq = this.reliable.commandSeq;
+        this.reliable.commandSeq += 1;
+        commands.push({ seq: commandSeq, text: 'disconnect' });
+        this.sentCommands.set(commandSeq, 'disconnect');
+        packet = buildClientDatagram({
           sequence: this.outgoing,
           qport: this.qport,
           challenge: this.challenge,
@@ -319,10 +334,10 @@ export class GamePeer {
             this.serverCommandText.get(this.reliableAcknowledge) ?? '',
           checksumFeed: this.checksumFeed,
           serverTime: this.cmdTime,
-          commandSeq: this.commandSeq,
+          commands,
+          move: false,
         });
         this.outgoing++;
-        this.commandSeq++;
       } catch {
         packet = null;
       }
@@ -493,11 +508,17 @@ export class GamePeer {
     this.parseState = parsed.state;
     if (parsed.message.clientNum !== null)
       this.watchState.clientNum = parsed.message.clientNum;
-    if (parsed.message.checksumFeed !== null) {
+    // Snapshots keep the previous feed. Only a gamestate resets pure.
+    if (parsed.message.gamestate && parsed.message.checksumFeed !== null) {
       this.checksumFeed = parsed.message.checksumFeed;
+      this.reliable.checksumFeed = this.checksumFeed;
       this.haveGamestate = true;
-      this.needPure = true;
+      this.reliable.needPure = true;
     }
+    acknowledgeReliableCommands(
+      this.reliable,
+      parsed.message.lastClientCommand,
+    );
     if (parsed.message.serverId !== null) {
       this.serverId = parsed.message.serverId;
       this.learnedServerId = true;
@@ -559,20 +580,8 @@ export class GamePeer {
       this.sendTrigger();
       return;
     }
-    const commands: { seq: number; text: string }[] = [];
-    if (this.needPure) {
-      const seq = this.commandSeq++;
-      const text = pureClientCommand(this.checksumFeed);
-      commands.push({ seq, text });
-      this.sentCommands.set(seq, text);
-      this.needPure = false;
-    }
-    if (!this.sentTeam) {
-      const seq = this.commandSeq++;
-      commands.push({ seq, text: 'team spectator' });
-      this.sentCommands.set(seq, 'team spectator');
-      this.sentTeam = true;
-    }
+    this.reliable.checksumFeed = this.checksumFeed;
+    const commands = collectReliableCommands(this.reliable);
     this.cmdTime += 50;
     this.send(this.packet(commands, true));
   }
@@ -600,8 +609,14 @@ export class GamePeer {
   }
 }
 
-/** No datagram from the server for this long means the slot is already gone. */
-const SERVER_SILENCE_MS = 15_000;
+/**
+ * No datagram from the server for this long closes the socket without a leave
+ * packet. A map load on the dev server goes quiet for longer than 15s while
+ * the slot is still held. Closing then and connecting again leaves the old
+ * spectator in the list and adds a second one. Stay under the stock
+ * `sv_timeout` of 240s so a dead server is replaced before that drop.
+ */
+const SERVER_SILENCE_MS = 120_000;
 
 /** Retransmits of one disconnect datagram. A single lost UDP packet used to leave the bot in game. */
 const DISCONNECT_SENDS = 3;

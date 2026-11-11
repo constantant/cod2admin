@@ -125,8 +125,11 @@ export function createWatchChild(options: WatchChildOptions): {
       }
       const current = connections.get(server.alias);
       // The userinfo name is fixed at connect. A new name drops this peer.
+      // A reload while connect() is still in flight has no peer yet. Starting
+      // another connect here disconnects the first socket as soon as it
+      // lands, which the server logs as EXE_DISCONNECTED.
       if (
-        current?.peer &&
+        current &&
         current.host === server.host &&
         current.port === server.port &&
         current.gSpeed === server.gSpeed &&
@@ -167,13 +170,12 @@ export function createWatchChild(options: WatchChildOptions): {
       attempt: 0,
     };
     connections.set(server.alias, connection);
-    await openPeer(connection, server, gen);
+    await openPeer(connection, server);
   }
 
   async function openPeer(
     connection: Connection,
     server: HelloServer,
-    gen: number,
   ): Promise<void> {
     let current: PeerHandle | undefined;
     try {
@@ -196,7 +198,6 @@ export function createWatchChild(options: WatchChildOptions): {
         onDropped: () => {
           if (
             stopped ||
-            gen !== generation ||
             connections.get(server.alias) !== connection ||
             current === undefined ||
             connection.peer !== current
@@ -207,14 +208,10 @@ export function createWatchChild(options: WatchChildOptions): {
           console.error(
             `watch child: ${server.alias} lost the server, reconnecting`,
           );
-          scheduleRetry(connection, server, gen);
+          scheduleRetry(connection, server);
         },
       });
-      if (
-        gen !== generation ||
-        stopped ||
-        connections.get(server.alias) !== connection
-      ) {
+      if (stopped || connections.get(server.alias) !== connection) {
         await peer.disconnect();
         return;
       }
@@ -237,16 +234,12 @@ export function createWatchChild(options: WatchChildOptions): {
         connections.delete(server.alias);
         return;
       }
-      scheduleRetry(connection, server, gen);
+      scheduleRetry(connection, server);
     }
   }
 
-  function scheduleRetry(
-    connection: Connection,
-    server: HelloServer,
-    gen: number,
-  ): void {
-    if (stopped || gen !== generation) {
+  function scheduleRetry(connection: Connection, server: HelloServer): void {
+    if (stopped || connections.get(server.alias) !== connection) {
       return;
     }
     const delay =
@@ -254,14 +247,10 @@ export function createWatchChild(options: WatchChildOptions): {
     connection.attempt += 1;
     const timer = setTimeout(() => {
       connection.retry = undefined;
-      if (
-        stopped ||
-        gen !== generation ||
-        connections.get(server.alias) !== connection
-      ) {
+      if (stopped || connections.get(server.alias) !== connection) {
         return;
       }
-      void openPeer(connection, server, gen);
+      void openPeer(connection, server);
     }, delay);
     timer.unref();
     connection.retry = timer;
