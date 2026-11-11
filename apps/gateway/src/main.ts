@@ -1,7 +1,9 @@
 import { randomBytes } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { InputFile } from 'grammy';
 import {
   createAdminStore,
   createMcpRepository,
@@ -84,6 +86,7 @@ import {
   loadClientMetadata,
 } from './mcp/client-metadata.js';
 import { McpSessions } from './mcp/sessions.js';
+import { resolveMapPreview } from './watch/match-summary.js';
 import { ChatFeeds } from './miniapp/chat-feed.js';
 import { startMiniAppServer } from './miniapp/server.js';
 
@@ -401,9 +404,29 @@ try {
     reportQueue: deps.reportQueue,
     createCardSender: (report) =>
       new WatchCardSender(bot, deps.reportRegistry, report),
+    sendMatch: async ({ chatId, mapName, caption }) => {
+      const photo = resolveMapPreview(mapName, mapPreviewRoots(), existsSync);
+      if (!photo) {
+        console.warn(`watch: map preview missing for ${mapName}`);
+        await bot.api.sendMessage(chatId, caption);
+        return;
+      }
+      await bot.api.sendPhoto(chatId, new InputFile(photo), { caption });
+    },
   });
 } catch (error) {
   console.error('watch: supervisor failed to start:', error);
+}
+
+/**
+ * Installed bundle keeps screenshots next to the gateway (`current/miniapp/maps`).
+ * A checkout keeps them in the Mini App's public folder.
+ */
+function mapPreviewRoots(): string[] {
+  return [
+    fileURLToPath(new URL('../miniapp/maps', import.meta.url)),
+    fileURLToPath(new URL('../../miniapp-web/public/maps', import.meta.url)),
+  ];
 }
 
 void bot.start({

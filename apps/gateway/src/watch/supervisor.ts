@@ -20,7 +20,11 @@ import {
   type CardSender,
   type MachineReport,
 } from '@cod2admin/report-pipeline';
-import { stripColorCodes, type ServerStatus } from '@cod2admin/rcon-client';
+import {
+  stripColorCodes,
+  type ServerStatus,
+  type StatusPlayer,
+} from '@cod2admin/rcon-client';
 import {
   createWatchStore,
   migrate as migrateWatchStore,
@@ -34,14 +38,22 @@ import { executeModerationAction } from '../lib/moderation-actions.js';
 import { createPlayerIdentityResolver } from '../lib/player-identity.js';
 import {
   parseLifeMessage,
+  parseScoresMessage,
+  parseTeamsMessage,
   reloadMessage,
   type HelloServer,
   type LifeMessage,
+  type ScoresMessage,
+  type TeamsMessage,
 } from './ipc.js';
 import { matchKickSlot, watchIdentityKind } from './match-kick.js';
+import { buildMatchCaption } from './match-summary.js';
 
 /** Same window as player-identity: a ban-sweep status is reused, not re-fetched. */
 const FRESH_STATUS_MS = 10_000;
+/** Status sample while the bot is on, so a match can end with nobody in the Mini App. */
+const MATCH_POLL_MS = 15_000;
+const EMPTY_TEAMS: ReadonlyMap<number, number> = new Map();
 const DAY_MS = 24 * 60 * 60 * 1000;
 const BACKOFF_MS = [1000, 2000, 5000, 15_000, 30_000];
 const PENDING_LIFE_CAP = 100;
@@ -68,6 +80,11 @@ export interface WatchSupervisor {
     limit: number,
     offset: number,
   ): Promise<WatchEvidenceRow[]>;
+  /**
+   * Slot to team from the spectator. Empty while the bot is off or between
+   * maps. 0 free, 1 Axis, 2 Allies, 3 spectator.
+   */
+  playerTeams(alias: string): ReadonlyMap<number, number>;
 }
 
 export interface SpawnedWatch {
@@ -133,12 +150,42 @@ export interface WatchSupervisorDeps {
   };
   /** `0` skips the daily timer. The boot prune still runs. */
   pruneIntervalMs?: number;
+  /**
+   * Posts one finished map to the server's bound chat. Absent in tests that
+   * do not care. The caption is already plain text.
+   */
+  sendMatch?: (message: {
+    chatId: number;
+    mapName: string;
+    caption: string;
+  }) => Promise<void>;
+  /** `0` skips the match status poll. Default {@link MATCH_POLL_MS}. */
+  matchPollMs?: number;
   killGroup?: (pid: number) => void;
 }
 
 interface HeldStatus {
   status: ServerStatus;
   fetchedAt: number;
+}
+
+interface RosterPlayer {
+  num: number;
+  name: string;
+  score: number;
+  firstSeen: number;
+  lastSeen: number;
+}
+
+interface MapRoster {
+  mapName: string | null;
+  players: Map<number, RosterPlayer>;
+}
+
+interface TeamScore {
+  mapName: string;
+  axis: number | null;
+  allies: number | null;
 }
 
 interface StartedChild {
@@ -179,6 +226,13 @@ class Supervisor {
   private backoffIndex = 0;
   private restartTimer?: NodeJS.Timeout;
   private pruneTimer?: NodeJS.Timeout;
+  private matchTimer?: NodeJS.Timeout;
+  private matchPolling = false;
+  private readonly rosters = new Map<string, MapRoster>();
+  private readonly teamScores = new Map<string, TeamScore>();
+  private readonly pendingScores = new Map<string, TeamScore>();
+  private readonly lastFinishedMap = new Map<string, string>();
+  private readonly playerTeamsByServer = new Map<string, Map<number, number>>();
   private lastHello: HelloServer[] = [];
   /** Map name last sent to the child. Null is the tracker's starting map. */
   private readonly childMaps = new Map<string, string | null>();
@@ -222,6 +276,7 @@ class Supervisor {
       // Not on the kick chain: a staff read must not delay a kick.
       listEvidence: (serverAlias, limit, offset) =>
         self.listEvidence(serverAlias, limit, offset),
+      playerTeams: (alias) => self.playerTeams(alias),
     };
   }
 
@@ -268,6 +323,11 @@ class Supervisor {
       this.pruneTimer.unref();
     }
     await this.sync();
+    this.startMatchPoll();
+  }
+
+  playerTeams(alias: string): ReadonlyMap<number, number> {
+    return this.playerTeamsByServer.get(alias) ?? EMPTY_TEAMS;
   }
 
   noteStatus(
@@ -278,6 +338,9 @@ class Supervisor {
     this.held.set(alias, { status, fetchedAt });
     this.dirty.add(alias);
     this.noted.add(alias);
+    if (this.watchEnabled(alias)) {
+      this.trackMatch(alias, status, fetchedAt);
+    }
     if (this.draining) {
       return;
     }
@@ -294,6 +357,10 @@ class Supervisor {
     if (this.pruneTimer) {
       clearInterval(this.pruneTimer);
       this.pruneTimer = undefined;
+    }
+    if (this.matchTimer) {
+      clearInterval(this.matchTimer);
+      this.matchTimer = undefined;
     }
     this.pending.clear();
   }
@@ -418,6 +485,7 @@ class Supervisor {
   }
 
   private applyChild(hello: HelloServer[]): void {
+    this.retainMatchState(hello);
     for (const server of hello) {
       const held = this.held.get(server.alias)?.status.mapName?.trim() || null;
       const known = held ?? this.childMaps.get(server.alias) ?? null;
@@ -485,10 +553,17 @@ class Supervisor {
     const reader = createInterface({ input: child.stdout });
     reader.on('line', (line) => {
       const life = parseLifeMessage(line);
-      if (!life) {
+      if (life) {
+        void this.enqueue(() => this.handleLife(life));
         return;
       }
-      void this.enqueue(() => this.handleLife(life));
+      const teams = parseTeamsMessage(line);
+      if (teams) {
+        this.applyTeams(teams);
+        return;
+      }
+      const scores = parseScoresMessage(line);
+      if (scores) this.applyScores(scores);
     });
     child.stderr.on('data', (chunk: Buffer | string) => {
       const text = this.redact(String(chunk)).trim();
@@ -539,6 +614,7 @@ class Supervisor {
     }
     this.childGeneration += 1;
     this.childMaps.clear();
+    this.playerTeamsByServer.clear();
     this.signal(started.process);
   }
 
@@ -1354,6 +1430,225 @@ class Supervisor {
       }
     }
     return out;
+  }
+
+  private startMatchPoll(): void {
+    const interval = this.deps.matchPollMs ?? MATCH_POLL_MS;
+    if (interval <= 0) return;
+    this.matchTimer = setInterval(() => {
+      void this.pollMatches();
+    }, interval);
+    this.matchTimer.unref();
+  }
+
+  private async pollMatches(): Promise<void> {
+    if (!this.running || this.matchPolling) return;
+    this.matchPolling = true;
+    try {
+      const interval = this.deps.matchPollMs ?? MATCH_POLL_MS;
+      const freshFor = Math.max(0, interval - 2_000);
+      for (const server of this.lastHello) {
+        const held = this.held.get(server.alias);
+        if (held && this.now() - held.fetchedAt < freshFor) continue;
+        const client = this.deps.rconClients.get(server.alias);
+        if (!client) continue;
+        try {
+          await client.status();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'error';
+          this.log.warn(
+            `watch: ${server.alias} match status failed: ${message}`,
+          );
+        }
+      }
+    } finally {
+      this.matchPolling = false;
+    }
+  }
+
+  private watchEnabled(alias: string): boolean {
+    return this.lastHello.some((server) => server.alias === alias);
+  }
+
+  /**
+   * Close the previous map before storing this status. The scoreboard after
+   * the change belongs to the new map.
+   */
+  private trackMatch(
+    alias: string,
+    status: ServerStatus,
+    fetchedAt: number,
+  ): void {
+    const nextMap = status.mapName?.trim() || null;
+    const roster = this.rosters.get(alias);
+    if (roster?.mapName && nextMap && roster.mapName !== nextMap) {
+      this.finishMatch(alias, roster);
+      this.rotateScores(alias, nextMap);
+      this.rosters.set(alias, seedRoster(nextMap, status.players, fetchedAt));
+      return;
+    }
+    if (!roster || roster.mapName !== nextMap) {
+      this.rosters.set(alias, seedRoster(nextMap, status.players, fetchedAt));
+      if (nextMap) this.adoptPendingScores(alias, nextMap);
+      return;
+    }
+    mergeRoster(roster, status.players, fetchedAt);
+  }
+
+  private finishMatch(alias: string, roster: MapRoster): void {
+    if (!roster.mapName) return;
+    this.lastFinishedMap.set(alias, roster.mapName);
+    const scores = this.teamScores.get(alias);
+    const sameMap = scores?.mapName === roster.mapName ? scores : undefined;
+    const teams = this.playerTeamsByServer.get(alias);
+    const botName = this.botName(alias);
+    const caption = buildMatchCaption({
+      mapName: roster.mapName,
+      axis: sameMap ? sameMap.axis : null,
+      allies: sameMap ? sameMap.allies : null,
+      players: [...roster.players.values()].map((player) => ({
+        name: player.name,
+        score: player.score,
+        minutes: (player.lastSeen - player.firstSeen) / 60_000,
+        team: teams?.get(player.num) ?? null,
+        bot:
+          botName !== null && stripColorCodes(player.name).trim() === botName,
+      })),
+    });
+    if (!caption || !this.deps.sendMatch) return;
+    const mapName = roster.mapName;
+    void this.enqueue(() => this.postMatch(alias, mapName, caption));
+  }
+
+  private async postMatch(
+    alias: string,
+    mapName: string,
+    caption: string,
+  ): Promise<void> {
+    const send = this.deps.sendMatch;
+    if (!send) return;
+    let server: ServerConfig | undefined;
+    try {
+      server = await this.deps.adminStore.getServer(alias);
+    } catch (error) {
+      this.log.error('watch: match result lookup failed', error);
+      return;
+    }
+    const chatId = server?.boundTelegramChatId;
+    if (chatId == null) return;
+    try {
+      await send({ chatId, mapName, caption });
+    } catch (error) {
+      this.log.error('watch: match result failed', error);
+    }
+  }
+
+  private botName(alias: string): string | null {
+    const hello = this.lastHello.find((server) => server.alias === alias);
+    if (!hello) return null;
+    const name = stripColorCodes(hello.spectatorName).trim();
+    return name.length > 0 ? name : null;
+  }
+
+  private rotateScores(alias: string, nextMap: string): void {
+    const pending = this.pendingScores.get(alias);
+    if (pending?.mapName === nextMap) {
+      this.teamScores.set(alias, pending);
+      this.pendingScores.delete(alias);
+      return;
+    }
+    this.teamScores.delete(alias);
+    this.pendingScores.delete(alias);
+  }
+
+  private adoptPendingScores(alias: string, mapName: string): void {
+    const pending = this.pendingScores.get(alias);
+    if (pending?.mapName !== mapName) return;
+    this.teamScores.set(alias, pending);
+    this.pendingScores.delete(alias);
+  }
+
+  private applyTeams(message: TeamsMessage): void {
+    this.playerTeamsByServer.set(
+      message.serverAlias,
+      new Map(message.teams.map((player) => [player.slot, player.team])),
+    );
+  }
+
+  private applyScores(message: ScoresMessage): void {
+    const current = this.rosters.get(message.serverAlias)?.mapName ?? null;
+    if (
+      current !== message.mapName &&
+      this.lastFinishedMap.get(message.serverAlias) === message.mapName
+    ) {
+      return;
+    }
+    const entry: TeamScore = {
+      mapName: message.mapName,
+      axis: message.axis,
+      allies: message.allies,
+    };
+    if (current === message.mapName) {
+      this.teamScores.set(message.serverAlias, entry);
+      return;
+    }
+    this.pendingScores.set(message.serverAlias, entry);
+  }
+
+  private retainMatchState(hello: readonly HelloServer[]): void {
+    const aliases = new Set(hello.map((server) => server.alias));
+    for (const alias of this.rosters.keys()) {
+      if (!aliases.has(alias)) this.forgetMatch(alias);
+    }
+  }
+
+  private forgetMatch(alias: string): void {
+    this.rosters.delete(alias);
+    this.teamScores.delete(alias);
+    this.pendingScores.delete(alias);
+    this.lastFinishedMap.delete(alias);
+    this.playerTeamsByServer.delete(alias);
+  }
+}
+
+function seedRoster(
+  mapName: string | null,
+  players: readonly StatusPlayer[],
+  fetchedAt: number,
+): MapRoster {
+  const roster: MapRoster = { mapName, players: new Map() };
+  for (const player of players) {
+    roster.players.set(player.num, {
+      num: player.num,
+      name: player.name,
+      score: player.score,
+      firstSeen: fetchedAt,
+      lastSeen: fetchedAt,
+    });
+  }
+  return roster;
+}
+
+function mergeRoster(
+  roster: MapRoster,
+  players: readonly StatusPlayer[],
+  fetchedAt: number,
+): void {
+  for (const player of players) {
+    const existing = roster.players.get(player.num);
+    if (existing) {
+      existing.name = player.name;
+      existing.score = player.score;
+      existing.lastSeen = fetchedAt;
+      continue;
+    }
+    roster.players.set(player.num, {
+      num: player.num,
+      name: player.name,
+      score: player.score,
+      firstSeen: fetchedAt,
+      lastSeen: fetchedAt,
+    });
   }
 }
 

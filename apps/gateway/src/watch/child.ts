@@ -14,6 +14,7 @@ import {
   type MapMessage,
   type ParentMessage,
 } from './ipc.js';
+import { parseScoreCommand } from './match-summary.js';
 
 /**
  * Collects samples and writes life features. It does not open Postgres and it
@@ -37,6 +38,20 @@ interface Connection {
   absenceTimer?: ReturnType<typeof setTimeout>;
   attempt: number;
   retry?: ReturnType<typeof setTimeout>;
+  /** Last Axis and Allies scores for the map the parent already named. */
+  axis: number | null;
+  allies: number | null;
+  /** True once a gamestate or a `d` command has given a score, including 0. */
+  scoresKnown: boolean;
+  /**
+   * Scores from a gamestate whose map the parent has not named yet. Held so
+   * the 0–0 of the new map is not published over the result still being posted.
+   */
+  pendingScores: {
+    mapName: string;
+    axis: number | null;
+    allies: number | null;
+  } | null;
 }
 
 interface PeerHandle {
@@ -51,6 +66,15 @@ export interface ChildConnectOptions {
   serverAlias: string;
   name?: string;
   onSnapshot: (samples: Sample[]) => void;
+  onClients?: (
+    clients: readonly { clientIndex: number; team: number }[],
+  ) => void;
+  onServerCommand?: (text: string) => void;
+  onGamestate?: (info: {
+    mapName: string | null;
+    axis: number | null;
+    allies: number | null;
+  }) => void;
   /** The peer already closed. Reconnect on the normal backoff. */
   onDropped?: () => void;
 }
@@ -168,6 +192,10 @@ export function createWatchChild(options: WatchChildOptions): {
       startedAt: new Map(),
       pendingAbsent: new Set(),
       attempt: 0,
+      axis: null,
+      allies: null,
+      scoresKnown: false,
+      pendingScores: null,
     };
     connections.set(server.alias, connection);
     await openPeer(connection, server);
@@ -178,6 +206,10 @@ export function createWatchChild(options: WatchChildOptions): {
     server: HelloServer,
   ): Promise<void> {
     let current: PeerHandle | undefined;
+    const peerLive = (): boolean =>
+      connection.liveGen === generation &&
+      current !== undefined &&
+      connections.get(server.alias) === connection;
     try {
       // Spectator userinfo only. `server.password` is not read and not logged.
       const peer = await connectPeer({
@@ -186,14 +218,22 @@ export function createWatchChild(options: WatchChildOptions): {
         serverAlias: server.alias,
         name: server.spectatorName,
         onSnapshot: (samples) => {
-          if (
-            connection.liveGen !== generation ||
-            current === undefined ||
-            connections.get(server.alias) !== connection
-          ) {
-            return;
-          }
+          if (!peerLive()) return;
           ingest(connection, samples);
+        },
+        onClients: (clients) => {
+          if (!peerLive()) return;
+          emitTeams(connection, clients);
+        },
+        onServerCommand: (text) => {
+          if (!peerLive()) return;
+          const score = parseScoreCommand(text);
+          if (!score) return;
+          applyScore(connection, score.index, score.value);
+        },
+        onGamestate: (info) => {
+          if (!peerLive()) return;
+          applyGamestate(connection, info);
         },
         onDropped: () => {
           if (
@@ -205,6 +245,7 @@ export function createWatchChild(options: WatchChildOptions): {
             return;
           }
           connection.peer = undefined;
+          emitTeams(connection, []);
           console.error(
             `watch child: ${server.alias} lost the server, reconnecting`,
           );
@@ -263,6 +304,14 @@ export function createWatchChild(options: WatchChildOptions): {
     }
     connection.mapName = mapName;
     connection.tracker = new LifeTracker(mapName, connection.gSpeed);
+    const pending = connection.pendingScores;
+    if (pending?.mapName === mapName) {
+      connection.axis = pending.axis;
+      connection.allies = pending.allies;
+      connection.scoresKnown = true;
+      connection.pendingScores = null;
+    }
+    publishScores(connection, mapName);
   }
 
   function applyMap(message: MapMessage): void {
@@ -287,6 +336,18 @@ export function createWatchChild(options: WatchChildOptions): {
     connection.startedAt.clear();
     connection.mapName = next;
     connection.tracker = new LifeTracker(next, connection.gSpeed);
+    const pending = connection.pendingScores;
+    connection.pendingScores = null;
+    if (pending?.mapName === next) {
+      connection.axis = pending.axis;
+      connection.allies = pending.allies;
+      connection.scoresKnown = true;
+      publishScores(connection, next);
+      return;
+    }
+    connection.axis = null;
+    connection.allies = null;
+    connection.scoresKnown = false;
   }
 
   function ingest(connection: Connection, samples: readonly Sample[]): void {
@@ -375,6 +436,7 @@ export function createWatchChild(options: WatchChildOptions): {
     clearAbsenceTimer(connection);
     connection.pendingAbsent.clear();
     clearRetry(connection);
+    emitTeams(connection, []);
     for (const slot of [...connection.slots]) {
       const closed = connection.tracker.end(slot, reason);
       if (closed) {
@@ -385,6 +447,95 @@ export function createWatchChild(options: WatchChildOptions): {
     const peer = connection.peer;
     connection.peer = undefined;
     await peer?.disconnect();
+  }
+
+  function applyScore(
+    connection: Connection,
+    index: 5 | 6,
+    value: number,
+  ): void {
+    const pending = connection.pendingScores;
+    if (pending) {
+      if (index === 5) pending.axis = value;
+      else pending.allies = value;
+      return;
+    }
+    if (index === 5) connection.axis = value;
+    else connection.allies = value;
+    connection.scoresKnown = true;
+    publishScores(connection, connection.mapName);
+  }
+
+  function applyGamestate(
+    connection: Connection,
+    info: {
+      mapName: string | null;
+      axis: number | null;
+      allies: number | null;
+    },
+  ): void {
+    const next = info.mapName;
+    const current = connection.mapName;
+    if (current && next && next !== current) {
+      publishScores(connection, current);
+      connection.pendingScores = {
+        mapName: next,
+        axis: info.axis,
+        allies: info.allies,
+      };
+      return;
+    }
+    if (connection.pendingScores) {
+      if (next) connection.pendingScores.mapName = next;
+      connection.pendingScores.axis = info.axis;
+      connection.pendingScores.allies = info.allies;
+      return;
+    }
+    connection.axis = info.axis;
+    connection.allies = info.allies;
+    connection.scoresKnown = info.axis !== null || info.allies !== null;
+    if (current) publishScores(connection, current);
+  }
+
+  function publishScores(connection: Connection, mapName: string | null): void {
+    if (!mapName || !connection.scoresKnown) return;
+    if (!/^[A-Za-z0-9_]{1,64}$/.test(mapName)) return;
+    options.stdout.write(
+      `${JSON.stringify({
+        type: 'scores',
+        serverAlias: connection.alias,
+        mapName,
+        axis: connection.axis,
+        allies: connection.allies,
+      })}\n`,
+    );
+  }
+
+  function emitTeams(
+    connection: Connection,
+    clients: readonly { clientIndex: number; team: number }[],
+  ): void {
+    const teams: { slot: number; team: number }[] = [];
+    for (const client of clients) {
+      if (
+        !Number.isInteger(client.clientIndex) ||
+        client.clientIndex < 0 ||
+        client.clientIndex > 63 ||
+        !Number.isInteger(client.team) ||
+        client.team < 0 ||
+        client.team > 3
+      ) {
+        continue;
+      }
+      teams.push({ slot: client.clientIndex, team: client.team });
+    }
+    options.stdout.write(
+      `${JSON.stringify({
+        type: 'teams',
+        serverAlias: connection.alias,
+        teams,
+      })}\n`,
+    );
   }
 
   function emitLife(connection: Connection, features: LifeFeatures): void {
@@ -464,6 +615,9 @@ async function defaultConnect(
     serverAlias: options.serverAlias,
     name: options.name,
     onSnapshot: options.onSnapshot,
+    onClients: options.onClients,
+    onServerCommand: options.onServerCommand,
+    onGamestate: options.onGamestate,
     onDropped: options.onDropped,
   });
 }

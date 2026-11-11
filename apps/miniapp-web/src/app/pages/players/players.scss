@@ -105,6 +105,23 @@
   color: var(--mat-sys-tertiary);
 }
 
+.team {
+  flex: none;
+  font: var(--mat-sys-label-medium);
+
+  &[data-team='axis'] {
+    color: #e53935;
+  }
+
+  &[data-team='allies'] {
+    color: #1e88e5;
+  }
+
+  &[data-team='spectator'] {
+    color: var(--mat-sys-on-surface-variant);
+  }
+}
+
 .mark {
   width: 16px;
   height: 16px;

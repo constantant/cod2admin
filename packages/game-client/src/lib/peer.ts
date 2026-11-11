@@ -7,6 +7,7 @@ import type { EntityObservation } from './snapshot.js';
 import {
   emptyParseState,
   parseServerMessage,
+  readScoreGamestate,
   type ParseState,
 } from './snapshot.js';
 import {
@@ -52,6 +53,25 @@ export interface GamePeerOptions {
    * subject slot, including the other visible players.
    */
   onSnapshot?: (samples: Sample[]) => void;
+  /**
+   * One call when the set of slot teams changes. A new gamestate reports the
+   * next snapshot even when the teams did not change.
+   */
+  onClients?: (
+    clients: readonly { clientIndex: number; team: number }[],
+  ) => void;
+  /** One call per reliable server command, before `onGamestate` in that message. */
+  onServerCommand?: (text: string) => void;
+  /**
+   * A gamestate. Scores are the configstrings in that message, so a map that
+   * just loaded is usually 0–0. Commands earlier in the same message are
+   * delivered first.
+   */
+  onGamestate?: (info: {
+    mapName: string | null;
+    axis: number | null;
+    allies: number | null;
+  }) => void;
   /**
    * The server stopped answering after connect. The socket is already closed.
    * The caller reconnects; this peer does not.
@@ -109,6 +129,9 @@ export class GamePeer {
   private readonly onDatagram?: GamePeerOptions['onDatagram'];
   private readonly onSample?: GamePeerOptions['onSample'];
   private readonly onSnapshot?: GamePeerOptions['onSnapshot'];
+  private readonly onClients?: GamePeerOptions['onClients'];
+  private readonly onServerCommand?: GamePeerOptions['onServerCommand'];
+  private readonly onGamestate?: GamePeerOptions['onGamestate'];
   private readonly onDropped?: GamePeerOptions['onDropped'];
   private challenge: number;
   private readonly qport: number;
@@ -127,6 +150,8 @@ export class GamePeer {
    * parser can apply with no previous frame.
    */
   private haveSnapshot = false;
+  /** `slot:team` joined, or null until the next snapshot after a gamestate. */
+  private clientsKey: string | null = null;
   private keepalive: ReturnType<typeof setInterval> | undefined;
   /** Last datagram from the server. `run` starts the silence clock. */
   private lastPacketAt = 0;
@@ -181,6 +206,9 @@ export class GamePeer {
     this.onDatagram = options.onDatagram;
     this.onSample = options.onSample;
     this.onSnapshot = options.onSnapshot;
+    this.onClients = options.onClients;
+    this.onServerCommand = options.onServerCommand;
+    this.onGamestate = options.onGamestate;
     this.onDropped = options.onDropped;
     this.challenge = challenge;
     this.qport = 1 + Math.floor(Math.random() * 65534);
@@ -538,6 +566,10 @@ export class GamePeer {
     if (systemInfo) this.watchState.systemInfo = systemInfo;
     if (serverInfo) this.watchState.serverInfo = serverInfo;
     this.noteCommands(parsed.message.serverCommands);
+    if (parsed.message.gamestate) {
+      this.clientsKey = null;
+      this.onGamestate?.(readScoreGamestate(parsed.message.configstrings));
+    }
     for (const snapshot of parsed.message.snapshots) {
       this.watchState.snapshotCount++;
       this.watchState.serverTimes.push(snapshot.serverTimeMs);
@@ -559,6 +591,7 @@ export class GamePeer {
         (client) => client.clientIndex === this.watchState.clientNum,
       );
       if (self) this.watchState.spectatorTeam = self.team;
+      this.noteClients(snapshot.clients);
     }
   }
 
@@ -569,7 +602,20 @@ export class GamePeer {
       this.serverCommandText.set(command.seq, command.text);
       this.reliableAcknowledge = command.seq;
       this.watchState.serverCommands.push(command.text);
+      this.onServerCommand?.(command.text);
     }
+  }
+
+  private noteClients(
+    clients: readonly { clientIndex: number; team: number }[],
+  ): void {
+    const key = clients
+      .map((client) => `${client.clientIndex}:${client.team}`)
+      .sort()
+      .join(',');
+    if (key === this.clientsKey) return;
+    this.clientsKey = key;
+    this.onClients?.(clients);
   }
 
   private sendTrigger(): void {

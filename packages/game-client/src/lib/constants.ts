@@ -13,6 +13,10 @@ export const MAX_STRING_CHARS = 1024;
 export const BIG_INFO_STRING = 8192;
 export const CS_SERVERINFO = 0;
 export const CS_SYSTEMINFO = 1;
+/** Axis score. The server broadcasts it as the reliable command `d 5 <n>`. */
+export const CS_SCORES1 = 5;
+/** Allies score. The server broadcasts it as the reliable command `d 6 <n>`. */
+export const CS_SCORES2 = 6;
 export const MAX_HUDELEMS = 31;
 export const HUDELEM_BITS = 5;
 export const MAX_OBJECTIVES = 16;

@@ -9,6 +9,9 @@ import {
   CLC_MOVE,
   CLC_MOVE_NO_DELTA,
   CLIENT_CLEAR_HEADER,
+  CS_SCORES1,
+  CS_SCORES2,
+  CS_SERVERINFO,
   SVC_EOF,
   SVC_GAMESTATE,
   SVC_SNAPSHOT,
@@ -17,7 +20,7 @@ import { HUFF_FREQ } from './huff-data.js';
 import { huffmanCompress, huffmanDecompress } from './huffman.js';
 import { GamePeer, samplesFromSnapshot } from './peer.js';
 import type { EntityObservation } from './snapshot.js';
-import { parseServerMessage } from './snapshot.js';
+import { parseServerMessage, readScoreGamestate } from './snapshot.js';
 import {
   acknowledgeReliableCommands,
   buildClientDatagram,
@@ -114,6 +117,26 @@ describe('Huffman', () => {
 });
 
 describe('snapshot parser', () => {
+  it('reads the map and the team scores from a gamestate', () => {
+    expect(
+      readScoreGamestate(
+        new Map<number, string>([
+          [CS_SERVERINFO, '\\mapname\\mp_toujane\\sv_hostname\\x'],
+          [CS_SCORES1, '3'],
+          [CS_SCORES2, '2'],
+        ]),
+      ),
+    ).toEqual({ mapName: 'mp_toujane', axis: 3, allies: 2 });
+    expect(
+      readScoreGamestate(
+        new Map<number, string>([
+          [CS_SERVERINFO, '\\mapname\\../etc/passwd'],
+          [CS_SCORES1, 'nope'],
+        ]),
+      ),
+    ).toEqual({ mapName: null, axis: null, allies: null });
+  });
+
   it('fails a truncated snapshot instead of throwing', () => {
     const msg = BitMsg.alloc(64);
     msg.writeLong(0);

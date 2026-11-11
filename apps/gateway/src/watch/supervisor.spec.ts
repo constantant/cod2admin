@@ -85,6 +85,7 @@ interface Draft {
   children: FakeChild[];
   spawn: Mock<WatchSpawn>;
   cards: string[];
+  matches: { chatId: number; mapName: string; caption: string }[];
   warnings: string[];
   antiSpam: ReportAntiSpam<string>;
   exit: ReturnType<typeof vi.spyOn>;
@@ -603,6 +604,7 @@ describe('watch supervisor', () => {
     ]);
     expect(JSON.stringify(after)).not.toContain(SECRET);
     expect(JSON.stringify(after)).not.toContain(RCON_SECRET);
+    expect(draft.matches).toEqual([]);
   });
 
   it('stores a null map and does not score it', async () => {
@@ -622,6 +624,78 @@ describe('watch supervisor', () => {
     expect(draft.memory.populationReads()).toBe(0);
     expect(draft.memory.evidence).toHaveLength(0);
     expect(draft.cards).toHaveLength(0);
+    expect(draft.matches).toEqual([]);
+  });
+
+  it('posts the map result when the map changes', async () => {
+    const draft = draftHarness();
+    draft.servers.push(enabled());
+    draft.rcon.getStatus.mockResolvedValue(OPEN);
+    const supervisor = await boot(draft);
+    const players: StatusPlayer[] = [
+      { num: 4, score: 16, ping: 30, name: '^^11Grinder' },
+      { num: 2, score: 4, ping: 20, name: '^1Ace' },
+      { num: 8, score: 10, ping: 40, name: 'Free' },
+      { num: 0, score: 99, ping: 4, name: 'AdminWatch' },
+      { num: 7, score: 40, ping: 10, name: 'Lurker' },
+    ];
+    supervisor.noteStatus(
+      'default',
+      { raw: '', mapName: 'mp_toujane', players },
+      NOW,
+    );
+    await supervisor.whenIdle();
+    await feed(supervisor, draft, {
+      type: 'teams',
+      serverAlias: 'default',
+      teams: [
+        { slot: 4, team: 2 },
+        { slot: 2, team: 1 },
+        { slot: 8, team: 0 },
+        { slot: 0, team: 1 },
+        { slot: 7, team: 3 },
+      ],
+    });
+    await feed(supervisor, draft, {
+      type: 'scores',
+      serverAlias: 'default',
+      mapName: 'mp_toujane',
+      axis: 3,
+      allies: 2,
+    });
+    draft.nowMs += 180_000;
+    supervisor.noteStatus(
+      'default',
+      { raw: '', mapName: 'mp_toujane', players },
+      draft.nowMs,
+    );
+    await supervisor.whenIdle();
+    supervisor.noteStatus(
+      'default',
+      { raw: '', mapName: 'mp_carentan', players: [] },
+      draft.nowMs,
+    );
+    await supervisor.whenIdle();
+    expect(draft.matches).toEqual([
+      {
+        chatId: -100,
+        mapName: 'mp_toujane',
+        caption: [
+          'Toujane',
+          'Axis 3 — Allies 2',
+          '',
+          'Best',
+          '1. Grinder 16',
+          '2. Free 10',
+          '3. Ace 4',
+          '',
+          'Most efficient',
+          '1. Grinder 5.3/min',
+          '2. Free 3.3/min',
+          '3. Ace 1.3/min',
+        ].join('\n'),
+      },
+    ]);
   });
 
   it('mode off scores and stores an extreme life and emits nothing', async () => {
@@ -1107,6 +1181,7 @@ function draftHarness(): Draft {
     children,
     spawn,
     cards: [],
+    matches: [],
     warnings: [],
     antiSpam: new ReportAntiSpam<string>({ now: () => NOW }),
     exit: vi
@@ -1156,6 +1231,10 @@ function depsFor(draft: Draft) {
       },
     },
     pruneIntervalMs: 0,
+    matchPollMs: 0,
+    sendMatch: async (message) => {
+      draft.matches.push(message);
+    },
     killGroup: () => {
       const error = new Error('no such process') as NodeJS.ErrnoException;
       error.code = 'ESRCH';

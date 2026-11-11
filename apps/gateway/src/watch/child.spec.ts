@@ -261,6 +261,77 @@ describe('watch child snapshots', () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(calls).toEqual(['default', 'default']);
   });
+
+  it('holds the next map scores until the parent names that map', async () => {
+    let hooks: ChildConnectOptions | undefined;
+    const child = startChild(async (options) => {
+      hooks = options;
+      return { disconnect() {}, run() {} };
+    });
+    const send = (message: unknown): void => {
+      child.stdin.write(`${JSON.stringify(message)}\n`);
+    };
+    const scores = (): Record<string, unknown>[] =>
+      parseLines(child.lines).filter((row) => row['type'] === 'scores');
+    send({ type: 'hello', servers: [server('default')] });
+    await new Promise((resolve) => setImmediate(resolve));
+    if (!hooks?.onGamestate || !hooks.onServerCommand || !hooks.onClients) {
+      throw new Error('child did not connect');
+    }
+    hooks.onGamestate({ mapName: 'mp_toujane', axis: 0, allies: 0 });
+    expect(scores()).toEqual([]);
+    send({ type: 'map', serverAlias: 'default', mapName: 'mp_toujane' });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(scores()).toEqual([
+      {
+        type: 'scores',
+        serverAlias: 'default',
+        mapName: 'mp_toujane',
+        axis: 0,
+        allies: 0,
+      },
+    ]);
+    hooks.onServerCommand('d 5 8');
+    hooks.onServerCommand('d 6 2');
+    hooks.onClients([
+      { clientIndex: 1, team: 2 },
+      { clientIndex: 3, team: 1 },
+    ]);
+    expect(
+      parseLines(child.lines).filter((row) => row['type'] === 'teams'),
+    ).toEqual([
+      {
+        type: 'teams',
+        serverAlias: 'default',
+        teams: [
+          { slot: 1, team: 2 },
+          { slot: 3, team: 1 },
+        ],
+      },
+    ]);
+    hooks.onGamestate({ mapName: 'mp_carentan', axis: 0, allies: 0 });
+    expect(scores().some((row) => row['mapName'] === 'mp_carentan')).toBe(
+      false,
+    );
+    expect(scores().at(-1)).toMatchObject({
+      mapName: 'mp_toujane',
+      axis: 8,
+      allies: 2,
+    });
+    hooks.onServerCommand('d 6 1');
+    expect(scores().some((row) => row['mapName'] === 'mp_carentan')).toBe(
+      false,
+    );
+    send({ type: 'map', serverAlias: 'default', mapName: 'mp_carentan' });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(scores().at(-1)).toEqual({
+      type: 'scores',
+      serverAlias: 'default',
+      mapName: 'mp_carentan',
+      axis: 0,
+      allies: 1,
+    });
+  });
 });
 
 async function runSnapshots(

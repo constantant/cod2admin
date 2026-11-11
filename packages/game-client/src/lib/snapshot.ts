@@ -3,6 +3,8 @@ import { BitMsg } from './bit-msg.js';
 import {
   BIG_INFO_STRING,
   CLIENTNUM_BITS,
+  CS_SCORES1,
+  CS_SCORES2,
   CS_SERVERINFO,
   CS_SYSTEMINFO,
   ENTITYNUM_NONE,
@@ -513,6 +515,39 @@ function parseSnapshot(
       team: fields[TEAM] ?? 0,
     })),
   };
+}
+
+const SAFE_MAP_NAME = /^[A-Za-z0-9_]{1,64}$/;
+
+/**
+ * Map name and team scores carried in a gamestate. `mapname` lives in
+ * serverinfo. CS_SCORES1 is Axis and CS_SCORES2 is Allies; a deathmatch
+ * leaves both at 0. A missing string stays null so a later `d` command can
+ * fill it without pretending the score was zero.
+ */
+export function readScoreGamestate(
+  configstrings: ReadonlyMap<number, string>,
+): {
+  mapName: string | null;
+  axis: number | null;
+  allies: number | null;
+} {
+  const info = configstrings.get(CS_SERVERINFO);
+  const mapname = info ? parseCvarBlock(info)['mapname']?.trim() : undefined;
+  return {
+    mapName: mapname && SAFE_MAP_NAME.test(mapname) ? mapname : null,
+    axis: configstringScore(configstrings.get(CS_SCORES1)),
+    allies: configstringScore(configstrings.get(CS_SCORES2)),
+  };
+}
+
+function configstringScore(raw: string | undefined): number | null {
+  if (raw === undefined) return null;
+  const text = raw.trim();
+  if (!/^-?\d+$/.test(text)) return null;
+  const value = Number(text);
+  if (Math.abs(value) > 1_000_000) return null;
+  return value;
 }
 
 function serverIdFrom(configstrings: Map<number, string>): number | null {

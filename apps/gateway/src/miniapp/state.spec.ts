@@ -13,17 +13,20 @@ function setup(cvars: Record<string, string> = { g_gametype: 'ctf' }) {
       { watch?: { enabled: boolean; spectatorName: string } } | undefined
     > => undefined,
   );
+  const teams = new Map<number, number>();
   const deps = {
     rconClients: new Map([['main', rcon]]),
     adminStore: {
       searchPlayerNotes: vi.fn(async () => []),
       getServer,
     },
+    watchSupervisor: { playerTeams: () => teams },
   } as unknown as GatewayDeps;
   return {
     state: new MiniAppState(deps),
     getServer,
     rcon,
+    teams,
     changeMap: (name: string) => {
       mapName = name;
     },
@@ -80,5 +83,40 @@ describe('MiniAppState.fetchStatus game mode', () => {
     const off = await state.fetchStatus('main');
     expect(off.players[0]?.bot).toBeUndefined();
     expect(off.players[1]?.bot).toBeUndefined();
+  });
+
+  it('marks Axis, Allies, and spectators only while the bot is on', async () => {
+    const { state, rcon, getServer, teams } = setup();
+    teams.set(1, 1);
+    teams.set(2, 2);
+    teams.set(3, 3);
+    teams.set(4, 0);
+    rcon.status.mockResolvedValue({
+      hostname: 'h',
+      mapName: 'mp_toujane',
+      players: [
+        { num: 1, name: 'A', score: 1, ping: 1 },
+        { num: 2, name: 'B', score: 1, ping: 1 },
+        { num: 3, name: 'C', score: 1, ping: 1 },
+        { num: 4, name: 'D', score: 1, ping: 1 },
+      ],
+    });
+    getServer.mockResolvedValue({
+      watch: { enabled: true, spectatorName: 'PoliceMan' },
+    });
+
+    const on = await state.fetchStatus('main');
+    expect(on.players.map((player) => player.team)).toEqual([
+      'axis',
+      'allies',
+      'spectator',
+      undefined,
+    ]);
+
+    getServer.mockResolvedValue({
+      watch: { enabled: false, spectatorName: 'PoliceMan' },
+    });
+    const off = await state.fetchStatus('main');
+    expect(off.players.every((player) => player.team === undefined)).toBe(true);
   });
 });

@@ -82,6 +82,12 @@ export interface PlayerDto {
    */
   bot?: true;
   /**
+   * Team from the game bot's snapshot. Absent for a free team, and absent
+   * while the bot is off or has not reported this slot. The scoreboard and
+   * Telegram are unchanged.
+   */
+  team?: 'axis' | 'allies' | 'spectator';
+  /**
    * `/known`: `known` — a listed name that fits; `suspect` — fits the network but has another
    * GUID; `impostor` — a listed name from another network. Both are kicked while `/known` is on.
    */

@@ -10,6 +10,15 @@ import type { ChatFeed } from './chat-feed.js';
 import { toPlayerDto } from './dto.js';
 import { StatusWatcher } from './status-watcher.js';
 
+function teamMark(
+  team: number | undefined,
+): { team: 'axis' | 'allies' | 'spectator' } | undefined {
+  if (team === 1) return { team: 'axis' };
+  if (team === 2) return { team: 'allies' };
+  if (team === 3) return { team: 'spectator' };
+  return undefined;
+}
+
 /** Per-user cap on actions that reach a game server or the database (docs/PLAN-miniapp.md §8). */
 export const ACTION_LIMIT = { max: 20, windowMs: 10_000 };
 
@@ -178,12 +187,17 @@ export class MiniAppState {
       this.notes(),
       alias ? this.gameBotName(alias) : Promise.resolve(null),
     ]);
+    const teams =
+      alias && botName !== null
+        ? this.deps.watchSupervisor?.playerTeams(alias)
+        : undefined;
     return players.map((player) => ({
       ...toPlayerDto(player, this.deps),
       ...this.noteMarks(player, notes),
       ...(botName !== null && stripColorCodes(player.name).trim() === botName
         ? { bot: true as const }
         : {}),
+      ...teamMark(teams?.get(player.num)),
     }));
   }
 

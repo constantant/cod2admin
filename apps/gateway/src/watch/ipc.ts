@@ -48,6 +48,20 @@ const FEATURE_KEYS = [
 
 export type IpcFeature = (typeof FEATURE_KEYS)[number];
 
+export interface TeamsMessage {
+  type: 'teams';
+  serverAlias: string;
+  teams: { slot: number; team: number }[];
+}
+
+export interface ScoresMessage {
+  type: 'scores';
+  serverAlias: string;
+  mapName: string;
+  axis: number | null;
+  allies: number | null;
+}
+
 export interface LifeMessage {
   type: 'life';
   serverAlias: string;
@@ -206,6 +220,65 @@ export function parseLifeMessage(line: string): LifeMessage | undefined {
     endedAtMs,
     features,
   };
+}
+
+const SAFE_MAP_NAME = /^[A-Za-z0-9_]{1,64}$/;
+
+/** Slot teams from the spectator. An empty list clears the parent's map. */
+export function parseTeamsMessage(line: string): TeamsMessage | undefined {
+  const value = parseObject(line);
+  if (!value || value['type'] !== 'teams') return undefined;
+  const serverAlias = text(value['serverAlias']);
+  const raw = value['teams'];
+  if (!serverAlias || !Array.isArray(raw)) return undefined;
+  const teams: TeamsMessage['teams'] = [];
+  for (const entry of raw) {
+    if (entry === null || typeof entry !== 'object') return undefined;
+    const record = entry as Record<string, unknown>;
+    const slot = record['slot'];
+    const team = record['team'];
+    if (
+      typeof slot !== 'number' ||
+      !Number.isInteger(slot) ||
+      slot < 0 ||
+      slot > 63 ||
+      typeof team !== 'number' ||
+      !Number.isInteger(team) ||
+      team < 0 ||
+      team > 3
+    ) {
+      return undefined;
+    }
+    teams.push({ slot, team });
+  }
+  return { type: 'teams', serverAlias, teams };
+}
+
+/** Team score for one map. A bad number or map name drops the whole line. */
+export function parseScoresMessage(line: string): ScoresMessage | undefined {
+  const value = parseObject(line);
+  if (!value || value['type'] !== 'scores') return undefined;
+  const serverAlias = text(value['serverAlias']);
+  const mapName = value['mapName'];
+  const axis = scoreField(value['axis']);
+  const allies = scoreField(value['allies']);
+  if (
+    !serverAlias ||
+    typeof mapName !== 'string' ||
+    !SAFE_MAP_NAME.test(mapName) ||
+    axis === undefined ||
+    allies === undefined
+  ) {
+    return undefined;
+  }
+  return { type: 'scores', serverAlias, mapName, axis, allies };
+}
+
+function scoreField(value: unknown): number | null | undefined {
+  if (value === null) return null;
+  if (typeof value !== 'number' || !Number.isInteger(value)) return undefined;
+  if (Math.abs(value) > 1_000_000) return undefined;
+  return value;
 }
 
 function parseServer(value: unknown): HelloServer | undefined {
