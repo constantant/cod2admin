@@ -1,3 +1,13 @@
+## [1.23.2](https://github.com/constantant/cod2admin/releases/tag/v1.23.2) (2026-11-11)
+
+### 🩹 Fixes
+
+- keep the game bot through a map change ([ed22a6a](https://github.com/constantant/cod2admin/commit/ed22a6a))
+
+### ❤️ Thank You
+
+- kk
+
 ## [1.23.1](https://github.com/constantant/cod2admin/releases/tag/v1.23.1) (2026-11-11)
 
 ### 🩹 Fixes
