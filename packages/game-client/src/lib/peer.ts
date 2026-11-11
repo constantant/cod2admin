@@ -121,6 +121,12 @@ export class GamePeer {
   private reliableAcknowledge = 0;
   private checksumFeed = 0;
   private haveGamestate = false;
+  /**
+   * A parsed snapshot of this gamestate. The next move then asks for a delta.
+   * Until then every move asks for a full snapshot, which is the only one the
+   * parser can apply with no previous frame.
+   */
+  private haveSnapshot = false;
   private keepalive: ReturnType<typeof setInterval> | undefined;
   /** Last datagram from the server. `run` starts the silence clock. */
   private lastPacketAt = 0;
@@ -502,6 +508,7 @@ export class GamePeer {
     );
     if (!parsed.ok) {
       this.watchState.parseFailures++;
+      this.haveSnapshot = false;
       this.noteCommands(parsed.serverCommands);
       return;
     }
@@ -513,8 +520,10 @@ export class GamePeer {
       this.checksumFeed = parsed.message.checksumFeed;
       this.reliable.checksumFeed = this.checksumFeed;
       this.haveGamestate = true;
+      this.haveSnapshot = false;
       this.reliable.needPure = true;
     }
+    if (parsed.message.snapshots.length > 0) this.haveSnapshot = true;
     acknowledgeReliableCommands(
       this.reliable,
       parsed.message.lastClientCommand,
@@ -603,6 +612,7 @@ export class GamePeer {
       serverTime: this.cmdTime,
       commands,
       move,
+      delta: move && this.haveSnapshot,
     });
     this.outgoing++;
     return datagram;

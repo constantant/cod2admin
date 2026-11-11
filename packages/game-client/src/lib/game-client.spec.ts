@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { buildOobPacket, parseOobPacket } from '@cod2admin/rcon-client';
 import { BitMsg } from './bit-msg.js';
 import {
+  CLC_MOVE,
   CLC_MOVE_NO_DELTA,
   CLIENT_CLEAR_HEADER,
   SVC_EOF,
@@ -293,6 +294,30 @@ describe('jump keepalive', () => {
       expect(msg.readcount).toBe(msg.cursize);
       expect(msg.overflowed).toBe(false);
     }
+  });
+
+  it('asks for a delta snapshot once a previous frame exists', () => {
+    const packet = buildClientDatagram({
+      sequence: 1,
+      qport: 1,
+      challenge: 0,
+      serverId: 0,
+      messageAcknowledge: 0,
+      reliableAcknowledge: 0,
+      ackedServerCommand: '',
+      checksumFeed: 0,
+      serverTime: 1000,
+      commands: [],
+      move: true,
+      delta: true,
+    });
+    const payload = packet.subarray(6);
+    const compressed = Uint8Array.from(payload.subarray(CLIENT_CLEAR_HEADER));
+    const plain = huffmanDecompress(compressed, 2048);
+    expect(plain.ok).toBe(true);
+    if (!plain.ok) return;
+    const msg = new BitMsg(plain.data);
+    expect(msg.readBits(3)).toBe(CLC_MOVE);
   });
 });
 

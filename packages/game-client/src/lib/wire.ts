@@ -7,6 +7,7 @@ import { BitMsg } from './bit-msg.js';
 import {
   CLC_CLIENT_COMMAND,
   CLC_EOF,
+  CLC_MOVE,
   CLC_MOVE_NO_DELTA,
   CLIENT_CLEAR_HEADER,
   FRAGMENT_BIT,
@@ -235,6 +236,13 @@ export interface ClientDatagram {
    * nothing else: CoD2 counts jump as activity, and it does not walk or fire.
    */
   move: boolean;
+  /**
+   * Ask for a snapshot compressed against the one this packet acknowledges.
+   * A full snapshot of a busy server is larger than one datagram. The server
+   * drips the fragments at `rate`, and `SV_CalcPings` counts that wait as the
+   * client's ping because the ack is sent only when the last fragment arrives.
+   */
+  delta?: boolean;
 }
 
 /** `MSG_WriteKey`: the wire bit is `value ^ (key & 1)`. */
@@ -265,7 +273,7 @@ function writeClientBody(packet: ClientDatagram): BitMsg {
     msg.writeByte(0);
   }
   if (packet.move) {
-    msg.writeBits(CLC_MOVE_NO_DELTA, 3);
+    msg.writeBits(packet.delta ? CLC_MOVE : CLC_MOVE_NO_DELTA, 3);
     msg.writeByte(1);
     const key =
       (packet.checksumFeed ^
@@ -385,7 +393,7 @@ export function decodeClientDatagram(
       commands.push(Buffer.from(bytes).toString('latin1'));
       continue;
     }
-    if (op === CLC_MOVE_NO_DELTA) {
+    if (op === CLC_MOVE || op === CLC_MOVE_NO_DELTA) {
       move = true;
       break;
     }
