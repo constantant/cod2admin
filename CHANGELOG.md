@@ -1,3 +1,14 @@
+## [1.23.5](https://github.com/constantant/cod2admin/releases/tag/v1.23.5) (2026-11-11)
+
+### 🩹 Fixes
+
+- show real names and minutes in the match result ([1b02bbd](https://github.com/constantant/cod2admin/commit/1b02bbd))
+- place the team label after the nickname ([aa24cf3](https://github.com/constantant/cod2admin/commit/aa24cf3))
+
+### ❤️ Thank You
+
+- kk
+
 ## [1.23.4](https://github.com/constantant/cod2admin/releases/tag/v1.23.4) (2026-11-11)
 
 ### 🚀 Features
