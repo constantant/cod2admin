@@ -71,6 +71,13 @@
       "when": 1794260308021,
       "tag": "0009_known_player_guids",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794300000000,
+      "tag": "0010_watch",
+      "breakpoints": true
     }
   ]
 }

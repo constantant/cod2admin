@@ -13,6 +13,9 @@ const SERVER = {
   logSourceConfig: '/var/log/games_mp.log',
   boundTelegramChatId: null,
   isDefault: true,
+  watch: null,
+  watchPrivatePassword: null,
+  watchPrivatePasswordOwned: false,
 };
 
 function context(permissions: McpToolContext['permissions']): McpToolContext & {

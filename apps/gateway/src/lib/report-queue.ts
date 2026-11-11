@@ -34,6 +34,24 @@ export class ReportQueue {
     return report;
   }
 
+  /** A watcher report. `origin` keeps it off the player collapse row. */
+  async recordMachine(input: {
+    serverAlias: string;
+    reporterName: string;
+    targetName: string;
+    reason: string | null;
+  }): Promise<Report> {
+    const report = await this.store.recordReport({
+      serverAlias: input.serverAlias,
+      reporterName: input.reporterName,
+      targetName: input.targetName,
+      reason: input.reason,
+      origin: 'watch',
+    });
+    this.emit({ kind: 'new', report });
+    return report;
+  }
+
   /** `undefined` if it's gone or someone closed it first. */
   async resolve(
     id: number,

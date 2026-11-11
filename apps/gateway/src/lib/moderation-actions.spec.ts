@@ -233,6 +233,54 @@ describe('executeModerationAction', () => {
     );
   });
 
+  it('watch kick uses slotOnly, the watch line, and audit action watch_kick', async () => {
+    const { rcon, banStore, adminStore, options } = baseOptions();
+
+    const result = await executeModerationAction('kick', target(), {
+      ...options,
+      actorTelegramId: 0,
+      source: 'auto',
+      auditAction: 'watch_kick',
+      chatTemplateId: 'watch_kick',
+      slotOnly: true,
+      detailJson: { watch: true, lifeScore: 8 },
+      beforeAudit: async () => ({ evidenceId: 'ev-1' }),
+    });
+
+    expect(result).toEqual({ label: 'Kicked', ipFallback: false });
+    expect(rcon.kick).toHaveBeenCalledWith(2, undefined, { slotOnly: true });
+    expect(rcon.say).toHaveBeenCalledWith('Cheatr123 was kicked');
+    expect(banStore.recordBan).not.toHaveBeenCalled();
+    expect(banStore.recordIpBan).not.toHaveBeenCalled();
+    expect(adminStore.recordAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'watch_kick',
+        actorTelegramId: 0,
+        source: 'auto',
+        detailJson: { watch: true, lifeScore: 8, evidenceId: 'ev-1' },
+      }),
+    );
+  });
+
+  it('does not say or audit when slotOnly clientkick is an unknown command', async () => {
+    const { rcon, adminStore, options } = baseOptions();
+    rcon.kick.mockResolvedValue('Unknown command "clientkick"');
+
+    const result = await executeModerationAction('kick', target(), {
+      ...options,
+      slotOnly: true,
+      auditAction: 'watch_kick',
+      chatTemplateId: 'watch_kick',
+      beforeAudit: async () => ({ evidenceId: 'ev-1' }),
+    });
+
+    expect(result.unknownCommand).toBe(true);
+    expect(rcon.kick).toHaveBeenCalledTimes(1);
+    expect(rcon.kick).toHaveBeenCalledWith(2, undefined, { slotOnly: true });
+    expect(rcon.say).not.toHaveBeenCalled();
+    expect(adminStore.recordAuditLog).not.toHaveBeenCalled();
+  });
+
   it('tags the audit source as given (telegram_button for report-card actions)', async () => {
     const { adminStore, options } = baseOptions();
 

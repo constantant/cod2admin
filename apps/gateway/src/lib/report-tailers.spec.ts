@@ -44,6 +44,9 @@ function serverConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
     logSourceConfig: './games_mp.log',
     boundTelegramChatId: 555,
     isDefault: false,
+    watch: null,
+    watchPrivatePassword: null,
+    watchPrivatePasswordOwned: false,
     ...overrides,
   };
 }

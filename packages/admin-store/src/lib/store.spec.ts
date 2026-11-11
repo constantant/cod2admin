@@ -4,7 +4,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { migrate } from './migrate.js';
 import { PermissionError } from './permissions.js';
 import { createAdminStore } from './store.js';
-import type { AdminStore } from './types.js';
+import type { AdminStore, ServerWatchSettings } from './types.js';
+import {
+  DEFAULT_SERVER_WATCH_SETTINGS,
+  WatchSettingsError,
+} from './watch-settings.js';
 
 const DATABASE_URL =
   process.env.DATABASE_URL ??
@@ -545,6 +549,7 @@ describe('DrizzleAdminStore', () => {
       ).toBeUndefined();
       const again = await store.recordReport(input);
       expect(again.id).not.toBe(first.id);
+      expect(again.origin).toBe('player');
       expect(
         (await store.searchReports({ resolved: false, limit: 10 })).map(
           (row) => row.id,
@@ -555,6 +560,161 @@ describe('DrizzleAdminStore', () => {
           (row) => row.id,
         ),
       ).toEqual([first.id]);
+    });
+
+    it('does not collapse a player report into a watch report', async () => {
+      const names = {
+        serverAlias: 'a',
+        reporterName: 'AdminWatch',
+        targetName: 'Cheater',
+      };
+      const player = await store.recordReport({ ...names, reason: 'aim' });
+      const samePlayer = await store.recordReport({
+        ...names,
+        origin: 'player',
+        targetName: 'CHEATER',
+      });
+      const watch = await store.recordReport({
+        ...names,
+        origin: 'watch',
+        reason: 'snap',
+      });
+      const watchAgain = await store.recordReport({
+        ...names,
+        origin: 'watch',
+        targetName: 'cheater',
+        reason: 'again',
+      });
+
+      expect(samePlayer.id).toBe(player.id);
+      expect(player.origin).toBe('player');
+      expect(samePlayer.count).toBe(2);
+      expect(watch.id).not.toBe(player.id);
+      expect(watch.origin).toBe('watch');
+      expect(watchAgain.id).toBe(watch.id);
+      expect(watchAgain.count).toBe(2);
+      expect(watchAgain.reason).toBe('again');
+      expect(await store.countOpenReports()).toBe(2);
+    });
+  });
+
+  describe('watch settings', () => {
+    const PASSWORD = 'super-secret-watch-pw';
+
+    async function addServer(): Promise<void> {
+      await store.upsertServer({
+        alias: 'default',
+        rconHost: '127.0.0.1',
+        rconPort: 28960,
+        rconPassword: 'rcon-secret',
+      });
+    }
+
+    it('leaves a new server off until settings are stored', async () => {
+      await addServer();
+      await expect(store.getServer('default')).resolves.toMatchObject({
+        watch: null,
+        watchPrivatePassword: null,
+        watchPrivatePasswordOwned: false,
+      });
+    });
+
+    it('rejects kick mode unless confirmedAimFeatures is 2, and allows enabled with mode off', async () => {
+      await addServer();
+      const base: ServerWatchSettings = {
+        ...DEFAULT_SERVER_WATCH_SETTINGS,
+        enabled: true,
+      };
+      await expect(
+        store.setServerWatch('default', {
+          ...base,
+          mode: 'kick',
+          confirmedAimFeatures: 0,
+        }),
+      ).rejects.toBeInstanceOf(WatchSettingsError);
+      await expect(
+        store.setServerWatch('default', {
+          ...base,
+          mode: 'kick',
+          confirmedAimFeatures: 1,
+        }),
+      ).rejects.toBeInstanceOf(WatchSettingsError);
+      await expect(store.getServer('default')).resolves.toMatchObject({
+        watch: null,
+      });
+
+      await expect(
+        store.setServerWatch('default', {
+          ...base,
+          mode: 'kick',
+          confirmedAimFeatures: 2,
+        }),
+      ).resolves.toBe(true);
+      await expect(
+        store.setServerWatch('default', {
+          ...base,
+          mode: 'off',
+          confirmedAimFeatures: 0,
+        }),
+      ).resolves.toBe(true);
+      await expect(store.getServer('default')).resolves.toMatchObject({
+        watch: { enabled: true, mode: 'off', confirmedAimFeatures: 0 },
+      });
+    });
+
+    it('keeps the private password out of the watch JSON', async () => {
+      await addServer();
+      const settings: ServerWatchSettings = {
+        ...DEFAULT_SERVER_WATCH_SETTINGS,
+        enabled: true,
+        mode: 'off',
+      };
+      await store.setServerWatch('default', settings);
+      await expect(
+        store.setServerWatch('default', {
+          ...settings,
+          password: PASSWORD,
+        } as ServerWatchSettings),
+      ).rejects.toBeInstanceOf(WatchSettingsError);
+
+      await expect(
+        store.setWatchPrivatePassword('default', PASSWORD, true),
+      ).resolves.toBe(true);
+      const raw = await pool.query<{
+        watch: ServerWatchSettings;
+        watch_private_password_encrypted: string;
+        watch_private_password_owned: boolean;
+      }>(
+        `SELECT watch, watch_private_password_encrypted, watch_private_password_owned
+         FROM servers WHERE alias = 'default'`,
+      );
+      const row = raw.rows[0];
+      expect(row).toBeDefined();
+      expect(JSON.stringify(row?.watch)).not.toContain(PASSWORD);
+      expect(row?.watch).not.toHaveProperty('password');
+      expect(row?.watch_private_password_encrypted).not.toContain(PASSWORD);
+      expect(row?.watch_private_password_encrypted).not.toBe(PASSWORD);
+      expect(row?.watch_private_password_owned).toBe(true);
+
+      const loaded = await store.getServer('default');
+      expect(loaded?.watchPrivatePassword).toBe(PASSWORD);
+      expect(loaded?.watchPrivatePasswordOwned).toBe(true);
+      expect(loaded?.watch).toEqual(settings);
+      expect(JSON.stringify(loaded?.watch)).not.toContain(PASSWORD);
+
+      await store.upsertServer({
+        alias: 'default',
+        rconHost: '127.0.0.1',
+        rconPort: 28961,
+        rconPassword: 'new-rcon',
+      });
+      await expect(store.getServer('default')).resolves.toMatchObject({
+        rconPort: 28961,
+        rconPassword: 'new-rcon',
+        watch: settings,
+        watchPrivatePassword: PASSWORD,
+        watchPrivatePasswordOwned: true,
+      });
     });
   });
 

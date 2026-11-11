@@ -50,6 +50,7 @@ import {
 import { knownCommand } from './commands/known.js';
 import { vpnKickCommand } from './commands/vpnkick.js';
 import { vpnNetsCommand } from './commands/vpnnets.js';
+import { watchCommand } from './commands/watch.js';
 import type { GatewayConfig } from './config.js';
 import type { GatewayDeps } from './deps.js';
 import {
@@ -224,6 +225,7 @@ export function createBot(
   bot.command('vpnnets', allow('vpn'), (ctx) => vpnNetsCommand(ctx, deps));
   bot.command('vpnkick', allow('vpn'), (ctx) => vpnKickCommand(ctx, deps));
   bot.command('known', allow('vpn'), (ctx) => knownCommand(ctx, deps));
+  bot.command('watch', allow('watch.manage'), (ctx) => watchCommand(ctx, deps));
 
   bot.callbackQuery(/^mcp:(?:allow|read|deny):[0-9a-f]{32}$/, staff, (ctx) => {
     const actor = ctx as Context & BotContext;
@@ -262,6 +264,9 @@ export function createBot(
       sessionsByServer: deps.sessionsByServer,
       reportQueue: deps.reportQueue,
       chatTemplates: deps.chatTemplates,
+      watchLookup: (serverAlias, profileKey) =>
+        deps.watchSupervisor?.profileForKick(serverAlias, profileKey) ??
+        Promise.resolve(undefined),
       describeIp: (ip) =>
         joinIpLabels(
           joinCountryAndProvider(

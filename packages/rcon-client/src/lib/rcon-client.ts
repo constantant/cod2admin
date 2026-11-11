@@ -7,6 +7,7 @@ import {
   parseMapRotationEntries,
   parseOobPlayerLine,
   parseRconStatusTable,
+  stripColorCodes,
   type RotationEntry,
 } from './status-parser.js';
 import type { TextEncoding } from './text-encoding.js';
@@ -31,7 +32,97 @@ const DEFAULT_MAP_REPLY_TIMEOUT_MS = 3000;
 const KICK_FAILURE_PATTERN = /^Usage:|is not on the server/i;
 // A build that has no `clientkick` says so; anything else (including an empty
 // success, or "client is not active") must not fall through to a name kick.
-const UNKNOWN_COMMAND_PATTERN = /unknown command|unknown cmd/i;
+export const UNKNOWN_COMMAND_PATTERN = /unknown command|unknown cmd/i;
+// Quake `Info_Print` pads each userinfo key out to this column, then the value.
+const INFO_PRINT_WIDTH = 20;
+
+/** Reply was neither userinfo nor a known miss (`Usage:` / not on the server). */
+export class DumpuserReplyError extends Error {
+  constructor(reply: string) {
+    super(`Unexpected dumpuser reply: "${reply.trim()}"`);
+    this.name = 'DumpuserReplyError';
+  }
+}
+
+function isAsciiName(name: string): boolean {
+  for (const char of name) {
+    if ((char.codePointAt(0) ?? 0) > 0x7f) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function quotedArg(name: string): string {
+  return `"${name.replace(/"/g, '')}"`;
+}
+
+function firstLine(reply: string): string {
+  for (const line of reply.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed !== '') {
+      return trimmed;
+    }
+  }
+  return '';
+}
+
+/** One `Info_Print` row: a cvar key in the first 20 columns and its value after. */
+function parseInfoPrintLine(line: string): [string, string] | null {
+  if (line.length < INFO_PRINT_WIDTH) {
+    return null;
+  }
+  const key = line.slice(0, INFO_PRINT_WIDTH).trim();
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+    return null;
+  }
+  return [key, line.slice(INFO_PRINT_WIDTH).trim()];
+}
+
+/**
+ * A miss is an empty map. A header whose other lines are not cvars throws,
+ * so a layout change is not stored as "no userinfo".
+ */
+function parseDumpuserReply(reply: string): CvarMap {
+  const cvars: CvarMap = {};
+  let sawHeader = false;
+  let sawCvar = false;
+  let sawOther = false;
+  for (const rawLine of reply.split(/\r?\n/)) {
+    const trimmed = rawLine.trim();
+    if (trimmed === '') {
+      continue;
+    }
+    if (/^userinfo$/i.test(trimmed) || /^-{3,}$/.test(trimmed)) {
+      sawHeader = true;
+      continue;
+    }
+    const parsed = parseInfoPrintLine(rawLine.replace(/[ \t]+$/, ''));
+    if (!parsed) {
+      sawOther = true;
+      continue;
+    }
+    cvars[parsed[0]] = parsed[1];
+    sawCvar = true;
+  }
+  if (!sawCvar && (sawOther || !sawHeader)) {
+    throw new DumpuserReplyError(reply);
+  }
+  return cvars;
+}
+
+/**
+ * The server matches `dumpuser` without color codes. A reply for a different
+ * name (an unquoted high byte split into another player) is a miss.
+ */
+function userinfoForName(reply: string, requestedName: string): CvarMap {
+  const cvars = parseDumpuserReply(reply);
+  const returned = stripColorCodes(cvars['name'] ?? '').trim();
+  if (returned !== requestedName.trim()) {
+    return {};
+  }
+  return cvars;
+}
 
 /**
  * Pure TS client for the Quake3/CoD out-of-band UDP RCON protocol (docs/PLAN.md §2.4/§3.1).
@@ -110,6 +201,42 @@ export class RconClient {
   }
 
   /**
+   * One player's userinfo via `dumpuser <name>` — a name, never a slot.
+   *
+   * `strippedName` should already have color codes removed with `stripColorCodes`.
+   * This strips again so a leftover `^N` still matches the server, which compares
+   * names without color codes; the second strip does not re-encode the name.
+   * Non-ASCII names are quoted (the server treats bytes above 0x7F as whitespace
+   * outside quotes, same as `say`) and are not retried unquoted: that retry
+   * would look up only the ASCII prefix. ASCII is sent bare, like `kick`'s
+   * name fallback, and a `Usage:` or "is not on the server" reply is retried
+   * quoted once. A miss, or userinfo for a different name, is an empty map.
+   * `cl_hwid` is whatever the server printed, including a signed integer; `0`
+   * stays in the map and is not an identity.
+   */
+  async dumpuser(strippedName: string): Promise<CvarMap> {
+    const name = stripColorCodes(strippedName);
+    if (name.trim() === '') {
+      return {};
+    }
+    const nonAscii = !isAsciiName(name);
+    const first = await this.rcon(
+      `dumpuser ${nonAscii ? quotedArg(name) : name}`,
+    );
+    if (!KICK_FAILURE_PATTERN.test(firstLine(first))) {
+      return userinfoForName(first, name);
+    }
+    if (nonAscii) {
+      return {};
+    }
+    const second = await this.rcon(`dumpuser ${quotedArg(name)}`);
+    if (KICK_FAILURE_PATTERN.test(firstLine(second))) {
+      return {};
+    }
+    return userinfoForName(second, name);
+  }
+
+  /**
    * Drops a connected player.
    *
    * A numeric argument is the `num` column from `status`, sent as `clientkick`. `kick <slot>`
@@ -117,17 +244,22 @@ export class RconClient {
    * the raw name, color codes included. The name `status` parsing keeps has those codes removed,
    * so a colored name is never dropped and a GUID-0 ban (the game will not drop those itself)
    * leaves him in the server. `nameIfSlot` is used only when this build answers that `clientkick`
-   * is an unknown command.
+   * is an unknown command. `slotOnly` returns that reply instead: `kick <slot>` does not drop
+   * the player, and after a slow round trip the slot may be someone else. Watch kicks set it.
    *
    * A string argument is a name. Confirmed on a real server: plain ASCII names tokenize unquoted,
    * but a name containing non-ASCII bytes (Cyrillic) only resolves when quoted. The opposite
    * quoting fails a different way for each case (`Usage:` unquoted, "is not on the server"
    * quoted), so retry the other quoting if the first reply looks like one of those.
    */
-  async kick(clientIdOrName: string | number, nameIfSlot?: string): Promise<string> {
+  async kick(
+    clientIdOrName: string | number,
+    nameIfSlot?: string,
+    options?: { slotOnly?: boolean },
+  ): Promise<string> {
     if (typeof clientIdOrName === 'number') {
       const bySlot = await this.rcon(`clientkick ${clientIdOrName}`);
-      if (!UNKNOWN_COMMAND_PATTERN.test(bySlot)) {
+      if (!UNKNOWN_COMMAND_PATTERN.test(bySlot) || options?.slotOnly) {
         return bySlot;
       }
       if (nameIfSlot) {

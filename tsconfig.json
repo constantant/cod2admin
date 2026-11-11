@@ -23,6 +23,15 @@
     },
     {
       "path": "./packages/telegram-relay"
+    },
+    {
+      "path": "./packages/game-client"
+    },
+    {
+      "path": "./packages/player-watch"
+    },
+    {
+      "path": "./packages/watch-store"
     }
   ],
   "compilerOptions": {}

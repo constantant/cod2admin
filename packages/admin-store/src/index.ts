@@ -23,6 +23,11 @@ export {
   resolvePermissionGrant,
 } from './lib/permissions.js';
 export { createAdminStore } from './lib/store.js';
+export {
+  DEFAULT_SERVER_WATCH_SETTINGS,
+  WatchSettingsError,
+  watchSettingsForStorage,
+} from './lib/watch-settings.js';
 export type {
   AddPlayerNoteInput,
   Admin,
@@ -41,10 +46,14 @@ export type {
   RecordSnapshotInput,
   Report,
   ReportFilter,
+  ReportOrigin,
   ReportStatus,
   SaveKnownPlayerInput,
   ServerConfig,
   ServerSnapshot,
+  ServerWatchSettings,
+  WatchJoin,
+  WatchMode,
   TelegramUser,
   UpsertServerInput,
 } from './lib/types.js';

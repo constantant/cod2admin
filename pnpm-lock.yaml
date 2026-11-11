@@ -126,15 +126,24 @@ importers:
       '@cod2admin/ban-store':
         specifier: workspace:*
         version: link:../../packages/ban-store
+      '@cod2admin/game-client':
+        specifier: workspace:*
+        version: link:../../packages/game-client
       '@cod2admin/log-tailer':
         specifier: workspace:*
         version: link:../../packages/log-tailer
+      '@cod2admin/player-watch':
+        specifier: workspace:*
+        version: link:../../packages/player-watch
       '@cod2admin/rcon-client':
         specifier: workspace:*
         version: link:../../packages/rcon-client
       '@cod2admin/report-pipeline':
         specifier: workspace:*
         version: link:../../packages/report-pipeline
+      '@cod2admin/watch-store':
+        specifier: workspace:*
+        version: link:../../packages/watch-store
       '@fastify/static':
         specifier: ^10.1.5
         version: 10.1.5
@@ -199,7 +208,25 @@ importers:
         specifier: ^0.31.10
         version: 0.31.10
 
+  packages/game-client:
+    dependencies:
+      '@cod2admin/player-watch':
+        specifier: workspace:*
+        version: link:../player-watch
+      '@cod2admin/rcon-client':
+        specifier: workspace:*
+        version: link:../rcon-client
+      tslib:
+        specifier: ^2.3.0
+        version: 2.8.1
+
   packages/log-tailer:
+    dependencies:
+      tslib:
+        specifier: ^2.3.0
+        version: 2.8.1
+
+  packages/player-watch:
     dependencies:
       tslib:
         specifier: ^2.3.0
@@ -234,6 +261,25 @@ importers:
       tslib:
         specifier: ^2.3.0
         version: 2.8.1
+
+  packages/watch-store:
+    dependencies:
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@types/pg@8.23.1)(pg@8.23.0)
+      pg:
+        specifier: ^8.23.0
+        version: 8.23.0
+      tslib:
+        specifier: ^2.3.0
+        version: 2.8.1
+    devDependencies:
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      drizzle-kit:
+        specifier: ^0.31.10
+        version: 0.31.10
 
 packages:
 

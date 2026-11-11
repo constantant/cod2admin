@@ -1,6 +1,7 @@
 import dgram from 'node:dgram';
 import { afterEach, describe, expect, it } from 'vitest';
-import { RconClient } from './rcon-client.js';
+import { DumpuserReplyError, RconClient } from './rcon-client.js';
+import { encodeText } from './text-encoding.js';
 import { UdpQueryTimeoutError } from './udp-transport.js';
 
 const OOB_PREFIX = Buffer.from([0xff, 0xff, 0xff, 0xff]);
@@ -386,6 +387,230 @@ describe('RconClient', () => {
     );
   });
 
+  describe('dumpuser', () => {
+    function userinfo(cvars: Record<string, string>): string {
+      const lines = ['userinfo', '--------'];
+      for (const [key, value] of Object.entries(cvars)) {
+        lines.push(key.padEnd(20, ' ') + value);
+      }
+      return `print\n${lines.join('\n')}\n`;
+    }
+
+    it('asks for the name, not the slot, and keeps a signed cl_hwid', async () => {
+      const received: string[] = [];
+      peer = await createMockPeer((payload, respond) => {
+        received.push(payload);
+        respond(
+          userinfo({
+            name: 'const',
+            cl_hwid: '-2031228850',
+            rate: '25000',
+          }),
+        );
+      });
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'secret',
+      });
+
+      await expect(client.dumpuser('const')).resolves.toEqual({
+        name: 'const',
+        cl_hwid: '-2031228850',
+        rate: '25000',
+      });
+      expect(received).toEqual(['rcon secret dumpuser const']);
+    });
+
+    it('strips color codes before sending, and still leaves an ascii name unquoted', async () => {
+      const received: string[] = [];
+      peer = await createMockPeer((payload, respond) => {
+        received.push(payload);
+        respond(userinfo({ name: 'const', cl_hwid: '0' }));
+      });
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'secret',
+      });
+
+      await expect(client.dumpuser('^1const^7')).resolves.toMatchObject({
+        cl_hwid: '0',
+      });
+      expect(received).toEqual(['rcon secret dumpuser const']);
+    });
+
+    it('quotes a non-ascii name once, and does not encode it twice', async () => {
+      let received: Buffer | undefined;
+      let packets = 0;
+      const socket = dgram.createSocket('udp4');
+      socket.on('message', (data, rinfo) => {
+        packets++;
+        received = data.subarray(4);
+        const reply = Buffer.concat([
+          OOB_PREFIX,
+          encodeText(userinfo({ name: 'Димон', cl_hwid: '5' }), 'cp1251'),
+        ]);
+        socket.send(reply, rinfo.port, rinfo.address);
+      });
+      await new Promise<void>((resolve) =>
+        socket.bind(0, '127.0.0.1', () => resolve()),
+      );
+      peer = {
+        port: socket.address().port,
+        close: () => new Promise((resolve) => socket.close(() => resolve())),
+      };
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'pw',
+        encoding: 'cp1251',
+      });
+
+      await expect(client.dumpuser('Димон')).resolves.toEqual({
+        name: 'Димон',
+        cl_hwid: '5',
+      });
+      expect(packets).toBe(1);
+      expect(received).toEqual(
+        Buffer.concat([
+          Buffer.from('rcon pw dumpuser "', 'latin1'),
+          Buffer.from([0xc4, 0xe8, 0xec, 0xee, 0xed]),
+          Buffer.from('"', 'latin1'),
+        ]),
+      );
+    });
+
+    it('retries the other quoting when the first reply is usage', async () => {
+      const received: string[] = [];
+      peer = await createMockPeer((payload, respond) => {
+        received.push(payload);
+        if (payload === 'rcon secret dumpuser Player One') {
+          respond('print\nUsage: dumpuser <userid>\n');
+        } else {
+          respond(userinfo({ name: 'Player One', cl_hwid: '9' }));
+        }
+      });
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'secret',
+      });
+
+      await expect(client.dumpuser('Player One')).resolves.toEqual({
+        name: 'Player One',
+        cl_hwid: '9',
+      });
+      expect(received).toEqual([
+        'rcon secret dumpuser Player One',
+        'rcon secret dumpuser "Player One"',
+      ]);
+    });
+
+    it('does not unquote a mixed name, so xXДимон cannot take xX userinfo', async () => {
+      const received: Buffer[] = [];
+      const socket = dgram.createSocket('udp4');
+      socket.on('message', (data, rinfo) => {
+        const payload = data.subarray(4);
+        received.push(payload);
+        const quoted = payload.toString('latin1').includes('dumpuser "');
+        const body = quoted
+          ? 'print\nPlayer xX is not on the server\n'
+          : userinfo({ name: 'xX', cl_hwid: '999' });
+        socket.send(
+          Buffer.concat([OOB_PREFIX, Buffer.from(body, 'latin1')]),
+          rinfo.port,
+          rinfo.address,
+        );
+      });
+      await new Promise<void>((resolve) =>
+        socket.bind(0, '127.0.0.1', () => resolve()),
+      );
+      peer = {
+        port: socket.address().port,
+        close: () => new Promise((resolve) => socket.close(() => resolve())),
+      };
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'pw',
+        encoding: 'cp1251',
+      });
+
+      await expect(client.dumpuser('xXДимон')).resolves.toEqual({});
+      expect(received).toHaveLength(1);
+      expect(received[0]).toEqual(
+        Buffer.concat([
+          Buffer.from('rcon pw dumpuser "xX', 'latin1'),
+          Buffer.from([0xc4, 0xe8, 0xec, 0xee, 0xed]),
+          Buffer.from('"', 'latin1'),
+        ]),
+      );
+    });
+
+    it('returns an empty map when the userinfo name is a different player', async () => {
+      peer = await createMockPeer((_payload, respond) => {
+        respond(userinfo({ name: 'xX', cl_hwid: '999' }));
+      });
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'secret',
+      });
+
+      await expect(client.dumpuser('const')).resolves.toEqual({});
+    });
+
+    it('returns an empty map when both quotings miss, and does not guess userinfo', async () => {
+      const received: string[] = [];
+      peer = await createMockPeer((payload, respond) => {
+        received.push(payload);
+        respond('print\nPlayer const is not on the server\n');
+      });
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'secret',
+      });
+
+      await expect(client.dumpuser('const')).resolves.toEqual({});
+      expect(received).toEqual([
+        'rcon secret dumpuser const',
+        'rcon secret dumpuser "const"',
+      ]);
+    });
+
+    it('throws when the reply is neither userinfo nor a miss', async () => {
+      peer = await createMockPeer((_payload, respond) => {
+        respond('print\nserver exploded\n');
+      });
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'secret',
+      });
+
+      await expect(client.dumpuser('const')).rejects.toBeInstanceOf(
+        DumpuserReplyError,
+      );
+    });
+
+    it('throws when a userinfo header is followed by lines that are not cvars', async () => {
+      peer = await createMockPeer((_payload, respond) => {
+        respond('print\nuserinfo\n--------\nthis is not a cvar row\n');
+      });
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'secret',
+      });
+
+      await expect(client.dumpuser('const')).rejects.toBeInstanceOf(
+        DumpuserReplyError,
+      );
+    });
+  });
+
   describe('kick', () => {
     it('retries quoted when the unquoted attempt looks like a failure, and returns that result', async () => {
       const received: string[] = [];
@@ -446,6 +671,65 @@ describe('RconClient', () => {
       await client.kick(3, '^1Cheater');
 
       expect(received).toEqual(['rcon secret clientkick 3']);
+    });
+
+    it('sends one clientkick payload when slotOnly is set', async () => {
+      const received: string[] = [];
+      peer = await createMockPeer((payload, respond) => {
+        received.push(payload);
+        respond('print\n');
+      });
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'secret',
+      });
+
+      await client.kick(3, undefined, { slotOnly: true });
+
+      expect(received).toEqual(['rcon secret clientkick 3']);
+    });
+
+    it('does not send kick <slot> when slotOnly clientkick is unknown', async () => {
+      const received: string[] = [];
+      peer = await createMockPeer((payload, respond) => {
+        received.push(payload);
+        respond('print\nUnknown command "clientkick"\n');
+      });
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'secret',
+      });
+
+      const result = await client.kick(3, 'Cheater', { slotOnly: true });
+
+      expect(received).toEqual(['rcon secret clientkick 3']);
+      expect(result).toContain('Unknown command');
+    });
+
+    it('still sends kick <slot> when clientkick is unknown and slotOnly is not set', async () => {
+      const received: string[] = [];
+      peer = await createMockPeer((payload, respond) => {
+        received.push(payload);
+        if (payload === 'rcon secret clientkick 3') {
+          respond('print\nUnknown command "clientkick"\n');
+        } else {
+          respond('print\nPlayer 3 is not on the server\n');
+        }
+      });
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'secret',
+      });
+
+      await client.kick(3);
+
+      expect(received).toEqual([
+        'rcon secret clientkick 3',
+        'rcon secret kick 3',
+      ]);
     });
 
     it('falls back to a name kick when the server has no clientkick', async () => {

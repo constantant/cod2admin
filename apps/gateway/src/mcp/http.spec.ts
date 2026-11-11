@@ -24,6 +24,9 @@ const SERVER = {
   logSourceConfig: '/var/log/games_mp.log',
   boundTelegramChatId: null,
   isDefault: true,
+  watch: null,
+  watchPrivatePassword: null,
+  watchPrivatePasswordOwned: false,
 };
 
 describe('MCP HTTP', () => {
@@ -58,6 +61,7 @@ describe('MCP HTTP', () => {
       'relays',
       'admins.manage',
       'servers.manage',
+      'watch.manage',
       'mute',
     ]) {
       expect(body.scopes_supported).not.toContain(hidden);

@@ -64,6 +64,9 @@ describe('resolveServer', () => {
       logSourceConfig: null,
       boundTelegramChatId: 100,
       isDefault: false,
+      watch: null,
+      watchPrivatePassword: null,
+      watchPrivatePasswordOwned: false,
     });
     const ctx = createFakeCtx({ chat: { id: 100 } });
 
@@ -86,6 +89,9 @@ describe('resolveServer', () => {
       logSourceConfig: null,
       boundTelegramChatId: null,
       isDefault: true,
+      watch: null,
+      watchPrivatePassword: null,
+      watchPrivatePasswordOwned: false,
     });
     const ctx = createFakeCtx();
 
@@ -103,6 +109,9 @@ describe('resolveServer', () => {
       rconPort: 1,
       rconPassword: 'p',
       logSourceConfig: null,
+      watch: null,
+      watchPrivatePassword: null,
+      watchPrivatePasswordOwned: false,
     };
     adminStore.getServerForChat.mockResolvedValue({
       ...base,

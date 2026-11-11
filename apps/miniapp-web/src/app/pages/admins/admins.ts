@@ -45,6 +45,7 @@ const PERMISSION_LABEL: Record<Permission, string> = {
   audit: 'Audit log',
   rcon: 'Console',
   update: 'Update the bot',
+  'watch.manage': 'Manage the watcher',
   relays: 'Telegram routes',
   templates: 'Game chat lines',
   logs: 'Find the game log',
@@ -199,7 +200,10 @@ const PERMISSION_LABEL: Record<Permission, string> = {
         </div>
         @if (session.me()?.isOwner !== true) {
           <p class="muted small">
-            {{ 'Only the owner can grant the console and bot update.' | t }}
+            {{
+              'Only the owner can grant the console, bot update, and watcher.'
+                | t
+            }}
           </p>
         }
       }

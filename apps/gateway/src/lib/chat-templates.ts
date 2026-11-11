@@ -10,6 +10,7 @@ export const CHAT_TEMPLATES_SETTING_KEY = 'chat.templates';
 
 export const CHAT_TEMPLATE_IDS = [
   'kick',
+  'watch_kick',
   'ban',
   'tempban',
   'vpn_kick',
@@ -23,6 +24,7 @@ export type ChatTemplateMap = Record<ChatTemplateId, string>;
 
 export const DEFAULT_CHAT_TEMPLATES: ChatTemplateMap = {
   kick: '{name} was kicked by an admin',
+  watch_kick: '{name} was kicked',
   ban: '{name} was banned by an admin',
   tempban: '{name} was temp-banned by an admin',
   vpn_kick: '',
@@ -53,6 +55,7 @@ const LINE_META: Record<
   { channel: 'say' | 'tell'; placeholders: string }
 > = {
   kick: { channel: 'say', placeholders: '{name} {reason}' },
+  watch_kick: { channel: 'say', placeholders: '{name}' },
   ban: { channel: 'say', placeholders: '{name} {reason}' },
   tempban: {
     channel: 'say',

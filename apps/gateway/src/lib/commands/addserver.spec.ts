@@ -122,6 +122,9 @@ describe('addServerCommand', () => {
       logSourceConfig: null,
       boundTelegramChatId: null,
       isDefault: true,
+      watch: null,
+      watchPrivatePassword: null,
+      watchPrivatePasswordOwned: false,
     });
 
     await addServerCommand(privateCtx('ctf2 1.2.3.4:28960 pw'), deps);

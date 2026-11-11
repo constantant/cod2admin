@@ -27,6 +27,7 @@ describe('parseScope', () => {
       'relays',
       'admins.manage',
       'servers.manage',
+      'watch.manage',
       'mute',
       'nope',
     ]) {
@@ -76,6 +77,7 @@ describe('connectionPermissions', () => {
     ).toEqual(['kick']);
     expect(MCP_PERMISSIONS).not.toContain('update');
     expect(MCP_PERMISSIONS).not.toContain('admins.manage');
+    expect(MCP_PERMISSIONS).not.toContain('watch.manage');
   });
 });
 
