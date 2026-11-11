@@ -1,3 +1,13 @@
+## [1.23.0](https://github.com/constantant/cod2admin/releases/tag/v1.23.0) (2026-11-11)
+
+### 🚀 Features
+
+- add a spectator bot that scores aim and is controlled from the Mini App ([0f81563](https://github.com/constantant/cod2admin/commit/0f81563))
+
+### ❤️ Thank You
+
+- Konstantin
+
 ## [1.22.0](https://github.com/constantant/cod2admin/releases/tag/v1.22.0) (2026-11-10)
 
 ### 🚀 Features
