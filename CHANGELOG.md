@@ -1,3 +1,13 @@
+## [1.23.3](https://github.com/constantant/cod2admin/releases/tag/v1.23.3) (2026-11-11)
+
+### 🩹 Fixes
+
+- ask for delta snapshots so the game bot ping stays low ([85e0f61](https://github.com/constantant/cod2admin/commit/85e0f61))
+
+### ❤️ Thank You
+
+- kk
+
 ## [1.23.2](https://github.com/constantant/cod2admin/releases/tag/v1.23.2) (2026-11-11)
 
 ### 🩹 Fixes
