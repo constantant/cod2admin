@@ -1,21 +1,20 @@
 <div class="head">
   <div class="name">
-    @switch (player.team) { @case ('axis') {
-    <span class="team" data-team="axis">{{ 'Axis' | t }}</span>
-    } @case ('allies') {
-    <span class="team" data-team="allies">{{ 'Allies' | t }}</span>
-    } @case ('spectator') {
-    <span class="team" data-team="spectator">{{ 'Spectator' | t }}</span>
-    } } @if (player.bot) {
+    @if (player.bot) {
     <span class="bot" [attr.aria-label]="'Game bot' | t">[bot]</span>
     }
     <c2a-game-name [name]="player.name" />
+    @if (player.team === 'axis') {
+    <span class="team">{{ 'Axis' | t }}</span>
+    } @if (player.team === 'allies') {
+    <span class="team">{{ 'Allies' | t }}</span>
+    } @if (player.team === 'spectator') {
+    <span class="team">{{ 'Spectator' | t }}</span>
+    }
   </div>
   <div class="muted">
     #{{ player.num }} {{ '· score' | t }} {{ player.score }} {{ '· ping' | t }}
-    {{ player.ping }} @if (player.team === 'axis') { {{ '· Axis' | t }} } @if
-    (player.team === 'allies') { {{ '· Allies' | t }} } @if (player.team ===
-    'spectator') { {{ '· Spectator' | t }} } @if (player.watched) {
+    {{ player.ping }} @if (player.watched) {
     <span class="watched">{{ '· on the watchlist' | t }}</span>
     } @else if (player.noted) { {{ '· has notes' | t }} } @if (player.known ===
     'known') { {{ '· known player' | t }} } @else if (player.known ===
