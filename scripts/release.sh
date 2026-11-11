@@ -101,7 +101,8 @@ fs.writeFileSync("CHANGELOG.md", linked);
 ' "$VERSION"
 
 echo "==> Building installer archive for $VERSION"
-"$ROOT_DIR/scripts/build-installer-bundle.sh"
+# The bundle script is mode 644 in git. Call it through bash so a fresh checkout can release.
+bash "$ROOT_DIR/scripts/build-installer-bundle.sh"
 
 echo "==> Packaging single install-ready release archive for $VERSION"
 # installer/install.sh expects install.sh, README.md, cod2admin-gateway-*.tar.gz (+ its .sha256),
