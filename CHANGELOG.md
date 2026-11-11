@@ -1,3 +1,14 @@
+## [1.23.4](https://github.com/constantant/cod2admin/releases/tag/v1.23.4) (2026-11-11)
+
+### 🚀 Features
+
+- mark the game bot in the Mini App player list ([a8101d4](https://github.com/constantant/cod2admin/commit/a8101d4))
+- show player teams and post the map result ([1f8deaa](https://github.com/constantant/cod2admin/commit/1f8deaa))
+
+### ❤️ Thank You
+
+- kk
+
 ## [1.23.3](https://github.com/constantant/cod2admin/releases/tag/v1.23.3) (2026-11-11)
 
 ### 🩹 Fixes
