@@ -93,6 +93,16 @@
   align-items: center;
   gap: 4px;
   min-width: 0;
+
+  c2a-game-name {
+    min-width: 0;
+  }
+}
+
+.bot {
+  flex: none;
+  font: var(--mat-sys-label-medium);
+  color: var(--mat-sys-tertiary);
 }
 
 .mark {

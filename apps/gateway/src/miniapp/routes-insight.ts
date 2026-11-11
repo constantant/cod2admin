@@ -436,6 +436,7 @@ export function registerInsightRoutes(
                     players.get(report.serverAlias) ?? [],
                     (player) => stripColorCodes(player.name),
                   ),
+                  report.serverAlias,
                 )
               : [],
           ),

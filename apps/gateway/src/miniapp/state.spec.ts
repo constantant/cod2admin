@@ -8,12 +8,21 @@ function setup(cvars: Record<string, string> = { g_gametype: 'ctf' }) {
     status: vi.fn(async () => ({ hostname: 'h', mapName, players: [] })),
     getStatus: vi.fn(async () => ({ cvars, players: [] })),
   };
+  const getServer = vi.fn(
+    async (): Promise<
+      { watch?: { enabled: boolean; spectatorName: string } } | undefined
+    > => undefined,
+  );
   const deps = {
     rconClients: new Map([['main', rcon]]),
-    adminStore: { searchPlayerNotes: vi.fn(async () => []) },
+    adminStore: {
+      searchPlayerNotes: vi.fn(async () => []),
+      getServer,
+    },
   } as unknown as GatewayDeps;
   return {
     state: new MiniAppState(deps),
+    getServer,
     rcon,
     changeMap: (name: string) => {
       mapName = name;
@@ -45,5 +54,31 @@ describe('MiniAppState.fetchStatus game mode', () => {
       mapName: 'mp_toujane',
       gametype: null,
     });
+  });
+
+  it('marks the spectator in the Mini App list only while the bot is on', async () => {
+    const { state, rcon, getServer } = setup();
+    rcon.status.mockResolvedValue({
+      hostname: 'h',
+      mapName: 'mp_toujane',
+      players: [
+        { num: 1, name: '^1PoliceMan', score: 0, ping: 5 },
+        { num: 2, name: 'Patient zero', score: 10, ping: 40 },
+      ],
+    });
+    getServer.mockResolvedValue({
+      watch: { enabled: true, spectatorName: 'PoliceMan' },
+    });
+
+    const on = await state.fetchStatus('main');
+    expect(on.players[0]).toMatchObject({ name: '^1PoliceMan', bot: true });
+    expect(on.players[1]?.bot).toBeUndefined();
+
+    getServer.mockResolvedValue({
+      watch: { enabled: false, spectatorName: 'PoliceMan' },
+    });
+    const off = await state.fetchStatus('main');
+    expect(off.players[0]?.bot).toBeUndefined();
+    expect(off.players[1]?.bot).toBeUndefined();
   });
 });

@@ -149,12 +149,41 @@ export class MiniAppState {
     return watcher;
   }
 
-  /** Players as the app shows them: IP details, plus the marks from notes and the watchlist. */
-  async playerDtos(players: readonly StatusPlayer[]): Promise<PlayerDto[]> {
-    const notes = await this.notes();
+  /**
+   * Plain name of the connected spectator, or null when the bot is off.
+   * A lookup failure leaves the list unmarked instead of failing the status.
+   */
+  private async gameBotName(alias: string): Promise<string | null> {
+    try {
+      const watch = (await this.deps.adminStore.getServer(alias))?.watch;
+      if (!watch?.enabled) return null;
+      const name = stripColorCodes(watch.spectatorName).trim();
+      return name.length > 0 ? name : null;
+    } catch (error: unknown) {
+      console.error('Mini App: loading the game bot name failed:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Players as the app shows them: IP details, marks from notes and the
+   * watchlist, and `[bot]` when this server's spectator is on and the name
+   * matches.
+   */
+  async playerDtos(
+    players: readonly StatusPlayer[],
+    alias?: string,
+  ): Promise<PlayerDto[]> {
+    const [notes, botName] = await Promise.all([
+      this.notes(),
+      alias ? this.gameBotName(alias) : Promise.resolve(null),
+    ]);
     return players.map((player) => ({
       ...toPlayerDto(player, this.deps),
       ...this.noteMarks(player, notes),
+      ...(botName !== null && stripColorCodes(player.name).trim() === botName
+        ? { bot: true as const }
+        : {}),
     }));
   }
 
@@ -194,7 +223,7 @@ export class MiniAppState {
       hostname: status.hostname ?? null,
       mapName,
       gametype: await this.gametype(alias, rcon, mapName),
-      players: await this.playerDtos(status.players),
+      players: await this.playerDtos(status.players, alias),
       fetchedAt: new Date().toISOString(),
     };
   }

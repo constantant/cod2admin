@@ -8,7 +8,16 @@
 }
 
 .name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   font: var(--mat-sys-title-large);
+}
+
+.bot {
+  flex: none;
+  font: var(--mat-sys-label-large);
+  color: var(--mat-sys-tertiary);
 }
 
 .facts {

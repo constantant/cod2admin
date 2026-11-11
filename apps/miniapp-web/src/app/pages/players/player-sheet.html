@@ -1,5 +1,10 @@
 <div class="head">
-  <div class="name"><c2a-game-name [name]="player.name" /></div>
+  <div class="name">
+    @if (player.bot) {
+    <span class="bot" [attr.aria-label]="'Game bot' | t">[bot]</span>
+    }
+    <c2a-game-name [name]="player.name" />
+  </div>
   <div class="muted">
     #{{ player.num }} {{ '· score' | t }} {{ player.score }} {{ '· ping' | t }}
     {{ player.ping }} @if (player.watched) {

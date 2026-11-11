@@ -76,6 +76,12 @@ export interface PlayerDto {
   /** On the watchlist. */
   watched?: boolean;
   /**
+   * This row is the game bot. Set only for the Mini App: the scoreboard and
+   * Telegram keep the saved name. Present when the bot is on and the status
+   * name matches that label.
+   */
+  bot?: true;
+  /**
    * `/known`: `known` — a listed name that fits; `suspect` — fits the network but has another
    * GUID; `impostor` — a listed name from another network. Both are kicked while `/known` is on.
    */
