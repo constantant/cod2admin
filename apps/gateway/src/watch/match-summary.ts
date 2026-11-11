@@ -12,6 +12,8 @@ const TEAM_SPECTATOR = 3;
 
 export interface MatchPlayer {
   name: string;
+  /** Status slot. Used when the name is only colour codes. */
+  num: number;
   score: number;
   /** Minutes between the first and last status sample on this map. */
   minutes: number;
@@ -53,8 +55,7 @@ export function buildMatchCaption(input: MatchCaptionInput): string | null {
   const scored = ranked
     .filter((player) => player.score > 0)
     .sort(
-      (a, b) =>
-        b.score - a.score || plainName(a.name).localeCompare(plainName(b.name)),
+      (a, b) => b.score - a.score || plainName(a).localeCompare(plainName(b)),
     );
   const teamLine = teamScoreLine(input.axis, input.allies);
   if (scored.length === 0 && !teamLine) return null;
@@ -63,9 +64,9 @@ export function buildMatchCaption(input: MatchCaptionInput): string | null {
   if (teamLine) lines.push(teamLine);
   if (scored.length > 0) {
     if (teamLine) lines.push('');
-    lines.push('Best');
+    lines.push('Top scores');
     for (const [index, player] of scored.slice(0, TOP).entries()) {
-      lines.push(`${index + 1}. ${plainName(player.name)} ${player.score}`);
+      lines.push(`${index + 1}. ${plainName(player)} — ${player.score}`);
     }
   }
   const efficient = ranked
@@ -77,14 +78,14 @@ export function buildMatchCaption(input: MatchCaptionInput): string | null {
       (a, b) =>
         b.rate - a.rate ||
         b.player.score - a.player.score ||
-        plainName(a.player.name).localeCompare(plainName(b.player.name)),
+        plainName(a.player).localeCompare(plainName(b.player)),
     );
   if (efficient.length > 0) {
     if (scored.length > 0 || teamLine) lines.push('');
-    lines.push('Most efficient');
+    lines.push('Most points per minute');
     for (const [index, row] of efficient.slice(0, TOP).entries()) {
       lines.push(
-        `${index + 1}. ${plainName(row.player.name)} ${formatRate(row.rate)}/min`,
+        `${index + 1}. ${plainName(row.player)} — ${row.player.score} points in ${formatMinutes(row.player.minutes)}`,
       );
     }
   }
@@ -129,15 +130,29 @@ function teamScoreLine(
   return `Axis ${axis} — Allies ${allies}`;
 }
 
-function formatRate(rate: number): string {
-  const tenths = Math.round(rate * 10) / 10;
-  if (tenths < 10) return tenths.toFixed(1);
-  return String(Math.round(rate));
+function formatMinutes(minutes: number): string {
+  const rounded = Math.max(1, Math.round(minutes));
+  return `${rounded} min`;
 }
 
-function plainName(name: string): string {
-  const plain =
-    stripColorCodes(name.replace(/\^\^(\d)\1/g, '')).trim() || 'player';
-  if (plain.length <= NAME_MAX) return plain;
-  return `${plain.slice(0, NAME_MAX - 1)}…`;
+/**
+ * The nick with Quake colour codes removed, including the doubled `^^11` form.
+ * One `stripColorCodes` pass leaves `^1` behind, and repeating it is what
+ * `/players` does. Empty when the name was only colour codes.
+ */
+export function readableName(name: string): string {
+  let plain = name.trim();
+  for (let pass = 0; pass < 8; pass++) {
+    const next = stripColorCodes(plain.replace(/\^\^(\d)\1/g, '')).trim();
+    if (next === plain) return plain.replace(/\^+$/g, '').trim();
+    plain = next;
+  }
+  return plain.replace(/\^+$/g, '').trim();
+}
+
+function plainName(player: MatchPlayer): string {
+  const plain = readableName(player.name);
+  const text = plain || `#${player.num}`;
+  if (text.length <= NAME_MAX) return text;
+  return `${text.slice(0, NAME_MAX - 1)}…`;
 }

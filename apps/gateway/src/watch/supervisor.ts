@@ -47,7 +47,7 @@ import {
   type TeamsMessage,
 } from './ipc.js';
 import { matchKickSlot, watchIdentityKind } from './match-kick.js';
-import { buildMatchCaption } from './match-summary.js';
+import { buildMatchCaption, readableName } from './match-summary.js';
 
 /** Same window as player-identity: a ban-sweep status is reused, not re-fetched. */
 const FRESH_STATUS_MS = 10_000;
@@ -1508,6 +1508,7 @@ class Supervisor {
       allies: sameMap ? sameMap.allies : null,
       players: [...roster.players.values()].map((player) => ({
         name: player.name,
+        num: player.num,
         score: player.score,
         minutes: (player.lastSeen - player.firstSeen) / 60_000,
         team: teams?.get(player.num) ?? null,
@@ -1637,7 +1638,9 @@ function mergeRoster(
   for (const player of players) {
     const existing = roster.players.get(player.num);
     if (existing) {
-      existing.name = player.name;
+      // A later sample can lose the nick (colour-only, or a blank intermission
+      // row) while the score is still the one we want to publish.
+      if (readableName(player.name)) existing.name = player.name;
       existing.score = player.score;
       existing.lastSeen = fetchedAt;
       continue;

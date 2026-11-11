@@ -9,6 +9,7 @@ import {
 function player(overrides: Partial<MatchPlayer> = {}): MatchPlayer {
   return {
     name: 'Ace',
+    num: 1,
     score: 16,
     minutes: 3,
     team: 1,
@@ -46,15 +47,15 @@ describe('buildMatchCaption', () => {
         'Toujane',
         'Axis 3 — Allies 2',
         '',
-        'Best',
-        '1. Grinder 16',
-        '2. Free 10',
-        '3. Visitor 8',
+        'Top scores',
+        '1. Grinder — 16',
+        '2. Free — 10',
+        '3. Visitor — 8',
         '',
-        'Most efficient',
-        '1. Grinder 5.3/min',
-        '2. Free 3.3/min',
-        '3. Ace 1.3/min',
+        'Most points per minute',
+        '1. Grinder — 16 points in 3 min',
+        '2. Free — 10 points in 3 min',
+        '3. Ace — 4 points in 3 min',
       ].join('\n'),
     );
   });
@@ -70,11 +71,11 @@ describe('buildMatchCaption', () => {
     ).toBe(
       [
         'Toujane',
-        'Best',
-        '1. Ace 5',
+        'Top scores',
+        '1. Ace — 5',
         '',
-        'Most efficient',
-        '1. Ace 1.7/min',
+        'Most points per minute',
+        '1. Ace — 5 points in 3 min',
       ].join('\n'),
     );
     expect(
@@ -83,7 +84,7 @@ describe('buildMatchCaption', () => {
         axis: null,
         allies: 4,
         players: [player()],
-      })?.startsWith('Toujane\nBest'),
+      })?.startsWith('Toujane\nTop scores'),
     ).toBe(true);
     expect(
       buildMatchCaption({
@@ -121,8 +122,34 @@ describe('buildMatchCaption', () => {
       allies: null,
       players: [player({ minutes: 1.9, score: 20 })],
     });
-    expect(caption).toBe('Dawnville\nBest\n1. Ace 20');
-    expect(caption).not.toContain('efficient');
+    expect(caption).toBe('Dawnville\nTop scores\n1. Ace — 20');
+    expect(caption).not.toContain('minute');
+  });
+
+  it('keeps a real nick and does not invent the word player', () => {
+    const caption = buildMatchCaption({
+      mapName: 'mp_carentan',
+      axis: 1,
+      allies: 3,
+      players: [
+        player({
+          name: '^0Persian^1Gulf',
+          num: 2,
+          score: 86,
+          minutes: 13.87,
+          team: 2,
+        }),
+        player({ name: 'Вика', num: 8, score: 74, minutes: 14, team: 1 }),
+        player({ name: '^1^7', num: 11, score: 35, minutes: 13, team: 2 }),
+      ],
+    });
+    expect(caption).toContain('1. PersianGulf — 86');
+    expect(caption).toContain('2. Вика — 74');
+    expect(caption).toContain('3. #11 — 35');
+    expect(caption).toContain('1. PersianGulf — 86 points in 14 min');
+    expect(caption).toContain('2. Вика — 74 points in 14 min');
+    expect(caption).not.toContain('player');
+    expect(caption).not.toContain('/min');
   });
 });
 

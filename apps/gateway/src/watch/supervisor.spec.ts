@@ -672,6 +672,15 @@ describe('watch supervisor', () => {
     await supervisor.whenIdle();
     supervisor.noteStatus(
       'default',
+      {
+        raw: '',
+        mapName: 'mp_toujane',
+        players: players.map((player) => ({ ...player, name: '^7' })),
+      },
+      draft.nowMs,
+    );
+    supervisor.noteStatus(
+      'default',
       { raw: '', mapName: 'mp_carentan', players: [] },
       draft.nowMs,
     );
@@ -684,15 +693,15 @@ describe('watch supervisor', () => {
           'Toujane',
           'Axis 3 — Allies 2',
           '',
-          'Best',
-          '1. Grinder 16',
-          '2. Free 10',
-          '3. Ace 4',
+          'Top scores',
+          '1. Grinder — 16',
+          '2. Free — 10',
+          '3. Ace — 4',
           '',
-          'Most efficient',
-          '1. Grinder 5.3/min',
-          '2. Free 3.3/min',
-          '3. Ace 1.3/min',
+          'Most points per minute',
+          '1. Grinder — 16 points in 3 min',
+          '2. Free — 10 points in 3 min',
+          '3. Ace — 4 points in 3 min',
         ].join('\n'),
       },
     ]);
