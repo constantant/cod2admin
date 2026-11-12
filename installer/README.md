@@ -66,7 +66,7 @@ local file. RCON can't deliver it, and every other command works without it.
 The owner sends `/findlog` to the bot (`/findlog --server <alias>` for a specific server). It finds
 the log and starts reading it, with no restart. To get `!report` cards, also send
 `/bindserver <alias> private` in your admins' group. To post match results to a public group, send
-`/bindserver <alias>` there (without a public group, results go to the admins' group). If the bot can't connect the log, it tells you what to
+`/bindserver <alias>` there (without a public group, results go to the admins' group). `private` is refused in a public group (one with a public `@username`, or already bound as public). If the bot can't connect the log, it tells you what to
 do. These are the cases:
 
 **The bot can't read the file.** The bot replies with commands for your exact path. Run them on

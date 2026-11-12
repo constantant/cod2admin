@@ -447,7 +447,7 @@ Staff is a row in `admins` plus a set of permission ids. There is no stored role
 - Multi-server support: admins can be scoped to specific servers (`admin_servers` join
   table); `/servers` lists configured servers, most commands take an optional
   `--server <alias>` (default = the group chat's bound server, one Telegram group per
-  server, configured via `/bindserver <alias>` in that group, which is the public group that gets the match results; `/bindserver <alias> private` binds the admin chat for `!report` cards, stored in `servers.public_telegram_chat_id`). **Scoping is access-only, not
+  server, configured via `/bindserver <alias>` in that group). Two chats per server: `/bindserver <alias>` binds the **public group** (match results, `servers.public_telegram_chat_id`), `/bindserver <alias> private` binds the **admin chat** (`!report` cards, `servers.bound_telegram_chat_id`). With no public group, match results go to the admin chat. `private` is refused in a chat that is already a server's public group or has a public `@username`, because reports carry player IPs. **Scoping is access-only, not
   per-server permissions** — the permission set is one global list per Telegram ID, so a person
   can be granted or denied a given server, but can't hold `kick` on one server and `ban` on
   another. Acceptable for now (single-operator/small-team use case); revisit if multi-tenant
@@ -722,7 +722,7 @@ local login stays on `/api`. The grant is OAuth 2.1:
 deps, bot)` (`apps/gateway/src/lib/report-tailers.ts`) right after `createBot`. For each
    configured server with both a log path (`ServerConfig.logSourceConfig` — populated from
    `COD2_LOG_PATH` for the bootstrapped server via a new `GatewayConfig.logPath`, in the schema
-   since Phase 2 but unread until now) and a bound Telegram chat (`/bindserver`), it starts a
+   since Phase 2 but unread until now) and a bound admin chat (`/bindserver <alias> private`), it starts a
    `GameLogTailer`, registers it in `sessionsByServer`, and wires its `reportTrigger` event to
    `handleReportTrigger()`. A server missing either prerequisite is skipped with a `console.warn`
    — RCON-only operation (no report automation) stays a valid configuration, not an error.
