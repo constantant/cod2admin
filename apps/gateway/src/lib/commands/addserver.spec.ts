@@ -121,6 +121,7 @@ describe('addServerCommand', () => {
       rconPassword: 'p',
       logSourceConfig: null,
       boundTelegramChatId: null,
+      publicTelegramChatId: null,
       isDefault: true,
       watch: null,
       watchPrivatePassword: null,

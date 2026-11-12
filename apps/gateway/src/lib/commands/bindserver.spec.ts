@@ -12,7 +12,35 @@ describe('bindServerCommand', () => {
 
     expect(adminStore.bindServerToChat).toHaveBeenCalledWith('default', 100);
     expect(ctx.reply).toHaveBeenCalledWith(
-      'This chat is now bound to server "default".',
+      'This chat is now the admin chat for server "default" (reports).',
+    );
+  });
+
+  it('binds the public group separately with the "public" keyword', async () => {
+    const { deps, adminStore } = createFakeDeps();
+    const ctx = createFakeCtx({ match: 'default public', chat: { id: 200 } });
+
+    await bindServerCommand(ctx, deps);
+
+    expect(adminStore.bindServerToChat).toHaveBeenCalledWith(
+      'default',
+      200,
+      'public',
+    );
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'This chat is now the public group for server "default" (match results).',
+    );
+  });
+
+  it('rejects an unknown second word', async () => {
+    const { deps, adminStore } = createFakeDeps();
+    const ctx = createFakeCtx({ match: 'default foo', chat: { id: 200 } });
+
+    await bindServerCommand(ctx, deps);
+
+    expect(adminStore.bindServerToChat).not.toHaveBeenCalled();
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'Usage: /bindserver <alias> [public]',
     );
   });
 
@@ -35,6 +63,6 @@ describe('bindServerCommand', () => {
     await bindServerCommand(ctx, deps);
 
     expect(adminStore.bindServerToChat).not.toHaveBeenCalled();
-    expect(ctx.reply).toHaveBeenCalledWith('Usage: /bindserver <alias>');
+    expect(ctx.reply).toHaveBeenCalledWith('Usage: /bindserver <alias> [public]');
   });
 });

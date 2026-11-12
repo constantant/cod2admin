@@ -96,7 +96,10 @@ export const servers = pgTable(
     rconPort: bigint('rcon_port', { mode: 'number' }).notNull(),
     rconPasswordEncrypted: text('rcon_password_encrypted').notNull(),
     logSourceConfig: text('log_source_config'),
+    /** Admin chat: `!report` cards. `/bindserver <alias>`. */
     boundTelegramChatId: bigint('bound_telegram_chat_id', { mode: 'number' }),
+    /** Public group: match results. `/bindserver <alias> public`. Null: they go to the admin chat. */
+    publicTelegramChatId: bigint('public_telegram_chat_id', { mode: 'number' }),
     /** Target of commands without `--server` in chats not bound via `/bindserver` (`/setdefault`). */
     isDefault: boolean('is_default').notNull().default(false),
     /** Null: the watcher is off. No password field — that column is separate. */

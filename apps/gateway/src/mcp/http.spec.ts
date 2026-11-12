@@ -23,6 +23,7 @@ const SERVER = {
   rconPassword: 'super-secret-password',
   logSourceConfig: '/var/log/games_mp.log',
   boundTelegramChatId: null,
+  publicTelegramChatId: null,
   isDefault: true,
   watch: null,
   watchPrivatePassword: null,

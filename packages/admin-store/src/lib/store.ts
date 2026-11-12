@@ -254,10 +254,18 @@ export class DrizzleAdminStore implements AdminStore {
     return rows.map((row) => this.toServerConfig(row));
   }
 
-  async bindServerToChat(alias: string, chatId: number): Promise<void> {
+  async bindServerToChat(
+    alias: string,
+    chatId: number,
+    kind: 'admin' | 'public' = 'admin',
+  ): Promise<void> {
     await this.db
       .update(servers)
-      .set({ boundTelegramChatId: chatId })
+      .set(
+        kind === 'public'
+          ? { publicTelegramChatId: chatId }
+          : { boundTelegramChatId: chatId },
+      )
       .where(eq(servers.alias, alias));
   }
 
@@ -265,7 +273,12 @@ export class DrizzleAdminStore implements AdminStore {
     const [row] = await this.db
       .select()
       .from(servers)
-      .where(eq(servers.boundTelegramChatId, chatId));
+      .where(
+        or(
+          eq(servers.boundTelegramChatId, chatId),
+          eq(servers.publicTelegramChatId, chatId),
+        ),
+      );
     return row ? this.toServerConfig(row) : undefined;
   }
 
@@ -734,6 +747,7 @@ export class DrizzleAdminStore implements AdminStore {
       rconPassword: this.secretBox.decrypt(row.rconPasswordEncrypted),
       logSourceConfig: row.logSourceConfig,
       boundTelegramChatId: row.boundTelegramChatId,
+      publicTelegramChatId: row.publicTelegramChatId,
       isDefault: row.isDefault,
       watch: row.watch,
       watchPrivatePassword: row.watchPrivatePasswordEncrypted

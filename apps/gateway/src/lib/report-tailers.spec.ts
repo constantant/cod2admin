@@ -43,6 +43,7 @@ function serverConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
     rconPassword: 'pw',
     logSourceConfig: './games_mp.log',
     boundTelegramChatId: 555,
+    publicTelegramChatId: null,
     isDefault: false,
     watch: null,
     watchPrivatePassword: null,

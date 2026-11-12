@@ -63,6 +63,7 @@ describe('resolveServer', () => {
       rconPassword: 'p',
       logSourceConfig: null,
       boundTelegramChatId: 100,
+      publicTelegramChatId: null,
       isDefault: false,
       watch: null,
       watchPrivatePassword: null,
@@ -88,6 +89,7 @@ describe('resolveServer', () => {
       rconPassword: 'p',
       logSourceConfig: null,
       boundTelegramChatId: null,
+      publicTelegramChatId: null,
       isDefault: true,
       watch: null,
       watchPrivatePassword: null,
@@ -117,12 +119,14 @@ describe('resolveServer', () => {
       ...base,
       alias: 'default',
       boundTelegramChatId: 100,
+      publicTelegramChatId: null,
       isDefault: false,
     });
     adminStore.getDefaultServer.mockResolvedValue({
       ...base,
       alias: 'other',
       boundTelegramChatId: null,
+      publicTelegramChatId: null,
       isDefault: true,
     });
     const ctx = createFakeCtx({ chat: { id: 100 } });

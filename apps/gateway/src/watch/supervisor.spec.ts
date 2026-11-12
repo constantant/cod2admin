@@ -1107,6 +1107,7 @@ function server(overrides: Partial<ServerConfig> = {}): ServerConfig {
     rconPassword: RCON_SECRET,
     logSourceConfig: null,
     boundTelegramChatId: -100,
+    publicTelegramChatId: null,
     isDefault: true,
     watch: null,
     watchPrivatePassword: null,

@@ -1535,7 +1535,8 @@ class Supervisor {
       this.log.error('watch: match result lookup failed', error);
       return;
     }
-    const chatId = server?.boundTelegramChatId;
+    // The public group when one is bound, else the admin chat.
+    const chatId = server?.publicTelegramChatId ?? server?.boundTelegramChatId;
     if (chatId == null) return;
     try {
       await send({ chatId, mapName, caption });

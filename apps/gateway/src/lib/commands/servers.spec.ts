@@ -11,6 +11,7 @@ const SERVER: ServerConfig = {
   rconPassword: 'pw',
   logSourceConfig: null,
   boundTelegramChatId: null,
+  publicTelegramChatId: null,
   isDefault: false,
   watch: null,
   watchPrivatePassword: null,
@@ -22,10 +23,14 @@ describe('formatServersMessage', () => {
     expect(formatServersMessage([SERVER])).toBe('default — 127.0.0.1:28960');
   });
 
-  it('notes the bound chat when set', () => {
+  it('notes the admin and public chats when set', () => {
     expect(
-      formatServersMessage([{ ...SERVER, boundTelegramChatId: 100 }]),
-    ).toBe('default — 127.0.0.1:28960 (bound to chat 100)');
+      formatServersMessage([
+        { ...SERVER, boundTelegramChatId: 100, publicTelegramChatId: 200 },
+      ]),
+    ).toBe(
+      'default — 127.0.0.1:28960 (reports → chat 100, match results → chat 200)',
+    );
   });
 
   it('marks the default server and the config-file server', () => {

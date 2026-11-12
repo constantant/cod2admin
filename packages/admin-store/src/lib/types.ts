@@ -60,7 +60,10 @@ export interface ServerConfig {
   /** Decrypted — see `secrets.ts`. Never stored in this shape. */
   rconPassword: string;
   logSourceConfig: string | null;
+  /** Admin chat (reports). */
   boundTelegramChatId: number | null;
+  /** Public group (match results); null falls back to the admin chat. */
+  publicTelegramChatId: number | null;
   /** Set via `setDefaultServer` — at most one server has it. */
   isDefault: boolean;
   /** Null: the watcher is off. Never includes the private password. */
@@ -262,7 +265,12 @@ export interface AdminStore {
   setServerLogPath(alias: string, path: string | null): Promise<void>;
   getServer(alias: string): Promise<ServerConfig | undefined>;
   listServers(): Promise<ServerConfig[]>;
-  bindServerToChat(alias: string, chatId: number): Promise<void>;
+  /** `kind` picks the slot: the admin chat (reports) or the public group (match results). */
+  bindServerToChat(
+    alias: string,
+    chatId: number,
+    kind?: 'admin' | 'public',
+  ): Promise<void>;
   getServerForChat(chatId: number): Promise<ServerConfig | undefined>;
   /** Deletes the server and its per-admin scoping rows. `false` if no such server existed. */
   removeServer(alias: string): Promise<boolean>;

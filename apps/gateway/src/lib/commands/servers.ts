@@ -10,7 +10,10 @@ function formatServerLine(
     server.isDefault ? 'default' : undefined,
     server.alias === bootstrapAlias ? 'from config file' : undefined,
     server.boundTelegramChatId
-      ? `bound to chat ${server.boundTelegramChatId}`
+      ? `reports → chat ${server.boundTelegramChatId}`
+      : undefined,
+    server.publicTelegramChatId
+      ? `match results → chat ${server.publicTelegramChatId}`
       : undefined,
   ].filter(Boolean);
   const suffix = notes.length > 0 ? ` (${notes.join(', ')})` : '';

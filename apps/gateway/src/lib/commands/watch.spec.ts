@@ -23,6 +23,7 @@ function server(overrides: Partial<ServerConfig> = {}): ServerConfig {
     rconPassword: 'pw',
     logSourceConfig: null,
     boundTelegramChatId: null,
+    publicTelegramChatId: null,
     isDefault: true,
     watch: null,
     watchPrivatePassword: null,

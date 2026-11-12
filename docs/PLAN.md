@@ -447,7 +447,7 @@ Staff is a row in `admins` plus a set of permission ids. There is no stored role
 - Multi-server support: admins can be scoped to specific servers (`admin_servers` join
   table); `/servers` lists configured servers, most commands take an optional
   `--server <alias>` (default = the group chat's bound server, one Telegram group per
-  server, configured via `/bindserver <alias>` in that group). **Scoping is access-only, not
+  server, configured via `/bindserver <alias>` in that group; `/bindserver <alias> public` binds a separate public group that gets the match results, stored in `servers.public_telegram_chat_id`). **Scoping is access-only, not
   per-server permissions** — the permission set is one global list per Telegram ID, so a person
   can be granted or denied a given server, but can't hold `kick` on one server and `ban` on
   another. Acceptable for now (single-operator/small-team use case); revisit if multi-tenant
