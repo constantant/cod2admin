@@ -19,7 +19,7 @@ export interface ActingAdmin {
 export interface BotContext {
   from?: { id: number; username?: string; first_name?: string };
   /** `type` is "private" | "group" | "supergroup" | "channel" on real updates. */
-  chat?: { id: number; type?: string };
+  chat?: { id: number; type?: string; username?: string };
   /** Text following the command name, e.g. "12 griefing" for "/kick 12 griefing". */
   match?: string | number | RegExpMatchArray;
   /** The Telegram ID of whoever's message this command replied to, if any (e.g. /addadmin). */

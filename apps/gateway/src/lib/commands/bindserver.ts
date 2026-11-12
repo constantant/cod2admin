@@ -33,10 +33,7 @@ export async function bindServerCommand(
 
   if (kind === 'private') {
     // Reports carry player IPs and admin names: never into a public group.
-    const publicUsername =
-      ctx.chat.type !== 'private' && 'username' in ctx.chat
-        ? ctx.chat.username
-        : undefined;
+    const publicUsername = ctx.chat.username;
     const servers = await deps.adminStore.listServers();
     const boundPublic = servers.some(
       (server) => server.publicTelegramChatId === ctx.chat?.id,
