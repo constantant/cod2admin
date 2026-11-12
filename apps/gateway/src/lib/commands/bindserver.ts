@@ -32,6 +32,21 @@ export async function bindServerCommand(
   }
 
   if (kind === 'private') {
+    // Reports carry player IPs and admin names: never into a public group.
+    const publicUsername =
+      ctx.chat.type !== 'private' && 'username' in ctx.chat
+        ? ctx.chat.username
+        : undefined;
+    const servers = await deps.adminStore.listServers();
+    const boundPublic = servers.some(
+      (server) => server.publicTelegramChatId === ctx.chat?.id,
+    );
+    if (publicUsername || boundPublic) {
+      await ctx.reply(
+        'This is a public group, so it can\'t be an admin chat. Run /bindserver <alias> private in your admins\' group.',
+      );
+      return;
+    }
     await deps.adminStore.bindServerToChat(alias, ctx.chat.id, 'admin');
     await ctx.reply(
       `This chat is now the admin chat for server "${alias}" (reports).`,

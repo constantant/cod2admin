@@ -36,6 +36,33 @@ describe('bindServerCommand', () => {
     );
   });
 
+  it('refuses "private" in a chat that is already a public group', async () => {
+    const { deps, adminStore } = createFakeDeps();
+    adminStore.listServers.mockResolvedValue([
+      { alias: 'default', publicTelegramChatId: 200 } as never,
+    ]);
+    const ctx = createFakeCtx({ match: 'default private', chat: { id: 200 } });
+
+    await bindServerCommand(ctx, deps);
+
+    expect(adminStore.bindServerToChat).not.toHaveBeenCalled();
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('public group'),
+    );
+  });
+
+  it('refuses "private" in a group with a public username', async () => {
+    const { deps, adminStore } = createFakeDeps();
+    const ctx = createFakeCtx({
+      match: 'default private',
+      chat: { id: 300, type: 'supergroup', username: 'cod2ru' },
+    });
+
+    await bindServerCommand(ctx, deps);
+
+    expect(adminStore.bindServerToChat).not.toHaveBeenCalled();
+  });
+
   it('rejects an unknown second word', async () => {
     const { deps, adminStore } = createFakeDeps();
     const ctx = createFakeCtx({ match: 'default foo', chat: { id: 200 } });
