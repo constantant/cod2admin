@@ -1,3 +1,21 @@
+## [1.24.0](https://github.com/constantant/cod2admin/releases/tag/v1.24.0) (2026-11-12)
+
+### 🚀 Features
+
+- bind a separate public group for match results ([b9594fd](https://github.com/constantant/cod2admin/commit/b9594fd))
+- make plain /bindserver the public group and add a private keyword ([0587778](https://github.com/constantant/cod2admin/commit/0587778))
+- refuse private binding in a public group ([51138ed](https://github.com/constantant/cod2admin/commit/51138ed))
+- add /unbindserver to clear a chat's server binding ([e9af61a](https://github.com/constantant/cod2admin/commit/e9af61a))
+
+### 🩹 Fixes
+
+- type the chat username for the public-group check ([bb37d74](https://github.com/constantant/cod2admin/commit/bb37d74))
+
+### ❤️ Thank You
+
+- Claude Sonnet 5.5
+- kk
+
 ## [1.23.5](https://github.com/constantant/cod2admin/releases/tag/v1.23.5) (2026-11-11)
 
 ### 🩹 Fixes
