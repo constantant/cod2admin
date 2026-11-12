@@ -107,7 +107,7 @@ describe('startReportTailers', () => {
     expect(tailers).toHaveLength(1);
     expect(deps.logTailers.get('default')).toBe(fakeTailerInstances[0]);
     expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('no bound Telegram chat'),
+      expect.stringContaining('no admin chat'),
     );
     fakeTailerInstances[0].listeners['reportTrigger'][0]({
       chat: {},

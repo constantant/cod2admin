@@ -327,7 +327,7 @@ export interface ServerDto {
     host: string;
     port: number;
     logPath: string | null;
-    /** `!report` cards have a chat to go to (`/bindserver`, sent in that chat). */
+    /** `!report` cards have a chat to go to (`/bindserver <alias> private`, sent in that chat). */
     boundChat: boolean;
     /** Set in the bot's `.env`, so it can't be changed or removed from here. */
     fromConfig: boolean;

@@ -19,7 +19,7 @@ import { handleReportTrigger } from './reports.js';
  * in `deps.logTailers` (the Mini App's live chat, docs/PLAN-miniapp.md §6.2) and
  * `deps.sessionsByServer` (the report card's `select` button re-enriches against it).
  *
- * `!report` automation (docs/PLAN.md §5) also needs a bound admin chat (`/bindserver`) to deliver
+ * `!report` automation (docs/PLAN.md §5) also needs a bound admin chat (`/bindserver <alias> private`) to deliver
  * cards to: without one, a `reportTrigger` event is dropped. Returns the started tailers so a caller that wants to shut them down later can.
  *
  * A server missing either prerequisite gets a warning, not an error — RCON-only operation (no
@@ -65,7 +65,7 @@ export function startReportTailer(
 
   if (!server.boundTelegramChatId) {
     console.warn(
-      `Server "${alias}": no bound Telegram chat (/bindserver) — !report automation disabled for it.`,
+      `Server "${alias}": no admin chat (/bindserver <alias> private) — !report automation disabled for it.`,
     );
   }
 

@@ -73,7 +73,7 @@ async function useLog(
     `Now reading the log of "${alias}":\n${path}\n\n` +
       (server?.boundTelegramChatId
         ? '!report cards go to the bound chat.'
-        : `To get !report cards, run /bindserver ${alias} in your admins' group.`),
+        : `To get !report cards, run /bindserver ${alias} private in your admins' group.`),
   );
 }
 

@@ -4,31 +4,35 @@ import { createFakeDeps } from '../testing/fake-deps.js';
 import { bindServerCommand } from './bindserver.js';
 
 describe('bindServerCommand', () => {
-  it('binds the current chat to a known server', async () => {
+  it('binds the current chat as the public group by default', async () => {
     const { deps, adminStore } = createFakeDeps();
     const ctx = createFakeCtx({ match: 'default', chat: { id: 100 } });
 
     await bindServerCommand(ctx, deps);
 
-    expect(adminStore.bindServerToChat).toHaveBeenCalledWith('default', 100);
+    expect(adminStore.bindServerToChat).toHaveBeenCalledWith(
+      'default',
+      100,
+      'public',
+    );
     expect(ctx.reply).toHaveBeenCalledWith(
-      'This chat is now the admin chat for server "default" (reports).',
+      'This chat is now the public group for server "default" (match results).',
     );
   });
 
-  it('binds the public group separately with the "public" keyword', async () => {
+  it('binds the admin chat with the "private" keyword', async () => {
     const { deps, adminStore } = createFakeDeps();
-    const ctx = createFakeCtx({ match: 'default public', chat: { id: 200 } });
+    const ctx = createFakeCtx({ match: 'default private', chat: { id: 200 } });
 
     await bindServerCommand(ctx, deps);
 
     expect(adminStore.bindServerToChat).toHaveBeenCalledWith(
       'default',
       200,
-      'public',
+      'admin',
     );
     expect(ctx.reply).toHaveBeenCalledWith(
-      'This chat is now the public group for server "default" (match results).',
+      'This chat is now the admin chat for server "default" (reports).',
     );
   });
 
@@ -40,7 +44,7 @@ describe('bindServerCommand', () => {
 
     expect(adminStore.bindServerToChat).not.toHaveBeenCalled();
     expect(ctx.reply).toHaveBeenCalledWith(
-      'Usage: /bindserver <alias> [public]',
+      'Usage: /bindserver <alias> [private]',
     );
   });
 
@@ -63,6 +67,6 @@ describe('bindServerCommand', () => {
     await bindServerCommand(ctx, deps);
 
     expect(adminStore.bindServerToChat).not.toHaveBeenCalled();
-    expect(ctx.reply).toHaveBeenCalledWith('Usage: /bindserver <alias> [public]');
+    expect(ctx.reply).toHaveBeenCalledWith('Usage: /bindserver <alias> [private]');
   });
 });

@@ -2,22 +2,21 @@ import { matchText, type BotContext } from '../bot-context.js';
 import type { GatewayDeps } from '../deps.js';
 
 /**
- * `/bindserver <alias> [public]` — binds this chat to a server (docs/PLAN.md §4).
+ * `/bindserver <alias> [private]` — binds this chat to a server (docs/PLAN.md §4).
  *
- * Without `public` the chat becomes the server's admin chat (`!report` cards). With it, the chat is
- * the public group that gets the match results. They are separate slots, so they can be different chats.
+ * Without a keyword the chat becomes the server's public group (match results). With `private` it is
+ * the admin chat (`!report` cards). They are separate slots, so they can be different chats.
  */
 export async function bindServerCommand(
   ctx: BotContext,
   deps: GatewayDeps,
 ): Promise<void> {
-  const [alias, kindWord, ...extra] = matchText(ctx).split(/\s+/).filter(Boolean);
-  const usage = 'Usage: /bindserver <alias> [public]';
-  if (!alias || extra.length > 0) {
-    await ctx.reply(usage);
-    return;
-  }
-  if (kindWord !== undefined && kindWord.toLowerCase() !== 'public') {
+  const [alias, kindWord, ...extra] = matchText(ctx)
+    .split(/\s+/)
+    .filter(Boolean);
+  const usage = 'Usage: /bindserver <alias> [private]';
+  const kind = kindWord?.toLowerCase();
+  if (!alias || extra.length > 0 || (kind && kind !== 'private')) {
     await ctx.reply(usage);
     return;
   }
@@ -32,15 +31,15 @@ export async function bindServerCommand(
     return;
   }
 
-  if (kindWord) {
-    await deps.adminStore.bindServerToChat(alias, ctx.chat.id, 'public');
+  if (kind === 'private') {
+    await deps.adminStore.bindServerToChat(alias, ctx.chat.id, 'admin');
     await ctx.reply(
-      `This chat is now the public group for server "${alias}" (match results).`,
+      `This chat is now the admin chat for server "${alias}" (reports).`,
     );
     return;
   }
-  await deps.adminStore.bindServerToChat(alias, ctx.chat.id);
+  await deps.adminStore.bindServerToChat(alias, ctx.chat.id, 'public');
   await ctx.reply(
-    `This chat is now the admin chat for server "${alias}" (reports).`,
+    `This chat is now the public group for server "${alias}" (match results).`,
   );
 }
