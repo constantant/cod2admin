@@ -53,7 +53,7 @@ export async function resolveServer(
       alias = deps.rconClients.keys().next().value;
     } else {
       await ctx.reply(
-        'Multiple servers configured — specify --server <alias>, pick a default with /setdefault, or bind this chat with /bindserver.',
+        'Multiple servers configured — specify --server <alias>, pick a default with /setdefault, or bind this chat with /bindserver <alias> (or /bindserver <alias> private).',
       );
       return undefined;
     }

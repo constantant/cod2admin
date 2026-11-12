@@ -778,9 +778,9 @@ export const RU_PATTERNS: readonly [RegExp, (...groups: string[]) => string][] =
       (query) => `По запросу «${query}» никого нет.`,
     ],
     [
-      /^No chat: send \/bindserver (.+) in your admins' group$/,
+      /^No chat: send \/bindserver (.+) private in your admins' group$/,
       (alias) =>
-        `Чат не привязан: отправьте /bindserver ${alias} в группе админов`,
+        `Чат не привязан: отправьте /bindserver ${alias} private в группе админов`,
     ],
 
     // Alerts

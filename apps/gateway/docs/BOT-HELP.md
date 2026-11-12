@@ -76,7 +76,10 @@ Each command needs the permission in its heading. `/permit` is how those permiss
 
 ### `servers.assign`
 
-- `/bindserver <alias>` — makes **this** chat receive report cards for that server
+- `/bindserver <alias>` — makes **this** chat the server's public group: it receives the match results
+- `/bindserver <alias> private` — makes **this** chat the server's admin chat: it receives the `!report` cards.
+  Refused in a public group (one with a public `@username`, or already bound as public). Without a
+  public group, match results go to the admin chat too
 - `/setdefault <alias>` — which server commands without `--server` go to
 
 ### `vpn`
@@ -195,7 +198,7 @@ GUID, reasons…). Open it with any text viewer.
 
 Most commands take an optional `--server <alias>` at the end if this bot manages more than one
 server — see `/servers` for the list of aliases. Without it, a command goes to the server bound
-to this chat (`/bindserver`), otherwise to the default server (`/setdefault`). The server from
+to this chat (`/bindserver`, either kind), otherwise to the default server (`/setdefault`). The server from
 the bot's config file can't be changed or removed from Telegram.
 
 IP location and provider data by [DB-IP.com](https://db-ip.com) (CC BY 4.0). VPN ranges by

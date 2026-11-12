@@ -79,7 +79,7 @@ import { T } from '../../shared/i18n';
                     ? 'Go to the bound chat'
                     : 'No chat: send /bindserver ' +
                       server.alias +
-                      " in your admins' group"
+                      " private in your admins' group"
                   ) | t
                 }}
               </dd>
