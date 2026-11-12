@@ -10,7 +10,10 @@ import { addServerCommand } from './commands/addserver.js';
 import { auditLogCommand } from './commands/auditlog.js';
 import { banCommand } from './commands/ban.js';
 import { bansCommand } from './commands/bans.js';
-import { bindServerCommand } from './commands/bindserver.js';
+import {
+  bindServerCommand,
+  unbindServerCommand,
+} from './commands/bindserver.js';
 import { claimCommand } from './commands/claim.js';
 import { findLogCommand } from './commands/findlog.js';
 import { helpCommand, helpRuCommand } from './commands/help.js';
@@ -184,6 +187,9 @@ export function createBot(
   bot.command('say', allow('say'), (ctx) => sayCommand(ctx, deps));
   bot.command('bindserver', allow('servers.assign'), (ctx) =>
     bindServerCommand(ctx, deps),
+  );
+  bot.command('unbindserver', allow('servers.assign'), (ctx) =>
+    unbindServerCommand(ctx, deps),
   );
   bot.command('setdefault', allow('servers.assign'), (ctx) =>
     setDefaultCommand(ctx, deps),

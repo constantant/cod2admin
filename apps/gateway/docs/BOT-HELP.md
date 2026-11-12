@@ -80,6 +80,7 @@ Each command needs the permission in its heading. `/permit` is how those permiss
 - `/bindserver <alias> private` — makes **this** chat the server's admin chat: it receives the `!report` cards.
   Refused in a public group (one with a public `@username`, or already bound as public). Without a
   public group, match results go to the admin chat too
+- `/unbindserver <alias>` — removes **this** chat's binding to the server (public group or admin chat)
 - `/setdefault <alias>` — which server commands without `--server` go to
 
 ### `vpn`

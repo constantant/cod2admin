@@ -271,6 +271,11 @@ export interface AdminStore {
     chatId: number,
     kind?: 'admin' | 'public',
   ): Promise<void>;
+  /** Clears whichever slot(s) of `alias` point at `chatId`; returns what was cleared (empty: it wasn't bound here). */
+  unbindServerFromChat(
+    alias: string,
+    chatId: number,
+  ): Promise<Array<'admin' | 'public'>>;
   getServerForChat(chatId: number): Promise<ServerConfig | undefined>;
   /** Deletes the server and its per-admin scoping rows. `false` if no such server existed. */
   removeServer(alias: string): Promise<boolean>;

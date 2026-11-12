@@ -55,3 +55,39 @@ export async function bindServerCommand(
     `This chat is now the public group for server "${alias}" (match results).`,
   );
 }
+
+/**
+ * `/unbindserver <alias>` — clears this chat's binding to the server: the public group, the admin
+ * chat, or both if one chat holds both. Match results then fall back to the admin chat; with no
+ * admin chat, `!report` cards only reach the Mini App.
+ */
+export async function unbindServerCommand(
+  ctx: BotContext,
+  deps: GatewayDeps,
+): Promise<void> {
+  const alias = matchText(ctx).trim();
+  if (!alias) {
+    await ctx.reply('Usage: /unbindserver <alias>');
+    return;
+  }
+  if (!ctx.chat) {
+    await ctx.reply('This command only makes sense in a group chat.');
+    return;
+  }
+  if (!deps.rconClients.has(alias)) {
+    await ctx.reply(
+      `Unknown server "${alias}". Run /servers to see what's configured.`,
+    );
+    return;
+  }
+
+  const cleared = await deps.adminStore.unbindServerFromChat(alias, ctx.chat.id);
+  if (cleared.length === 0) {
+    await ctx.reply(`This chat isn't bound to server "${alias}".`);
+    return;
+  }
+  const what = cleared
+    .map((kind) => (kind === 'public' ? 'public group' : 'admin chat'))
+    .join(' and ');
+  await ctx.reply(`This chat is no longer the ${what} for server "${alias}".`);
+}

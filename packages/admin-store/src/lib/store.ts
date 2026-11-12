@@ -269,6 +269,30 @@ export class DrizzleAdminStore implements AdminStore {
       .where(eq(servers.alias, alias));
   }
 
+  async unbindServerFromChat(
+    alias: string,
+    chatId: number,
+  ): Promise<Array<'admin' | 'public'>> {
+    const cleared: Array<'admin' | 'public'> = [];
+    const admin = await this.db
+      .update(servers)
+      .set({ boundTelegramChatId: null })
+      .where(
+        and(eq(servers.alias, alias), eq(servers.boundTelegramChatId, chatId)),
+      )
+      .returning({ alias: servers.alias });
+    if (admin.length > 0) cleared.push('admin');
+    const pub = await this.db
+      .update(servers)
+      .set({ publicTelegramChatId: null })
+      .where(
+        and(eq(servers.alias, alias), eq(servers.publicTelegramChatId, chatId)),
+      )
+      .returning({ alias: servers.alias });
+    if (pub.length > 0) cleared.push('public');
+    return cleared;
+  }
+
   async getServerForChat(chatId: number): Promise<ServerConfig | undefined> {
     const [row] = await this.db
       .select()

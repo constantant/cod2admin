@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createFakeCtx } from '../testing/fake-ctx.js';
 import { createFakeDeps } from '../testing/fake-deps.js';
-import { bindServerCommand } from './bindserver.js';
+import { bindServerCommand, unbindServerCommand } from './bindserver.js';
 
 describe('bindServerCommand', () => {
   it('binds the current chat as the public group by default', async () => {
@@ -95,5 +95,43 @@ describe('bindServerCommand', () => {
 
     expect(adminStore.bindServerToChat).not.toHaveBeenCalled();
     expect(ctx.reply).toHaveBeenCalledWith('Usage: /bindserver <alias> [private]');
+  });
+});
+
+describe('unbindServerCommand', () => {
+  it('clears this chat\'s binding and says which kind it was', async () => {
+    const { deps, adminStore } = createFakeDeps();
+    adminStore.unbindServerFromChat.mockResolvedValue(['public']);
+    const ctx = createFakeCtx({ match: 'default', chat: { id: 200 } });
+
+    await unbindServerCommand(ctx, deps);
+
+    expect(adminStore.unbindServerFromChat).toHaveBeenCalledWith('default', 200);
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'This chat is no longer the public group for server "default".',
+    );
+  });
+
+  it('says so when this chat was not bound to the server', async () => {
+    const { deps } = createFakeDeps();
+    const ctx = createFakeCtx({ match: 'default', chat: { id: 200 } });
+
+    await unbindServerCommand(ctx, deps);
+
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'This chat isn\'t bound to server "default".',
+    );
+  });
+
+  it('rejects an unknown alias and a missing one', async () => {
+    const { deps, adminStore } = createFakeDeps();
+    const unknown = createFakeCtx({ match: 'nope', chat: { id: 200 } });
+    const empty = createFakeCtx({ match: '', chat: { id: 200 } });
+
+    await unbindServerCommand(unknown, deps);
+    await unbindServerCommand(empty, deps);
+
+    expect(adminStore.unbindServerFromChat).not.toHaveBeenCalled();
+    expect(empty.reply).toHaveBeenCalledWith('Usage: /unbindserver <alias>');
   });
 });
