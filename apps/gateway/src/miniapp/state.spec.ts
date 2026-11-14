@@ -5,7 +5,16 @@ import { MiniAppState } from './state.js';
 function setup(cvars: Record<string, string> = { g_gametype: 'ctf' }) {
   let mapName = 'mp_toujane';
   const rcon = {
-    status: vi.fn(async () => ({ hostname: 'h', mapName, players: [] })),
+    status: vi.fn(async () => ({
+      hostname: 'h',
+      mapName,
+      players: [] as {
+        num: number;
+        name: string;
+        score: number;
+        ping: number;
+      }[],
+    })),
     getStatus: vi.fn(async () => ({ cvars, players: [] })),
   };
   const getServer = vi.fn(

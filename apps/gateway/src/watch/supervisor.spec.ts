@@ -1242,7 +1242,11 @@ function depsFor(draft: Draft) {
     },
     pruneIntervalMs: 0,
     matchPollMs: 0,
-    sendMatch: async (message) => {
+    sendMatch: async (message: {
+      chatId: number;
+      mapName: string;
+      caption: string;
+    }) => {
       draft.matches.push(message);
     },
     killGroup: () => {

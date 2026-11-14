@@ -1341,6 +1341,7 @@ describe('Mini App management routes', () => {
         whenIdle: async () => undefined,
         stop: () => undefined,
         profileForKick: async () => undefined,
+        playerTeams: () => new Map(),
         listEvidence,
       };
     }
@@ -1455,6 +1456,7 @@ describe('Mini App management routes', () => {
         whenIdle: async () => undefined,
         stop: () => undefined,
         profileForKick: async () => undefined,
+        playerTeams: () => new Map(),
         listEvidence: async () => [],
       };
       return sync;
