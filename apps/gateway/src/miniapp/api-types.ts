@@ -674,6 +674,29 @@ export interface PreviewFunctionResponse {
   commands: string[];
 }
 
+/** How a function pack is wrapped when exported: `{ format, version, functions }`. */
+export const FUNCTION_PACK_FORMAT = 'cod2admin-functions';
+
+export interface ImportFunctionsRequest {
+  functions: SaveFunctionRequest[];
+  /** A function whose id is already taken: keep what's there (default) or replace it. */
+  onConflict?: 'skip' | 'replace';
+  /** Check the pack and say what would happen, without saving anything. */
+  dryRun?: boolean;
+}
+
+export interface ImportFunctionsResponse {
+  dryRun: boolean;
+  results: {
+    slug: string;
+    title: string;
+    kind: CustomFunctionKind;
+    status: 'created' | 'updated' | 'skipped';
+    /** e.g. the server it was scoped to doesn't exist here, so it now applies to all. */
+    note?: string;
+  }[];
+}
+
 /** Settings' current values on a server, by function id; `null` when the server didn't say. */
 export interface FunctionValuesResponse {
   values: Record<string, string | null>;

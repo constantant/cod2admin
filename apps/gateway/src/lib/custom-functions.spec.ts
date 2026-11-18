@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import type { CustomFunctionDefinition } from '@cod2admin/admin-store';
 import { describe, expect, it } from 'vitest';
 import {
@@ -276,5 +278,27 @@ describe('parseCvarReply', () => {
     expect(parseCvarReply('', 'x')).toBeNull();
     expect(parseCvarReply('Cvar x is not set', 'x')).toBeNull();
     expect(parseCvarReply('"y" is:"1^7"', 'x')).toBeNull();
+  });
+});
+
+describe('the example pack in docs/examples', () => {
+  const pack = JSON.parse(
+    readFileSync(
+      fileURLToPath(
+        new URL(
+          '../../../../docs/examples/custom-functions.json',
+          import.meta.url,
+        ),
+      ),
+      'utf8',
+    ),
+  ) as { format: string; functions: unknown[] };
+
+  it('is a pack every function of which passes the same checks as one made by hand', () => {
+    expect(pack.format).toBe('cod2admin-functions');
+    expect(pack.functions).toHaveLength(3);
+    for (const entry of pack.functions) {
+      expect(() => parseFunctionInput(entry)).not.toThrow();
+    }
   });
 });

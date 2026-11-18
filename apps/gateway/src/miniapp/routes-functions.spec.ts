@@ -212,6 +212,147 @@ describe('Mini App custom function routes', () => {
     });
   });
 
+  describe('importing a pack', () => {
+    const pack = (...functions: object[]) => ({ functions });
+
+    it('checks a pack without saving it when asked to', async () => {
+      const response = await call('POST', '/functions/import', OWNER, {
+        ...pack(GIVE, SAY),
+        dryRun: true,
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        dryRun: true,
+        results: [
+          { slug: 'give', status: 'created' },
+          { slug: 'shout', status: 'created' },
+        ],
+      });
+      expect((await call('GET', '/functions', OWNER)).json().functions).toEqual(
+        [],
+      );
+      expect(fake.adminStore.recordAuditLog).not.toHaveBeenCalled();
+    });
+
+    it('creates every function and audits the import with what was saved', async () => {
+      const response = await call(
+        'POST',
+        '/functions/import',
+        MANAGER,
+        pack(GIVE, SAY),
+      );
+      expect(
+        response.json().results.map((r: { status: string }) => r.status),
+      ).toEqual(['created', 'created']);
+      const list = (await call('GET', '/functions', OWNER)).json().functions;
+      expect(list.map((fn: { slug: string }) => fn.slug).sort()).toEqual([
+        'give',
+        'shout',
+      ]);
+      expect(list[0].createdBy).toBe(MANAGER);
+      expect(
+        fake.adminStore.recordAuditLog.mock.calls.at(-1)?.[0],
+      ).toMatchObject({
+        action: 'functionimport',
+        target: '2 functions',
+        detailJson: { functions: [{ slug: 'give' }, { slug: 'shout' }] },
+      });
+    });
+
+    it('keeps an existing function unless told to replace it', async () => {
+      await define(SAY);
+      const changed = { ...SAY, title: 'Changed' };
+      const skipped = await call(
+        'POST',
+        '/functions/import',
+        OWNER,
+        pack(changed),
+      );
+      expect(skipped.json().results[0].status).toBe('skipped');
+      expect(
+        (await call('GET', '/functions', OWNER)).json().functions[0].title,
+      ).toBe('Shout');
+
+      const replaced = await call('POST', '/functions/import', OWNER, {
+        ...pack(changed),
+        onConflict: 'replace',
+      });
+      expect(replaced.json().results[0].status).toBe('updated');
+      expect(
+        (await call('GET', '/functions', OWNER)).json().functions[0].title,
+      ).toBe('Changed');
+    });
+
+    it('saves nothing when any function is invalid, and names it', async () => {
+      const response = await call(
+        'POST',
+        '/functions/import',
+        OWNER,
+        pack(SAY, {
+          ...GIVE,
+          slug: 'bad',
+          definition: { params: [], steps: ['say a; quit'] },
+        }),
+      );
+      expect(response.statusCode).toBe(400);
+      expect(response.json().message).toMatch(/^bad: .*one command/);
+      expect((await call('GET', '/functions', OWNER)).json().functions).toEqual(
+        [],
+      );
+    });
+
+    it('refuses an empty pack, a repeated id and an oversized pack', async () => {
+      expect(
+        (await call('POST', '/functions/import', OWNER, { functions: [] }))
+          .statusCode,
+      ).toBe(400);
+      expect(
+        (await call('POST', '/functions/import', OWNER, pack(SAY, SAY)))
+          .statusCode,
+      ).toBe(400);
+      const many = Array.from({ length: 51 }, (_, n) => ({
+        ...SAY,
+        slug: `f${n}`,
+      }));
+      expect(
+        (await call('POST', '/functions/import', OWNER, pack(...many)))
+          .statusCode,
+      ).toBe(400);
+    });
+
+    it('applies a function for a server that does not exist here to all servers', async () => {
+      const response = await call(
+        'POST',
+        '/functions/import',
+        OWNER,
+        pack({ ...SAY, serverAlias: 'elsewhere' }),
+      );
+      expect(response.json().results[0].note).toMatch(/no server "elsewhere"/);
+      expect(
+        (await call('GET', '/functions', OWNER)).json().functions[0]
+          .serverAlias,
+      ).toBeNull();
+      await call(
+        'POST',
+        '/functions/import',
+        OWNER,
+        pack({ ...SAY, slug: 'here', serverAlias: 'default' }),
+      );
+      expect(
+        (await call('GET', '/functions', OWNER))
+          .json()
+          .functions.find((fn: { slug: string }) => fn.slug === 'here')
+          .serverAlias,
+      ).toBe('default');
+    });
+
+    it('is for functions.manage only', async () => {
+      expect(
+        (await call('POST', '/functions/import', RUNNER, pack(SAY))).statusCode,
+      ).toBe(403);
+    });
+  });
+
   describe('running', () => {
     it('lists only what is enabled, on this server, and allowed to the caller', async () => {
       await define(GIVE);

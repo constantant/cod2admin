@@ -716,6 +716,25 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
   "You can't change your own permissions.": 'Свои права менять нельзя.',
   "You can't change the owner.": 'Владельца менять нельзя.',
   "You can't change another admin.": 'Другого админа менять нельзя.',
+  Export: 'Экспорт',
+  Import: 'Импорт',
+  Copy: 'Копировать',
+  Check: 'Проверить',
+  'Copied.': 'Скопировано.',
+  'Imported.': 'Импортировано.',
+  'Select the text and copy it by hand.':
+    'Выделите текст и скопируйте вручную.',
+  "That isn't a function pack.": 'Это не набор функций.',
+  'Copy this and paste it into Import on another bot, or keep it as a backup.':
+    'Скопируйте это и вставьте в «Импорт» на другом боте или сохраните как резервную копию.',
+  'Paste a pack, or choose its file. Look it over before you import it: every step is a command your server will run.':
+    'Вставьте набор или выберите его файл. Просмотрите его перед импортом: каждый шаг — это команда, которую выполнит ваш сервер.',
+  'Replace functions I already have with the same id':
+    'Заменять функции с тем же идентификатором',
+  New: 'Новая',
+  'Replaces the one you have': 'Заменит вашу',
+  'Already here: kept as it is': 'Уже есть: остаётся как есть',
+  'The pack has no functions.': 'В наборе нет функций.',
   'What it is': 'Что это',
   'Button on the dashboard': 'Кнопка на главной',
   'Action on a player': 'Действие над игроком',

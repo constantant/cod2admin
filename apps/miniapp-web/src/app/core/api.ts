@@ -24,6 +24,8 @@ import type {
   CvarsResponse,
   FunctionsResponse,
   FunctionValuesResponse,
+  ImportFunctionsRequest,
+  ImportFunctionsResponse,
   PreviewFunctionRequest,
   PreviewFunctionResponse,
   RunFunctionRequest,
@@ -195,6 +197,12 @@ export class ApiService {
   serverFunctions(alias: string) {
     return this.call<FunctionsResponse>(
       this.http.get(`${server(alias)}/functions`),
+    );
+  }
+
+  importFunctions(body: ImportFunctionsRequest) {
+    return this.call<ImportFunctionsResponse>(
+      this.http.post('/api/functions/import', body),
     );
   }
 

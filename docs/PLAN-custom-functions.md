@@ -1,6 +1,6 @@
 # Custom functions — plan
 
-Companion to `docs/PLAN-miniapp.md`. Status: **F1–F3 implemented 2026-11-18 (backend, editor and buttons, player actions and settings); F4 not started.** See §10–§12.
+Companion to `docs/PLAN-miniapp.md`. Status: **F1–F4 implemented 2026-11-18** (backend, editor and buttons, player actions and settings, import/export). Not yet opened in a real browser or Telegram client. See §10–§13.
 Russian summary: `docs/PLAN-custom-functions-ru.md` (keep in sync).
 
 ## 1. Goal
@@ -193,3 +193,24 @@ Mod adds `scr_give <slot> <weapon>`. The owner creates a Player action:
 - Both the dashboard card and the player sheet use one `FunctionRunner` service (asks, confirms a
   dangerous function, sends, reports), so the two behave alike.
 - **Still not verified in a real browser** (see §11); build, typecheck and the unit tests pass.
+
+## 13. F4 as built (2026-11-18)
+
+- **Pack format:** `{ "format": "cod2admin-functions", "version": 1, "functions": [ … ] }`, each entry
+  the same shape the editor saves (`SaveFunctionRequest`: no id, creator or dates). A bare list is
+  accepted too. `docs/examples/custom-functions.json` is a three-function example; a spec keeps it valid.
+- **Export:** *More → Custom functions → Export* shows the JSON for the functions you tick, with a
+  Copy button. It is text on screen, not a file download, because downloads are unreliable inside
+  Telegram's WebView.
+- **Import:** paste the JSON or pick its file, press **Check**, read what each function would send,
+  then **Import**. `POST /functions/import` (needs `functions.manage`):
+  - `dryRun` reports what would happen and saves nothing; the UI always does this first.
+  - Every entry goes through the same validation as one made by hand, and **nothing is saved unless
+    all of them pass** — a pack is one unit. The error names the function.
+  - A function whose id exists is kept (`skip`, the default) or replaced (`onConflict: "replace"`).
+  - A function scoped to a server that doesn't exist here is imported for all servers, with a note.
+  - At most 50 functions per pack, and the 100-function limit still holds.
+  - The import is one audit row (`functionimport`) with the definitions that were saved.
+- A pack is code the owner's server will run, so the import screen shows every step before saving;
+  there is no auto-import and nothing is fetched from a URL.
+- Still open (not planned): Telegram `/run`, parsing RCON replies, scheduled functions (§9).

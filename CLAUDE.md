@@ -88,7 +88,9 @@ step are implemented (M5: 2026-11-03, see its §0, including what hasn't been tr
 same way as the `PLAN.md`/`PLAN-ru.md` pair — update it whenever `docs/PLAN-miniapp.md` changes.
 
 `docs/PLAN-custom-functions.md` plans owner-defined custom functions (RCON command templates and
-cvar settings for mods) in the Mini App; designed 2026-11-18, not implemented. Its Russian summary
+cvar settings for mods) in the Mini App; built 2026-11-18 (F1–F4: store, routes in
+`apps/gateway/src/miniapp/routes-functions.ts`, editor page, dashboard and player-sheet buttons,
+import/export), not yet opened in a real browser. Its Russian summary
 `docs/PLAN-custom-functions-ru.md` is kept in sync the same way.
 
 `docs/PLAN-russia-access.md` covers game hosts in Russia, where Telegram has been blocked since

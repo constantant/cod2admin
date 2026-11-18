@@ -16,6 +16,8 @@ import type {
   CustomFunctionDto,
   FunctionsResponse,
   FunctionValuesResponse,
+  ImportFunctionsRequest,
+  ImportFunctionsResponse,
   PreviewFunctionRequest,
   PreviewFunctionResponse,
   RunFunctionRequest,
@@ -56,6 +58,9 @@ function badRequest<T>(work: () => T): T {
     throw error;
   }
 }
+
+/** A pack is a handful of functions, not a database. */
+const MAX_IMPORT = 50;
 
 function functionId(raw: string): number {
   const id = Number(raw);
@@ -212,6 +217,119 @@ export function registerFunctionRoutes(
         serverAlias: current.serverAlias,
       });
       return { message: `${current.title} deleted.` };
+    },
+  );
+
+  /**
+   * Adds the functions of a pack (an export, or one written for a mod). Every entry is checked
+   * first, by the same rules as one made by hand, and nothing is saved unless all pass: a pack is
+   * one unit. `dryRun` stops after the check.
+   */
+  app.post(
+    '/functions/import',
+    { config: { permission: 'functions.manage', action: true } },
+    async (
+      request: FastifyRequest<{ Body: ImportFunctionsRequest }>,
+    ): Promise<ImportFunctionsResponse> => {
+      const entries = request.body?.functions;
+      if (!Array.isArray(entries) || entries.length === 0) {
+        throw new ApiProblem(400, 'bad_request', 'The pack has no functions.');
+      }
+      if (entries.length > MAX_IMPORT) {
+        throw new ApiProblem(
+          400,
+          'bad_request',
+          `A pack can hold up to ${MAX_IMPORT} functions.`,
+        );
+      }
+      const replace = request.body.onConflict === 'replace';
+      const dryRun = request.body.dryRun === true;
+
+      const parsed = entries.map((entry, index) => {
+        try {
+          return parseFunctionInput(entry);
+        } catch (error) {
+          if (error instanceof FunctionError) {
+            const slug = (entry as { slug?: unknown } | null)?.slug;
+            const name = typeof slug === 'string' ? slug : `#${index + 1}`;
+            throw new ApiProblem(
+              400,
+              'bad_request',
+              `${name}: ${error.message}`,
+            );
+          }
+          throw error;
+        }
+      });
+      const slugs = new Set<string>();
+      for (const input of parsed) {
+        if (slugs.has(input.slug)) {
+          throw new ApiProblem(
+            400,
+            'bad_request',
+            `The pack has "${input.slug}" twice.`,
+          );
+        }
+        slugs.add(input.slug);
+      }
+
+      const existing = new Map(
+        (await deps.adminStore.listCustomFunctions()).map((fn) => [
+          fn.slug,
+          fn,
+        ]),
+      );
+      const added = parsed.filter((input) => !existing.has(input.slug)).length;
+      if (existing.size + added > MAX_FUNCTIONS) {
+        throw new ApiProblem(
+          400,
+          'bad_request',
+          `That would pass the limit of ${MAX_FUNCTIONS} functions.`,
+        );
+      }
+
+      const results: ImportFunctionsResponse['results'] = [];
+      const saved: unknown[] = [];
+      for (const input of parsed) {
+        // A server from another install may not exist here: apply to all rather than to nothing.
+        const unknownServer =
+          input.serverAlias != null && !deps.rconClients.has(input.serverAlias);
+        const note = unknownServer
+          ? `There's no server "${input.serverAlias}" here, so it applies to all servers.`
+          : undefined;
+        const toSave = unknownServer ? { ...input, serverAlias: null } : input;
+        const current = existing.get(input.slug);
+        const status: ImportFunctionsResponse['results'][number]['status'] =
+          !current ? 'created' : replace ? 'updated' : 'skipped';
+        results.push({
+          slug: input.slug,
+          title: input.title,
+          kind: input.kind,
+          status,
+          ...(note ? { note } : {}),
+        });
+        if (dryRun || status === 'skipped') {
+          continue;
+        }
+        if (current) {
+          const { slug: _slug, ...rest } = toSave;
+          await deps.adminStore.updateCustomFunction(current.id, rest);
+        } else {
+          await deps.adminStore.createCustomFunction({
+            ...toSave,
+            createdBy: request.actor.telegramId,
+          });
+        }
+        saved.push(toSave);
+      }
+      if (!dryRun && saved.length > 0) {
+        await audit(request, {
+          action: 'functionimport',
+          target: `${saved.length} function${saved.length === 1 ? '' : 's'}`,
+          detailJson: { results, functions: saved },
+        });
+      }
+      return { dryRun, results };
     },
   );
 

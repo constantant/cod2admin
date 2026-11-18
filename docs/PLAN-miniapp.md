@@ -104,6 +104,10 @@ and `map_rotate` (run, no answer; the rotate went to the rotation's first map), 
 server (64 entries, 1218 characters: 50 kept), which is what the read-back catches. A `map_rotate`
 fills `sv_mapRotationCurrent` with the rest of the list.
 
+**Custom functions (2026-11-18):** the owner can define RCON command templates and cvar settings for
+a mod from the Mini App (More → Custom functions) and import/export them as packs. Planned and built
+in `docs/PLAN-custom-functions.md`.
+
 **Not verified:** the app's pages on a real server. M5's pages were tested with real Postgres and
 the built app in a browser, against a fake UDP game server. Still not opened from a real Telegram
 client (above).

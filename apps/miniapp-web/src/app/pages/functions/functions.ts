@@ -12,13 +12,15 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import type {
-  CustomFunctionDto,
-  CustomFunctionKind,
-  FunctionParam,
-  Permission,
-  SaveFunctionRequest,
-  SettingControl,
+import {
+  FUNCTION_PACK_FORMAT,
+  type ImportFunctionsResponse,
+  type CustomFunctionDto,
+  type CustomFunctionKind,
+  type FunctionParam,
+  type Permission,
+  type SaveFunctionRequest,
+  type SettingControl,
 } from '@cod2admin/miniapp-api';
 import { ApiService } from '../../core/api';
 import { SessionService } from '../../core/session';
@@ -309,6 +311,41 @@ function toDraft(fn: CustomFunctionDto): Draft {
     }
   }
   return draft;
+}
+
+/** What an export keeps: the definition, not who made it or when. */
+function toPackEntry(fn: CustomFunctionDto): SaveFunctionRequest {
+  return {
+    slug: fn.slug,
+    title: fn.title,
+    description: fn.description,
+    icon: fn.icon,
+    kind: fn.kind,
+    definition: fn.definition,
+    serverAlias: fn.serverAlias,
+    requires: fn.requires,
+    dangerous: fn.dangerous,
+    enabled: fn.enabled,
+  };
+}
+
+/** A pack pasted or loaded: the wrapper an export writes, or a bare list. `null` if it isn't one. */
+function parsePack(text: string): SaveFunctionRequest[] | null {
+  try {
+    const value: unknown = JSON.parse(text);
+    const list = Array.isArray(value)
+      ? value
+      : value &&
+          typeof value === 'object' &&
+          (value as { format?: unknown }).format === FUNCTION_PACK_FORMAT
+        ? (value as { functions?: unknown }).functions
+        : null;
+    return Array.isArray(list) && list.length > 0
+      ? (list as SaveFunctionRequest[])
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -810,6 +847,124 @@ function toDraft(fn: CustomFunctionDto): Draft {
             {{ 'Save' | t }}
           </button>
         </div>
+      } @else if (panel() === 'export') {
+        <h2>{{ 'Export' | t }}</h2>
+        <p class="muted small">
+          {{
+            'Copy this and paste it into Import on another bot, or keep it as a backup.'
+              | t
+          }}
+        </p>
+        @for (fn of functions(); track fn.id) {
+          <p>
+            <mat-checkbox
+              [name]="'export' + fn.id"
+              [ngModel]="exportIds().has(fn.id)"
+              (ngModelChange)="toggleExport(fn.id, $event)"
+              >{{ fn.title }}</mat-checkbox
+            >
+          </p>
+        }
+        <mat-form-field class="full-width" appearance="outline">
+          <textarea
+            matInput
+            rows="10"
+            class="mono"
+            name="exportText"
+            readonly
+            [value]="exportText()"
+          ></textarea>
+        </mat-form-field>
+        <div class="row actions">
+          <button mat-button type="button" (click)="closePanel()">
+            {{ 'Back' | t }}
+          </button>
+          <span class="spacer"></span>
+          <button
+            mat-flat-button
+            type="button"
+            [disabled]="exportIds().size === 0"
+            (click)="copyExport()"
+          >
+            {{ 'Copy' | t }}
+          </button>
+        </div>
+      } @else if (panel() === 'import') {
+        <h2>{{ 'Import' | t }}</h2>
+        <p class="muted small">
+          {{
+            'Paste a pack, or choose its file. Look it over before you import it: every step is a command your server will run.'
+              | t
+          }}
+        </p>
+        <mat-form-field class="full-width" appearance="outline">
+          <textarea
+            matInput
+            rows="8"
+            class="mono"
+            name="importText"
+            spellcheck="false"
+            [ngModel]="importText()"
+            (ngModelChange)="setImportText($event)"
+          ></textarea>
+        </mat-form-field>
+        <input
+          type="file"
+          accept=".json,application/json"
+          (change)="chooseFile($event)"
+        />
+        <p>
+          <mat-checkbox
+            name="importReplace"
+            [ngModel]="importReplace()"
+            (ngModelChange)="setImportReplace($event)"
+            >{{
+              'Replace functions I already have with the same id' | t
+            }}</mat-checkbox
+          >
+        </p>
+        @if (importCheck(); as check) {
+          @for (result of check.results; track result.slug) {
+            <section class="card">
+              <div class="title">{{ result.title }}</div>
+              <div class="muted small">
+                <span class="mono">{{ result.slug }}</span>
+                · {{ statusLabel(result.status) | t }}
+              </div>
+              @if (result.note) {
+                <div class="muted small">{{ result.note }}</div>
+              }
+              @for (step of importSteps(result.slug); track $index) {
+                <div class="mono command">&gt; {{ step }}</div>
+              }
+            </section>
+          }
+        }
+        <div class="row actions">
+          <button mat-button type="button" (click)="closePanel()">
+            {{ 'Back' | t }}
+          </button>
+          <span class="spacer"></span>
+          @if (importCheck()) {
+            <button
+              mat-flat-button
+              type="button"
+              [disabled]="busy()"
+              (click)="runImport()"
+            >
+              {{ 'Import' | t }}
+            </button>
+          } @else {
+            <button
+              mat-flat-button
+              type="button"
+              [disabled]="busy() || !importText().trim()"
+              (click)="checkImport()"
+            >
+              {{ 'Check' | t }}
+            </button>
+          }
+        </div>
       } @else {
         <p class="muted small">
           {{
@@ -817,9 +972,22 @@ function toDraft(fn: CustomFunctionDto): Draft {
               | t
           }}
         </p>
-        <button mat-flat-button type="button" (click)="create()">
-          <c2a-icon name="add" /> {{ 'New function' | t }}
-        </button>
+        <div class="row">
+          <button mat-flat-button type="button" (click)="create()">
+            <c2a-icon name="add" /> {{ 'New function' | t }}
+          </button>
+          <button mat-button type="button" (click)="openImport()">
+            {{ 'Import' | t }}
+          </button>
+          <button
+            mat-button
+            type="button"
+            [disabled]="functions().length === 0"
+            (click)="openExport()"
+          >
+            {{ 'Export' | t }}
+          </button>
+        </div>
         @if (loaded() && functions().length === 0) {
           <p class="muted">{{ 'No custom functions yet.' | t }}</p>
         }
@@ -917,6 +1085,26 @@ export class FunctionsPage implements OnInit {
   private readonly session = inject(SessionService);
   private readonly notify = inject(Notify);
 
+  /** Export and import work on the whole list, so they replace it while open. */
+  protected readonly panel = signal<'export' | 'import' | null>(null);
+  protected readonly exportIds = signal<ReadonlySet<number>>(new Set());
+  protected readonly exportText = computed(() =>
+    JSON.stringify(
+      {
+        format: FUNCTION_PACK_FORMAT,
+        version: 1,
+        functions: this.functions()
+          .filter((fn) => this.exportIds().has(fn.id))
+          .map(toPackEntry),
+      },
+      null,
+      2,
+    ),
+  );
+  protected readonly importText = signal('');
+  protected readonly importReplace = signal(false);
+  /** What a check of the pasted pack found; cleared whenever the text or the choice changes. */
+  protected readonly importCheck = signal<ImportFunctionsResponse | null>(null);
   protected readonly kinds = KINDS;
   protected readonly controlTypes = CONTROL_TYPES;
   protected readonly paramTypes = PARAM_TYPES;
@@ -949,6 +1137,121 @@ export class FunctionsPage implements OnInit {
   protected kindChanged(): void {
     this.previewed.set([]);
     this.draft.update((draft) => draft && { ...draft });
+  }
+
+  protected openExport(): void {
+    this.exportIds.set(new Set(this.functions().map((fn) => fn.id)));
+    this.panel.set('export');
+  }
+
+  protected openImport(): void {
+    this.importText.set('');
+    this.importCheck.set(null);
+    this.panel.set('import');
+  }
+
+  protected closePanel(): void {
+    this.panel.set(null);
+  }
+
+  protected toggleExport(id: number, on: boolean): void {
+    this.exportIds.update((ids) => {
+      const next = new Set(ids);
+      if (on) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  }
+
+  protected async copyExport(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(this.exportText());
+      this.notify.success('Copied.');
+    } catch {
+      // Some WebViews block the clipboard: the text is on screen to select by hand.
+      this.notify.info('Select the text and copy it by hand.');
+    }
+  }
+
+  protected setImportText(text: string): void {
+    this.importText.set(text);
+    this.importCheck.set(null);
+  }
+
+  protected setImportReplace(on: boolean): void {
+    this.importReplace.set(on);
+    this.importCheck.set(null);
+  }
+
+  protected async chooseFile(event: Event): Promise<void> {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (file) {
+      this.setImportText(await file.text());
+    }
+  }
+
+  /** Asks the bot what the pack would do, without saving anything. */
+  protected async checkImport(): Promise<void> {
+    await this.sendImport(true);
+  }
+
+  protected async runImport(): Promise<void> {
+    if (await this.sendImport(false)) {
+      this.notify.success('Imported.');
+      this.panel.set(null);
+      await this.load();
+    }
+  }
+
+  protected importSteps(slug: string): string[] {
+    const entry = parsePack(this.importText())?.find(
+      (candidate) => candidate.slug === slug,
+    );
+    if (!entry) {
+      return [];
+    }
+    return 'steps' in entry.definition
+      ? entry.definition.steps
+      : [`set ${entry.definition.cvar} …`];
+  }
+
+  protected statusLabel(
+    status: ImportFunctionsResponse['results'][number]['status'],
+  ): string {
+    return status === 'created'
+      ? 'New'
+      : status === 'updated'
+        ? 'Replaces the one you have'
+        : 'Already here: kept as it is';
+  }
+
+  private async sendImport(dryRun: boolean): Promise<boolean> {
+    const functions = parsePack(this.importText());
+    if (!functions) {
+      this.notify.info("That isn't a function pack.");
+      return false;
+    }
+    this.busy.set(true);
+    try {
+      const response = await this.api.importFunctions({
+        functions,
+        dryRun,
+        onConflict: this.importReplace() ? 'replace' : 'skip',
+      });
+      if (dryRun) {
+        this.importCheck.set(response);
+      }
+      return true;
+    } catch (error) {
+      this.importCheck.set(null);
+      this.notify.error(error);
+      return false;
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   protected create(): void {

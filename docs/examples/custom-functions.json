@@ -1,0 +1,49 @@
+{
+  "format": "cod2admin-functions",
+  "version": 1,
+  "functions": [
+    {
+      "slug": "announce",
+      "title": "Announce",
+      "description": "Say a line to everyone, then a second line pointing to the rules",
+      "kind": "action",
+      "definition": {
+        "params": [{ "name": "msg", "label": "Message", "type": "text", "maxLength": 100 }],
+        "steps": ["say {msg}", "say Rules: type !rules"]
+      },
+      "requires": "say"
+    },
+    {
+      "slug": "give-weapon",
+      "title": "Give a weapon",
+      "description": "For a mod that has a scr_give command",
+      "kind": "player_action",
+      "definition": {
+        "params": [
+          {
+            "name": "weapon",
+            "label": "Weapon",
+            "type": "choice",
+            "options": [
+              { "value": "ak47", "label": "AK-47" },
+              { "value": "m1garand", "label": "M1 Garand" }
+            ]
+          }
+        ],
+        "steps": ["scr_give {player} {weapon}"]
+      },
+      "requires": "kick",
+      "dangerous": true
+    },
+    {
+      "slug": "gravity",
+      "title": "Gravity",
+      "kind": "setting",
+      "definition": {
+        "cvar": "g_gravity",
+        "control": { "type": "number", "min": 100, "max": 1000 }
+      },
+      "requires": "cvars.write"
+    }
+  ]
+}
