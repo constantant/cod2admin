@@ -212,6 +212,77 @@ export interface KnownPlayer {
   updatedAt: Date;
 }
 
+export type CustomFunctionKind = 'action' | 'player_action' | 'setting';
+
+export type FunctionParam =
+  | { name: string; label: string; type: 'text'; maxLength?: number }
+  | {
+      name: string;
+      label: string;
+      type: 'number';
+      min?: number;
+      max?: number;
+      integer?: boolean;
+    }
+  | {
+      name: string;
+      label: string;
+      type: 'choice';
+      options: { value: string; label: string }[];
+    }
+  | {
+      name: string;
+      label: string;
+      type: 'bool';
+      /** What `{name}` becomes; default `1` / `0`. */
+      onValue?: string;
+      offValue?: string;
+    }
+  | { name: string; label: string; type: 'player' }
+  | { name: string; label: string; type: 'map' };
+
+export type SettingControl =
+  | { type: 'toggle'; onValue?: string; offValue?: string }
+  | { type: 'number'; min?: number; max?: number; integer?: boolean }
+  | { type: 'select'; options: { value: string; label: string }[] }
+  | { type: 'text'; maxLength?: number };
+
+/** What a function does. Action kinds list `steps`; a setting names the cvar it controls. */
+export type CustomFunctionDefinition =
+  | { params: FunctionParam[]; steps: string[] }
+  | { cvar: string; control: SettingControl };
+
+export interface CustomFunction {
+  id: number;
+  slug: string;
+  title: string;
+  description: string | null;
+  icon: string | null;
+  kind: CustomFunctionKind;
+  definition: CustomFunctionDefinition;
+  serverAlias: string | null;
+  requires: string | null;
+  dangerous: boolean;
+  enabled: boolean;
+  createdBy: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SaveCustomFunctionInput {
+  slug: string;
+  title: string;
+  description?: string | null;
+  icon?: string | null;
+  kind: CustomFunctionKind;
+  definition: CustomFunctionDefinition;
+  serverAlias?: string | null;
+  requires?: string | null;
+  dangerous?: boolean;
+  enabled?: boolean;
+  createdBy: number;
+}
+
 export interface SaveKnownPlayerInput {
   name: string;
   display: string;
@@ -362,6 +433,21 @@ export interface AdminStore {
   saveKnownPlayer(input: SaveKnownPlayerInput): Promise<KnownPlayer>;
   /** `false` if no entry had this name. */
   deleteKnownPlayer(name: string): Promise<boolean>;
+
+  /** Sorted by title. */
+  listCustomFunctions(): Promise<CustomFunction[]>;
+  getCustomFunction(id: number): Promise<CustomFunction | undefined>;
+  /** `undefined` if the slug is already taken. */
+  createCustomFunction(
+    input: SaveCustomFunctionInput,
+  ): Promise<CustomFunction | undefined>;
+  /** Replaces everything but the id, slug and creator. `undefined` if there's no such function. */
+  updateCustomFunction(
+    id: number,
+    input: Omit<SaveCustomFunctionInput, 'slug' | 'createdBy'>,
+  ): Promise<CustomFunction | undefined>;
+  /** `false` if there was no such function. */
+  deleteCustomFunction(id: number): Promise<boolean>;
 
   recordServerSnapshot(input: RecordSnapshotInput): Promise<void>;
   /** Oldest first. */

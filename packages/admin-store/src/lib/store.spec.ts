@@ -32,7 +32,7 @@ describe('DrizzleAdminStore', () => {
 
   beforeEach(async () => {
     await pool.query(
-      'TRUNCATE admin_permissions, admins, admin_servers, servers, audit_log, settings, telegram_users, reports, player_notes, known_players, server_snapshots RESTART IDENTITY CASCADE',
+      'TRUNCATE admin_permissions, admins, admin_servers, servers, audit_log, settings, telegram_users, reports, player_notes, known_players, server_snapshots, custom_functions RESTART IDENTITY CASCADE',
     );
   });
 
@@ -835,6 +835,58 @@ describe('DrizzleAdminStore', () => {
 
       await store.pruneServerSnapshots(new Date(Date.now() - 30 * 86_400_000));
       expect(await store.listServerSnapshots('a', new Date(0))).toHaveLength(1);
+    });
+  });
+  describe('custom functions', () => {
+    const input = {
+      slug: 'shout',
+      title: 'Shout',
+      kind: 'action' as const,
+      definition: { params: [], steps: ['say hi'] },
+      createdBy: 1,
+    };
+
+    it('creates, reads, lists by title, updates and deletes one', async () => {
+      const created = await store.createCustomFunction(input);
+      expect(created).toMatchObject({
+        slug: 'shout',
+        serverAlias: null,
+        requires: null,
+        dangerous: false,
+        enabled: true,
+      });
+      await store.createCustomFunction({ ...input, slug: 'alpha', title: 'Alpha' });
+      expect(
+        (await store.listCustomFunctions()).map((fn) => fn.slug),
+      ).toEqual(['alpha', 'shout']);
+      await expect(store.getCustomFunction(created!.id)).resolves.toMatchObject({
+        definition: { params: [], steps: ['say hi'] },
+      });
+
+      const updated = await store.updateCustomFunction(created!.id, {
+        title: 'Shout!',
+        kind: 'action',
+        definition: { params: [], steps: ['say hey'] },
+        serverAlias: 'main',
+        dangerous: true,
+      });
+      expect(updated).toMatchObject({
+        slug: 'shout',
+        title: 'Shout!',
+        serverAlias: 'main',
+        dangerous: true,
+        createdBy: 1,
+      });
+      await expect(store.deleteCustomFunction(created!.id)).resolves.toBe(true);
+      await expect(store.deleteCustomFunction(created!.id)).resolves.toBe(false);
+      await expect(
+        store.updateCustomFunction(created!.id, { ...input }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('refuses a slug that is taken', async () => {
+      await store.createCustomFunction(input);
+      await expect(store.createCustomFunction(input)).resolves.toBeUndefined();
     });
   });
 });

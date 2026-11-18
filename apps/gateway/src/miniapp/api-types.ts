@@ -31,6 +31,8 @@ export const PERMISSIONS = [
   'relays',
   'templates',
   'logs',
+  'functions.run',
+  'functions.manage',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -583,6 +585,106 @@ export interface PlayerHistoryResponse {
   notes: NoteDto[];
   bans: BanDto[];
   actions: AuditEntryDto[];
+}
+
+// ── Custom functions (docs/PLAN-custom-functions.md) ────────────────────────────────────────
+
+export type CustomFunctionKind = 'action' | 'player_action' | 'setting';
+
+export type FunctionParam =
+  | { name: string; label: string; type: 'text'; maxLength?: number }
+  | {
+      name: string;
+      label: string;
+      type: 'number';
+      min?: number;
+      max?: number;
+      integer?: boolean;
+    }
+  | {
+      name: string;
+      label: string;
+      type: 'choice';
+      options: { value: string; label: string }[];
+    }
+  | {
+      name: string;
+      label: string;
+      type: 'bool';
+      onValue?: string;
+      offValue?: string;
+    }
+  | { name: string; label: string; type: 'player' }
+  | { name: string; label: string; type: 'map' };
+
+export type SettingControl =
+  | { type: 'toggle'; onValue?: string; offValue?: string }
+  | { type: 'number'; min?: number; max?: number; integer?: boolean }
+  | { type: 'select'; options: { value: string; label: string }[] }
+  | { type: 'text'; maxLength?: number };
+
+export type CustomFunctionDefinition =
+  | { params: FunctionParam[]; steps: string[] }
+  | { cvar: string; control: SettingControl };
+
+/** What the owner writes. `slug` is the stable id; it can't change after creation. */
+export interface SaveFunctionRequest {
+  slug: string;
+  title: string;
+  description?: string | null;
+  icon?: string | null;
+  kind: CustomFunctionKind;
+  definition: CustomFunctionDefinition;
+  /** `null` = every server. */
+  serverAlias?: string | null;
+  /** A permission the caller needs besides `functions.run`. */
+  requires?: Permission | null;
+  dangerous?: boolean;
+  enabled?: boolean;
+}
+
+export interface CustomFunctionDto extends SaveFunctionRequest {
+  id: number;
+  description: string | null;
+  icon: string | null;
+  serverAlias: string | null;
+  requires: Permission | null;
+  dangerous: boolean;
+  enabled: boolean;
+  createdBy: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FunctionsResponse {
+  functions: CustomFunctionDto[];
+}
+
+/** `values` by parameter name; a player is `{ num, name }` as the list showed it. */
+export interface PreviewFunctionRequest {
+  function: SaveFunctionRequest;
+  values?: Record<string, unknown>;
+  /** The setting's value, for a setting. */
+  value?: unknown;
+  /** A server to look players and maps up on. */
+  server?: string;
+}
+
+export interface PreviewFunctionResponse {
+  commands: string[];
+}
+
+export interface RunFunctionRequest {
+  values?: Record<string, unknown>;
+  /** The setting's new value, for a setting. */
+  value?: unknown;
+  /** Required for a function marked dangerous. */
+  confirm?: boolean;
+}
+
+export interface RunFunctionResponse {
+  message: string;
+  steps: { command: string; output: string }[];
 }
 
 // ── Presets ─────────────────────────────────────────────────────────────────────────────────

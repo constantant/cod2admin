@@ -113,6 +113,29 @@ describe('hasPermission', () => {
     ).toEqual(['watch.manage']);
   });
 
+  it('keeps functions.manage with the owner, and functions.run grantable by admins', () => {
+    expect(OWNER_GRANTED_PERMISSIONS).toContain('functions.manage');
+    expect(OWNER_GRANTED_PERMISSIONS).not.toContain('functions.run');
+    expect(ADMIN_PERMISSIONS).not.toContain('functions.manage');
+    expect(() =>
+      resolvePermissionGrant({
+        actorIsOwner: false,
+        actorPermissions: [...adminPerms, 'functions.manage'],
+        targetPermissions: [],
+        requested: ['functions.manage'],
+      }),
+    ).toThrow(/Only the owner can grant functions\.manage/);
+    // Someone who holds it keeps it when a non-owner edits their other grants.
+    expect(
+      resolvePermissionGrant({
+        actorIsOwner: false,
+        actorPermissions: [...adminPerms, 'functions.run'],
+        targetPermissions: ['functions.manage'],
+        requested: ['kick', 'functions.run'],
+      }).sort(),
+    ).toEqual(['functions.manage', 'functions.run', 'kick']);
+  });
+
   it('does not treat a moderator-shaped set as a ban', () => {
     expect(
       hasPermission(

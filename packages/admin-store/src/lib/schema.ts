@@ -13,7 +13,12 @@ import {
   timestamp,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import type { ReportOrigin, ServerWatchSettings } from './types.js';
+import type {
+  CustomFunctionDefinition,
+  CustomFunctionKind,
+  ReportOrigin,
+  ServerWatchSettings,
+} from './types.js';
 
 export const auditSourceEnum = pgEnum('audit_source', [
   'telegram_button',
@@ -330,3 +335,35 @@ export const knownPlayers = pgTable('known_players', {
     .notNull()
     .defaultNow(),
 });
+
+/**
+ * Custom functions (docs/PLAN-custom-functions.md): owner-defined RCON command templates, so a
+ * mod's own commands and settings get UI without being built into the bot. `definition` is checked
+ * by the gateway on write and again on every run.
+ */
+export const customFunctions = pgTable(
+  'custom_functions',
+  {
+    id: serial('id').primaryKey(),
+    slug: text('slug').notNull().unique(),
+    title: text('title').notNull(),
+    description: text('description'),
+    icon: text('icon'),
+    kind: text('kind').$type<CustomFunctionKind>().notNull(),
+    definition: jsonb('definition').$type<CustomFunctionDefinition>().notNull(),
+    /** `null` = every server. */
+    serverAlias: text('server_alias'),
+    /** A permission the caller needs besides `functions.run`. */
+    requires: text('requires'),
+    dangerous: boolean('dangerous').notNull().default(false),
+    enabled: boolean('enabled').notNull().default(true),
+    createdBy: bigint('created_by', { mode: 'number' }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index('custom_functions_server_idx').on(table.serverAlias)],
+);

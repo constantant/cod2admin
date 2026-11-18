@@ -26,6 +26,7 @@ import {
   adminServers,
   admins,
   auditLog,
+  customFunctions,
   knownPlayers,
   playerNotes,
   reports,
@@ -43,7 +44,9 @@ import type {
   AuditLogEntry,
   AuditLogFilter,
   ClaimOwnerResult,
+  CustomFunction,
   KnownPlayer,
+  SaveCustomFunctionInput,
   PlayerNote,
   PlayerNoteFilter,
   PlayerNoteKind,
@@ -674,6 +677,65 @@ export class DrizzleAdminStore implements AdminStore {
       .delete(knownPlayers)
       .where(eq(knownPlayers.name, name))
       .returning({ id: knownPlayers.id });
+    return deleted.length > 0;
+  }
+
+  async listCustomFunctions(): Promise<CustomFunction[]> {
+    return this.db
+      .select()
+      .from(customFunctions)
+      .orderBy(asc(customFunctions.title)) as Promise<CustomFunction[]>;
+  }
+
+  async getCustomFunction(id: number): Promise<CustomFunction | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(customFunctions)
+      .where(eq(customFunctions.id, id));
+    return row as CustomFunction | undefined;
+  }
+
+  async createCustomFunction(
+    input: SaveCustomFunctionInput,
+  ): Promise<CustomFunction | undefined> {
+    const [row] = await this.db
+      .insert(customFunctions)
+      .values({
+        ...input,
+        description: input.description ?? null,
+        icon: input.icon ?? null,
+        serverAlias: input.serverAlias ?? null,
+        requires: input.requires ?? null,
+      })
+      .onConflictDoNothing({ target: customFunctions.slug })
+      .returning();
+    return row as CustomFunction | undefined;
+  }
+
+  async updateCustomFunction(
+    id: number,
+    input: Omit<SaveCustomFunctionInput, 'slug' | 'createdBy'>,
+  ): Promise<CustomFunction | undefined> {
+    const [row] = await this.db
+      .update(customFunctions)
+      .set({
+        ...input,
+        description: input.description ?? null,
+        icon: input.icon ?? null,
+        serverAlias: input.serverAlias ?? null,
+        requires: input.requires ?? null,
+        updatedAt: new Date(),
+      })
+      .where(eq(customFunctions.id, id))
+      .returning();
+    return row as CustomFunction | undefined;
+  }
+
+  async deleteCustomFunction(id: number): Promise<boolean> {
+    const deleted = await this.db
+      .delete(customFunctions)
+      .where(eq(customFunctions.id, id))
+      .returning({ id: customFunctions.id });
     return deleted.length > 0;
   }
 

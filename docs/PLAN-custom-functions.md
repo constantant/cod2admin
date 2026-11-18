@@ -1,6 +1,6 @@
 # Custom functions — plan
 
-Companion to `docs/PLAN-miniapp.md`. Status: **design agreed 2026-11-18, nothing implemented yet.**
+Companion to `docs/PLAN-miniapp.md`. Status: **F1 (backend) implemented 2026-11-18; F2–F4 not started.** See §10 for what F1 settled.
 Russian summary: `docs/PLAN-custom-functions-ru.md` (keep in sync).
 
 ## 1. Goal
@@ -92,9 +92,9 @@ reach RCON.
 - New `apps/gateway/src/miniapp/routes-functions.ts`:
   - `GET /functions` — what the caller may see; the editor view needs `functions.manage`
   - `POST /functions`, `PUT /functions/:id`, `DELETE /functions/:id` — `functions.manage`
-  - `POST /functions/:id/preview` — resolves with sample values without sending anything
+  - `POST /functions/preview` — takes a draft plus sample values and returns the resolved commands without sending anything (so the editor can preview before saving)
   - `GET /servers/:server/functions` — what applies to this server
-  - `POST /servers/:server/functions/:id/run` — `functions.run` plus `requires`
+  - `POST /servers/:server/functions/:id/run` — `functions.run` plus `requires`; a `dangerous` function is refused unless the body has `confirm: true`
 - New permissions `functions.manage` and `functions.run`: add to `PERMISSIONS` in both
   `api-types.ts` and `@cod2admin/admin-store`, update the permissions migration and its spec, and
   add `functions.manage` to the owner-only-grant set next to `rcon`.
@@ -137,3 +137,23 @@ Mod adds `scr_give <slot> <weapon>`. The owner creates a Player action:
 - Parsing RCON replies (extracting values, result tables).
 - Scheduled or event-triggered functions.
 - Conditionals or loops inside a function.
+
+## 10. F1 as built (2026-11-18)
+
+- Code: `apps/gateway/src/lib/custom-functions.ts` (validation and resolution, pure),
+  `apps/gateway/src/miniapp/routes-functions.ts`, table `custom_functions` (`0012_custom_functions`).
+- **Quoting.** `text` values are inserted already quoted (`say {msg}` → `say "…"`); a template that
+  writes `"{msg}"` is rejected. `choice`/`bool`/`map` values are single tokens (`[\w.:+-]`, up to 64)
+  and `number`s are range-checked, so none needs quotes. A `player` value is `{ num, name }`, checked
+  against live `status`, and becomes the slot number.
+- **`;` is rejected in templates**, not just in values, and any step naming `rcon_password` is refused.
+  Limits: 8 parameters, 5 steps, 512 characters per command, 100 functions.
+- **Definitions are re-validated on every run**, so a hand-edited row can't reach RCON.
+- **A run is audited even when a later step fails** (`functionrun`, with the commands that were
+  actually sent and how many were planned). Other audit actions: `functioncreate`, `functionupdate`,
+  `functiondelete`.
+- **Hidden = missing.** A disabled function, one for another server, or one needing a permission the
+  caller lacks answers 404 on run, same as an unknown id.
+- **Not exposed to AI connections (MCP):** the new permissions are not in `MCP_PERMISSIONS`.
+- Settings are written through `setCvar`; reading a setting's current value is F3.
+- Not done in F1: the Mini App UI (F2/F3) and import/export (F4).

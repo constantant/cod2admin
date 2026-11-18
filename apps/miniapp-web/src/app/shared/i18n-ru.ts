@@ -44,6 +44,8 @@ const PERMISSION_RU: Readonly<Record<string, string>> = {
   relays: 'Маршруты до Telegram',
   templates: 'Надписи бота в игре',
   logs: 'Найти журнал игры',
+  'functions.run': 'Запускать свои функции',
+  'functions.manage': 'Создавать свои функции',
 };
 const permissionRu = (id: string) => PERMISSION_RU[id] ?? id;
 const REQUIRED: Readonly<Record<string, string>> = {

@@ -49,6 +49,8 @@ const PERMISSION_LABEL: Record<Permission, string> = {
   relays: 'Telegram routes',
   templates: 'Game chat lines',
   logs: 'Find the game log',
+  'functions.run': 'Run custom functions',
+  'functions.manage': 'Define custom functions',
 };
 
 /** Who may use the bot: add someone, change what they can do, or remove them. */

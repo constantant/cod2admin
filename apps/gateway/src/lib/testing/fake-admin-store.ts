@@ -3,6 +3,7 @@ import {
   MODERATOR_PERMISSIONS,
   type Admin,
   type AdminStore,
+  type CustomFunction,
   type KnownPlayer,
   type Permission,
   type Report,
@@ -55,6 +56,11 @@ export interface FakeAdminStore extends AdminStore {
   listKnownPlayers: Mock<AdminStore['listKnownPlayers']>;
   saveKnownPlayer: Mock<AdminStore['saveKnownPlayer']>;
   deleteKnownPlayer: Mock<AdminStore['deleteKnownPlayer']>;
+  listCustomFunctions: Mock<AdminStore['listCustomFunctions']>;
+  getCustomFunction: Mock<AdminStore['getCustomFunction']>;
+  createCustomFunction: Mock<AdminStore['createCustomFunction']>;
+  updateCustomFunction: Mock<AdminStore['updateCustomFunction']>;
+  deleteCustomFunction: Mock<AdminStore['deleteCustomFunction']>;
   recordServerSnapshot: Mock<AdminStore['recordServerSnapshot']>;
   listServerSnapshots: Mock<AdminStore['listServerSnapshots']>;
   pruneServerSnapshots: Mock<AdminStore['pruneServerSnapshots']>;
@@ -120,6 +126,8 @@ export function createFakeAdminStore(
 ): FakeAdminStore {
   const admins = overrides.admins ?? [];
   const known = new Map<string, KnownPlayer>();
+  const functions = new Map<number, CustomFunction>();
+  let nextFunctionId = 1;
   return {
     getAdmin: vi.fn(async (telegramId: number) =>
       admins.find((admin) => admin.telegramId === telegramId),
@@ -174,6 +182,48 @@ export function createFakeAdminStore(
       return row;
     }),
     deleteKnownPlayer: vi.fn(async (name: string) => known.delete(name)),
+    // Stateful, like the real table: a save is visible to the next list, a taken slug is refused.
+    listCustomFunctions: vi.fn(async () =>
+      [...functions.values()].sort((a, b) => a.title.localeCompare(b.title)),
+    ),
+    getCustomFunction: vi.fn(async (id: number) => functions.get(id)),
+    createCustomFunction: vi.fn(async (input) => {
+      if ([...functions.values()].some((fn) => fn.slug === input.slug)) {
+        return undefined;
+      }
+      const row: CustomFunction = {
+        description: null,
+        icon: null,
+        serverAlias: null,
+        requires: null,
+        dangerous: false,
+        enabled: true,
+        ...input,
+        id: nextFunctionId++,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      functions.set(row.id, row);
+      return row;
+    }),
+    updateCustomFunction: vi.fn(async (id: number, input) => {
+      const current = functions.get(id);
+      if (!current) {
+        return undefined;
+      }
+      const row: CustomFunction = {
+        ...current,
+        description: null,
+        icon: null,
+        serverAlias: null,
+        requires: null,
+        ...input,
+        updatedAt: new Date(),
+      } as CustomFunction;
+      functions.set(id, row);
+      return row;
+    }),
+    deleteCustomFunction: vi.fn(async (id: number) => functions.delete(id)),
     recordServerSnapshot: vi.fn().mockResolvedValue(undefined),
     listServerSnapshots: vi.fn().mockResolvedValue([]),
     pruneServerSnapshots: vi.fn().mockResolvedValue(undefined),
