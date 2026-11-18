@@ -1,3 +1,14 @@
+## [1.25.1](https://github.com/constantant/cod2admin/releases/tag/v1.25.1) (2026-11-18)
+
+### 🩹 Fixes
+
+- handle player nicknames consistently ([af15e90](https://github.com/constantant/cod2admin/commit/af15e90))
+
+### ❤️ Thank You
+
+- Claude Sonnet 5.5
+- kk
+
 ## [1.25.0](https://github.com/constantant/cod2admin/releases/tag/v1.25.0) (2026-11-18)
 
 ### 🚀 Features
