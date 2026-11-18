@@ -440,6 +440,23 @@ describe('RconClient', () => {
       expect(received).toEqual(['rcon secret dumpuser const']);
     });
 
+    it('quotes a name containing ";" instead of sending it bare', async () => {
+      const received: string[] = [];
+      peer = await createMockPeer((payload, respond) => {
+        received.push(payload);
+        respond('print\n');
+      });
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'secret',
+      });
+
+      await client.dumpuser('a;b').catch(() => undefined);
+
+      expect(received[0]).toBe('rcon secret dumpuser "a;b"');
+    });
+
     it('quotes a non-ascii name once, and does not encode it twice', async () => {
       let received: Buffer | undefined;
       let packets = 0;
@@ -637,6 +654,64 @@ describe('RconClient', () => {
         'rcon secret kick "name"',
       ]);
       expect(result).toBe('0:name EXE_PLAYERKICKED\n');
+    });
+
+    it('sends a name containing ";" only quoted, so it cannot chain a command', async () => {
+      const received: string[] = [];
+      peer = await createMockPeer((payload, respond) => {
+        received.push(payload);
+        respond('print\n0:a;b EXE_PLAYERKICKED\n');
+      });
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'secret',
+      });
+
+      await client.kick('a;b');
+
+      expect(received).toEqual(['rcon secret kick "a;b"']);
+    });
+
+    it('drops line breaks and quotes from a kicked name', async () => {
+      const received: string[] = [];
+      peer = await createMockPeer((payload, respond) => {
+        received.push(payload);
+        respond('print\n0:x EXE_PLAYERKICKED\n');
+      });
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'secret',
+      });
+
+      await client.kick('x\nkick all"');
+
+      expect(received).toEqual(['rcon secret kick xkick all']);
+    });
+
+    it('falls back to a quoted name kick for a ";" name when the slot kick is unknown', async () => {
+      const received: string[] = [];
+      peer = await createMockPeer((payload, respond) => {
+        received.push(payload);
+        respond(
+          payload === 'rcon secret clientkick 3'
+            ? 'print\nUnknown command "clientkick"\n'
+            : 'print\n0:a;b EXE_PLAYERKICKED\n',
+        );
+      });
+      const client = new RconClient({
+        host: '127.0.0.1',
+        port: peer.port,
+        password: 'secret',
+      });
+
+      await client.kick(3, 'a;b');
+
+      expect(received).toEqual([
+        'rcon secret clientkick 3',
+        'rcon secret kick "a;b"',
+      ]);
     });
 
     it('does not retry when the unquoted attempt succeeds', async () => {

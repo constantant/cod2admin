@@ -7,7 +7,7 @@ import {
   type Report,
   type ServerWatchSettings,
 } from '@cod2admin/admin-store';
-import { stripColorCodes } from '@cod2admin/rcon-client';
+import { plainDisplayName, stripColorCodes } from '@cod2admin/rcon-client';
 import { matchPlayersByName } from '@cod2admin/report-pipeline';
 import type {
   WatchEvidenceRow,
@@ -434,7 +434,7 @@ export function registerInsightRoutes(
                   matchPlayersByName(
                     report.targetName,
                     players.get(report.serverAlias) ?? [],
-                    (player) => stripColorCodes(player.name),
+                    (player) => plainDisplayName(player.name),
                   ),
                   report.serverAlias,
                 )
@@ -649,7 +649,7 @@ export function registerInsightRoutes(
       const alias = request.params.server;
       serverParam(state, alias);
       const name = request.query.name?.slice(0, 128) ?? '';
-      const plainName = stripColorCodes(name).trim();
+      const plainName = plainDisplayName(name);
       const guid = request.query.guid || undefined;
       const ip = request.query.ip || undefined;
 

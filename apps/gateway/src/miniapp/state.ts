@@ -1,5 +1,6 @@
 import type { ServerConfig } from '@cod2admin/admin-store';
 import {
+  plainDisplayName,
   stripColorCodes,
   type RconClient,
   type StatusPlayer,
@@ -58,7 +59,7 @@ const GAMETYPE_MAX_AGE_MS = 5 * 60_000;
 
 /** What notes are filed under for a name: lower case, no colour codes. */
 export function noteNameKey(name: string): string {
-  return stripColorCodes(name).trim().toLowerCase();
+  return plainDisplayName(name).toLowerCase();
 }
 
 /** Things only `main.ts` has — the bot and the text encoding. Absent in tests that don't need them. */

@@ -9,6 +9,7 @@ export {
   parseMapRotationEntries,
   parseOobPlayerLine,
   parseRconStatusTable,
+  plainDisplayName,
   stripColorCodes,
   type RotationEntry,
 } from './lib/status-parser.js';

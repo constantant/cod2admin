@@ -246,6 +246,9 @@ describe('players summary and report', () => {
     ['^^11Mahdi^^22EniGmA^7', 'MahdiEniGmA'],
     ['^^00Pjoter^^99x^^11D^7', 'PjoterxD'],
     ['^7', 'client 3'],
+    // already stripped once by the status parser
+    ['^1Grinder', 'Grinder'],
+    ['^0Persian^1Gulf', 'PersianGulf'],
   ])('strips doubled colour codes: %s → %s', (name, expected) => {
     expect(displayName({ ...PLAYER, name })).toBe(expected);
   });

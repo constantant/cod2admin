@@ -1,4 +1,4 @@
-import { stripColorCodes, type StatusPlayer } from '@cod2admin/rcon-client';
+import { plainDisplayName, type StatusPlayer } from '@cod2admin/rcon-client';
 import { matchText, type BotContext } from '../bot-context.js';
 import type { GatewayDeps } from '../deps.js';
 import {
@@ -64,10 +64,7 @@ function resolveLookups(
  * turns into `^1` instead of removing.
  */
 export function displayName(player: StatusPlayer): string {
-  return (
-    stripColorCodes(player.name.replace(/\^\^(\d)\1/g, '')).trim() ||
-    `client ${player.num}`
-  );
+  return plainDisplayName(player.name) || `client ${player.num}`;
 }
 
 function formatPlayerLine(

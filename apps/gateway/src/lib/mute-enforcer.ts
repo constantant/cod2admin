@@ -8,7 +8,6 @@ import {
   type ChatTemplates,
 } from './chat-templates.js';
 import { displayName } from './commands/players.js';
-import { sanitizeRconArg } from './sanitize.js';
 
 /** The built-in mute warning. A stored template replaces it. */
 export const MUTE_WARNING = DEFAULT_CHAT_TEMPLATES.mute_warn;
@@ -92,7 +91,7 @@ export class MuteEnforcer {
       }
       return;
     }
-    await rcon.kick(player.num, sanitizeRconArg(player.name));
+    await rcon.kick(player.num, player.name);
     await this.options.adminStore.recordAuditLog({
       actorTelegramId: 0,
       action: 'mute_kick',

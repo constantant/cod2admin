@@ -4,7 +4,6 @@ import {
   type CvarMap,
   type StatusPlayer,
 } from '@cod2admin/rcon-client';
-import { sanitizeRconArg } from './sanitize.js';
 
 /** A status row newer than this is reused. Older than this may cost one `status`. */
 const FRESH_STATUS_MS = 10_000;
@@ -189,7 +188,7 @@ export function createPlayerIdentityResolver(
 
       // Callers strip before dumpuser. Strip here too so a colored status
       // name cannot miss; RconClient strips again and does the quoting.
-      const name = sanitizeRconArg(stripColorCodes(player.name));
+      const name = stripColorCodes(player.name).trim();
       if (name === '' || blocked(input.serverAlias, at)) {
         return fromRow(player, statusFetchedAt, true);
       }

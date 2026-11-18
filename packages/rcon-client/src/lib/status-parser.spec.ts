@@ -7,6 +7,7 @@ import {
   parseMapRotationEntries,
   parseOobPlayerLine,
   parseRconStatusTable,
+  plainDisplayName,
   stripColorCodes,
 } from './status-parser.js';
 
@@ -352,5 +353,27 @@ describe('parseRconStatusTable', () => {
     const status = parseRconStatusTable(table);
 
     expect(status.players[0].port).toBe(52931);
+  });
+});
+
+describe('plainDisplayName', () => {
+  it.each([
+    ['Plain', 'Plain'],
+    ['^1Color^7Name', 'ColorName'],
+    ['^^11Grinder^7', 'Grinder'],
+    ['^^20Persian^^51Gulf^7', 'PersianGulf'],
+    // what parseRconStatusTable already stored: one pass leaves the inner code
+    ['^1Grinder', 'Grinder'],
+    ['^0Persian^1Gulf', 'PersianGulf'],
+    ['Trailing^', 'Trailing'],
+    ['^7', ''],
+    ['  ^3Padded  ', 'Padded'],
+  ])('turns %j into %j', (raw, expected) => {
+    expect(plainDisplayName(raw)).toBe(expected);
+  });
+
+  it('gives the same result when applied twice', () => {
+    const once = plainDisplayName('^^11Grinder^^22x^7');
+    expect(plainDisplayName(once)).toBe(once);
   });
 });

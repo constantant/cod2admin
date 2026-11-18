@@ -54,6 +54,19 @@ describe('VpnKicker', () => {
     expect(rcon.status).not.toHaveBeenCalled();
   });
 
+  it('kicks by the exact name, including ";", for the rcon client to quote', async () => {
+    const { rcon, kicker, deps } = setup();
+    rcon.status.mockResolvedValue({
+      raw: '',
+      players: [{ ...PLAYERS[0], name: 'a;b' }],
+    });
+    kicker.setSettings({ enabled: true, exempt: [] });
+
+    await kicker.sweep(deps);
+
+    expect(rcon.kick).toHaveBeenCalledWith(0, 'a;b');
+  });
+
   it('kicks only flagged players and audits, without a game-chat line', async () => {
     const { rcon, adminStore, kicker, deps } = setup();
     kicker.setSettings({ enabled: true, exempt: [] });

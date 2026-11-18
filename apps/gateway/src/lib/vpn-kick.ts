@@ -3,7 +3,6 @@ import type { RconClient, StatusPlayer } from '@cod2admin/rcon-client';
 import type { ChatTemplates } from './chat-templates.js';
 import { displayName } from './commands/players.js';
 import type { KnownPlayers } from './known-players.js';
-import { sanitizeRconArg } from './sanitize.js';
 import type { VpnKind, VpnLookup } from './vpn-ranges.js';
 
 /**
@@ -154,7 +153,7 @@ export class VpnKicker {
         await rcon.say(text);
       }
     }
-    await rcon.kick(player.num, sanitizeRconArg(player.name));
+    await rcon.kick(player.num, player.name);
     if (announce) {
       await deps.adminStore.recordAuditLog({
         actorTelegramId: 0,

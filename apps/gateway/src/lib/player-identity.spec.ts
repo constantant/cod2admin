@@ -79,6 +79,25 @@ describe('createPlayerIdentityResolver', () => {
     expect(status).not.toHaveBeenCalled();
   });
 
+  it('passes a name with ";" or over 128 characters to dumpuser as it is', async () => {
+    const dumpuser = vi.fn(async (_alias: string, _name: string) => ({
+      cl_hwid: '7',
+    }));
+    const resolver = createPlayerIdentityResolver({
+      now: () => 10_000,
+      dumpuser,
+    });
+    const long = `a;b${'x'.repeat(200)}`;
+
+    await resolver.resolve({
+      serverAlias: 'ctf',
+      player: { ...PLAYER, name: long },
+      statusFetchedAt: 10_000,
+    });
+
+    expect(dumpuser).toHaveBeenCalledWith('ctf', long);
+  });
+
   it('refuses dumpuser within a second and does not invent an hwid', async () => {
     let time = 5_000;
     const dumpuser = vi.fn(async () => ({ cl_hwid: '42' }));

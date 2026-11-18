@@ -10,6 +10,25 @@ export function stripColorCodes(value: string): string {
   return value.replace(/\^[0-9]/g, '');
 }
 
+/**
+ * A nick as people read it: every `^N` code removed, including the doubled `^^11` form (which one
+ * `stripColorCodes` pass turns into `^1`, the way the game writes it to `ban.txt`) and a dangling
+ * trailing `^`. Safe to apply to a name `parseRconStatusTable` already stripped once. Use this for
+ * display, search and lookup keys; use `stripColorCodes` only to match the name the game itself
+ * compares (`kick`, `dumpuser`, `ban.txt`).
+ */
+export function plainDisplayName(value: string): string {
+  let plain = value;
+  for (let pass = 0; pass < 8; pass++) {
+    const next = stripColorCodes(plain);
+    if (next === plain) {
+      break;
+    }
+    plain = next;
+  }
+  return plain.replace(/\^+$/, '').trim();
+}
+
 /** Parses a `\key\value\key\value` cvar block, as returned by `getinfo`/`getstatus`. */
 export function parseCvarBlock(block: string): CvarMap {
   const trimmed = block.startsWith('\\') ? block.slice(1) : block;

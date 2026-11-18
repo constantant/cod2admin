@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { GatewayDeps } from '../lib/deps.js';
-import { MiniAppState } from './state.js';
+import { MiniAppState, noteNameKey } from './state.js';
 
 function setup(cvars: Record<string, string> = { g_gametype: 'ctf' }) {
   let mapName = 'mp_toujane';
@@ -127,5 +127,15 @@ describe('MiniAppState.fetchStatus game mode', () => {
     });
     const off = await state.fetchStatus('main');
     expect(off.players.every((player) => player.team === undefined)).toBe(true);
+  });
+});
+
+describe('noteNameKey', () => {
+  it.each([
+    ['^^11Grinder^7', 'grinder'],
+    ['^1Grinder', 'grinder'],
+    ['  Grinder ', 'grinder'],
+  ])('files %j under %j', (name, expected) => {
+    expect(noteNameKey(name)).toBe(expected);
   });
 });

@@ -53,8 +53,18 @@ function isAsciiName(name: string): boolean {
   return true;
 }
 
+/** A player name as one console argument: no line breaks, NULs or quotes that could end it. */
+function cleanNameArg(name: string): string {
+  return name.replace(/[\r\n\0"]/g, '');
+}
+
+/** `;` can end a console command, so a name holding one is only ever sent inside quotes. */
+function mustQuote(name: string): boolean {
+  return name.includes(';');
+}
+
 function quotedArg(name: string): string {
-  return `"${name.replace(/"/g, '')}"`;
+  return `"${cleanNameArg(name)}"`;
 }
 
 function firstLine(reply: string): string {
@@ -215,11 +225,11 @@ export class RconClient {
    * stays in the map and is not an identity.
    */
   async dumpuser(strippedName: string): Promise<CvarMap> {
-    const name = stripColorCodes(strippedName);
+    const name = cleanNameArg(stripColorCodes(strippedName));
     if (name.trim() === '') {
       return {};
     }
-    const nonAscii = !isAsciiName(name);
+    const nonAscii = !isAsciiName(name) || mustQuote(name);
     const first = await this.rcon(
       `dumpuser ${nonAscii ? quotedArg(name) : name}`,
     );
@@ -267,9 +277,13 @@ export class RconClient {
       }
       return this.rcon(`kick ${clientIdOrName}`);
     }
-    const result = await this.rcon(`kick ${clientIdOrName}`);
+    const name = cleanNameArg(clientIdOrName);
+    if (mustQuote(name)) {
+      return this.rcon(`kick ${quotedArg(name)}`);
+    }
+    const result = await this.rcon(`kick ${name}`);
     if (KICK_FAILURE_PATTERN.test(result)) {
-      return this.rcon(`kick "${clientIdOrName}"`);
+      return this.rcon(`kick ${quotedArg(name)}`);
     }
     return result;
   }

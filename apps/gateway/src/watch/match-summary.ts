@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { stripColorCodes } from '@cod2admin/rcon-client';
+import { plainDisplayName } from '@cod2admin/rcon-client';
 
 const SAFE_MAP_NAME = /^[A-Za-z0-9_]{1,64}$/;
 const SCORE_COMMAND = /^d (5|6) (-?\d+)$/;
@@ -135,19 +135,9 @@ function formatMinutes(minutes: number): string {
   return `${rounded} min`;
 }
 
-/**
- * The nick with Quake colour codes removed, including the doubled `^^11` form.
- * One `stripColorCodes` pass leaves `^1` behind, and repeating it is what
- * `/players` does. Empty when the name was only colour codes.
- */
+/** The nick with Quake colour codes removed. Empty when the name was only colour codes. */
 export function readableName(name: string): string {
-  let plain = name.trim();
-  for (let pass = 0; pass < 8; pass++) {
-    const next = stripColorCodes(plain.replace(/\^\^(\d)\1/g, '')).trim();
-    if (next === plain) return plain.replace(/\^+$/g, '').trim();
-    plain = next;
-  }
-  return plain.replace(/\^+$/g, '').trim();
+  return plainDisplayName(name);
 }
 
 function plainName(player: MatchPlayer): string {

@@ -21,6 +21,7 @@ import {
   type MachineReport,
 } from '@cod2admin/report-pipeline';
 import {
+  plainDisplayName,
   stripColorCodes,
   type ServerStatus,
   type StatusPlayer,
@@ -815,7 +816,7 @@ class Supervisor {
       this.hold(life);
       return;
     }
-    const displayName = stripColorCodes(identity.player.name).trim();
+    const displayName = plainDisplayName(identity.player.name);
     const lastGuid = presentGuid(identity.player.guid);
     const lastIp = identity.player.ip?.trim() || null;
     const mapName = held.status.mapName?.trim() || null;
