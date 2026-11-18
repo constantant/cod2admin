@@ -674,6 +674,11 @@ export interface PreviewFunctionResponse {
   commands: string[];
 }
 
+/** Settings' current values on a server, by function id; `null` when the server didn't say. */
+export interface FunctionValuesResponse {
+  values: Record<string, string | null>;
+}
+
 export interface RunFunctionRequest {
   values?: Record<string, unknown>;
   /** The setting's new value, for a setting. */

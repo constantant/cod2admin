@@ -14,9 +14,11 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import type {
   CustomFunctionDto,
+  CustomFunctionKind,
   FunctionParam,
   Permission,
   SaveFunctionRequest,
+  SettingControl,
 } from '@cod2admin/miniapp-api';
 import { ApiService } from '../../core/api';
 import { SessionService } from '../../core/session';
@@ -37,7 +39,32 @@ interface ParamDraft {
   options: string;
 }
 
+type ControlType = SettingControl['type'];
+
+const KINDS: { value: CustomFunctionKind; label: string }[] = [
+  { value: 'action', label: 'Button on the dashboard' },
+  { value: 'player_action', label: 'Action on a player' },
+  { value: 'setting', label: 'Setting' },
+];
+
+const CONTROL_TYPES: { value: ControlType; label: string }[] = [
+  { value: 'toggle', label: 'On / off' },
+  { value: 'number', label: 'Number' },
+  { value: 'select', label: 'Choice' },
+  { value: 'text', label: 'Text' },
+];
+
 interface Draft {
+  kind: CustomFunctionKind;
+  /** A setting's cvar and how it is shown. */
+  cvar: string;
+  controlType: ControlType;
+  onValue: string;
+  offValue: string;
+  min: string;
+  max: string;
+  maxLength: string;
+  options: string;
   /** `null` while it is new — the id (slug) can't change afterwards. */
   id: number | null;
   slug: string;
@@ -94,6 +121,15 @@ const blankParam = (): ParamDraft => ({
 });
 
 const blankDraft = (): Draft => ({
+  kind: 'action',
+  cvar: '',
+  controlType: 'toggle',
+  onValue: '',
+  offValue: '',
+  min: '',
+  max: '',
+  maxLength: '',
+  options: '',
   id: null,
   slug: '',
   slugEdited: false,
@@ -133,7 +169,8 @@ function parseOptions(text: string): { value: string; label: string }[] {
     });
 }
 
-const maybeNumber = (text: string) => (text.trim() === '' ? undefined : Number(text));
+const maybeNumber = (text: string) =>
+  text.trim() === '' ? undefined : Number(text);
 
 function paramFromDraft(draft: ParamDraft): FunctionParam {
   const base = { name: draft.name.trim(), label: draft.label.trim() };
@@ -142,7 +179,9 @@ function paramFromDraft(draft: ParamDraft): FunctionParam {
       return {
         ...base,
         type: 'text',
-        ...(draft.maxLength.trim() ? { maxLength: Number(draft.maxLength) } : {}),
+        ...(draft.maxLength.trim()
+          ? { maxLength: Number(draft.maxLength) }
+          : {}),
       };
     case 'number':
       return {
@@ -182,16 +221,49 @@ function paramToDraft(param: FunctionParam): ParamDraft {
   return draft;
 }
 
+function controlFromDraft(draft: Draft): SettingControl {
+  switch (draft.controlType) {
+    case 'toggle':
+      return {
+        type: 'toggle',
+        ...(draft.onValue.trim() ? { onValue: draft.onValue.trim() } : {}),
+        ...(draft.offValue.trim() ? { offValue: draft.offValue.trim() } : {}),
+      };
+    case 'number':
+      return {
+        type: 'number',
+        ...(maybeNumber(draft.min) !== undefined
+          ? { min: maybeNumber(draft.min) }
+          : {}),
+        ...(maybeNumber(draft.max) !== undefined
+          ? { max: maybeNumber(draft.max) }
+          : {}),
+      };
+    case 'select':
+      return { type: 'select', options: parseOptions(draft.options) };
+    case 'text':
+      return {
+        type: 'text',
+        ...(draft.maxLength.trim()
+          ? { maxLength: Number(draft.maxLength) }
+          : {}),
+      };
+  }
+}
+
 function toRequest(draft: Draft): SaveFunctionRequest {
   return {
     slug: draft.slug.trim(),
     title: draft.title.trim(),
     description: draft.description.trim() || null,
-    kind: 'action',
-    definition: {
-      params: draft.params.map(paramFromDraft),
-      steps: draft.steps.map((step) => step.trim()).filter(Boolean),
-    },
+    kind: draft.kind,
+    definition:
+      draft.kind === 'setting'
+        ? { cvar: draft.cvar.trim(), control: controlFromDraft(draft) }
+        : {
+            params: draft.params.map(paramFromDraft),
+            steps: draft.steps.map((step) => step.trim()).filter(Boolean),
+          },
     serverAlias: draft.serverAlias || null,
     requires: (draft.requires || null) as Permission | null,
     dangerous: draft.dangerous,
@@ -202,7 +274,9 @@ function toRequest(draft: Draft): SaveFunctionRequest {
 function toDraft(fn: CustomFunctionDto): Draft {
   const definition =
     'params' in fn.definition ? fn.definition : { params: [], steps: [] };
-  return {
+  const draft: Draft = {
+    ...blankDraft(),
+    kind: fn.kind,
     id: fn.id,
     slug: fn.slug,
     slugEdited: true,
@@ -215,6 +289,26 @@ function toDraft(fn: CustomFunctionDto): Draft {
     params: definition.params.map(paramToDraft),
     steps: definition.steps.length > 0 ? [...definition.steps] : [''],
   };
+  if ('cvar' in fn.definition) {
+    const { cvar, control } = fn.definition;
+    draft.cvar = cvar;
+    draft.controlType = control.type;
+    if (control.type === 'toggle') {
+      draft.onValue = control.onValue ?? '';
+      draft.offValue = control.offValue ?? '';
+    }
+    if (control.type === 'number') {
+      draft.min = control.min === undefined ? '' : String(control.min);
+      draft.max = control.max === undefined ? '' : String(control.max);
+    }
+    if (control.type === 'select') {
+      draft.options = optionsText(control.options);
+    }
+    if (control.type === 'text' && control.maxLength !== undefined) {
+      draft.maxLength = String(control.maxLength);
+    }
+  }
+  return draft;
 }
 
 /**
@@ -237,7 +331,9 @@ function toDraft(fn: CustomFunctionDto): Draft {
   template: `
     <div class="page">
       @if (draft(); as draft) {
-        <h2>{{ (draft.id === null ? 'New function' : 'Edit function') | t }}</h2>
+        <h2>
+          {{ (draft.id === null ? 'New function' : 'Edit function') | t }}
+        </h2>
         <mat-form-field class="full-width" appearance="outline">
           <mat-label>{{ 'Title' | t }}</mat-label>
           <input
@@ -264,6 +360,18 @@ function toDraft(fn: CustomFunctionDto): Draft {
           }}</mat-hint>
         </mat-form-field>
         <mat-form-field class="full-width" appearance="outline">
+          <mat-label>{{ 'What it is' | t }}</mat-label>
+          <mat-select
+            name="kind"
+            [(ngModel)]="draft.kind"
+            (ngModelChange)="kindChanged()"
+          >
+            @for (kind of kinds; track kind.value) {
+              <mat-option [value]="kind.value">{{ kind.label | t }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field class="full-width" appearance="outline">
           <mat-label>{{ 'Description' | t }}</mat-label>
           <input
             matInput
@@ -284,7 +392,9 @@ function toDraft(fn: CustomFunctionDto): Draft {
         <mat-form-field class="full-width" appearance="outline">
           <mat-label>{{ 'Who may run it' | t }}</mat-label>
           <mat-select name="requires" [(ngModel)]="draft.requires">
-            <mat-option value="">{{ 'Anyone who can run functions' | t }}</mat-option>
+            <mat-option value="">{{
+              'Anyone who can run functions' | t
+            }}</mat-option>
             @for (permission of requires; track permission) {
               <mat-option [value]="permission">{{ permission }}</mat-option>
             }
@@ -301,167 +411,365 @@ function toDraft(fn: CustomFunctionDto): Draft {
           }}</mat-checkbox>
         </p>
 
-        <section class="card">
-          <h3>{{ 'What it asks' | t }}</h3>
-          @for (param of draft.params; track $index) {
-            <div class="param">
-              <div class="row">
-                <mat-form-field class="grow" subscriptSizing="dynamic" appearance="outline">
-                  <mat-label>{{ 'Name' | t }}</mat-label>
-                  <input
-                    matInput
-                    class="mono"
-                    [name]="'pname' + $index"
-                    maxlength="24"
-                    [(ngModel)]="param.name"
-                  />
-                </mat-form-field>
-                <mat-form-field class="grow" subscriptSizing="dynamic" appearance="outline">
-                  <mat-label>{{ 'Label' | t }}</mat-label>
-                  <input
-                    matInput
-                    [name]="'plabel' + $index"
-                    maxlength="40"
-                    [(ngModel)]="param.label"
-                  />
-                </mat-form-field>
-                <button
-                  mat-icon-button
-                  type="button"
-                  [attr.aria-label]="'Remove' | t"
-                  (click)="removeParam($index)"
-                >
-                  <c2a-icon name="delete" />
-                </button>
-              </div>
-              <mat-form-field class="full-width" subscriptSizing="dynamic" appearance="outline">
-                <mat-label>{{ 'Type' | t }}</mat-label>
-                <mat-select [name]="'ptype' + $index" [(ngModel)]="param.type">
-                  @for (type of paramTypes; track type.value) {
-                    <mat-option [value]="type.value">{{ type.label | t }}</mat-option>
-                  }
-                </mat-select>
-              </mat-form-field>
-              @if (param.type === 'number') {
+        @if (draft.kind === 'setting') {
+          <section class="card">
+            <h3>{{ 'What it controls' | t }}</h3>
+            <mat-form-field class="full-width" appearance="outline">
+              <mat-label>{{ 'Server setting (cvar)' | t }}</mat-label>
+              <input
+                matInput
+                class="mono"
+                name="cvar"
+                maxlength="64"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+                [(ngModel)]="draft.cvar"
+              />
+            </mat-form-field>
+            <mat-form-field class="full-width" appearance="outline">
+              <mat-label>{{ 'Shown as' | t }}</mat-label>
+              <mat-select name="controlType" [(ngModel)]="draft.controlType">
+                @for (type of controlTypes; track type.value) {
+                  <mat-option [value]="type.value">{{
+                    type.label | t
+                  }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            @switch (draft.controlType) {
+              @case ('toggle') {
                 <div class="row">
-                  <mat-form-field class="grow" subscriptSizing="dynamic" appearance="outline">
-                    <mat-label>{{ 'Smallest' | t }}</mat-label>
-                    <input matInput type="number" [name]="'pmin' + $index" [(ngModel)]="param.min" />
+                  <mat-form-field
+                    class="grow"
+                    subscriptSizing="dynamic"
+                    appearance="outline"
+                  >
+                    <mat-label>{{ 'Value when on' | t }}</mat-label>
+                    <input
+                      matInput
+                      class="mono"
+                      name="onValue"
+                      placeholder="1"
+                      [(ngModel)]="draft.onValue"
+                    />
                   </mat-form-field>
-                  <mat-form-field class="grow" subscriptSizing="dynamic" appearance="outline">
-                    <mat-label>{{ 'Largest' | t }}</mat-label>
-                    <input matInput type="number" [name]="'pmax' + $index" [(ngModel)]="param.max" />
+                  <mat-form-field
+                    class="grow"
+                    subscriptSizing="dynamic"
+                    appearance="outline"
+                  >
+                    <mat-label>{{ 'Value when off' | t }}</mat-label>
+                    <input
+                      matInput
+                      class="mono"
+                      name="offValue"
+                      placeholder="0"
+                      [(ngModel)]="draft.offValue"
+                    />
                   </mat-form-field>
                 </div>
               }
-              @if (param.type === 'text') {
-                <mat-form-field class="full-width" subscriptSizing="dynamic" appearance="outline">
-                  <mat-label>{{ 'Longest text' | t }}</mat-label>
-                  <input
-                    matInput
-                    type="number"
-                    [name]="'plen' + $index"
-                    [(ngModel)]="param.maxLength"
-                  />
-                </mat-form-field>
+              @case ('number') {
+                <div class="row">
+                  <mat-form-field
+                    class="grow"
+                    subscriptSizing="dynamic"
+                    appearance="outline"
+                  >
+                    <mat-label>{{ 'Smallest' | t }}</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      name="cmin"
+                      [(ngModel)]="draft.min"
+                    />
+                  </mat-form-field>
+                  <mat-form-field
+                    class="grow"
+                    subscriptSizing="dynamic"
+                    appearance="outline"
+                  >
+                    <mat-label>{{ 'Largest' | t }}</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      name="cmax"
+                      [(ngModel)]="draft.max"
+                    />
+                  </mat-form-field>
+                </div>
               }
-              @if (param.type === 'choice') {
+              @case ('select') {
                 <mat-form-field class="full-width" appearance="outline">
                   <mat-label>{{ 'Options' | t }}</mat-label>
                   <textarea
                     matInput
                     rows="3"
                     class="mono"
-                    [name]="'popts' + $index"
-                    [(ngModel)]="param.options"
+                    name="copts"
+                    [(ngModel)]="draft.options"
                   ></textarea>
                   <mat-hint>{{
                     'One per line: the value, then its label.' | t
                   }}</mat-hint>
                 </mat-form-field>
               }
-            </div>
-          }
-          <button mat-button type="button" (click)="addParam()">
-            <c2a-icon name="add" /> {{ 'Add a question' | t }}
-          </button>
-        </section>
+              @case ('text') {
+                <mat-form-field
+                  class="full-width"
+                  subscriptSizing="dynamic"
+                  appearance="outline"
+                >
+                  <mat-label>{{ 'Longest text' | t }}</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    name="clen"
+                    [(ngModel)]="draft.maxLength"
+                  />
+                </mat-form-field>
+              }
+            }
+          </section>
+        } @else {
+          <section class="card">
+            <h3>{{ 'What it asks' | t }}</h3>
+            @for (param of draft.params; track $index) {
+              <div class="param">
+                <div class="row">
+                  <mat-form-field
+                    class="grow"
+                    subscriptSizing="dynamic"
+                    appearance="outline"
+                  >
+                    <mat-label>{{ 'Name' | t }}</mat-label>
+                    <input
+                      matInput
+                      class="mono"
+                      [name]="'pname' + $index"
+                      maxlength="24"
+                      [(ngModel)]="param.name"
+                    />
+                  </mat-form-field>
+                  <mat-form-field
+                    class="grow"
+                    subscriptSizing="dynamic"
+                    appearance="outline"
+                  >
+                    <mat-label>{{ 'Label' | t }}</mat-label>
+                    <input
+                      matInput
+                      [name]="'plabel' + $index"
+                      maxlength="40"
+                      [(ngModel)]="param.label"
+                    />
+                  </mat-form-field>
+                  <button
+                    mat-icon-button
+                    type="button"
+                    [attr.aria-label]="'Remove' | t"
+                    (click)="removeParam($index)"
+                  >
+                    <c2a-icon name="delete" />
+                  </button>
+                </div>
+                <mat-form-field
+                  class="full-width"
+                  subscriptSizing="dynamic"
+                  appearance="outline"
+                >
+                  <mat-label>{{ 'Type' | t }}</mat-label>
+                  <mat-select
+                    [name]="'ptype' + $index"
+                    [(ngModel)]="param.type"
+                  >
+                    @for (type of paramTypes; track type.value) {
+                      <mat-option [value]="type.value">{{
+                        type.label | t
+                      }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                @if (param.type === 'number') {
+                  <div class="row">
+                    <mat-form-field
+                      class="grow"
+                      subscriptSizing="dynamic"
+                      appearance="outline"
+                    >
+                      <mat-label>{{ 'Smallest' | t }}</mat-label>
+                      <input
+                        matInput
+                        type="number"
+                        [name]="'pmin' + $index"
+                        [(ngModel)]="param.min"
+                      />
+                    </mat-form-field>
+                    <mat-form-field
+                      class="grow"
+                      subscriptSizing="dynamic"
+                      appearance="outline"
+                    >
+                      <mat-label>{{ 'Largest' | t }}</mat-label>
+                      <input
+                        matInput
+                        type="number"
+                        [name]="'pmax' + $index"
+                        [(ngModel)]="param.max"
+                      />
+                    </mat-form-field>
+                  </div>
+                }
+                @if (param.type === 'text') {
+                  <mat-form-field
+                    class="full-width"
+                    subscriptSizing="dynamic"
+                    appearance="outline"
+                  >
+                    <mat-label>{{ 'Longest text' | t }}</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      [name]="'plen' + $index"
+                      [(ngModel)]="param.maxLength"
+                    />
+                  </mat-form-field>
+                }
+                @if (param.type === 'choice') {
+                  <mat-form-field class="full-width" appearance="outline">
+                    <mat-label>{{ 'Options' | t }}</mat-label>
+                    <textarea
+                      matInput
+                      rows="3"
+                      class="mono"
+                      [name]="'popts' + $index"
+                      [(ngModel)]="param.options"
+                    ></textarea>
+                    <mat-hint>{{
+                      'One per line: the value, then its label.' | t
+                    }}</mat-hint>
+                  </mat-form-field>
+                }
+              </div>
+            }
+            <button mat-button type="button" (click)="addParam()">
+              <c2a-icon name="add" /> {{ 'Add a question' | t }}
+            </button>
+          </section>
 
-        <section class="card">
-          <h3>{{ 'What it sends' | t }}</h3>
-          <p class="muted small">
-            {{
-              'One RCON command per step, run in order. Write {name} where an answer goes: text is quoted for you.'
-                | t
-            }}
-          </p>
-          @for (step of draft.steps; track $index) {
-            <div class="row">
-              <mat-form-field class="grow" subscriptSizing="dynamic" appearance="outline">
-                <input
-                  matInput
-                  class="mono"
-                  [name]="'step' + $index"
-                  maxlength="512"
-                  autocomplete="off"
-                  autocapitalize="off"
-                  spellcheck="false"
-                  [(ngModel)]="draft.steps[$index]"
-                />
-              </mat-form-field>
-              <button
-                mat-icon-button
-                type="button"
-                [attr.aria-label]="'Remove' | t"
-                [disabled]="draft.steps.length === 1"
-                (click)="removeStep($index)"
-              >
-                <c2a-icon name="delete" />
-              </button>
-            </div>
-          }
-          <button
-            mat-button
-            type="button"
-            [disabled]="draft.steps.length >= 5"
-            (click)="addStep()"
-          >
-            <c2a-icon name="add" /> {{ 'Add a step' | t }}
-          </button>
-        </section>
+          <section class="card">
+            <h3>{{ 'What it sends' | t }}</h3>
+            <p class="muted small">
+              {{
+                'One RCON command per step, run in order. Write {name} where an answer goes: text is quoted for you.'
+                  | t
+              }}
+            </p>
+            @for (step of draft.steps; track $index) {
+              <div class="row">
+                <mat-form-field
+                  class="grow"
+                  subscriptSizing="dynamic"
+                  appearance="outline"
+                >
+                  <input
+                    matInput
+                    class="mono"
+                    [name]="'step' + $index"
+                    maxlength="512"
+                    autocomplete="off"
+                    autocapitalize="off"
+                    spellcheck="false"
+                    [(ngModel)]="draft.steps[$index]"
+                  />
+                </mat-form-field>
+                <button
+                  mat-icon-button
+                  type="button"
+                  [attr.aria-label]="'Remove' | t"
+                  [disabled]="draft.steps.length === 1"
+                  (click)="removeStep($index)"
+                >
+                  <c2a-icon name="delete" />
+                </button>
+              </div>
+            }
+            <button
+              mat-button
+              type="button"
+              [disabled]="draft.steps.length >= 5"
+              (click)="addStep()"
+            >
+              <c2a-icon name="add" /> {{ 'Add a step' | t }}
+            </button>
+          </section>
+        }
 
         <section class="card">
           <h3>{{ 'Try it' | t }}</h3>
           @if (hasPlayerParam()) {
             <p class="muted small">
               {{
-                'A player question can only be tried on the dashboard, once saved.' | t
+                'Anything that needs a player can only be tried once it is saved, with a player picked.'
+                  | t
               }}
             </p>
           } @else {
-            @for (param of draft.params; track $index) {
-              @if (param.name) {
-                @switch (param.type) {
-                  @case ('bool') {
-                    <p>
-                      <mat-checkbox
-                        [name]="'sample' + $index"
-                        [ngModel]="samples()[param.name] === true"
-                        (ngModelChange)="setSample(param.name, $event)"
-                        >{{ param.label || param.name }}</mat-checkbox
+            @if (draft.kind === 'setting') {
+              @if (draft.controlType === 'toggle') {
+                <p>
+                  <mat-checkbox
+                    name="sampleValue"
+                    [ngModel]="samples()['__value'] === true"
+                    (ngModelChange)="setSample('__value', $event)"
+                    >{{ 'On' | t }}</mat-checkbox
+                  >
+                </p>
+              } @else {
+                <mat-form-field
+                  class="full-width"
+                  subscriptSizing="dynamic"
+                  appearance="outline"
+                >
+                  <mat-label>{{ 'Value' | t }}</mat-label>
+                  <input
+                    matInput
+                    name="sampleValue"
+                    [ngModel]="samples()['__value'] ?? ''"
+                    (ngModelChange)="setSample('__value', $event)"
+                  />
+                </mat-form-field>
+              }
+            } @else {
+              @for (param of draft.params; track $index) {
+                @if (param.name) {
+                  @switch (param.type) {
+                    @case ('bool') {
+                      <p>
+                        <mat-checkbox
+                          [name]="'sample' + $index"
+                          [ngModel]="samples()[param.name] === true"
+                          (ngModelChange)="setSample(param.name, $event)"
+                          >{{ param.label || param.name }}</mat-checkbox
+                        >
+                      </p>
+                    }
+                    @default {
+                      <mat-form-field
+                        class="full-width"
+                        subscriptSizing="dynamic"
+                        appearance="outline"
                       >
-                    </p>
-                  }
-                  @default {
-                    <mat-form-field class="full-width" subscriptSizing="dynamic" appearance="outline">
-                      <mat-label>{{ param.label || param.name }}</mat-label>
-                      <input
-                        matInput
-                        [name]="'sample' + $index"
-                        [ngModel]="samples()[param.name] ?? ''"
-                        (ngModelChange)="setSample(param.name, $event)"
-                      />
-                    </mat-form-field>
+                        <mat-label>{{ param.label || param.name }}</mat-label>
+                        <input
+                          matInput
+                          [name]="'sample' + $index"
+                          [ngModel]="samples()[param.name] ?? ''"
+                          (ngModelChange)="setSample(param.name, $event)"
+                        />
+                      </mat-form-field>
+                    }
                   }
                 }
               }
@@ -484,11 +792,21 @@ function toDraft(fn: CustomFunctionDto): Draft {
         </section>
 
         <div class="row actions">
-          <button mat-button type="button" [disabled]="busy()" (click)="cancel()">
+          <button
+            mat-button
+            type="button"
+            [disabled]="busy()"
+            (click)="cancel()"
+          >
             {{ 'Cancel' | t }}
           </button>
           <span class="spacer"></span>
-          <button mat-flat-button type="button" [disabled]="busy()" (click)="save()">
+          <button
+            mat-flat-button
+            type="button"
+            [disabled]="busy()"
+            (click)="save()"
+          >
             {{ 'Save' | t }}
           </button>
         </div>
@@ -512,22 +830,16 @@ function toDraft(fn: CustomFunctionDto): Draft {
                 <div class="title">{{ fn.title }}</div>
                 <div class="muted small">
                   <span class="mono">{{ fn.slug }}</span>
-                  · {{ (fn.serverAlias ?? 'All servers') | t }}
+                  · {{ fn.serverAlias ?? 'All servers' | t }}
                   @if (!fn.enabled) {
                     · {{ 'Disabled' | t }}
                   }
                 </div>
-                @if (fn.kind !== 'action') {
-                  <div class="muted small">
-                    {{ "This kind can't be edited here yet." | t }}
-                  </div>
-                }
               </div>
               <button
                 mat-icon-button
                 type="button"
                 [attr.aria-label]="'Edit' | t"
-                [disabled]="fn.kind !== 'action'"
                 (click)="edit(fn)"
               >
                 <c2a-icon name="edit" />
@@ -605,6 +917,8 @@ export class FunctionsPage implements OnInit {
   private readonly session = inject(SessionService);
   private readonly notify = inject(Notify);
 
+  protected readonly kinds = KINDS;
+  protected readonly controlTypes = CONTROL_TYPES;
   protected readonly paramTypes = PARAM_TYPES;
   protected readonly requires = REQUIRES;
   protected readonly functions = signal<CustomFunctionDto[]>([]);
@@ -616,12 +930,25 @@ export class FunctionsPage implements OnInit {
   protected readonly servers = computed(
     () => this.session.me()?.servers.map((server) => server.alias) ?? [],
   );
-  protected readonly hasPlayerParam = computed(
-    () => this.draft()?.params.some((param) => param.type === 'player') ?? false,
-  );
+  /** A player is picked from the live list, so it can't be tried here. */
+  protected readonly hasPlayerParam = computed(() => {
+    const draft = this.draft();
+    return (
+      draft !== null &&
+      draft.kind !== 'setting' &&
+      (draft.kind === 'player_action' ||
+        draft.params.some((param) => param.type === 'player'))
+    );
+  });
 
   ngOnInit(): void {
     void this.load();
+  }
+
+  /** What was typed for the old kind is kept, but the preview starts over. */
+  protected kindChanged(): void {
+    this.previewed.set([]);
+    this.draft.update((draft) => draft && { ...draft });
   }
 
   protected create(): void {
@@ -694,9 +1021,20 @@ export class FunctionsPage implements OnInit {
               ? sample === true
               : (sample ?? '');
       }
+      const sample = samples['__value'];
       const { commands } = await this.api.previewFunction({
         function: request,
         values,
+        ...(draft.kind === 'setting'
+          ? {
+              value:
+                draft.controlType === 'toggle'
+                  ? sample === true
+                  : draft.controlType === 'number'
+                    ? Number(sample)
+                    : (sample ?? ''),
+            }
+          : {}),
         server: this.session.server() || undefined,
       });
       this.previewed.set(commands);

@@ -109,6 +109,22 @@
   </button>
   }
 </div>
+@if (playerActions().length > 0) {
+<div class="custom">
+  @for (fn of playerActions(); track fn.id) {
+  <button
+    mat-button
+    type="button"
+    [disabled]="busy()"
+    [title]="fn.description ?? ''"
+    (click)="runCustom(fn)"
+  >
+    <c2a-icon [name]="fn.dangerous ? 'warning' : 'bolt'" />
+    {{ fn.title }}
+  </button>
+  }
+</div>
+}
 } @case ('tell') {
 <mat-form-field class="full-width" subscriptSizing="dynamic">
   <mat-label>{{ 'Private message' | t }}</mat-label>

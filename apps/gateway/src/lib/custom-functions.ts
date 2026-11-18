@@ -128,9 +128,7 @@ function textLength(raw: Json, what: string): { maxLength?: number } {
     return {};
   }
   if (!Number.isInteger(length) || length < 1 || length > MAX_TEXT_LENGTH) {
-    throw new FunctionError(
-      `${what} maxLength must be 1–${MAX_TEXT_LENGTH}.`,
-    );
+    throw new FunctionError(`${what} maxLength must be 1–${MAX_TEXT_LENGTH}.`);
   }
   return { maxLength: length };
 }
@@ -152,7 +150,11 @@ function parseParam(value: unknown): FunctionParam {
     case 'number':
       return { ...base, type: 'number', ...range(raw, what) };
     case 'choice':
-      return { ...base, type: 'choice', options: options(raw['options'], what) };
+      return {
+        ...base,
+        type: 'choice',
+        options: options(raw['options'], what),
+      };
     case 'bool':
       return {
         ...base,
@@ -189,7 +191,10 @@ function parseControl(value: unknown): SettingControl {
     case 'number':
       return { type: 'number', ...range(raw, 'The control') };
     case 'select':
-      return { type: 'select', options: options(raw['options'], 'The control') };
+      return {
+        type: 'select',
+        options: options(raw['options'], 'The control'),
+      };
     case 'text':
       return { type: 'text', ...textLength(raw, 'The control') };
     default:
@@ -235,10 +240,9 @@ function parseStep(value: unknown, params: Map<string, FunctionParam>) {
 }
 
 /** What the request body must look like; throws `FunctionError` with a message for the owner. */
-export function parseFunctionInput(body: unknown): Omit<
-  SaveCustomFunctionInput,
-  'createdBy'
-> {
+export function parseFunctionInput(
+  body: unknown,
+): Omit<SaveCustomFunctionInput, 'createdBy'> {
   const raw = obj(body, 'The request');
   const slug = typeof raw['slug'] === 'string' ? raw['slug'] : '';
   if (!SLUG.test(slug)) {
@@ -261,7 +265,10 @@ export function parseFunctionInput(body: unknown): Omit<
     typeof raw['requires'] === 'string' && raw['requires']
       ? raw['requires']
       : null;
-  if (requires && (!isPermission(requires) || requires === 'functions.manage')) {
+  if (
+    requires &&
+    (!isPermission(requires) || requires === 'functions.manage')
+  ) {
     throw new FunctionError(`"${requires}" can't be required.`);
   }
   const serverAlias =
@@ -345,6 +352,19 @@ export function parseDefinition(
   return { params, steps };
 }
 
+/**
+ * A cvar's value out of the server's reply to its bare name, e.g. `"g_gravity" is:"800^7" default:"800^7"`
+ * (the `^7` is the colour reset the game appends). `null` when the reply isn't that — an unset cvar.
+ */
+export function parseCvarReply(output: string, name: string): string | null {
+  const first = output.split('\n').find((line) => line.trim()) ?? '';
+  const match = /^"([^"]+)"\s+is:"(.*?)(?:\^7)?"(?:\s|,|$)/.exec(first.trim());
+  if (!match || match[1]?.toLowerCase() !== name.toLowerCase()) {
+    return null;
+  }
+  return match[2] ?? null;
+}
+
 /** What a run needs to know about the server — fetched only when the function uses it. */
 export interface ResolveContext {
   players?: readonly { num: number; name: string }[];
@@ -352,9 +372,10 @@ export interface ResolveContext {
 }
 
 /** Which live data `resolveSteps`/`resolveSetting` will ask for. */
-export function needsContext(
-  fn: Pick<CustomFunction, 'kind' | 'definition'>,
-): { players: boolean; maps: boolean } {
+export function needsContext(fn: Pick<CustomFunction, 'kind' | 'definition'>): {
+  players: boolean;
+  maps: boolean;
+} {
   const { definition } = fn;
   if (!('params' in definition)) {
     return { players: false, maps: false };
@@ -415,12 +436,7 @@ function choiceValue(
   return value;
 }
 
-function boolValue(
-  value: unknown,
-  label: string,
-  on = '1',
-  off = '0',
-): string {
+function boolValue(value: unknown, label: string, on = '1', off = '0'): string {
   if (typeof value !== 'boolean') {
     throw new FunctionError(`${label} must be on or off.`);
   }

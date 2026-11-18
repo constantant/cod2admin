@@ -23,6 +23,7 @@ import type {
   CustomFunctionDto,
   CvarsResponse,
   FunctionsResponse,
+  FunctionValuesResponse,
   PreviewFunctionRequest,
   PreviewFunctionResponse,
   RunFunctionRequest,
@@ -194,6 +195,12 @@ export class ApiService {
   serverFunctions(alias: string) {
     return this.call<FunctionsResponse>(
       this.http.get(`${server(alias)}/functions`),
+    );
+  }
+
+  functionValues(alias: string) {
+    return this.call<FunctionValuesResponse>(
+      this.http.get(`${server(alias)}/functions/values`),
     );
   }
 

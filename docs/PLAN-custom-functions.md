@@ -1,6 +1,6 @@
 # Custom functions — plan
 
-Companion to `docs/PLAN-miniapp.md`. Status: **F1 (backend) and F2 (editor and Action buttons) implemented 2026-11-18; F3–F4 not started.** See §10–§11.
+Companion to `docs/PLAN-miniapp.md`. Status: **F1–F3 implemented 2026-11-18 (backend, editor and buttons, player actions and settings); F4 not started.** See §10–§12.
 Russian summary: `docs/PLAN-custom-functions-ru.md` (keep in sync).
 
 ## 1. Goal
@@ -169,10 +169,27 @@ Mod adds `scr_give <slot> <weapon>`. The owner creates a Player action:
   `functions.run`. A tap with parameters opens a form (player and map pickers use live
   status and the installed-maps list), a dangerous function asks for confirmation first, and the
   steps' output is shown under the buttons.
-- **Scope:** the editor only creates and edits `action` functions. Player actions and settings that
-  already exist (made through the API) are listed but not editable, and they have no button until F3.
+- **Scope:** F2 created and edited only `action` functions; F3 added the other two kinds (§12).
 - Choice options are typed one per line as `value label`.
 - A player parameter can't be previewed in the editor (it needs a live player); try it on the dashboard.
 - Russian texts added to `i18n-ru.ts` (the template-text spec enforces them).
 - **Not verified in a real browser:** build, typecheck and unit tests pass, but the pages have not been
   looked at yet.
+
+## 12. F3 as built (2026-11-18)
+
+- **Player actions:** the player sheet (tap a player) shows a button per `player_action` the caller may
+  run on this server. The slot and name are sent as `player`; the gateway checks the slot still holds
+  that name. Questions other than `player` are asked in a form first.
+- **Settings:** a "Custom settings" card on the dashboard. A toggle or choice applies at once; a
+  number or text has a **Set** button. The control shows the server's current value.
+- **Reading a value:** new `GET /servers/:server/functions/values` (needs `functions.run`) asks the
+  server for each visible setting's cvar by name (`parseCvarReply` reads `"x" is:"v^7" default:…`).
+  The public `getstatus` isn't used: it lists only serverinfo cvars, and a mod's often aren't. A cvar
+  the server doesn't answer for shows as "didn't say" instead of a wrong value.
+- **Editor:** now offers all three kinds. A setting is a cvar plus how it's shown (on/off with the
+  values it writes, number with a range, choice, text). "Try it" previews a setting's value too;
+  anything needing a player is previewed on the dashboard or sheet after saving.
+- Both the dashboard card and the player sheet use one `FunctionRunner` service (asks, confirms a
+  dangerous function, sends, reports), so the two behave alike.
+- **Still not verified in a real browser** (see §11); build, typecheck and the unit tests pass.

@@ -4,6 +4,7 @@ import {
   FunctionError,
   MAX_FUNCTIONS,
   needsContext,
+  parseCvarReply,
   parseFunctionInput,
   resolveSetting,
   resolveSteps,
@@ -14,6 +15,7 @@ import { ApiProblem } from './api-problem.js';
 import type {
   CustomFunctionDto,
   FunctionsResponse,
+  FunctionValuesResponse,
   PreviewFunctionRequest,
   PreviewFunctionResponse,
   RunFunctionRequest,
@@ -262,6 +264,37 @@ export function registerFunctionRoutes(
           )
           .map(toFunctionDto),
       };
+    },
+  );
+
+  /**
+   * What the settings on this server are set to now, so the controls can show it. Asks the server
+   * for each cvar by name (the public `getstatus` only lists a few), one at a time.
+   */
+  app.get(
+    '/servers/:server/functions/values',
+    { config: { permission: 'functions.run' } },
+    async (
+      request: FastifyRequest<{ Params: { server: string } }>,
+    ): Promise<FunctionValuesResponse> => {
+      const alias = request.params.server;
+      const rcon = serverParam(state, alias);
+      const values: Record<string, string | null> = {};
+      for (const fn of await deps.adminStore.listCustomFunctions()) {
+        if (
+          fn.kind !== 'setting' ||
+          !('cvar' in fn.definition) ||
+          !fn.enabled ||
+          (fn.serverAlias !== null && fn.serverAlias !== alias) ||
+          (fn.requires !== null &&
+            !hasPermission(request.actor, fn.requires as Permission))
+        ) {
+          continue;
+        }
+        const { cvar } = fn.definition;
+        values[String(fn.id)] = parseCvarReply(await rcon.rcon(cvar), cvar);
+      }
+      return { values };
     },
   );
 

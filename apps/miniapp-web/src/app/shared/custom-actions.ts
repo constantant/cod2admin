@@ -6,38 +6,50 @@ import {
   signal,
   untracked,
 } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import type {
   CustomFunctionDto,
-  FunctionParam,
   RunFunctionResponse,
+  SettingControl,
 } from '@cod2admin/miniapp-api';
 import { ApiService } from '../core/api';
 import { SessionService } from '../core/session';
-import { Forms, type FormField, type FormValues } from './form-dialog';
+import { FunctionRunner } from './function-runner';
 import { Icon } from './icon';
 import { T } from './i18n';
-import { Notify } from './notify';
 
-type ActionFunction = CustomFunctionDto & {
-  definition: { params: FunctionParam[]; steps: string[] };
+type Setting = CustomFunctionDto & {
+  definition: { cvar: string; control: SettingControl };
 };
 
-const isAction = (fn: CustomFunctionDto): fn is ActionFunction =>
+const isAction = (fn: CustomFunctionDto) =>
   fn.kind === 'action' && 'params' in fn.definition;
-
-/** Colour codes (`^1`) are for the game; the picker shows plain names. */
-const plain = (name: string) => name.replace(/\^[0-9]/g, '');
+const isSetting = (fn: CustomFunctionDto): fn is Setting =>
+  fn.kind === 'setting' && 'cvar' in fn.definition;
 
 /**
- * The buttons for the owner's custom functions (docs/PLAN-custom-functions.md) — what this person
- * may run on the chosen server. Nothing is built here: a tap sends the function and its values, and
- * the bot builds the commands.
+ * The owner's custom functions (docs/PLAN-custom-functions.md) on the dashboard: buttons for the
+ * actions, and a control for each setting that shows what the server has now. Nothing is built
+ * here: a tap sends the function and its values, and the bot builds the commands.
  */
 @Component({
   selector: 'c2a-custom-actions',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [T, MatButtonModule, Icon],
+  imports: [
+    T,
+    FormsModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule,
+    MatSlideToggleModule,
+    Icon,
+  ],
   template: `
     @if (actions().length > 0) {
       <section class="card">
@@ -69,6 +81,83 @@ const plain = (name: string) => name.replace(/\^[0-9]/g, '');
         }
       </section>
     }
+    @if (settings().length > 0) {
+      <section class="card">
+        <h2>{{ 'Custom settings' | t }}</h2>
+        @for (fn of settings(); track fn.id) {
+          <div class="setting">
+            <div class="label">
+              <div>{{ fn.title }}</div>
+              @if (fn.description) {
+                <div class="muted small">{{ fn.description }}</div>
+              }
+              @if (values()[fn.id] === null) {
+                <div class="muted small">
+                  {{ "The server didn't say what it is set to." | t }}
+                </div>
+              }
+            </div>
+            @switch (fn.definition.control.type) {
+              @case ('toggle') {
+                <mat-slide-toggle
+                  [checked]="drafts()[fn.id] === 'on'"
+                  [disabled]="running()"
+                  (change)="apply(fn, $event.checked)"
+                />
+              }
+              @case ('select') {
+                <mat-form-field
+                  subscriptSizing="dynamic"
+                  appearance="outline"
+                  class="control"
+                >
+                  <mat-select
+                    [value]="drafts()[fn.id]"
+                    [disabled]="running()"
+                    (valueChange)="apply(fn, $event)"
+                  >
+                    @for (option of options(fn); track option.value) {
+                      <mat-option [value]="option.value">{{
+                        option.label
+                      }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+              }
+              @default {
+                <mat-form-field
+                  subscriptSizing="dynamic"
+                  appearance="outline"
+                  class="control"
+                >
+                  <input
+                    matInput
+                    [name]="'setting' + fn.id"
+                    [type]="
+                      fn.definition.control.type === 'number'
+                        ? 'number'
+                        : 'text'
+                    "
+                    autocomplete="off"
+                    [ngModel]="drafts()[fn.id] ?? ''"
+                    (ngModelChange)="draft(fn, $event)"
+                    (keyup.enter)="apply(fn, drafts()[fn.id])"
+                  />
+                </mat-form-field>
+                <button
+                  mat-button
+                  type="button"
+                  [disabled]="running() || !changed(fn)"
+                  (click)="apply(fn, drafts()[fn.id])"
+                >
+                  {{ 'Set' | t }}
+                </button>
+              }
+            }
+          </div>
+        }
+      </section>
+    }
   `,
   styles: `
     h2 {
@@ -84,6 +173,9 @@ const plain = (name: string) => name.replace(/\^[0-9]/g, '');
       font: var(--mat-sys-body-small);
       margin: 12px 0 4px;
     }
+    .setting .small {
+      margin: 0;
+    }
     .step {
       margin-bottom: 4px;
     }
@@ -98,15 +190,33 @@ const plain = (name: string) => name.replace(/\^[0-9]/g, '');
       max-height: 30vh;
       overflow: auto;
     }
+    .setting {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 0;
+    }
+    .label {
+      flex: 1;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .control {
+      width: 150px;
+    }
   `,
 })
 export class CustomActions {
   private readonly api = inject(ApiService);
   private readonly session = inject(SessionService);
-  private readonly forms = inject(Forms);
-  private readonly notify = inject(Notify);
+  private readonly runner = inject(FunctionRunner);
 
-  protected readonly actions = signal<ActionFunction[]>([]);
+  protected readonly actions = signal<CustomFunctionDto[]>([]);
+  protected readonly settings = signal<Setting[]>([]);
+  /** What the server has now, by function id; `null` when it didn't say. */
+  protected readonly values = signal<Record<string, string | null>>({});
+  /** What each control shows: a toggle as `on`/`off`, the rest as the value itself. */
+  protected readonly drafts = signal<Record<string, string>>({});
   protected readonly running = signal(false);
   protected readonly result = signal<{
     title: string;
@@ -121,160 +231,97 @@ export class CustomActions {
     });
   }
 
-  private async load(alias: string, allowed: boolean): Promise<void> {
-    this.result.set(null);
-    if (!alias || !allowed) {
-      this.actions.set([]);
-      return;
-    }
-    try {
-      const { functions } = await this.api.serverFunctions(alias);
-      // Ignore a late answer for a server the person has since left.
-      if (alias === this.session.server()) {
-        this.actions.set(functions.filter(isAction));
-      }
-    } catch {
-      // The card is optional: a failure here shouldn't get in the way of the page.
-      this.actions.set([]);
-    }
+  protected options(fn: Setting) {
+    const { control } = fn.definition;
+    return control.type === 'select' ? control.options : [];
   }
 
-  protected async run(fn: ActionFunction): Promise<void> {
-    const alias = this.session.server();
+  protected changed(fn: Setting): boolean {
+    return (this.drafts()[fn.id] ?? '') !== (this.values()[fn.id] ?? '');
+  }
+
+  protected draft(fn: Setting, value: string): void {
+    this.drafts.update((drafts) => ({ ...drafts, [fn.id]: String(value) }));
+  }
+
+  protected async run(fn: CustomFunctionDto): Promise<void> {
     this.running.set(true);
     try {
-      const values = await this.ask(alias, fn);
-      if (values === null) {
-        return;
+      const response = await this.runner.run(this.session.server(), fn);
+      if (response) {
+        this.result.set({ title: fn.title, steps: response.steps });
       }
-      if (
-        fn.dangerous &&
-        !(await this.notify.confirm({
-          title: fn.title,
-          message: fn.description || 'Run this on the server now?',
-          confirm: 'Run',
-          danger: true,
-        }))
-      ) {
-        return;
-      }
-      const response = await this.api.runFunction(alias, fn.id, {
-        values,
-        ...(fn.dangerous ? { confirm: true } : {}),
-      });
-      this.result.set({ title: fn.title, steps: response.steps });
-      this.notify.success(response.message);
-    } catch (error) {
-      this.notify.error(error);
     } finally {
       this.running.set(false);
     }
   }
 
-  /** The values to send, `{}` when there is nothing to ask, `null` when cancelled. */
-  private async ask(
-    alias: string,
-    fn: ActionFunction,
-  ): Promise<Record<string, unknown> | null> {
-    const { params } = fn.definition;
-    if (params.length === 0) {
-      return {};
-    }
-    const needsPlayers = params.some((param) => param.type === 'player');
-    const needsMaps = params.some((param) => param.type === 'map');
-    const [status, maps] = await Promise.all([
-      needsPlayers ? this.api.status(alias) : null,
-      needsMaps ? this.api.maps(alias) : null,
-    ]);
-    const players = status?.players ?? [];
-    const fields: FormField[] = params.map((param) => {
-      const base = { key: param.name, label: param.label };
-      switch (param.type) {
-        case 'text':
-          return { ...base, required: true };
-        case 'number':
-          return {
-            ...base,
-            type: 'number' as const,
-            required: true,
-            hint: rangeHint(param.min, param.max),
-          };
-        case 'choice':
-          return {
-            ...base,
-            type: 'select' as const,
-            required: true,
-            options: param.options,
-          };
-        case 'bool':
-          return { ...base, type: 'checkbox' as const };
-        case 'player':
-          return {
-            ...base,
-            type: 'select' as const,
-            required: true,
-            options: players.map((player) => ({
-              value: String(player.num),
-              label: `${plain(player.name)} (${player.num})`,
-            })),
-          };
-        case 'map':
-          return {
-            ...base,
-            type: 'select' as const,
-            required: true,
-            options: (maps?.maps ?? []).map((map) => ({
-              value: map.name,
-              label: map.name,
-            })),
-          };
+  /** A toggle sends a boolean, a number its number, everything else the text. */
+  protected async apply(fn: Setting, value: string | boolean): Promise<void> {
+    const { control } = fn.definition;
+    const send = control.type === 'number' ? Number(value) : value;
+    this.running.set(true);
+    try {
+      const response = await this.runner.set(this.session.server(), fn, send);
+      if (response) {
+        const shown =
+          control.type === 'toggle' ? (value ? 'on' : 'off') : String(value);
+        // Remember what was set: the server's own spelling of it can differ (`1.0` for `1`).
+        this.values.update((values) => ({ ...values, [fn.id]: shown }));
+        this.draft(fn, shown);
+      } else {
+        this.reset(fn);
       }
-    });
-    const answers = await this.forms.open({
-      title: fn.title,
-      message: fn.description ?? undefined,
-      confirm: 'Run',
-      fields,
-    });
-    return answers && toValues(params, answers, players);
-  }
-}
-
-function rangeHint(min?: number, max?: number): string | undefined {
-  if (min !== undefined && max !== undefined) {
-    return `${min}–${max}`;
-  }
-  if (min !== undefined) {
-    return `≥ ${min}`;
-  }
-  return max !== undefined ? `≤ ${max}` : undefined;
-}
-
-/** The dialog's strings and checkboxes, as the types the bot expects. */
-function toValues(
-  params: readonly FunctionParam[],
-  answers: FormValues,
-  players: readonly { num: number; name: string }[],
-): Record<string, unknown> {
-  const values: Record<string, unknown> = {};
-  for (const param of params) {
-    const answer = answers[param.name];
-    switch (param.type) {
-      case 'number':
-        values[param.name] = Number(answer);
-        break;
-      case 'bool':
-        values[param.name] = answer === true;
-        break;
-      case 'player': {
-        // The bot checks the slot still holds this name before it acts.
-        const player = players.find((one) => String(one.num) === answer);
-        values[param.name] = player && { num: player.num, name: player.name };
-        break;
-      }
-      default:
-        values[param.name] = answer;
+    } finally {
+      this.running.set(false);
     }
   }
-  return values;
+
+  private reset(fn: Setting): void {
+    this.draft(fn, this.shownValue(fn, this.values()[fn.id] ?? null));
+  }
+
+  /** The server's value as the control shows it: a toggle compares it with its on-value. */
+  private shownValue(fn: Setting, value: string | null): string {
+    const { control } = fn.definition;
+    if (control.type === 'toggle') {
+      return value === (control.onValue ?? '1') ? 'on' : 'off';
+    }
+    return value ?? '';
+  }
+
+  private async load(alias: string, allowed: boolean): Promise<void> {
+    this.result.set(null);
+    if (!alias || !allowed) {
+      this.actions.set([]);
+      this.settings.set([]);
+      return;
+    }
+    try {
+      const { functions } = await this.api.serverFunctions(alias);
+      // Ignore a late answer for a server the person has since left.
+      if (alias !== this.session.server()) {
+        return;
+      }
+      this.actions.set(functions.filter(isAction));
+      const settings = functions.filter(isSetting);
+      this.settings.set(settings);
+      if (settings.length > 0) {
+        const { values } = await this.api.functionValues(alias);
+        if (alias === this.session.server()) {
+          this.values.set(values);
+          this.drafts.set(
+            Object.fromEntries(
+              settings.map((fn) => [
+                fn.id,
+                this.shownValue(fn, values[fn.id] ?? null),
+              ]),
+            ),
+          );
+        }
+      }
+    } catch {
+      // The cards are optional: a failure here shouldn't get in the way of the page.
+    }
+  }
 }

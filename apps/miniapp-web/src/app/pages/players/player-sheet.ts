@@ -17,6 +17,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import type {
+  CustomFunctionDto,
   ModerationKind,
   NoteKind,
   PlayerDto,
@@ -25,6 +26,7 @@ import type {
 import { ApiService } from '../../core/api';
 import { PresetsService } from '../../core/presets';
 import { SessionService } from '../../core/session';
+import { FunctionRunner } from '../../shared/function-runner';
 import { flagEmoji, formatAgo, formatMinutes } from '../../shared/format';
 import { GameName, plainName } from '../../shared/game-name';
 import { Icon } from '../../shared/icon';
@@ -66,6 +68,7 @@ export class PlayerSheet {
   private readonly ref = inject(MatBottomSheetRef<PlayerSheet>);
   private readonly api = inject(ApiService);
   private readonly notify = inject(Notify);
+  private readonly runner = inject(FunctionRunner);
   private readonly presetsService = inject(PresetsService);
   protected readonly session = inject(SessionService);
 
@@ -84,14 +87,45 @@ export class PlayerSheet {
   protected readonly message = signal('');
   protected readonly knownValue = signal('');
   protected readonly duration = signal(30);
+  /** The owner's custom functions that act on a player (docs/PLAN-custom-functions.md). */
+  protected readonly playerActions = signal<CustomFunctionDto[]>([]);
 
   constructor() {
+    if (this.session.can('functions.run')) {
+      void this.loadPlayerActions();
+    }
     void this.presetsService.load().then(() => {
       const [first] = this.presets().durations;
       if (first) {
         this.duration.set(first);
       }
     });
+  }
+
+  private async loadPlayerActions(): Promise<void> {
+    try {
+      const { functions } = await this.api.serverFunctions(this.data.server);
+      this.playerActions.set(
+        functions.filter((fn) => fn.kind === 'player_action'),
+      );
+    } catch {
+      // Optional: the rest of the sheet works without them.
+    }
+  }
+
+  protected async runCustom(fn: CustomFunctionDto): Promise<void> {
+    this.busy.set(true);
+    try {
+      // The bot checks the slot still holds this name before it acts.
+      const response = await this.runner.run(this.data.server, fn, {
+        player: { num: this.player.num, name: this.player.name },
+      });
+      if (response) {
+        this.ref.dismiss();
+      }
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   /**

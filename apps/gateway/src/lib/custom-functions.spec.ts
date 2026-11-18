@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   FunctionError,
   needsContext,
+  parseCvarReply,
   parseDefinition,
   parseFunctionInput,
   resolveSetting,
@@ -35,7 +36,10 @@ describe('parseFunctionInput', () => {
   });
 
   it.each([
-    ['a bad slug', { ...action({ params: [], steps: ['x'] }), slug: 'No Good' }],
+    [
+      'a bad slug',
+      { ...action({ params: [], steps: ['x'] }), slug: 'No Good' },
+    ],
     ['an unknown kind', action({ params: [], steps: ['x'] }, 'macro')],
     [
       'requiring functions.manage',
@@ -182,9 +186,9 @@ describe('resolveSteps', () => {
     ['a player that is just a number', { who: 3 }],
     ['an uninstalled map', { m: 'mp_other' }],
   ])('refuses %s', (_name, override) => {
-    expect(() =>
-      resolveSteps(fn, { ...values, ...override }, context),
-    ).toThrow(FunctionError);
+    expect(() => resolveSteps(fn, { ...values, ...override }, context)).toThrow(
+      FunctionError,
+    );
   });
 
   it('refuses a stored definition that no longer validates', () => {
@@ -256,5 +260,21 @@ describe('resolveSetting', () => {
       ),
     ).toThrow(FunctionError);
     expect(resolveSetting(make({ type: 'text' }), 'a"b;c').value).toBe('abc');
+  });
+});
+
+describe('parseCvarReply', () => {
+  it('reads the value and drops the colour reset', () => {
+    expect(
+      parseCvarReply('"g_gravity" is:"800^7" default:"800^7"\n', 'g_gravity'),
+    ).toBe('800');
+    expect(parseCvarReply('"x" is:"a b^7", the default', 'X')).toBe('a b');
+    expect(parseCvarReply('"x" is:""', 'x')).toBe('');
+  });
+
+  it('says nothing for a reply that is not about that cvar', () => {
+    expect(parseCvarReply('', 'x')).toBeNull();
+    expect(parseCvarReply('Cvar x is not set', 'x')).toBeNull();
+    expect(parseCvarReply('"y" is:"1^7"', 'x')).toBeNull();
   });
 });
