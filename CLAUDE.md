@@ -87,6 +87,10 @@ step are implemented (M5: 2026-11-03, see its §0, including what hasn't been tr
 `docs/PLAN-miniapp-ru.md` is its condensed Russian summary for the server owner, kept in sync the
 same way as the `PLAN.md`/`PLAN-ru.md` pair — update it whenever `docs/PLAN-miniapp.md` changes.
 
+`docs/PLAN-custom-functions.md` plans owner-defined custom functions (RCON command templates and
+cvar settings for mods) in the Mini App; designed 2026-11-18, not implemented. Its Russian summary
+`docs/PLAN-custom-functions-ru.md` is kept in sync the same way.
+
 `docs/PLAN-russia-access.md` covers game hosts in Russia, where Telegram has been blocked since
 March 2026 (`api.telegram.org` unreachable from most Russian hosting). Part A is implemented
 (2026-10-04, see its §0):

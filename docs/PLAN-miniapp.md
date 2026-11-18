@@ -1,7 +1,10 @@
 # CoD2 Admin — Telegram Mini App Server Manager
 
 Status: Phases M1–M5 and the installer HTTPS step implemented (M5: 2026-11-03, see §0) ·
-Owner: kk · Last updated: 2026-11-07
+Owner: kk · Last updated: 2026-11-18
+
+See also `docs/PLAN-custom-functions.md` — owner-defined custom commands and settings for mods
+(planned, not implemented).
 
 ## 0. Implementation status (2026-10-07)
 
