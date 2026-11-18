@@ -85,6 +85,12 @@ export const appRoutes: Route[] = [
       import('./pages/templates/templates').then((m) => m.TemplatesPage),
   },
   {
+    path: 'functions',
+    canMatch: [allow('functions.manage')],
+    loadComponent: () =>
+      import('./pages/functions/functions').then((m) => m.FunctionsPage),
+  },
+  {
     path: 'relays',
     canMatch: [allow('relays')],
     loadComponent: () =>

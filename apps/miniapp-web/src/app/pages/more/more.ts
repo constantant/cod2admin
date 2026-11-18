@@ -109,6 +109,13 @@ const LINKS: readonly Link[] = [
     permission: 'rcon',
   },
   {
+    path: '/functions',
+    label: 'Custom functions',
+    hint: "Buttons for what your server's mod adds",
+    icon: 'bolt',
+    permission: 'functions.manage',
+  },
+  {
     path: '/templates',
     label: 'Game chat lines',
     hint: 'What the bot says to players',

@@ -1,6 +1,6 @@
 # Custom functions — plan
 
-Companion to `docs/PLAN-miniapp.md`. Status: **F1 (backend) implemented 2026-11-18; F2–F4 not started.** See §10 for what F1 settled.
+Companion to `docs/PLAN-miniapp.md`. Status: **F1 (backend) and F2 (editor and Action buttons) implemented 2026-11-18; F3–F4 not started.** See §10–§11.
 Russian summary: `docs/PLAN-custom-functions-ru.md` (keep in sync).
 
 ## 1. Goal
@@ -157,3 +157,22 @@ Mod adds `scr_give <slot> <weapon>`. The owner creates a Player action:
 - **Not exposed to AI connections (MCP):** the new permissions are not in `MCP_PERMISSIONS`.
 - Settings are written through `setCvar`; reading a setting's current value is F3.
 - Not done in F1: the Mini App UI (F2/F3) and import/export (F4).
+
+## 11. F2 as built (2026-11-18)
+
+- **Editor:** `apps/miniapp-web/src/app/pages/functions/functions.ts`, route `/functions` (needs
+  `functions.manage`), linked from *More → Custom functions*. A list, and a form for title, id (set
+  from the title, fixed after creation), description, server scope, who may run it, dangerous and
+  enabled flags, parameters, and 1–5 steps. "Try it" calls `POST /functions/preview` and shows the
+  commands without sending anything.
+- **Buttons:** `shared/custom-actions.ts`, a "Custom" card on the dashboard for anyone with
+  `functions.run`. A tap with parameters opens a form (player and map pickers use live
+  status and the installed-maps list), a dangerous function asks for confirmation first, and the
+  steps' output is shown under the buttons.
+- **Scope:** the editor only creates and edits `action` functions. Player actions and settings that
+  already exist (made through the API) are listed but not editable, and they have no button until F3.
+- Choice options are typed one per line as `value label`.
+- A player parameter can't be previewed in the editor (it needs a live player); try it on the dashboard.
+- Russian texts added to `i18n-ru.ts` (the template-text spec enforces them).
+- **Not verified in a real browser:** build, typecheck and unit tests pass, but the pages have not been
+  looked at yet.

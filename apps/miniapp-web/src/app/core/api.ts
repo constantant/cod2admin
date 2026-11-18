@@ -20,7 +20,14 @@ import type {
   ChatTemplatesResponse,
   ChatTemplatesUpdate,
   ConsoleResponse,
+  CustomFunctionDto,
   CvarsResponse,
+  FunctionsResponse,
+  PreviewFunctionRequest,
+  PreviewFunctionResponse,
+  RunFunctionRequest,
+  RunFunctionResponse,
+  SaveFunctionRequest,
   DashboardResponse,
   LevelCommand,
   LogRequest,
@@ -157,6 +164,42 @@ export class ApiService {
   console(alias: string, command: string) {
     return this.call<ConsoleResponse>(
       this.http.post(`${server(alias)}/console`, { command }),
+    );
+  }
+
+  functions() {
+    return this.call<FunctionsResponse>(this.http.get('/api/functions'));
+  }
+
+  createFunction(body: SaveFunctionRequest) {
+    return this.call<CustomFunctionDto>(this.http.post('/api/functions', body));
+  }
+
+  updateFunction(id: number, body: SaveFunctionRequest) {
+    return this.call<CustomFunctionDto>(
+      this.http.put(`/api/functions/${id}`, body),
+    );
+  }
+
+  deleteFunction(id: number) {
+    return this.call<ActionResponse>(this.http.delete(`/api/functions/${id}`));
+  }
+
+  previewFunction(body: PreviewFunctionRequest) {
+    return this.call<PreviewFunctionResponse>(
+      this.http.post('/api/functions/preview', body),
+    );
+  }
+
+  serverFunctions(alias: string) {
+    return this.call<FunctionsResponse>(
+      this.http.get(`${server(alias)}/functions`),
+    );
+  }
+
+  runFunction(alias: string, id: number, body: RunFunctionRequest) {
+    return this.call<RunFunctionResponse>(
+      this.http.post(`${server(alias)}/functions/${id}/run`, body),
     );
   }
 

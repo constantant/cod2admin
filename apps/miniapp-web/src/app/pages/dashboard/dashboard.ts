@@ -16,6 +16,7 @@ import { ApiService } from '../../core/api';
 import { LiveService } from '../../core/live';
 import { SessionService } from '../../core/session';
 import { GameName } from '../../shared/game-name';
+import { CustomActions } from '../../shared/custom-actions';
 import { Icon } from '../../shared/icon';
 import { LineChart } from '../../shared/line-chart';
 import { Notify } from '../../shared/notify';
@@ -34,6 +35,7 @@ import { dateLocale, t, T } from '../../shared/i18n';
     MatButtonModule,
     MatButtonToggleModule,
     MatProgressBarModule,
+    CustomActions,
     GameName,
     Icon,
     LineChart,
@@ -186,6 +188,8 @@ import { dateLocale, t, T } from '../../shared/i18n';
             </section>
           }
         }
+
+        <c2a-custom-actions />
 
         @if (session.can('cvars.read')) {
           <a mat-button routerLink="/settings">
