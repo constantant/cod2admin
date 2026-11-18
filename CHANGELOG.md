@@ -1,3 +1,21 @@
+## [1.25.0](https://github.com/constantant/cod2admin/releases/tag/v1.25.0) (2026-11-18)
+
+### 🚀 Features
+
+- add backend for owner-defined custom functions (F1) ([261fa0c](https://github.com/constantant/cod2admin/commit/261fa0c))
+- add the custom functions editor and dashboard buttons to the Mini App (F2) ([04658c9](https://github.com/constantant/cod2admin/commit/04658c9))
+- add player actions and cvar settings to custom functions (F3) ([beac2fb](https://github.com/constantant/cod2admin/commit/beac2fb))
+- add import and export of custom function packs (F4) ([8a74785](https://github.com/constantant/cod2admin/commit/8a74785))
+
+### 🩹 Fixes
+
+- type the gateway spec fakes so typecheck passes ([45d50e8](https://github.com/constantant/cod2admin/commit/45d50e8))
+
+### ❤️ Thank You
+
+- Claude Sonnet 5.5
+- kk
+
 ## [1.24.0](https://github.com/constantant/cod2admin/releases/tag/v1.24.0) (2026-11-12)
 
 ### 🚀 Features
