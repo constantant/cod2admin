@@ -104,6 +104,11 @@ export class MiniAppState {
     }
   >();
   private readonly mapStarts = new MapStartTracker();
+  /** Per server, what each slot looked like on the last poll — to notice a name that changes alone. */
+  private readonly lastSeen = new Map<
+    string,
+    Map<number, { name: string; ip: string | undefined }>
+  >();
   private readonly snapshotStarts = new Map<
     string,
     { map: string; startedAt: number | undefined; at: number }
@@ -307,6 +312,40 @@ export class MiniAppState {
     return startedAt;
   }
 
+  /**
+   * Logs the raw `status` row of a slot whose name changed while its IP stayed the same. That's
+   * a rename — or a damaged reply (a table split over several UDP packets, a neighbour's odd
+   * name), which only the raw row can tell apart. The address is left out of the log.
+   */
+  private noteNameChanges(
+    alias: string,
+    status: { raw: string; players: readonly StatusPlayer[] },
+  ): void {
+    const before = this.lastSeen.get(alias);
+    const now = new Map<number, { name: string; ip: string | undefined }>();
+    for (const player of status.players) {
+      const ip = player.ip;
+      const old = before?.get(player.num);
+      if (
+        old &&
+        old.name !== player.name &&
+        old.ip !== undefined &&
+        old.ip === ip
+      ) {
+        const row =
+          status.raw
+            .split(/\r?\n/)
+            .find((line) => new RegExp(`^\\s*${player.num}\\s`).test(line))
+            ?.replace(/\d{1,3}(?:\.\d{1,3}){3}:-?\d+/, '<address>') ?? '';
+        console.warn(
+          `Mini App: slot ${player.num} on "${alias}" changed name "${old.name}" -> "${player.name}" with the same IP; raw row: ${JSON.stringify(row)}`,
+        );
+      }
+      now.set(player.num, { name: player.name, ip });
+    }
+    this.lastSeen.set(alias, now);
+  }
+
   async fetchStatus(alias: string): Promise<StatusResponse> {
     const rcon = this.rcon(alias);
     if (!rcon) {
@@ -314,6 +353,7 @@ export class MiniAppState {
     }
     const status = await rcon.status();
     const mapName = status.mapName ?? null;
+    this.noteNameChanges(alias, status);
     const { gametype, timeLimit } = await this.modeInfo(alias, rcon, mapName);
     return {
       server: alias,
