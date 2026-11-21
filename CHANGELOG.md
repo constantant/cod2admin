@@ -1,3 +1,7 @@
+## [1.26.3](https://github.com/constantant/cod2admin/releases/tag/v1.26.3) (2026-11-21)
+
+This was a version bump only, there were no code changes.
+
 ## [1.26.2](https://github.com/constantant/cod2admin/releases/tag/v1.26.2) (2026-11-21)
 
 ### 🩹 Fixes
