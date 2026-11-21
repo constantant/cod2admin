@@ -5,7 +5,8 @@ import {
   type RconClient,
   type StatusPlayer,
 } from '@cod2admin/rcon-client';
-import { MapStartTracker, timeLimitMinutes } from './map-clock.js';
+import { parseCvarReply } from '../lib/custom-functions.js';
+import { MapStartTracker, parseTimeLimit, timeLimitCvar } from './map-clock.js';
 import type { GatewayDeps } from '../lib/deps.js';
 import type { PlayerDto, StatusResponse } from './api-types.js';
 import type { ChatFeed } from './chat-feed.js';
@@ -210,7 +211,7 @@ export class MiniAppState {
   }
 
   /** The mode and time limit now; read once per map like the mode (see `gametypes`). */
-  private async modeInfo(
+  async modeInfo(
     alias: string,
     rcon: RconClient,
     map: string | null,
@@ -226,7 +227,14 @@ export class MiniAppState {
     try {
       const cvars = (await rcon.getStatus()).cvars;
       const gametype = cvars['g_gametype'] ?? cvars['gametype'] ?? null;
-      const timeLimit = timeLimitMinutes(cvars, gametype);
+      // The limit isn't in the public status reply, so it's asked for over rcon.
+      const cvar = timeLimitCvar(gametype);
+      const timeLimit = cvar
+        ? await rcon
+            .rcon(cvar)
+            .then((reply) => parseTimeLimit(parseCvarReply(reply, cvar)))
+            .catch(() => undefined)
+        : undefined;
       this.gametypes.set(alias, { map, gametype, timeLimit, at: Date.now() });
       return { gametype, timeLimit };
     } catch {
@@ -253,16 +261,6 @@ export class MiniAppState {
           mapStartedAt: new Date(startedAt).toISOString(),
         }
       : {};
-  }
-
-  /** For the dashboard, which already holds the server's cvars. */
-  mapClockFromCvars(
-    alias: string,
-    map: string | null,
-    gametype: string | null,
-    cvars: Record<string, string>,
-  ) {
-    return this.mapClock(alias, map, timeLimitMinutes(cvars, gametype));
   }
 
   async fetchStatus(alias: string): Promise<StatusResponse> {

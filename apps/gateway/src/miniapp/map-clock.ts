@@ -1,23 +1,15 @@
 /** Modes whose `scr_<mode>_timelimit` is a plain per-map clock (S&D and friends run per-round clocks). */
 const TIMED_MODES = new Set(['ctf', 'ctfb', 'hq', 'tdm', 'dm']);
 
-/**
- * The map's time limit in minutes, or `undefined` when there is none (`0`), the cvar isn't there,
- * or the mode isn't one with a per-map clock.
- */
-export function timeLimitMinutes(
-  cvars: Record<string, string>,
-  gametype: string | null,
-): number | undefined {
+/** The cvar holding the mode's per-map time limit, or `undefined` for modes without one. */
+export function timeLimitCvar(gametype: string | null): string | undefined {
   const mode = gametype?.toLowerCase();
-  if (!mode || !TIMED_MODES.has(mode)) {
-    return undefined;
-  }
-  const key = `scr_${mode}_timelimit`;
-  const raw = Object.entries(cvars).find(
-    ([name]) => name.toLowerCase() === key,
-  )?.[1];
-  const minutes = Number.parseFloat(raw ?? '');
+  return mode && TIMED_MODES.has(mode) ? `scr_${mode}_timelimit` : undefined;
+}
+
+/** The limit in minutes from the cvar's value; `undefined` when unset or `0` (unlimited). */
+export function parseTimeLimit(value: string | null): number | undefined {
+  const minutes = Number.parseFloat(value ?? '');
   return Number.isFinite(minutes) && minutes > 0 ? minutes : undefined;
 }
 

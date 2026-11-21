@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 import type { GatewayDeps } from '../lib/deps.js';
 import { MiniAppState, noteNameKey } from './state.js';
 
-function setup(cvars: Record<string, string> = { g_gametype: 'ctf' }) {
+function setup(
+  cvars: Record<string, string> = { g_gametype: 'ctf' },
+  limits: Record<string, string> = {},
+) {
   let mapName = 'mp_toujane';
   const rcon = {
     status: vi.fn(async () => ({
@@ -16,6 +19,12 @@ function setup(cvars: Record<string, string> = { g_gametype: 'ctf' }) {
       }[],
     })),
     getStatus: vi.fn(async () => ({ cvars, players: [] })),
+    // Like the game: the time limit is only reachable by asking for the cvar by name.
+    rcon: vi.fn(async (name: string) =>
+      name in limits
+        ? `"${name}" is:"${limits[name]}^7" default:"0^7"`
+        : `"${name}" is:"" default:""`,
+    ),
   };
   const getServer = vi.fn(
     async (): Promise<
@@ -43,17 +52,18 @@ function setup(cvars: Record<string, string> = { g_gametype: 'ctf' }) {
 }
 
 describe('MiniAppState.fetchStatus map clock', () => {
-  const cvars = { g_gametype: 'ctf', scr_ctf_timelimit: '20' };
+  const cvars = { g_gametype: 'ctf' };
+  const limits = { scr_ctf_timelimit: '20' };
 
   it('gives no clock for the map running when the gateway started', async () => {
-    const { state } = setup(cvars);
+    const { state } = setup(cvars, limits);
     expect(await state.fetchStatus('main')).not.toHaveProperty(
       'timeLimitMinutes',
     );
   });
 
   it('gives the limit and start once it has seen the map change', async () => {
-    const { state, changeMap } = setup(cvars);
+    const { state, changeMap } = setup(cvars, limits);
     await state.fetchStatus('main');
     changeMap('mp_harbor');
     const status = await state.fetchStatus('main');
@@ -62,10 +72,10 @@ describe('MiniAppState.fetchStatus map clock', () => {
   });
 
   it('gives none for an unlimited map', async () => {
-    const { state, changeMap } = setup({
-      g_gametype: 'ctf',
-      scr_ctf_timelimit: '0',
-    });
+    const { state, changeMap } = setup(
+      { g_gametype: 'ctf' },
+      { scr_ctf_timelimit: '0' },
+    );
     await state.fetchStatus('main');
     changeMap('mp_harbor');
     expect(await state.fetchStatus('main')).not.toHaveProperty(

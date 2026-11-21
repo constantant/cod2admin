@@ -1,18 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { MapStartTracker, timeLimitMinutes } from './map-clock.js';
+import { MapStartTracker, parseTimeLimit, timeLimitCvar } from './map-clock.js';
 
-describe('timeLimitMinutes', () => {
-  it('reads the mode’s own limit', () => {
-    expect(timeLimitMinutes({ scr_ctf_timelimit: '20' }, 'ctf')).toBe(20);
-    expect(timeLimitMinutes({ scr_ctfb_timelimit: '15' }, 'ctfb')).toBe(15);
-    expect(timeLimitMinutes({ SCR_TDM_TIMELIMIT: '10' }, 'tdm')).toBe(10);
+describe('timeLimitCvar', () => {
+  it('names the mode’s own cvar, only for timed modes', () => {
+    expect(timeLimitCvar('ctf')).toBe('scr_ctf_timelimit');
+    expect(timeLimitCvar('CTFB')).toBe('scr_ctfb_timelimit');
+    expect(timeLimitCvar('sd')).toBeUndefined();
+    expect(timeLimitCvar(null)).toBeUndefined();
   });
+});
 
-  it('is undefined when unlimited, missing, or the mode has no per-map clock', () => {
-    expect(timeLimitMinutes({ scr_ctf_timelimit: '0' }, 'ctf')).toBeUndefined();
-    expect(timeLimitMinutes({}, 'ctf')).toBeUndefined();
-    expect(timeLimitMinutes({ scr_sd_timelimit: '5' }, 'sd')).toBeUndefined();
-    expect(timeLimitMinutes({ scr_ctf_timelimit: '20' }, null)).toBeUndefined();
+describe('parseTimeLimit', () => {
+  it('is undefined when unlimited or unset', () => {
+    expect(parseTimeLimit('20')).toBe(20);
+    expect(parseTimeLimit('0')).toBeUndefined();
+    expect(parseTimeLimit(null)).toBeUndefined();
   });
 });
 
