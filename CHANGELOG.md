@@ -1,3 +1,14 @@
+## [1.26.1](https://github.com/constantant/cod2admin/releases/tag/v1.26.1) (2026-11-21)
+
+### 🩹 Fixes
+
+- stop a ';' in a player name from faking chat names and !report triggers ([74675cb](https://github.com/constantant/cod2admin/commit/74675cb))
+
+### ❤️ Thank You
+
+- Claude Sonnet 5.5
+- kk
+
 ## [1.26.0](https://github.com/constantant/cod2admin/releases/tag/v1.26.0) (2026-11-21)
 
 ### 🚀 Features
