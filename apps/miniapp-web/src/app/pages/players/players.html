@@ -72,6 +72,27 @@
     <li>
       <button class="player" (click)="openPlayer(player)">
         <span class="num">{{ player.num }}</span>
+        <span class="known-slot">
+          @switch (player.known) { @case ('known') {
+          <c2a-icon
+            name="shield"
+            class="mark known"
+            [attr.aria-label]="'Known player' | t"
+          />
+          } @case ('suspect') {
+          <c2a-icon
+            name="warning"
+            class="mark warn"
+            [attr.aria-label]="'Known name, other GUID' | t"
+          />
+          } @case ('impostor') {
+          <c2a-icon
+            name="warning"
+            class="mark warn"
+            [attr.aria-label]="'Known name, other network' | t"
+          />
+          } }
+        </span>
         <span class="who">
           <span class="name-line">
             @if (player.bot) {

@@ -121,3 +121,19 @@
     color: var(--mat-sys-tertiary);
   }
 }
+
+/* Always reserved, so names line up whether or not the player is known. */
+.known-slot {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: flex;
+}
+
+.mark.known {
+  color: var(--mat-sys-primary);
+}
+
+.mark.warn {
+  color: var(--mat-sys-error);
+}
