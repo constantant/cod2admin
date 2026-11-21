@@ -7,7 +7,7 @@ function setup(
   limits: Record<string, string> = {},
 ) {
   let mapName = 'mp_toujane';
-  let rows: { num: number; name: string; ip: string }[] = [];
+  let rows: { num: number; name: string; ip?: string }[] = [];
   const rcon = {
     status: vi.fn(async () => ({
       hostname: 'h',
@@ -15,7 +15,7 @@ function setup(
       raw: rows
         .map(
           (row) =>
-            ` ${row.num}    19  110      0 ${row.name}^7       0 ${row.ip}:28960    1234 25000`,
+            ` ${row.num}    19  110      0 ${row.name}^7       0 ${row.ip ?? '0.0.0.0'}:28960    1234 25000`,
         )
         .join('\n'),
       players: rows.map((row) => ({
@@ -40,6 +40,9 @@ function setup(
   const teams = new Map<number, number>();
   const deps = {
     rconClients: new Map([['main', rcon]]),
+    geoip: { lookup: () => undefined },
+    provider: { lookup: () => undefined },
+    vpn: { lookup: () => undefined },
     adminStore: {
       searchPlayerNotes: vi.fn(async () => []),
       listServerSnapshots: vi.fn(async () => []),
@@ -176,6 +179,7 @@ describe('MiniAppState.fetchStatus game mode', () => {
     rcon.status.mockResolvedValue({
       hostname: 'h',
       mapName: 'mp_toujane',
+      raw: '',
       players: [
         { num: 1, name: '^1PoliceMan', score: 0, ping: 5 },
         { num: 2, name: 'Patient zero', score: 10, ping: 40 },
@@ -206,6 +210,7 @@ describe('MiniAppState.fetchStatus game mode', () => {
     rcon.status.mockResolvedValue({
       hostname: 'h',
       mapName: 'mp_toujane',
+      raw: '',
       players: [
         { num: 1, name: 'A', score: 1, ping: 1 },
         { num: 2, name: 'B', score: 1, ping: 1 },
