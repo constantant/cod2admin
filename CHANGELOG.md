@@ -1,3 +1,14 @@
+## [1.26.2](https://github.com/constantant/cod2admin/releases/tag/v1.26.2) (2026-11-21)
+
+### 🩹 Fixes
+
+- split a player name printed right against the GUID in the status table ([97a6abe](https://github.com/constantant/cod2admin/commit/97a6abe))
+
+### ❤️ Thank You
+
+- Claude Sonnet 5.5
+- kk
+
 ## [1.26.1](https://github.com/constantant/cod2admin/releases/tag/v1.26.1) (2026-11-21)
 
 ### 🩹 Fixes
