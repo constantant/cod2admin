@@ -300,6 +300,15 @@ export function parseRconStatusTable(raw: string): ServerStatus {
       const nameEnd =
         afterTokens.length > 0 ? afterTokens[0].index : line.length;
       fields['name'] = line.slice(nameStart, nameEnd).trim();
+      // A GUID is all digits, but a row can print the name right against it (`750895vit^7`, seen
+      // on a live server): no space, so the whole thing parses as the GUID and the name as empty.
+      // Split the digits off; the rest is where the name begins. (A name that itself starts with
+      // digits, glued on, can't be told apart — that stays as it was.)
+      const glued = /^(\d+)(\D.*)$/s.exec(fields['guid'] ?? '');
+      if (glued) {
+        fields['guid'] = glued[1];
+        fields['name'] = `${glued[2]}${line.slice(nameStart, nameEnd)}`.trim();
+      }
     }
     const player = fieldsToPlayer(fields);
     if (player) {

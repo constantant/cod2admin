@@ -376,4 +376,20 @@ describe('plainDisplayName', () => {
     const once = plainDisplayName('^^11Grinder^^22x^7');
     expect(plainDisplayName(once)).toBe(once);
   });
+
+  it('splits a name that is printed right against the GUID', () => {
+    const table = [
+      'map: mp_toujane',
+      'num score ping guid   name            lastmsg address               qport rate',
+      '--- ----- ---- ------ --------------- ------- --------------------- ----- -----',
+      ' 13    42   33 750895vit^7                   0 198.51.100.13:28960     915 25000',
+      ' 14     5   60 750895 two words^7             0 198.51.100.14:28960     916 25000',
+      '',
+    ].join('\n');
+
+    const [glued, spaced] = parseRconStatusTable(table).players;
+
+    expect(glued).toMatchObject({ num: 13, guid: '750895', name: 'vit' });
+    expect(spaced).toMatchObject({ guid: '750895', name: 'two words' });
+  });
 });
