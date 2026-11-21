@@ -36,11 +36,17 @@ function setup(
     rconClients: new Map([['main', rcon]]),
     adminStore: {
       searchPlayerNotes: vi.fn(async () => []),
+      listServerSnapshots: vi.fn(async () => []),
       getServer,
     },
     watchSupervisor: { playerTeams: () => teams },
   } as unknown as GatewayDeps;
   return {
+    deps: deps as unknown as {
+      adminStore: {
+        listServerSnapshots: ReturnType<typeof vi.fn<() => Promise<unknown[]>>>;
+      };
+    },
     state: new MiniAppState(deps),
     getServer,
     rcon,
@@ -69,6 +75,23 @@ describe('MiniAppState.fetchStatus map clock', () => {
     const status = await state.fetchStatus('main');
     expect(status.timeLimitMinutes).toBe(20);
     expect(Date.parse(status.mapStartedAt ?? '')).not.toBeNaN();
+  });
+
+  it('takes the start from the saved snapshots when the gateway missed the change', async () => {
+    const { state, deps } = setup(cvars, limits);
+    const at = (minutesAgo: number) =>
+      new Date(Date.now() - minutesAgo * 60_000);
+    deps.adminStore.listServerSnapshots.mockResolvedValue([
+      { at: at(9), online: true, map: 'mp_harbor' },
+      { at: at(8), online: true, map: 'mp_toujane' },
+      { at: at(1), online: true, map: 'mp_toujane' },
+    ]);
+    const status = await state.fetchStatus('main');
+    expect(status.timeLimitMinutes).toBe(20);
+    expect(Date.parse(status.mapStartedAt ?? '')).toBeCloseTo(
+      at(8).getTime(),
+      -3,
+    );
   });
 
   it('gives none for an unlimited map', async () => {

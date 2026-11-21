@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { MapStartTracker, parseTimeLimit, timeLimitCvar } from './map-clock.js';
+import {
+  MapStartTracker,
+  mapStartFromSnapshots,
+  parseTimeLimit,
+  timeLimitCvar,
+} from './map-clock.js';
 
 describe('timeLimitCvar', () => {
   it('names the mode’s own cvar, only for timed modes', () => {
@@ -38,5 +43,34 @@ describe('MapStartTracker', () => {
     tracker.observe('b', 'mp_toujane', 1000);
     tracker.observe('a', 'mp_harbor', 2000);
     expect(tracker.observe('b', 'mp_toujane', 3000)).toBeUndefined();
+  });
+});
+
+describe('mapStartFromSnapshots', () => {
+  const row = (minute: number, map: string | null, online = true) => ({
+    at: new Date(minute * 60_000),
+    online,
+    map,
+  });
+
+  it('is the first snapshot on the current map, after a different one', () => {
+    const rows = [row(1, 'a'), row(2, 'a'), row(3, 'b'), row(4, 'b')];
+    expect(mapStartFromSnapshots(rows, 'b')).toBe(3 * 60_000);
+  });
+
+  it('is undefined when the history begins on this map', () => {
+    expect(mapStartFromSnapshots([row(1, 'b'), row(2, 'b')], 'b')).toBe(
+      undefined,
+    );
+  });
+
+  it('is undefined when the server was offline just before, or the map just changed', () => {
+    expect(
+      mapStartFromSnapshots([row(1, null, false), row(2, 'b')], 'b'),
+    ).toBeUndefined();
+    expect(
+      mapStartFromSnapshots([row(1, 'a'), row(2, 'a')], 'b'),
+    ).toBeUndefined();
+    expect(mapStartFromSnapshots([], 'b')).toBeUndefined();
   });
 });

@@ -6,7 +6,12 @@ import {
   type StatusPlayer,
 } from '@cod2admin/rcon-client';
 import { parseCvarReply } from '../lib/custom-functions.js';
-import { MapStartTracker, parseTimeLimit, timeLimitCvar } from './map-clock.js';
+import {
+  MapStartTracker,
+  mapStartFromSnapshots,
+  parseTimeLimit,
+  timeLimitCvar,
+} from './map-clock.js';
 import type { GatewayDeps } from '../lib/deps.js';
 import type { PlayerDto, StatusResponse } from './api-types.js';
 import type { ChatFeed } from './chat-feed.js';
@@ -57,6 +62,9 @@ export class ActionLimiter {
 /** How much of the note list the live player marks look at — far more than any server has. */
 const MAX_INDEXED_NOTES = 5000;
 /** How long a server's game mode is trusted for while the map stays the same. */
+/** How far back the snapshots are read for a map's start, and how often a failed lookup is retried. */
+const SNAPSHOT_LOOKBACK_MS = 3 * 3_600_000;
+const SNAPSHOT_RETRY_MS = 30_000;
 const GAMETYPE_MAX_AGE_MS = 5 * 60_000;
 
 /** What notes are filed under for a name: lower case, no colour codes. */
@@ -96,6 +104,10 @@ export class MiniAppState {
     }
   >();
   private readonly mapStarts = new MapStartTracker();
+  private readonly snapshotStarts = new Map<
+    string,
+    { map: string; startedAt: number | undefined; at: number }
+  >();
   /** `kind:value` → on the watchlist, for marking players live. Reloaded after any note change. */
   private noteIndex: Promise<Map<string, boolean>> | undefined;
 
@@ -249,18 +261,50 @@ export class MiniAppState {
    * What the app needs to count down the map: its time limit, and when we saw it start. Both are
    * left out when the map is unlimited, the mode has no per-map clock, or the start is unknown.
    */
-  mapClock(
+  async mapClock(
     alias: string,
     map: string | null,
     timeLimit: number | undefined,
-  ): { timeLimitMinutes?: number; mapStartedAt?: string } {
-    const startedAt = this.mapStarts.observe(alias, map);
-    return timeLimit !== undefined && startedAt !== undefined
+  ): Promise<{ timeLimitMinutes?: number; mapStartedAt?: string }> {
+    if (timeLimit === undefined || map === null) {
+      return {};
+    }
+    const startedAt =
+      this.mapStarts.observe(alias, map) ??
+      (await this.snapshotStart(alias, map));
+    return startedAt !== undefined
       ? {
           timeLimitMinutes: timeLimit,
           mapStartedAt: new Date(startedAt).toISOString(),
         }
       : {};
+  }
+
+  /** The start from the saved snapshots; an unknown one is looked up again only every so often. */
+  private async snapshotStart(
+    alias: string,
+    map: string,
+  ): Promise<number | undefined> {
+    const known = this.snapshotStarts.get(alias);
+    if (
+      known?.map === map &&
+      (known.startedAt !== undefined ||
+        Date.now() - known.at < SNAPSHOT_RETRY_MS)
+    ) {
+      return known.startedAt;
+    }
+    let startedAt: number | undefined;
+    try {
+      const since = new Date(Date.now() - SNAPSHOT_LOOKBACK_MS);
+      startedAt = mapStartFromSnapshots(
+        await this.deps.adminStore.listServerSnapshots(alias, since),
+        map,
+      );
+    } catch {
+      startedAt = undefined; // the countdown is a nicety: no history, no countdown
+    }
+    this.snapshotStarts.set(alias, { map, startedAt, at: Date.now() });
+    return startedAt;
   }
 
   async fetchStatus(alias: string): Promise<StatusResponse> {
@@ -276,7 +320,7 @@ export class MiniAppState {
       hostname: status.hostname ?? null,
       mapName,
       gametype,
-      ...this.mapClock(alias, mapName, timeLimit),
+      ...(await this.mapClock(alias, mapName, timeLimit)),
       players: await this.playerDtos(status.players, alias),
       fetchedAt: new Date().toISOString(),
     };

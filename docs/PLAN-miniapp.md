@@ -337,8 +337,9 @@ chat, as `QUICKMESSAGE_...`, per the dev server's `games_mp.log`). Not tried on 
 
 The map banner (player list and dashboard) shows `~N min left` when the map has a time limit. The game
 doesn't report its clock, so it's an estimate: limit (`scr_<mode>_timelimit`, modes ctf/ctfb/hq/tdm/dm
-only; read over rcon, since the public status reply omits it) minus the time since the gateway **first saw the map change** (`miniapp/map-clock.ts`). The map
-that was already running when the gateway started has no start, so no countdown until the next map.
+only; read over rcon, since the public status reply omits it) minus the time since the map **first showed up** (`miniapp/map-clock.ts`): the first per-minute dashboard
+snapshot on it (these run without anyone watching and survive restarts), or a change the poll saw itself.
+A map the history begins on has no start, so no countdown until the next map.
 Off by warm-up/ready-up time; a same-map restart isn't noticed (the chip goes after 10 minutes past
 the limit). Not logged-in-start based: reading `InitGame` from `games_mp.log` would be more exact
 and is the next step if this drifts. Not tried on a real server yet.

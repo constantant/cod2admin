@@ -377,7 +377,7 @@ export function registerInsightRoutes(
         live?.cvars['g_gametype'] ?? live?.cvars['gametype'] ?? null;
       const map = live?.cvars['mapname'] ?? null;
       const clock = live
-        ? state.mapClock(
+        ? await state.mapClock(
             alias,
             map,
             (await state.modeInfo(alias, rcon, map)).timeLimit,

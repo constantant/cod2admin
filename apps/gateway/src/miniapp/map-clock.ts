@@ -45,3 +45,29 @@ export class MapStartTracker {
     return known.startedAt;
   }
 }
+
+/**
+ * When the current map started, from the per-minute snapshots the dashboard keeps — they run
+ * whether or not anyone has the app open, and survive a restart. It's the time of the first
+ * snapshot on this map, so up to a minute late. `undefined` unless a snapshot of another map
+ * came just before (otherwise the map was already running when the history begins).
+ */
+export function mapStartFromSnapshots(
+  snapshots: readonly { at: Date; online: boolean; map: string | null }[],
+  map: string,
+): number | undefined {
+  const rows = [...snapshots].sort((a, b) => a.at.getTime() - b.at.getTime());
+  let first = rows.length;
+  while (first > 0) {
+    const row = rows[first - 1];
+    if (!row?.online || row.map !== map) {
+      break;
+    }
+    first--;
+  }
+  const before = rows[first - 1];
+  const start = rows[first];
+  return start && before?.online && before.map && before.map !== map
+    ? start.at.getTime()
+    : undefined;
+}
