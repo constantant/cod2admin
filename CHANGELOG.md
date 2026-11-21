@@ -1,3 +1,22 @@
+## [1.26.0](https://github.com/constantant/cod2admin/releases/tag/v1.26.0) (2026-11-21)
+
+### 🚀 Features
+
+- add script to extract map images from .iwd packs ([6414920](https://github.com/constantant/cod2admin/commit/6414920))
+- mark known players in a fixed slot of the player list ([14c6d1f](https://github.com/constantant/cod2admin/commit/14c6d1f))
+- show the estimated time left on the map in the player list and dashboard ([3bdb102](https://github.com/constantant/cod2admin/commit/3bdb102))
+
+### 🩹 Fixes
+
+- read the map time limit over rcon, the public status reply doesn't carry it ([ee85028](https://github.com/constantant/cod2admin/commit/ee85028))
+- start the map countdown from the saved snapshots, not only from changes the poll saw ([a1a0336](https://github.com/constantant/cod2admin/commit/a1a0336))
+- read cvar replies that put a space after "is:", as the real server does ([866733e](https://github.com/constantant/cod2admin/commit/866733e))
+
+### ❤️ Thank You
+
+- Claude Sonnet 5.5
+- kk
+
 ## [1.25.1](https://github.com/constantant/cod2admin/releases/tag/v1.25.1) (2026-11-18)
 
 ### 🩹 Fixes
