@@ -358,7 +358,9 @@ export function parseDefinition(
  */
 export function parseCvarReply(output: string, name: string): string | null {
   const first = output.split('\n').find((line) => line.trim()) ?? '';
-  const match = /^"([^"]+)"\s+is:"(.*?)(?:\^7)?"(?:\s|,|$)/.exec(first.trim());
+  const match = /^"([^"]+)"\s+is:\s*"(.*?)(?:\^7)?"(?:\s|,|$)/.exec(
+    first.trim(),
+  );
   if (!match || match[1]?.toLowerCase() !== name.toLowerCase()) {
     return null;
   }

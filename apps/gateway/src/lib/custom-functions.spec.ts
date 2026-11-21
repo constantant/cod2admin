@@ -272,6 +272,13 @@ describe('parseCvarReply', () => {
     ).toBe('800');
     expect(parseCvarReply('"x" is:"a b^7", the default', 'X')).toBe('a b');
     expect(parseCvarReply('"x" is:""', 'x')).toBe('');
+    // The real server puts a space after "is:" (seen on the dev server).
+    expect(
+      parseCvarReply(
+        '"scr_ctf_timelimit" is: "20^7" default: "30^7"\n  Domain is any text\n',
+        'scr_ctf_timelimit',
+      ),
+    ).toBe('20');
   });
 
   it('says nothing for a reply that is not about that cvar', () => {
