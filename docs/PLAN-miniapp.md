@@ -333,6 +333,16 @@ with a chat feed, matched by real GUID or IP like bans. The game can't block cha
 a kick for each later one (audit action `mute_kick`). `!report` and quick messages don't count (they're logged as
 chat, as `QUICKMESSAGE_...`, per the dev server's `games_mp.log`). Not tried on a real server yet.
 
+### 6.3.2 Time left on the map (2026-11-21)
+
+The map banner (player list and dashboard) shows `~N min left` when the map has a time limit. The game
+doesn't report its clock, so it's an estimate: limit (`scr_<mode>_timelimit`, modes ctf/ctfb/hq/tdm/dm
+only) minus the time since the gateway **first saw the map change** (`miniapp/map-clock.ts`). The map
+that was already running when the gateway started has no start, so no countdown until the next map.
+Off by warm-up/ready-up time; a same-map restart isn't noticed (the chip goes after 10 minutes past
+the limit). Not logged-in-start based: reading `InitGame` from `games_mp.log` would be more exact
+and is the next step if this drifts. Not tried on a real server yet.
+
 ### 6.4 Suggested additions (not asked for, worth considering for later phases)
 
 - **Server dashboard**: current map, uptime, player-count history — needs a lightweight

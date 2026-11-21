@@ -104,6 +104,10 @@ export interface StatusResponse {
   mapName: string | null;
   /** The game mode now, e.g. `ctf`; `null` when the server didn't say. */
   gametype: string | null;
+  /** The map's time limit; left out when unlimited, not a timed mode, or the map's start wasn't seen. */
+  timeLimitMinutes?: number;
+  /** When the gateway saw this map start (ISO) — an estimate; the game doesn't report its clock. */
+  mapStartedAt?: string;
   players: PlayerDto[];
   fetchedAt: string;
 }
@@ -306,6 +310,8 @@ export interface DashboardResponse {
   hostname: string | null;
   map: string | null;
   gametype: string | null;
+  timeLimitMinutes?: number;
+  mapStartedAt?: string;
   players: number;
   maxClients: number | null;
   hours: number;

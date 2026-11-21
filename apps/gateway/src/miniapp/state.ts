@@ -5,6 +5,7 @@ import {
   type RconClient,
   type StatusPlayer,
 } from '@cod2admin/rcon-client';
+import { MapStartTracker, timeLimitMinutes } from './map-clock.js';
 import type { GatewayDeps } from '../lib/deps.js';
 import type { PlayerDto, StatusResponse } from './api-types.js';
 import type { ChatFeed } from './chat-feed.js';
@@ -86,8 +87,14 @@ export class MiniAppState {
    */
   private readonly gametypes = new Map<
     string,
-    { map: string | null; gametype: string | null; at: number }
+    {
+      map: string | null;
+      gametype: string | null;
+      timeLimit: number | undefined;
+      at: number;
+    }
   >();
+  private readonly mapStarts = new MapStartTracker();
   /** `kind:value` → on the watchlist, for marking players live. Reloaded after any note change. */
   private noteIndex: Promise<Map<string, boolean>> | undefined;
 
@@ -202,28 +209,60 @@ export class MiniAppState {
     }));
   }
 
-  private async gametype(
+  /** The mode and time limit now; read once per map like the mode (see `gametypes`). */
+  private async modeInfo(
     alias: string,
     rcon: RconClient,
     map: string | null,
-  ): Promise<string | null> {
+  ): Promise<{ gametype: string | null; timeLimit: number | undefined }> {
     const known = this.gametypes.get(alias);
     if (
       known &&
       known.map === map &&
       Date.now() - known.at < GAMETYPE_MAX_AGE_MS
     ) {
-      return known.gametype;
+      return known;
     }
     try {
       const cvars = (await rcon.getStatus()).cvars;
       const gametype = cvars['g_gametype'] ?? cvars['gametype'] ?? null;
-      this.gametypes.set(alias, { map, gametype, at: Date.now() });
-      return gametype;
+      const timeLimit = timeLimitMinutes(cvars, gametype);
+      this.gametypes.set(alias, { map, gametype, timeLimit, at: Date.now() });
+      return { gametype, timeLimit };
     } catch {
       // The mode is a nicety on the player list: not worth failing the list over.
-      return known?.map === map ? known.gametype : null;
+      return known?.map === map
+        ? known
+        : { gametype: null, timeLimit: undefined };
     }
+  }
+
+  /**
+   * What the app needs to count down the map: its time limit, and when we saw it start. Both are
+   * left out when the map is unlimited, the mode has no per-map clock, or the start is unknown.
+   */
+  mapClock(
+    alias: string,
+    map: string | null,
+    timeLimit: number | undefined,
+  ): { timeLimitMinutes?: number; mapStartedAt?: string } {
+    const startedAt = this.mapStarts.observe(alias, map);
+    return timeLimit !== undefined && startedAt !== undefined
+      ? {
+          timeLimitMinutes: timeLimit,
+          mapStartedAt: new Date(startedAt).toISOString(),
+        }
+      : {};
+  }
+
+  /** For the dashboard, which already holds the server's cvars. */
+  mapClockFromCvars(
+    alias: string,
+    map: string | null,
+    gametype: string | null,
+    cvars: Record<string, string>,
+  ) {
+    return this.mapClock(alias, map, timeLimitMinutes(cvars, gametype));
   }
 
   async fetchStatus(alias: string): Promise<StatusResponse> {
@@ -233,11 +272,13 @@ export class MiniAppState {
     }
     const status = await rcon.status();
     const mapName = status.mapName ?? null;
+    const { gametype, timeLimit } = await this.modeInfo(alias, rcon, mapName);
     return {
       server: alias,
       hostname: status.hostname ?? null,
       mapName,
-      gametype: await this.gametype(alias, rcon, mapName),
+      gametype,
+      ...this.mapClock(alias, mapName, timeLimit),
       players: await this.playerDtos(status.players, alias),
       fetchedAt: new Date().toISOString(),
     };

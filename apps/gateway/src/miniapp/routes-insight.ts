@@ -373,12 +373,22 @@ export function registerInsightRoutes(
         10,
       );
       const hostname = live?.cvars['sv_hostname'];
+      const gametype =
+        live?.cvars['g_gametype'] ?? live?.cvars['gametype'] ?? null;
       return {
         server: alias,
         online: live !== null,
         hostname: hostname ? stripColorCodes(hostname).trim() : null,
         map: live?.cvars['mapname'] ?? null,
-        gametype: live?.cvars['g_gametype'] ?? live?.cvars['gametype'] ?? null,
+        gametype,
+        ...(live
+          ? state.mapClockFromCvars(
+              alias,
+              live.cvars['mapname'] ?? null,
+              gametype,
+              live.cvars,
+            )
+          : {}),
         players: live?.players.length ?? 0,
         maxClients: Number.isNaN(maxClients) ? null : maxClients,
         hours,

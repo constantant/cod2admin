@@ -42,6 +42,38 @@ function setup(cvars: Record<string, string> = { g_gametype: 'ctf' }) {
   };
 }
 
+describe('MiniAppState.fetchStatus map clock', () => {
+  const cvars = { g_gametype: 'ctf', scr_ctf_timelimit: '20' };
+
+  it('gives no clock for the map running when the gateway started', async () => {
+    const { state } = setup(cvars);
+    expect(await state.fetchStatus('main')).not.toHaveProperty(
+      'timeLimitMinutes',
+    );
+  });
+
+  it('gives the limit and start once it has seen the map change', async () => {
+    const { state, changeMap } = setup(cvars);
+    await state.fetchStatus('main');
+    changeMap('mp_harbor');
+    const status = await state.fetchStatus('main');
+    expect(status.timeLimitMinutes).toBe(20);
+    expect(Date.parse(status.mapStartedAt ?? '')).not.toBeNaN();
+  });
+
+  it('gives none for an unlimited map', async () => {
+    const { state, changeMap } = setup({
+      g_gametype: 'ctf',
+      scr_ctf_timelimit: '0',
+    });
+    await state.fetchStatus('main');
+    changeMap('mp_harbor');
+    expect(await state.fetchStatus('main')).not.toHaveProperty(
+      'timeLimitMinutes',
+    );
+  });
+});
+
 describe('MiniAppState.fetchStatus game mode', () => {
   it('reads the mode once per map, not on every poll', async () => {
     const { state, rcon } = setup();

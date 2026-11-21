@@ -50,7 +50,12 @@ import { dateLocale, t, T } from '../../shared/i18n';
       @if (data(); as data) {
         <section class="card">
           @if (map(); as name) {
-            <c2a-map-banner [name]="name" [mode]="data.gametype" />
+            <c2a-map-banner
+              [name]="name"
+              [mode]="data.gametype"
+              [timeLimitMinutes]="clock()?.timeLimitMinutes"
+              [startedAt]="clock()?.mapStartedAt"
+            />
           }
           <div class="row">
             <span class="state" [class.on]="data.online">{{
@@ -319,6 +324,11 @@ export class DashboardPage {
   protected readonly players = computed(
     () => this.live.status()?.players.length ?? this.data()?.players ?? 0,
   );
+  /** The live feed's clock when it has one, else the dashboard's own. */
+  protected readonly clock = computed(() => {
+    const source = this.live.status() ?? this.data();
+    return source ? source : null;
+  });
   protected readonly map = computed(
     () => this.live.status()?.mapName ?? this.data()?.map ?? null,
   );

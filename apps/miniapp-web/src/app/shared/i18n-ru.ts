@@ -178,6 +178,7 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
   'No status yet.': 'Состояния пока нет.',
   'On the watchlist': 'В списке наблюдения',
   'Has notes': 'Есть заметки',
+  ending: 'финиш',
   'Known player': 'Известный игрок',
   'Known name, other GUID': 'Известный ник, другой GUID',
   'Known name, other network': 'Известный ник, другая сеть',
@@ -810,6 +811,7 @@ export const RU_PATTERNS: readonly [RegExp, (...groups: string[]) => string][] =
     // Times and counts
     [/^(\d+[mhd])$/, ruSpan],
     [/^(.+) ago$/, (span) => `${ruSpan(span)} назад`],
+    [/^~(\d+) min left$/, (minutes) => `~${minutes} мин`],
     [/^(.+) left$/, (span) => `осталось ${ruSpan(span)}`],
     [/^lifted (.+)$/, (ago) => `снят ${ago}`],
     [/^expires in (.+)$/, (span) => `истекает через ${ruSpan(span)}`],

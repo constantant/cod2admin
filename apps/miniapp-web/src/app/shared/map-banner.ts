@@ -2,10 +2,17 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
+  inject,
   input,
+  signal,
 } from '@angular/core';
+import { T } from './i18n';
 import { prettyMapName } from './map-art';
 import { MapThumb } from './map-thumb';
+
+/** How long past its limit a map still shows "ending" before the estimate is dropped. */
+const OVERTIME_MS = 10 * 60_000;
 
 /** Short names for the stock CoD2 modes; a mod's own modes show as their name in capitals. */
 const MODE_LABELS: Record<string, string> = {
@@ -23,7 +30,7 @@ const MODE_LABELS: Record<string, string> = {
 @Component({
   selector: 'c2a-map-banner',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MapThumb],
+  imports: [MapThumb, T],
   template: `
     <div class="hero">
       <c2a-map-thumb
@@ -37,6 +44,9 @@ const MODE_LABELS: Record<string, string> = {
           <div class="title">{{ pretty() }}</div>
           <div class="raw">{{ name() }}</div>
         </div>
+        @if (remaining(); as left) {
+          <span class="mode left">{{ left | t }}</span>
+        }
         @if (modeLabel(); as mode) {
           <span class="mode">{{ mode }}</span>
         }
@@ -81,6 +91,9 @@ const MODE_LABELS: Record<string, string> = {
       opacity: 0.8;
       overflow-wrap: anywhere;
     }
+    .left {
+      font-variant-numeric: tabular-nums;
+    }
     .mode {
       flex: none;
       padding: 2px 10px;
@@ -94,6 +107,33 @@ const MODE_LABELS: Record<string, string> = {
 export class MapBanner {
   readonly name = input.required<string>();
   readonly mode = input<string | null | undefined>(null);
+  /** The map's time limit and when it was seen to start; together they make the countdown. */
+  readonly timeLimitMinutes = input<number | undefined>(undefined);
+  readonly startedAt = input<string | undefined>(undefined);
+
+  private readonly now = signal(Date.now());
+
+  constructor() {
+    const timer = setInterval(() => this.now.set(Date.now()), 15_000);
+    inject(DestroyRef).onDestroy(() => clearInterval(timer));
+  }
+
+  /**
+   * An estimate (the game doesn't report its clock): empty when there is no limit or start, and
+   * again once the map is well past its limit, which means it was restarted without us noticing.
+   */
+  protected readonly remaining = computed(() => {
+    const limit = this.timeLimitMinutes();
+    const startedAt = this.startedAt();
+    if (!limit || !startedAt) {
+      return '';
+    }
+    const left = Date.parse(startedAt) + limit * 60_000 - this.now();
+    if (Number.isNaN(left) || left < -OVERTIME_MS) {
+      return '';
+    }
+    return left <= 0 ? 'ending' : `~${Math.ceil(left / 60_000)} min left`;
+  });
 
   protected readonly pretty = computed(() => prettyMapName(this.name()));
   protected readonly modeLabel = computed(() => {
