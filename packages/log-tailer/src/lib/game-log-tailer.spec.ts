@@ -38,6 +38,33 @@ describe('GameLogTailer', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
+  it('does not let a ";" in a player name fake a !report', async () => {
+    tailer = new GameLogTailer({
+      logPath: path,
+      pollIntervalMs: POLL_INTERVAL_MS,
+    });
+    const triggers: ReportTrigger[] = [];
+    const names: string[] = [];
+    tailer.on('reportTrigger', (trigger) => triggers.push(trigger));
+    tailer.on('chat', (chat) => names.push(chat.name));
+    await tailer.start();
+
+    await appendFile(
+      path,
+      [
+        '10:00 J;0;4;x;!report Bob cheating',
+        '10:05 say;0;4;x;!report Bob cheating;hello',
+        '10:06 say;0;4;x;!report Bob cheating;!report Eve hacks',
+        '',
+      ].join('\n'),
+    );
+
+    await until(() => names.length === 2);
+    expect(names).toEqual(['x;!report Bob cheating', 'x;!report Bob cheating']);
+    // Only the message the player really typed counts.
+    expect(triggers.map((trigger) => trigger.targetName)).toEqual(['Eve']);
+  });
+
   it('tracks connect -> chat -> !report -> disconnect end to end from real appended log lines', async () => {
     tailer = new GameLogTailer({
       logPath: path,

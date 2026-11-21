@@ -3,9 +3,13 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { detectReportTrigger, parseChatLine } from './chat-parser.js';
 
-const FIXTURE_PATH = fileURLToPath(new URL('../../test/fixtures/chat-lines.log', import.meta.url));
+const FIXTURE_PATH = fileURLToPath(
+  new URL('../../test/fixtures/chat-lines.log', import.meta.url),
+);
 // Normalize CRLF: this repo's core.autocrlf can check this fixture out with \r\n on Windows.
-const FIXTURE_LINES = readFileSync(FIXTURE_PATH, 'utf-8').replace(/\r\n/g, '\n').split('\n');
+const FIXTURE_LINES = readFileSync(FIXTURE_PATH, 'utf-8')
+  .replace(/\r\n/g, '\n')
+  .split('\n');
 
 /**
  * The first 11 lines of the fixture are captured verbatim from a real dedicated server
@@ -55,11 +59,13 @@ describe('parseChatLine', () => {
 
   it('returns null for non-chat lines (kill/death events, server noise)', () => {
     expect(parseChatLine(FIXTURE_LINES[10])).toBeNull(); // a `D;...` death-event line
-    expect(parseChatLine('Sending heartbeat to cod2master.fucker    .com')).toBeNull();
+    expect(
+      parseChatLine('Sending heartbeat to cod2master.fucker    .com'),
+    ).toBeNull();
     expect(parseChatLine('Rcon from 172.18.0.1:-21456:')).toBeNull();
   });
 
-  it('parses a line with the leading space a live bgauduch/cod2server deployment writes (confirmed on a real QNAP install, 2026-09-06 — without this, no line in that server\'s games_mp.log ever matched)', () => {
+  it("parses a line with the leading space a live bgauduch/cod2server deployment writes (confirmed on a real QNAP install, 2026-09-06 — without this, no line in that server's games_mp.log ever matched)", () => {
     const line = ' 33:56 say;0;1;WOWOWOW;!report KonOgon is cheating';
     expect(parseChatLine(line)).toEqual({
       channel: 'say',
@@ -75,7 +81,9 @@ describe('parseChatLine', () => {
 
 describe('detectReportTrigger', () => {
   it('extracts target and reason from a real-format !report line', () => {
-    const chat = parseChatLine('123:05 say;0;0;WOWOWOW;!report Cheatr123 aimbot + wallhack')!;
+    const chat = parseChatLine(
+      '123:05 say;0;0;WOWOWOW;!report Cheatr123 aimbot + wallhack',
+    )!;
     expect(detectReportTrigger(chat)).toEqual({
       chat,
       targetName: 'Cheatr123',
@@ -84,17 +92,25 @@ describe('detectReportTrigger', () => {
   });
 
   it('works over sayteam too', () => {
-    const chat = parseChatLine('124:11 sayteam;0;1;WOWOWOW;!report Cheatr123 also teamkilling')!;
+    const chat = parseChatLine(
+      '124:11 sayteam;0;1;WOWOWOW;!report Cheatr123 also teamkilling',
+    )!;
     expect(detectReportTrigger(chat)?.targetName).toBe('Cheatr123');
   });
 
   it('leaves reason undefined when none is given', () => {
     const chat = parseChatLine('125:00 say;0;0;WOWOWOW;!report NoReasonGuy')!;
-    expect(detectReportTrigger(chat)).toEqual({ chat, targetName: 'NoReasonGuy', reason: undefined });
+    expect(detectReportTrigger(chat)).toEqual({
+      chat,
+      targetName: 'NoReasonGuy',
+      reason: undefined,
+    });
   });
 
   it('is case-insensitive on the !report prefix', () => {
-    const chat = parseChatLine('126:47 say;0;0;WOWOWOW;!REPORT UpperCaseGuy still works')!;
+    const chat = parseChatLine(
+      '126:47 say;0;0;WOWOWOW;!REPORT UpperCaseGuy still works',
+    )!;
     expect(detectReportTrigger(chat)).toEqual({
       chat,
       targetName: 'UpperCaseGuy',
@@ -115,11 +131,37 @@ describe('detectReportTrigger', () => {
   });
 
   it('still triggers when the message has a leading control byte, as a live deployment logs it (confirmed on a real QNAP install, 2026-09-06 — the CoD2 client itself inserts it, before !report even reaches games_mp.log)', () => {
-    const chat = parseChatLine(' 74:36 say;0;1;WOWOWOW;!report KonOgon is cheating!!')!;
+    const chat = parseChatLine(
+      ' 74:36 say;0;1;WOWOWOW;!report KonOgon is cheating!!',
+    )!;
     expect(detectReportTrigger(chat)).toEqual({
       chat,
       targetName: 'KonOgon',
       reason: 'is cheating!!',
     });
+  });
+});
+
+describe('parseChatLine with a ";" in the player name', () => {
+  const line = '115:19 say;0;3;x;!report Bob cheating;hello';
+
+  it('misreads the name without the joined name (the log has no escaping)', () => {
+    const chat = parseChatLine(line);
+    expect(chat?.name).toBe('x');
+    expect(chat?.message).toBe('!report Bob cheating;hello');
+  });
+
+  it('takes the name the slot joined with, so the rest stays the message', () => {
+    const chat = parseChatLine(line, (num) =>
+      num === 3 ? 'x;!report Bob cheating' : undefined,
+    );
+    expect(chat?.name).toBe('x;!report Bob cheating');
+    expect(chat?.message).toBe('hello');
+    expect(detectReportTrigger(chat!)).toBeNull();
+  });
+
+  it('leaves a line alone when it does not start with the joined name', () => {
+    const chat = parseChatLine('115:19 say;0;3;Someone;hi;there', () => 'a;b');
+    expect(chat).toMatchObject({ name: 'Someone', message: 'hi;there' });
   });
 });

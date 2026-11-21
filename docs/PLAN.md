@@ -58,6 +58,10 @@ dedicated servers:
 
 ### 2.4 Protocol / server facts that constrain the design
 
+- `games_mp.log` doesn't escape `;`, so a player named `x;!report Bob` reads as name `x` plus a message
+  starting `!report Bob` (2026-11-21). `GameLogTailer` fixes this for a slot whose `J;` (join) line gave a
+  name holding `;`: chat lines from that slot keep that name whole. Not covered: a rename to such a name
+  after joining (the log has no rename line); a status-based check would be the next step.
 - CoD1/2/4 RCON is the Quake3-derived **out-of-band UDP** protocol: packets prefixed with
   `0xFFFFFFFF`, payload `rcon <password> <command>`. CoD2's RCON is **not** challenge-based
   (unlike later CoD4X hardening), so the rcon password travels in cleartext per-packet and

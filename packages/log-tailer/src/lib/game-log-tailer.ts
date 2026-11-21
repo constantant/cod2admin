@@ -66,10 +66,14 @@ export class GameLogTailer extends EventEmitter {
   ): Promise<ChatEvent[]> {
     const lines = await readFileTail(this.logPath, maxBytes, this.decode);
     return lines
-      .map(parseChatLine)
+      .map((line) => parseChatLine(line, this.knownName))
       .filter((chat): chat is ChatEvent => chat !== null)
       .slice(-limit);
   }
+
+  /** The name a slot joined with, for reading chat lines from players whose name holds a `;`. */
+  private readonly knownName = (num: number): string | undefined =>
+    this.sessions.getSession(num)?.name;
 
   getSession(num: number): PlayerSession | undefined {
     return this.sessions.getSession(num);
@@ -96,7 +100,7 @@ export class GameLogTailer extends EventEmitter {
   }
 
   private handleLine(line: string): void {
-    const chat = parseChatLine(line);
+    const chat = parseChatLine(line, this.knownName);
     if (chat) {
       this.sessions.handleChat(chat);
       this.emitTyped('chat', chat);

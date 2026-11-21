@@ -12,25 +12,50 @@ import type { ChatEvent, ReportTrigger } from './types.js';
  * `!report` never fired against a real server at all. See docs/PLAN.md §2.4/§11.1 for context on
  * this build's other real-server quirks found the same way.
  */
-const CHAT_LINE = /^\s*(\d+):(\d{2}) (say|sayteam);(-?\d+);(-?\d+);([^;]*);(.*)$/;
+const CHAT_LINE =
+  /^\s*(\d+):(\d{2}) (say|sayteam);(-?\d+);(-?\d+);([^;]*);(.*)$/;
 
 /** `!report` must be its own word — `!reportcard` or `!reporting` must not match. */
 const REPORT_TRIGGER = /^!report(?:\s+(\S+)(?:\s+(.*))?)?$/i;
 
-/** Parses one `games_mp.log` line as a `say`/`sayteam` event, or returns null for anything else. */
-export function parseChatLine(line: string): ChatEvent | null {
+/**
+ * Parses one `games_mp.log` line as a `say`/`sayteam` event, or returns null for anything else.
+ *
+ * The log doesn't escape `;`, so a player named `x;!report Bob` would read as name `x` and a
+ * message starting `!report Bob`. When `knownName(num)` (the name the player joined with) holds a
+ * `;` and the line really starts with it, that name is taken whole instead — the rest is the
+ * message.
+ */
+export function parseChatLine(
+  line: string,
+  knownName?: (num: number) => string | undefined,
+): ChatEvent | null {
   const match = CHAT_LINE.exec(line);
   if (!match) {
     return null;
   }
-  const [, minutes, seconds, channel, guid, num, name, message] = match;
+  let [, minutes, seconds, channel, guid, num, name, message] = match;
+  const known = knownName?.(Number.parseInt(num, 10));
+  if (known?.includes(';') && known !== name) {
+    const head = new RegExp(
+      `^\\s*\\d+:\\d{2} (?:say|sayteam);-?\\d+;-?\\d+;`,
+    ).exec(line);
+    const rest = head ? line.slice(head[0].length) : '';
+    if (rest.startsWith(`${known};`)) {
+      name = known;
+      message = rest.slice(known.length + 1);
+    }
+  }
   return {
     channel: channel as ChatEvent['channel'],
     guid,
     num: Number.parseInt(num, 10),
     name,
     message,
-    timestamp: { minutes: Number.parseInt(minutes, 10), seconds: Number.parseInt(seconds, 10) },
+    timestamp: {
+      minutes: Number.parseInt(minutes, 10),
+      seconds: Number.parseInt(seconds, 10),
+    },
     raw: line,
   };
 }
