@@ -1,3 +1,21 @@
+## [1.27.0](https://github.com/constantant/cod2admin/releases/tag/v1.27.0) (2026-11-25)
+
+### 🚀 Features
+
+- **backup:** encrypted export and import library ([537a868](https://github.com/constantant/cod2admin/commit/537a868))
+- **backup:** cod2admin-backup CLI and installer restore step ([5979382](https://github.com/constantant/cod2admin/commit/5979382))
+- **backup:** backup routes, /backup command and scheduled Telegram delivery ([8ae2555](https://github.com/constantant/cod2admin/commit/8ae2555))
+- **miniapp:** add a backup page for export, restore and the schedule ([c628d14](https://github.com/constantant/cod2admin/commit/c628d14))
+
+### 🩹 Fixes
+
+- **backup:** fall back to staging/backups when the install folder is root-owned ([7eb63b8](https://github.com/constantant/cod2admin/commit/7eb63b8))
+
+### ❤️ Thank You
+
+- Claude Sonnet 5.5
+- kk
+
 ## [1.26.4](https://github.com/constantant/cod2admin/releases/tag/v1.26.4) (2026-11-25)
 
 ### 🩹 Fixes
