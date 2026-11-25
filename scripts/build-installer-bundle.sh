@@ -85,6 +85,18 @@ echo "node-linker=hoisted" > "$BUNDLE_DIR/.npmrc"
 ( cd "$BUNDLE_DIR" && $PNPM install --prod --ignore-workspace --lockfile=false --config.node-linker=hoisted )
 rm -f "$BUNDLE_DIR/.npmrc"
 
+echo "==> Trimming files the bot never reads at runtime"
+# Source maps, type declarations, TypeScript sources and READMEs were over half of the archive (the
+# archive travels over slow routes, e.g. to Russia: /update downloads it). None of it is loaded by
+# node: nothing here runs with --enable-source-maps, and packages resolve to their .js. Licences
+# stay. package.json files stay too, since node reads them to find each package's entry point.
+BEFORE=$(du -sk "$BUNDLE_DIR/node_modules" | cut -f1)
+find "$BUNDLE_DIR/node_modules" -type f \( -name '*.map' -o -name '*.d.ts' -o -name '*.d.cts' \
+  -o -name '*.d.mts' -o -name '*.ts' -o -name '*.md' -o -name '*.markdown' \) -delete
+find "$BUNDLE_DIR/node_modules" -type d -empty -delete
+AFTER=$(du -sk "$BUNDLE_DIR/node_modules" | cut -f1)
+echo "    node_modules: ${BEFORE} KB -> ${AFTER} KB"
+
 echo "==> Writing final package.json (entry point for install.sh's service unit)"
 cp "apps/gateway/package.json" "$BUNDLE_DIR/package.json"
 
