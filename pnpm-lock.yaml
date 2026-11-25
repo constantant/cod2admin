@@ -123,6 +123,9 @@ importers:
       '@cod2admin/admin-store':
         specifier: workspace:*
         version: link:../../packages/admin-store
+      '@cod2admin/backup':
+        specifier: workspace:*
+        version: link:../../packages/backup
       '@cod2admin/ban-store':
         specifier: workspace:*
         version: link:../../packages/ban-store

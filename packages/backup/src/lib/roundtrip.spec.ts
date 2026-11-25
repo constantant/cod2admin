@@ -409,3 +409,21 @@ describe('backup round trip', () => {
     expect(Number(audit.rows[0].n)).toBe(0);
   });
 });
+
+describe('gateway presence', () => {
+  it('is seen by a second connection while held, and gone after', async () => {
+    const { holdGatewayPresence, isGatewayRunning } =
+      await import('./presence.js');
+    const db = await createScratchDb();
+    try {
+      expect(await isGatewayRunning(db.pool)).toBe(false);
+      const held = await holdGatewayPresence(db.pool);
+      expect(await isGatewayRunning(db.pool)).toBe(true);
+      held.release(true);
+      await new Promise((r) => setTimeout(r, 100));
+      expect(await isGatewayRunning(db.pool)).toBe(false);
+    } finally {
+      await db.drop();
+    }
+  });
+});

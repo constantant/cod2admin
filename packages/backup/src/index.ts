@@ -24,3 +24,4 @@ export type {
   RestoreReport,
   TableReport,
 } from './lib/import.js';
+export { Pool, holdGatewayPresence, isGatewayRunning } from './lib/presence.js';

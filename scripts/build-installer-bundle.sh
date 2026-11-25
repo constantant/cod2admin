@@ -18,7 +18,7 @@ else
   PNPM="corepack pnpm"
 fi
 
-PROJECTS=(gateway admin-store ban-store log-tailer rcon-client report-pipeline game-client player-watch watch-store)
+PROJECTS=(gateway admin-store ban-store backup log-tailer rcon-client report-pipeline game-client player-watch watch-store)
 VERSION=$(node -p "require('./package.json').version")
 OUT_DIR="$ROOT_DIR/out"
 BUNDLE_DIR="$OUT_DIR/gateway-bundle"
@@ -40,7 +40,7 @@ cp -r "apps/gateway/docs" "$BUNDLE_DIR/docs"
 # to dist/ (main.ts) when MINIAPP_PORT is set — plain static files, no runtime dependencies.
 cp -r "dist/apps/miniapp-web/browser" "$BUNDLE_DIR/miniapp"
 
-for name in admin-store ban-store log-tailer rcon-client report-pipeline game-client player-watch watch-store; do
+for name in admin-store ban-store backup log-tailer rcon-client report-pipeline game-client player-watch watch-store; do
   dest="$BUNDLE_DIR/node_modules/@cod2admin/$name"
   mkdir -p "$dest"
   cp -r "packages/$name/dist" "$dest/dist"
@@ -64,7 +64,7 @@ echo "==> Resolving real (non-workspace) dependencies"
 DEPS_MANIFEST="$BUNDLE_DIR/package.json"
 node -e '
 const fs = require("fs");
-const pkgs = ["apps/gateway", "packages/admin-store", "packages/ban-store", "packages/log-tailer", "packages/rcon-client", "packages/report-pipeline", "packages/game-client", "packages/player-watch", "packages/watch-store"];
+const pkgs = ["apps/gateway", "packages/admin-store", "packages/ban-store", "packages/backup", "packages/log-tailer", "packages/rcon-client", "packages/report-pipeline", "packages/game-client", "packages/player-watch", "packages/watch-store"];
 const deps = {};
 for (const p of pkgs) {
   const pkg = JSON.parse(fs.readFileSync(p + "/package.json", "utf8"));

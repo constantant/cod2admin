@@ -87,6 +87,7 @@ import {
 } from './mcp/client-metadata.js';
 import { McpSessions } from './mcp/sessions.js';
 import { resolveMapPreview } from './watch/match-summary.js';
+import { Pool as BackupPool, holdGatewayPresence } from '@cod2admin/backup';
 import { ChatFeeds } from './miniapp/chat-feed.js';
 import { startMiniAppServer } from './miniapp/server.js';
 
@@ -94,6 +95,10 @@ const config = loadConfig();
 
 await migrateAdminStore(config.databaseUrl);
 await migrateBanStore(config.databaseUrl);
+
+// Lets `cod2admin-backup import` see that a gateway is running (docs/PLAN-backup.md §5). A shared
+// advisory lock on a connection of its own: it never blocks another gateway.
+await holdGatewayPresence(new BackupPool({ connectionString: config.databaseUrl }));
 
 const adminStore = createAdminStore(
   config.databaseUrl,

@@ -36,11 +36,13 @@ RELEASES_DIR=""
 CURRENT_LINK=""
 BIN_DIR=""
 STAGING_DIR=""
+BACKUP_DIR=""
 set_layout_paths() {
   RELEASES_DIR="$INSTALL_DIR/releases"
   CURRENT_LINK="$INSTALL_DIR/current"
   BIN_DIR="$INSTALL_DIR/bin"
   STAGING_DIR="$INSTALL_DIR/staging"
+  BACKUP_DIR="$INSTALL_DIR/backups"
 }
 set_layout_paths
 
@@ -420,7 +422,7 @@ install_app() {
     esac
   fi
 
-  mkdir -p "$INSTALL_DIR" "$RELEASES_DIR" "$BIN_DIR" "$STAGING_DIR"
+  mkdir -p "$INSTALL_DIR" "$RELEASES_DIR" "$BIN_DIR" "$STAGING_DIR" "$BACKUP_DIR"
   chown root:root "$INSTALL_DIR" "$BIN_DIR"
 
   _release_dir="$RELEASES_DIR/$_version"
@@ -434,11 +436,33 @@ install_app() {
 
   ln -sfn "releases/$_version" "$CURRENT_LINK"
 
-  chown cod2admin "$STAGING_DIR"
-  chmod 700 "$STAGING_DIR"
+  chown cod2admin "$STAGING_DIR" "$BACKUP_DIR"
+  chmod 700 "$STAGING_DIR" "$BACKUP_DIR"
 
   prune_old_releases
   success "App files extracted (v$_version)."
+}
+
+# `cod2admin-backup export|inspect|import` (docs/PLAN-backup.md §6): the gateway's own CLI, run with
+# the service's .env. Root-only, since it reads the secrets key; files it writes into the backup
+# folder are handed back to the service user so the bot can prune them.
+write_backup_wrapper() {
+  _node=$(command -v node)
+  cat > "$BIN_DIR/cod2admin-backup" <<EOF
+#!/bin/sh
+set -a
+. "$INSTALL_DIR/.env"
+set +a
+BACKUP_DIR=\${BACKUP_DIR:-$BACKUP_DIR}
+export BACKUP_DIR
+cd "$CURRENT_LINK" || exit 1
+"$_node" dist/backup-cli.js "\$@"
+_rc=\$?
+chown -R cod2admin "\$BACKUP_DIR" 2>/dev/null
+exit \$_rc
+EOF
+  chmod 700 "$BIN_DIR/cod2admin-backup"
+  ln -sfn "$BIN_DIR/cod2admin-backup" /usr/local/bin/cod2admin-backup 2>/dev/null || true
 }
 
 install_update_machinery() {
@@ -452,6 +476,7 @@ install_update_machinery() {
   mkdir -p "$BIN_DIR/lib"
   cp "$SCRIPT_DIR/apply-update.sh" "$BIN_DIR/apply-update.sh"
   cp "$SCRIPT_DIR/lib/service.sh" "$BIN_DIR/lib/service.sh"
+  write_backup_wrapper
   chown -R root:root "$BIN_DIR"
   chmod 700 "$BIN_DIR/apply-update.sh"
   chmod 644 "$BIN_DIR/lib/service.sh"
@@ -682,6 +707,8 @@ write_env() {
     # Enables the gateway's self-update poller/`/update` command (docs/PLAN.md §13.2/§13.3) -
     # unconditional, $STAGING_DIR always exists by this point (install_app, earlier in main()).
     printf 'UPDATE_STAGING_DIR=%s\n' "$STAGING_DIR"
+    # Where the bot and cod2admin-backup keep backup files (outside the release folders).
+    printf 'BACKUP_DIR=%s\n' "$BACKUP_DIR"
     # The Telegram Mini App (lib/miniapp.sh) - both empty when it's off. `if`, not `&&`: as the
     # group's last command a false test would fail the whole group, and `set -e` with it.
     if [ -n "$MINIAPP_PORT" ]; then printf 'MINIAPP_PORT=%s\n' "$MINIAPP_PORT"; fi
@@ -690,6 +717,40 @@ write_env() {
   chown cod2admin "$_env"
   chmod 600 "$_env"
   success "Wrote $_env"
+}
+
+# ── Restore from a backup ────────────────────────────────────────────────────────────────────
+# Optional: loads a .c2bak made by cod2admin-backup (or the bot) into the fresh database before
+# the bot starts, so a lost host comes back with its admins, bans and servers. Needs the files
+# written by write_env and install_update_machinery. docs/PLAN-backup.md §9 (B2).
+
+wizard_restore() {
+  step "Restore from a backup (optional)"
+  _restore_file=""
+  _restore_pass=""
+  if [ -n "$CONFIG_FILE" ]; then
+    config_get BACKUP_FILE; _restore_file=$CONFIG_VALUE
+    config_get BACKUP_PASSPHRASE; _restore_pass=$CONFIG_VALUE
+  else
+    info "If you have a backup file from an earlier install (.c2bak, or the first part .c2bak.001),"
+    info "enter its path to restore the admins, bans and servers. Leave empty to start fresh."
+    ask "Backup file" ""
+    _restore_file=$REPLY_VALUE
+  fi
+  [ -n "$_restore_file" ] || { info "Starting without a backup."; return 0; }
+  [ -f "$_restore_file" ] || die "Backup file not found: $_restore_file"
+
+  if [ -z "$_restore_pass" ]; then
+    [ -t 0 ] || die "BACKUP_PASSPHRASE is needed in the config file for a non-interactive restore."
+    printf '%sBackup passphrase%s: ' "$C_BOLD" "$C_RESET"
+    stty -echo 2>/dev/null || true
+    IFS= read -r _restore_pass || _restore_pass=""
+    stty echo 2>/dev/null || true
+    printf '\n'
+  fi
+  BACKUP_PASSPHRASE=$_restore_pass "$BIN_DIR/cod2admin-backup" import "$_restore_file" --yes \
+    || die "The backup could not be restored (see above). Nothing was started."
+  success "Restored the backup."
 }
 
 # ── Service registration ─────────────────────────────────────────────────────────────────────
@@ -853,6 +914,7 @@ main() {
   wizard_miniapp
   generate_secrets
   write_env
+  wizard_restore
   register_service
   step "Verifying"
   if [ -n "$TELEGRAM_UNVERIFIED" ]; then

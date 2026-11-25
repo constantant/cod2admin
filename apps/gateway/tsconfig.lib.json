@@ -11,12 +11,6 @@
   "include": ["src/**/*.ts"],
   "references": [
     {
-      "path": "../../packages/game-client/tsconfig.lib.json"
-    },
-    {
-      "path": "../../packages/player-watch/tsconfig.lib.json"
-    },
-    {
       "path": "../../packages/watch-store/tsconfig.lib.json"
     },
     {
@@ -26,10 +20,19 @@
       "path": "../../packages/rcon-client/tsconfig.lib.json"
     },
     {
+      "path": "../../packages/player-watch/tsconfig.lib.json"
+    },
+    {
       "path": "../../packages/log-tailer/tsconfig.lib.json"
     },
     {
+      "path": "../../packages/game-client/tsconfig.lib.json"
+    },
+    {
       "path": "../../packages/ban-store/tsconfig.lib.json"
+    },
+    {
+      "path": "../../packages/backup/tsconfig.lib.json"
     },
     {
       "path": "../../packages/admin-store/tsconfig.lib.json"
