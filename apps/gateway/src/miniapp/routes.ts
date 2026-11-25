@@ -41,6 +41,7 @@ import type {
 import { ApiProblem } from './api-problem.js';
 import { actorLabel, type MiniAppActor } from './auth.js';
 import { toGuidBanDto, toIpBanDto, toMuteDto, type AdminNames } from './dto.js';
+import { registerBackupRoutes } from './routes-backup.js';
 import { registerFunctionRoutes } from './routes-functions.js';
 import { registerInsightRoutes } from './routes-insight.js';
 import { registerManagementRoutes } from './routes-management.js';
@@ -1016,6 +1017,7 @@ export function registerRoutes(
   registerInsightRoutes(app, deps, state);
   registerManagementRoutes(app, deps, state);
   registerFunctionRoutes(app, deps, state);
+  registerBackupRoutes(app, deps);
 }
 
 const MAX_ROTATION_ENTRIES = 64;

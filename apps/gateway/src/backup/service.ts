@@ -40,7 +40,10 @@ const stamp = (date: Date): string =>
     .replace('T', '-');
 
 /** Backup files that this service writes and prunes, and nothing else in the folder. */
-const NAME = /^(cod2admin|pre-import)-\d{8}-\d{6}\.c2bak$/;
+export const BACKUP_FILE_NAME = /^(cod2admin|pre-import|send|manual)-\d{8}-\d{6}\.c2bak$/;
+
+/** `cod2admin`: scheduled. `manual`: made on the Backup page. `pre-import`: before a restore. `send`: a smaller copy for Telegram. */
+export type BackupPrefix = 'cod2admin' | 'manual' | 'pre-import' | 'send';
 
 export interface BackupService {
   readonly dir: string;
@@ -48,11 +51,11 @@ export interface BackupService {
   createFile(input: {
     groups: readonly BackupGroup[];
     passphrase: string;
-    prefix?: 'cod2admin' | 'pre-import';
+    prefix?: BackupPrefix;
   }): Promise<CreatedBackup>;
   list(): Promise<BackupFileInfo[]>;
   /** Deletes all but the newest `keep` files of `prefix`. */
-  prune(keep: number, prefix?: 'cod2admin' | 'pre-import'): Promise<number>;
+  prune(keep: number, prefix?: BackupPrefix): Promise<number>;
   preview(path: string, passphrase: string): Promise<RestoreReport>;
   restore(
     path: string,
@@ -81,7 +84,7 @@ export function createBackupService(options: {
       return [];
     }
     const out: BackupFileInfo[] = [];
-    for (const name of names.filter((n) => NAME.test(n))) {
+    for (const name of names.filter((n) => BACKUP_FILE_NAME.test(n))) {
       const info = await stat(join(options.dir, name));
       out.push({ name, bytes: info.size, modifiedAt: info.mtime });
     }

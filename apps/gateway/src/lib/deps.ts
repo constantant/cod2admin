@@ -1,3 +1,4 @@
+import type { BackupManager } from '../backup/manager.js';
 import type { AdminStore } from '@cod2admin/admin-store';
 import type { GameLogTailer } from '@cod2admin/log-tailer';
 import type { BanStore } from '@cod2admin/ban-store';
@@ -36,6 +37,8 @@ export interface UpdateFeatureConfig {
 
 /** Everything a command handler needs beyond the incoming update (docs/PLAN.md §9 Phase 2). */
 export interface GatewayDeps {
+  /** Backup files, schedule and Telegram delivery (docs/PLAN-backup.md). */
+  backup?: BackupManager;
   adminStore: AdminStore;
   banStore: BanStore;
   /** Every managed server by alias. `/addserver`/`/removeserver` change it while the bot runs. */

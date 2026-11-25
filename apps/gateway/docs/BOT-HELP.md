@@ -114,7 +114,7 @@ Each command needs the permission in its heading. `/permit` is how those permiss
 - `/permit <telegram-id-or-reply> [kick, tempban, mute]` — replaces their permissions. Separate
   ids with commas or spaces. With no ids, the list is cleared. If they already have `rcon` or
   `update` and you leave those out, they keep them
-- Only the owner can give or take `rcon` and `update`. Holding those permissions does not let you
+- Only the owner can give or take `rcon`, `update` and `backup.manage`. Holding those permissions does not let you
   pass them on, and omitting them does not take them away
 - `/removeadmin <telegram-id-or-reply>` — nobody can remove the owner or themselves. Anyone with
   `admins.manage` can remove other staff
@@ -155,6 +155,15 @@ Each command needs the permission in its heading. `/permit` is how those permiss
 - `/relays` — how the bot reaches Telegram: directly, or through relays where Telegram is blocked
   (e.g. servers in Russia). `/relays test` checks every route; `add <url>`, `remove <n>`,
   `direct on|off` and `reset` change the list, effective immediately
+
+### `backup`
+
+- `/backup` — the scheduled backup: when it runs, the last result, whether a passphrase is set.
+  `/backup now` makes one and sends it to the owner as an encrypted file. `/backup on daily 04:00`
+  or `/backup on every 12` sets the schedule, `/backup off` stops it, `/backup telegram
+  file|notify|off` picks whether the file, only a message, or nothing is sent to Telegram. The
+  passphrase is never typed in chat: set it in the Mini App (More → Backup). Restoring is done there
+  or with `cod2admin-backup import` on the host. Only the owner can give or take this permission
 
 ### `templates`
 

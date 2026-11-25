@@ -30,6 +30,7 @@ import { permitCommand } from './commands/permit.js';
 import { playersCommand } from './commands/players.js';
 import { rconCommand } from './commands/rcon.js';
 import { removeAdminCommand } from './commands/removeadmin.js';
+import { backupCommand } from './commands/backup.js';
 import { relaysCommand } from './commands/relays.js';
 import { removeServerCommand } from './commands/removeserver.js';
 import { startReportTailer } from './report-tailers.js';
@@ -223,6 +224,9 @@ export function createBot(
       },
       decode: (bytes) => decodeText(bytes, config.textEncoding),
     }),
+  );
+  bot.command('backup', allow('backup.manage'), (ctx) =>
+    backupCommand(ctx, deps),
   );
   bot.command('relays', allow('relays'), (ctx) => relaysCommand(ctx, deps));
   bot.command('templates', allow('templates'), (ctx) =>

@@ -33,6 +33,7 @@ export const PERMISSIONS = [
   'logs',
   'functions.run',
   'functions.manage',
+  'backup.manage',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -838,4 +839,103 @@ export interface UpdateStatusResponse {
 export interface ApplyUpdateRequest {
   /** The version the owner agreed to. Refused if the latest has changed since. */
   tag: string;
+}
+
+// ── Backup (docs/PLAN-backup.md) ─────────────────────────────────────────────────────────────
+
+export type BackupGroup = 'core' | 'bans' | 'history' | 'functions' | 'watch';
+
+export type BackupScheduleMode = 'daily' | 'hours';
+
+/** What the owner set. `telegram: 'notify'` sends a message only, not the file. */
+export interface BackupSchedule {
+  enabled: boolean;
+  mode: BackupScheduleMode;
+  /** `HH:MM`, bot's local time. For `daily`. */
+  at: string;
+  /** Every this many hours. For `hours`. */
+  hours: number;
+  groups: BackupGroup[];
+  telegram: 'file' | 'notify' | 'off';
+  /** How many scheduled files to keep on the host. */
+  keepLocal: number;
+}
+
+export interface BackupRunInfo {
+  at: string;
+  ok: boolean;
+  /** What happened, no secrets. */
+  message: string;
+  bytes?: number;
+}
+
+export interface BackupFileDto {
+  name: string;
+  bytes: number;
+  modifiedAt: string;
+}
+
+export interface BackupStatusResponse {
+  groups: { id: BackupGroup; tables: string[]; default: boolean }[];
+  schedule: BackupSchedule;
+  /** A passphrase is saved (or set in the bot's config), so a schedule can run. */
+  passphraseSet: boolean;
+  /** The passphrase comes from `BACKUP_PASSPHRASE` and can't be changed here. */
+  passphraseFromConfig: boolean;
+  lastRun: BackupRunInfo | null;
+  /** Where the owner's backups are sent; `null` when no owner has claimed the bot. */
+  ownerChat: boolean;
+  files: BackupFileDto[];
+  dir: string;
+}
+
+export interface CreateBackupRequest {
+  passphrase: string;
+  groups: BackupGroup[];
+}
+
+export interface BackupSetPassphraseRequest {
+  /** `null` forgets the saved one. */
+  passphrase: string | null;
+}
+
+/** A file on the host (`file`) or one just uploaded (`upload`). */
+export type BackupSource = { file: string } | { upload: string };
+
+export interface BackupPreviewRequest {
+  source: BackupSource;
+  passphrase: string;
+  groups?: BackupGroup[];
+}
+
+export interface BackupPreviewResponse {
+  created: string;
+  app: string;
+  groups: BackupGroup[];
+  tables: {
+    name: string;
+    group: BackupGroup;
+    fileRows: number;
+    currentRows: number;
+    droppedColumns: string[];
+  }[];
+  warnings: string[];
+}
+
+export interface BackupRestoreRequest extends BackupPreviewRequest {
+  /** Must be the text `REPLACE`. */
+  confirm: string;
+}
+
+export interface BackupRestoreResponse {
+  message: string;
+  /** The bot restarts a moment after this answer. */
+  restarting: boolean;
+  /** The file the current data was saved to first, if any. */
+  snapshot: string | null;
+}
+
+export interface BackupUploadResponse {
+  upload: string;
+  bytes: number;
 }

@@ -27,6 +27,7 @@ export const PERMISSIONS = [
   'logs',
   'functions.run',
   'functions.manage',
+  'backup.manage',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -62,6 +63,7 @@ export const OWNER_GRANTED_PERMISSIONS = [
   'update',
   'watch.manage',
   'functions.manage',
+  'backup.manage',
 ] as const satisfies readonly Permission[];
 
 export class PermissionError extends Error {

@@ -88,6 +88,9 @@ import {
 import { McpSessions } from './mcp/sessions.js';
 import { resolveMapPreview } from './watch/match-summary.js';
 import { Pool as BackupPool, holdGatewayPresence } from '@cod2admin/backup';
+import { getRunningVersion } from './lib/version.js';
+import { BackupManager } from './backup/manager.js';
+import { backupDirFromEnv, createBackupService } from './backup/service.js';
 import { ChatFeeds } from './miniapp/chat-feed.js';
 import { startMiniAppServer } from './miniapp/server.js';
 
@@ -326,6 +329,29 @@ const deps: GatewayDeps = {
 startExpiryPoller(deps);
 
 const bot = createBot(config, deps, claimSecret);
+
+// Backups: files on the host, the schedule, and delivery to the owner's chat (docs/PLAN-backup.md).
+const backupManager = new BackupManager({
+  adminStore,
+  service: createBackupService({
+    databaseUrl: config.databaseUrl,
+    secretsKey: config.secretsEncryptionKey,
+    appVersion: getRunningVersion(),
+    dir: backupDirFromEnv(process.env),
+  }),
+  secretsKey: config.secretsEncryptionKey,
+  envPassphrase: process.env.BACKUP_PASSPHRASE || undefined,
+  sender: {
+    sendDocument: async (chatId, path, caption) => {
+      await bot.api.sendDocument(chatId, new InputFile(path), { caption });
+    },
+    sendMessage: async (chatId, text) => {
+      await bot.api.sendMessage(chatId, text);
+    },
+  },
+});
+deps.backup = backupManager;
+backupManager.start();
 
 // Not awaited: it retries for minutes on a bad connection, and the bot has to start meanwhile.
 void checkPendingUpdateOnBoot(deps, bot);
