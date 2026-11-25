@@ -1,3 +1,18 @@
+## [1.27.1](https://github.com/constantant/cod2admin/releases/tag/v1.27.1) (2026-11-25)
+
+### 🚀 Features
+
+- **update:** show download progress in the chat and in the app ([adc67b5](https://github.com/constantant/cod2admin/commit/adc67b5))
+
+### 🩹 Fixes
+
+- **update:** stop failing a slow release download after 60 seconds ([457b9a6](https://github.com/constantant/cod2admin/commit/457b9a6))
+
+### ❤️ Thank You
+
+- Claude Sonnet 5.5
+- kk
+
 ## [1.27.0](https://github.com/constantant/cod2admin/releases/tag/v1.27.0) (2026-11-25)
 
 ### 🚀 Features
