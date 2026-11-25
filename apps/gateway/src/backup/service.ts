@@ -40,7 +40,8 @@ const stamp = (date: Date): string =>
     .replace('T', '-');
 
 /** Backup files that this service writes and prunes, and nothing else in the folder. */
-export const BACKUP_FILE_NAME = /^(cod2admin|pre-import|send|manual)-\d{8}-\d{6}\.c2bak$/;
+export const BACKUP_FILE_NAME =
+  /^(cod2admin|pre-import|send|manual)-\d{8}-\d{6}\.c2bak$/;
 
 /** `cod2admin`: scheduled. `manual`: made on the Backup page. `pre-import`: before a restore. `send`: a smaller copy for Telegram. */
 export type BackupPrefix = 'cod2admin' | 'manual' | 'pre-import' | 'send';

@@ -91,6 +91,12 @@ export const appRoutes: Route[] = [
       import('./pages/functions/functions').then((m) => m.FunctionsPage),
   },
   {
+    path: 'backup',
+    canMatch: [allow('backup.manage')],
+    loadComponent: () =>
+      import('./pages/backup/backup').then((m) => m.BackupPage),
+  },
+  {
     path: 'relays',
     canMatch: [allow('relays')],
     loadComponent: () =>

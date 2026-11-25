@@ -79,11 +79,14 @@ export async function backupCommand(
         const schedule = await manager.getSchedule();
         const [mode, value] = args;
         let next = { ...DEFAULT_SCHEDULE, ...schedule, enabled: true };
-        if (mode === 'daily' && value) next = { ...next, mode: 'daily', at: value };
+        if (mode === 'daily' && value)
+          next = { ...next, mode: 'daily', at: value };
         else if (mode === 'every' && value && /^\d+$/.test(value)) {
           next = { ...next, mode: 'hours', hours: Number(value) };
         } else if (mode) {
-          await ctx.reply('Usage: /backup on daily 04:00  or  /backup on every 12');
+          await ctx.reply(
+            'Usage: /backup on daily 04:00  or  /backup on every 12',
+          );
           return;
         }
         const saved = await manager.setSchedule(next);
@@ -102,7 +105,10 @@ export async function backupCommand(
           return;
         }
         const schedule = await manager.getSchedule();
-        const saved = await manager.setSchedule({ ...schedule, telegram: choice });
+        const saved = await manager.setSchedule({
+          ...schedule,
+          telegram: choice,
+        });
         await audit('backupschedule', saved);
         await ctx.reply(`Telegram delivery: ${choice}.`);
         return;

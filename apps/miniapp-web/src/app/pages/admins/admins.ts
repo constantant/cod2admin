@@ -51,6 +51,7 @@ const PERMISSION_LABEL: Record<Permission, string> = {
   logs: 'Find the game log',
   'functions.run': 'Run custom functions',
   'functions.manage': 'Define custom functions',
+  'backup.manage': 'Manage backups',
 };
 
 /** Who may use the bot: add someone, change what they can do, or remove them. */

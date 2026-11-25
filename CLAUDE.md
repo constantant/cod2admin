@@ -93,6 +93,14 @@ cvar settings for mods) in the Mini App; built 2026-11-18 (F1–F4: store, route
 import/export), not yet opened in a real browser. Its Russian summary
 `docs/PLAN-custom-functions-ru.md` is kept in sync the same way.
 
+`docs/PLAN-backup.md` is the export/import plan: `packages/backup` (encrypted `.c2bak` file, whole-file
+AES-GCM from a passphrase, one-transaction restore), the `cod2admin-backup` CLI (`apps/gateway/src/backup-cli.ts`,
+installed by `install.sh`, also the restore step on a fresh install), the Mini App Backup page
+(`routes-backup.ts`, permission `backup.manage`) and `/backup` with a schedule that sends the file to
+the owner's Telegram chat (`apps/gateway/src/backup/`). Built 2026-11-25 (B1–B4), not tried on a real
+server or in a browser. A new table must be added to `packages/backup/src/lib/registry.ts`
+(`registry.spec.ts` fails otherwise). Its Russian summary `docs/PLAN-backup-ru.md` is kept in sync.
+
 `docs/PLAN-russia-access.md` covers game hosts in Russia, where Telegram has been blocked since
 March 2026 (`api.telegram.org` unreachable from most Russian hosting). Part A is implemented
 (2026-10-04, see its §0):

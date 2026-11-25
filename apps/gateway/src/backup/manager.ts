@@ -7,10 +7,7 @@ import {
   splitFile,
   type BackupGroup,
 } from '@cod2admin/backup';
-import type {
-  BackupRunInfo,
-  BackupSchedule,
-} from '../miniapp/api-types.js';
+import type { BackupRunInfo, BackupSchedule } from '../miniapp/api-types.js';
 import {
   DEFAULT_SCHEDULE,
   LAST_RUN_KEY,
@@ -65,7 +62,8 @@ export class BackupManager {
     this.box = new SecretBox(options.secretsKey);
     this.now = options.now ?? (() => new Date());
     this.sleep =
-      options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+      options.sleep ??
+      ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
   }
 
   get service(): BackupService {
@@ -79,7 +77,9 @@ export class BackupManager {
   /** Runs `work` while no scheduled backup can start (a restore must not race one). */
   async exclusive<T>(work: () => Promise<T>): Promise<T> {
     if (this.running) {
-      throw new BackupCryptoError('A backup is running right now. Try again in a minute.');
+      throw new BackupCryptoError(
+        'A backup is running right now. Try again in a minute.',
+      );
     }
     this.running = true;
     try {
@@ -97,7 +97,9 @@ export class BackupManager {
 
   async getSchedule(): Promise<BackupSchedule> {
     const stored = await this.options.adminStore.getSetting(SCHEDULE_KEY);
-    return stored === undefined ? { ...DEFAULT_SCHEDULE } : parseSchedule(stored);
+    return stored === undefined
+      ? { ...DEFAULT_SCHEDULE }
+      : parseSchedule(stored);
   }
 
   /** Turning it on needs a passphrase, since a schedule that fails every night helps nobody. */
@@ -317,7 +319,9 @@ export class BackupManager {
           this.options.sender.sendDocument(
             owner,
             part,
-            caption(` (part ${index + 1} of ${parts.length}, join them in order)`),
+            caption(
+              ` (part ${index + 1} of ${parts.length}, join them in order)`,
+            ),
           ),
         );
       }
@@ -346,7 +350,9 @@ export class BackupManager {
 
   async tick(): Promise<boolean> {
     const schedule = await this.getSchedule();
-    const since = sinceOf(await this.options.adminStore.getSetting(SCHEDULE_KEY));
+    const since = sinceOf(
+      await this.options.adminStore.getSetting(SCHEDULE_KEY),
+    );
     const last = await this.getLastRun();
     const lastAttempt = last ? new Date(last.at) : undefined;
     if (!isDue(schedule, this.now(), since, lastAttempt)) return false;

@@ -46,6 +46,7 @@ const PERMISSION_RU: Readonly<Record<string, string>> = {
   logs: 'Найти журнал игры',
   'functions.run': 'Запускать свои функции',
   'functions.manage': 'Создавать свои функции',
+  'backup.manage': 'Резервные копии',
 };
 const permissionRu = (id: string) => PERMISSION_RU[id] ?? id;
 const REQUIRED: Readonly<Record<string, string>> = {
@@ -610,6 +611,75 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
   'Checking…': 'Проверка…',
   'in use': 'используется',
   'Add a relay': 'Добавить релей',
+  Backups: 'Резервные копии',
+  'Save the bot’s data, restore it, send it to Telegram':
+    'Сохранить данные бота, восстановить их, отправить в Telegram',
+  'Make a backup': 'Сделать резервную копию',
+  'The file is encrypted with a passphrase you choose. Keep the passphrase: without it the file cannot be opened.':
+    'Файл шифруется выбранной вами парольной фразой. Сохраните фразу: без неё файл не открыть.',
+  Passphrase: 'Парольная фраза',
+  'At least 12 characters.': 'Не меньше 12 символов.',
+  'Backups on the bot': 'Копии на боте',
+  'No backups yet.': 'Копий пока нет.',
+  Download: 'Скачать',
+  'Send to my chat': 'Отправить мне в чат',
+  Restore: 'Восстановить',
+  'Restore from a file': 'Восстановить из файла',
+  'Choose a backup from this device, or use Restore on a file above.':
+    'Выберите копию на этом устройстве или нажмите «Восстановить» у файла выше.',
+  'Choose a file': 'Выбрать файл',
+  'Passphrase of this backup': 'Парольная фраза этой копии',
+  'Check the file': 'Проверить файл',
+  Made: 'Сделана',
+  'bot version': 'версия бота',
+  'In file': 'В файле',
+  Now: 'Сейчас',
+  'This replaces the data above with the file. The current data is saved to a file on the bot first, and the bot restarts.':
+    'Данные выше будут заменены данными из файла. Текущие данные сначала сохраняются в файл на боте, затем бот перезапускается.',
+  'Type REPLACE to confirm': 'Введите REPLACE для подтверждения',
+  Schedule: 'Расписание',
+  'The bot makes a backup on a schedule, keeps a few on its disk, and sends the encrypted file to the owner’s chat with the bot.':
+    'Бот делает копию по расписанию, хранит несколько на диске и отправляет зашифрованный файл владельцу в чат с ботом.',
+  'Passphrase for scheduled backups': 'Парольная фраза для копий по расписанию',
+  saved: 'сохранена',
+  'not set': 'не задана',
+  'It comes from the bot’s config file (BACKUP_PASSPHRASE).':
+    'Она берётся из файла настроек бота (BACKUP_PASSPHRASE).',
+  'New passphrase': 'Новая парольная фраза',
+  'Save passphrase': 'Сохранить фразу',
+  'Forget it': 'Забыть',
+  'It is stored on the bot, encrypted. If you forget it, those backups cannot be opened.':
+    'Она хранится на боте в зашифрованном виде. Если вы её забудете, такие копии не открыть.',
+  'Back up on a schedule': 'Копировать по расписанию',
+  'How often': 'Как часто',
+  'Every day at a time': 'Каждый день в заданное время',
+  'Every few hours': 'Каждые несколько часов',
+  'Time (bot’s local time)': 'Время (местное время бота)',
+  'Every how many hours': 'Раз во сколько часов',
+  'Send to Telegram': 'Отправлять в Telegram',
+  'The file': 'Файл',
+  'Only a message': 'Только сообщение',
+  Nothing: 'Ничего',
+  'Keep on the bot': 'Хранить на боте',
+  'No owner has claimed the bot, so nothing can be sent to Telegram.':
+    'У бота нет владельца, поэтому в Telegram ничего не отправить.',
+  'A file over 50 MB is sent without the history and watch data, or in parts. The full file stays on the bot.':
+    'Файл больше 50 МБ отправляется без истории и данных наблюдателя или по частям. Полный файл остаётся на боте.',
+  'Back up now': 'Сделать копию сейчас',
+  'Last run': 'Последний запуск',
+  'Admins, servers and settings': 'Админы, серверы и настройки',
+  'Bans and mutes': 'Баны и заглушения',
+  'Audit log, reports, notes and players': 'Журнал, жалобы, заметки и игроки',
+  'Watcher data (large)': 'Данные наблюдателя (много)',
+  'Backup saved.': 'Копия сохранена.',
+  'Delete this backup?': 'Удалить эту копию?',
+  'Replace the data with this backup?': 'Заменить данные этой копией?',
+  'Everything the bot has now is replaced. It is saved to a file first.':
+    'Всё, что сейчас есть у бота, будет заменено. Сначала оно сохраняется в файл.',
+  'Forget the saved passphrase?': 'Забыть сохранённую фразу?',
+  'The schedule turns off until you save one again.':
+    'Расписание выключится, пока вы снова не сохраните фразу.',
+  Forget: 'Забыть',
   "It's checked before it's saved.": 'Перед сохранением релей проверяется.',
   'Back to the defaults': 'Вернуть настройки по умолчанию',
   'Remove this relay?': 'Убрать этот релей?',

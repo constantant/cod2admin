@@ -28,7 +28,12 @@ function fakeStore(): AdminStore {
 describe('BackupManager', () => {
   let dir: string;
   let clock: Date;
-  let sent: Array<{ kind: 'doc' | 'msg'; to: number; text: string; path?: string }>;
+  let sent: Array<{
+    kind: 'doc' | 'msg';
+    to: number;
+    text: string;
+    path?: string;
+  }>;
   let failSends: number;
   const sender: BackupSender = {
     async sendDocument(to, path, text) {
@@ -52,16 +57,26 @@ describe('BackupManager', () => {
       const path = join(dir, name);
       const bytes = sizeOf(groups);
       await writeFile(path, Buffer.alloc(bytes, 1));
-      return { path, name, bytes, counts: { admins: 1 } } satisfies CreatedBackup;
+      return {
+        path,
+        name,
+        bytes,
+        counts: { admins: 1 },
+      } satisfies CreatedBackup;
     },
     async prune(keep: number) {
-      const files = (await readdir(dir)).filter((n) => n.startsWith('cod2admin-')).sort().reverse();
+      const files = (await readdir(dir))
+        .filter((n) => n.startsWith('cod2admin-'))
+        .sort()
+        .reverse();
       for (const f of files.slice(keep)) await rm(join(dir, f));
       return 0;
     },
   } as unknown as BackupService;
 
-  const make = (extra: Partial<ConstructorParameters<typeof BackupManager>[0]> = {}) =>
+  const make = (
+    extra: Partial<ConstructorParameters<typeof BackupManager>[0]> = {},
+  ) =>
     new BackupManager({
       adminStore: fakeStore(),
       service,
@@ -91,11 +106,15 @@ describe('BackupManager', () => {
 
   it('refuses to turn on without a passphrase, and stores the passphrase encrypted', async () => {
     const manager = make();
-    await expect(manager.setSchedule({ ...DEFAULT_SCHEDULE, enabled: true })).rejects.toThrow(/passphrase/);
+    await expect(
+      manager.setSchedule({ ...DEFAULT_SCHEDULE, enabled: true }),
+    ).rejects.toThrow(/passphrase/);
     await manager.setPassphrase(PASS);
     expect(await manager.getPassphrase()).toBe(PASS);
     const stored = JSON.stringify(
-      await (manager as unknown as { options: { adminStore: AdminStore } }).options.adminStore.getSetting('backup.passphrase'),
+      await (
+        manager as unknown as { options: { adminStore: AdminStore } }
+      ).options.adminStore.getSetting('backup.passphrase'),
     );
     expect(stored).not.toContain(PASS);
     await expect(make().setPassphrase('short')).rejects.toThrow();
@@ -126,14 +145,17 @@ describe('BackupManager', () => {
     expect(run.ok).toBe(false);
     expect(sent.at(-1)).toMatchObject({ kind: 'msg', to: OWNER });
     expect(sent.at(-1)?.text).toMatch(/Backup failed/);
-    expect((await readdir(dir)).some((n) => n.startsWith('cod2admin-'))).toBe(true);
+    expect((await readdir(dir)).some((n) => n.startsWith('cod2admin-'))).toBe(
+      true,
+    );
     expect((await manager.getLastRun())?.ok).toBe(false);
   });
 
   it('drops watch, then history, when the file is over the limit, and splits if still too big', async () => {
     const manager = make({ partBytes: 1000 });
     await enabled(manager, { groups: ['core', 'history', 'watch'] });
-    sizeOf = (groups) => (groups.includes('watch') ? 5000 : groups.includes('history') ? 2500 : 600);
+    sizeOf = (groups) =>
+      groups.includes('watch') ? 5000 : groups.includes('history') ? 2500 : 600;
     await manager.runNow();
     expect(calls.at(-1)).toEqual(['core']);
     expect(sent).toHaveLength(1);
@@ -155,7 +177,11 @@ describe('BackupManager', () => {
     await manager.runNow();
     expect(sent.map((s) => s.kind)).toEqual(['msg']);
     sent = [];
-    await manager.setSchedule({ ...DEFAULT_SCHEDULE, enabled: true, telegram: 'off' });
+    await manager.setSchedule({
+      ...DEFAULT_SCHEDULE,
+      enabled: true,
+      telegram: 'off',
+    });
     await manager.runNow();
     expect(sent).toEqual([]);
   });
@@ -164,7 +190,9 @@ describe('BackupManager', () => {
     const manager = make();
     await enabled(manager, { keepLocal: 2 });
     for (let i = 0; i < 4; i++) await manager.runNow();
-    const files = (await readdir(dir)).filter((n) => n.startsWith('cod2admin-'));
+    const files = (await readdir(dir)).filter((n) =>
+      n.startsWith('cod2admin-'),
+    );
     expect(files).toHaveLength(2);
     expect((await stat(join(dir, files[0]))).size).toBe(100);
   });

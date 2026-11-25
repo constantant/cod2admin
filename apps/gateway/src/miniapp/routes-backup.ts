@@ -52,7 +52,10 @@ function userError<T>(work: () => Promise<T>): Promise<T> {
   });
 }
 
-function groupsFrom(value: unknown, fallback: readonly BackupGroup[]): BackupGroup[] {
+function groupsFrom(
+  value: unknown,
+  fallback: readonly BackupGroup[],
+): BackupGroup[] {
   if (value === undefined) return [...fallback];
   if (
     !Array.isArray(value) ||
@@ -82,7 +85,11 @@ export function registerBackupRoutes(
 ): void {
   const manager = () => {
     if (!deps.backup) {
-      throw new ApiProblem(404, 'not_found', 'Backups are not set up on this bot.');
+      throw new ApiProblem(
+        404,
+        'not_found',
+        'Backups are not set up on this bot.',
+      );
     }
     return deps.backup;
   };
@@ -142,13 +149,11 @@ export function registerBackupRoutes(
         passphraseFromConfig: m.passphraseFromConfig(),
         lastRun: await m.getLastRun(),
         ownerChat: admins.some((admin) => admin.isOwner),
-        files: files.map(
-          (file): BackupFileDto => ({
-            name: file.name,
-            bytes: file.bytes,
-            modifiedAt: file.modifiedAt.toISOString(),
-          }),
-        ),
+        files: files.map((file): BackupFileDto => ({
+          name: file.name,
+          bytes: file.bytes,
+          modifiedAt: file.modifiedAt.toISOString(),
+        })),
         dir: m.service.dir,
       };
     },
@@ -164,7 +169,9 @@ export function registerBackupRoutes(
         manager().setSchedule(request.body),
       );
       await audit(request, 'backupschedule', null, schedule);
-      return { message: schedule.enabled ? 'Schedule saved.' : 'Schedule is off.' };
+      return {
+        message: schedule.enabled ? 'Schedule saved.' : 'Schedule is off.',
+      };
     },
   );
 
@@ -182,7 +189,8 @@ export function registerBackupRoutes(
       // Never the passphrase itself.
       await audit(request, 'backuppassphrase', null, { set: value !== null });
       return {
-        message: value === null ? 'Saved passphrase forgotten.' : 'Passphrase saved.',
+        message:
+          value === null ? 'Saved passphrase forgotten.' : 'Passphrase saved.',
       };
     },
   );
@@ -214,7 +222,10 @@ export function registerBackupRoutes(
           m.service.createFile({ groups, passphrase, prefix: 'manual' }),
         ),
       );
-      await audit(request, 'backupexport', created.name, { groups, bytes: created.bytes });
+      await audit(request, 'backupexport', created.name, {
+        groups,
+        bytes: created.bytes,
+      });
       return {
         name: created.name,
         bytes: created.bytes,
@@ -226,10 +237,7 @@ export function registerBackupRoutes(
   app.get(
     '/backup/files/:name',
     { config: { permission: 'backup.manage', action: true } },
-    async (
-      request: FastifyRequest<{ Params: { name: string } }>,
-      reply,
-    ) => {
+    async (request: FastifyRequest<{ Params: { name: string } }>, reply) => {
       const name = fileName(request.params.name);
       const path = join(manager().service.dir, name);
       await missing(path);
@@ -307,7 +315,13 @@ export function registerBackupRoutes(
             transform(chunk: Buffer, _enc, callback) {
               bytes += chunk.length;
               if (bytes > MAX_UPLOAD_BYTES) {
-                callback(new ApiProblem(413, 'too_large', 'That file is too big for a backup.'));
+                callback(
+                  new ApiProblem(
+                    413,
+                    'too_large',
+                    'That file is too big for a backup.',
+                  ),
+                );
               } else callback(null, chunk);
             },
           }),
@@ -334,7 +348,10 @@ export function registerBackupRoutes(
       const path = sourcePath(request.body?.source);
       await missing(path);
       const report = await userError(() =>
-        manager().service.preview(path, passphraseFrom(request.body.passphrase)),
+        manager().service.preview(
+          path,
+          passphraseFrom(request.body.passphrase),
+        ),
       );
       return {
         created: report.created,

@@ -12,12 +12,11 @@ function setup(passphrase: string | null = 'x'.repeat(12)) {
   const manager = {
     getSchedule: vi.fn(async () => schedule),
     setSchedule: vi.fn(async (next: unknown) => {
-      if (
-        (next as { enabled: boolean }).enabled &&
-        !passphrase
-      ) {
+      if ((next as { enabled: boolean }).enabled && !passphrase) {
         const { BackupCryptoError } = await import('@cod2admin/backup');
-        throw new BackupCryptoError('Set a backup passphrase before turning the schedule on.');
+        throw new BackupCryptoError(
+          'Set a backup passphrase before turning the schedule on.',
+        );
       }
       schedule = validateSchedule(next);
       return schedule;
@@ -33,7 +32,10 @@ function setup(passphrase: string | null = 'x'.repeat(12)) {
 const ctx = (match: string) =>
   createFakeCtx({ match, admin: { telegramId: 1, ...OWNER_ACCESS } });
 const replies = (c: ReturnType<typeof ctx>) =>
-  vi.mocked(c.reply).mock.calls.map((call) => String(call[0])).join('\n');
+  vi
+    .mocked(c.reply)
+    .mock.calls.map((call) => String(call[0]))
+    .join('\n');
 
 describe('backupCommand', () => {
   it('shows the schedule, passphrase state and no secret', async () => {
@@ -55,9 +57,14 @@ describe('backupCommand', () => {
     expect(replies(every)).toContain('every 6 hours');
     const off = ctx('off');
     await backupCommand(off, fake.deps);
-    expect(manager.setSchedule).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: false }));
+    expect(manager.setSchedule).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: false }),
+    );
     expect(fake.adminStore.recordAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'backupschedule', source: 'telegram_command' }),
+      expect.objectContaining({
+        action: 'backupschedule',
+        source: 'telegram_command',
+      }),
     );
   });
 

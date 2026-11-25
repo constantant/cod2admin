@@ -116,6 +116,13 @@ const LINKS: readonly Link[] = [
     permission: 'functions.manage',
   },
   {
+    path: '/backup',
+    label: 'Backups',
+    hint: 'Save the bot’s data, restore it, send it to Telegram',
+    icon: 'cloud_download',
+    permission: 'backup.manage',
+  },
+  {
     path: '/templates',
     label: 'Game chat lines',
     hint: 'What the bot says to players',

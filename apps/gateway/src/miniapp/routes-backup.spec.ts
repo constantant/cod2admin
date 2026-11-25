@@ -2,12 +2,23 @@ import { randomBytes } from 'node:crypto';
 import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { migrate as migrateAdmin, type Permission } from '@cod2admin/admin-store';
+import {
+  migrate as migrateAdmin,
+  type Permission,
+} from '@cod2admin/admin-store';
 import { migrate as migrateBan } from '@cod2admin/ban-store';
 import { Pool } from '@cod2admin/backup';
 import { migrate as migrateWatch } from '@cod2admin/watch-store';
 import type { FastifyInstance } from 'fastify';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from 'vitest';
 import { BackupManager } from '../backup/manager.js';
 import { createBackupService } from '../backup/service.js';
 import { OWNER_ACCESS, sampleAdmin } from '../lib/testing/fake-admin-store.js';
@@ -80,7 +91,10 @@ describe('Mini App backup routes', () => {
     fake.adminStore.deleteSetting.mockImplementation(async (k) => {
       settings.delete(k);
     });
-    const shapes: Record<number, { isOwner: boolean; permissions: Permission[] }> = {
+    const shapes: Record<
+      number,
+      { isOwner: boolean; permissions: Permission[] }
+    > = {
       [OWNER]: OWNER_ACCESS,
       [STAFF]: { isOwner: false, permissions: ['kick', 'ban'] },
     };
@@ -171,7 +185,13 @@ describe('Mini App backup routes', () => {
       passphrase: PASS,
     });
     expect(preview.statusCode).toBe(200);
-    expect(preview.json<{ tables: { name: string; fileRows: number; currentRows: number }[] }>().tables.find((t) => t.name === 'bans')).toMatchObject({ fileRows: 1, currentRows: 0 });
+    expect(
+      preview
+        .json<{
+          tables: { name: string; fileRows: number; currentRows: number }[];
+        }>()
+        .tables.find((t) => t.name === 'bans'),
+    ).toMatchObject({ fileRows: 1, currentRows: 0 });
 
     const noConfirm = await call('POST', '/backup/restore', OWNER, {
       source: { file: name },
@@ -186,7 +206,9 @@ describe('Mini App backup routes', () => {
       confirm: 'REPLACE',
     });
     expect(restored.statusCode).toBe(200);
-    expect(restored.json<{ snapshot: string }>().snapshot).toMatch(/^pre-import-/);
+    expect(restored.json<{ snapshot: string }>().snapshot).toMatch(
+      /^pre-import-/,
+    );
     const { rows } = await pool.query('SELECT name FROM bans');
     expect(rows).toEqual([{ name: 'Cheater' }]);
     await new Promise((r) => setTimeout(r, 1700));
@@ -198,10 +220,20 @@ describe('Mini App backup routes', () => {
   });
 
   it('restores an uploaded file and removes the upload', async () => {
-    const made = await call('POST', '/backup/files', OWNER, { passphrase: PASS, groups: ['core', 'bans'] });
+    const made = await call('POST', '/backup/files', OWNER, {
+      passphrase: PASS,
+      groups: ['core', 'bans'],
+    });
     const { name } = made.json<{ name: string }>();
-    const bytes = (await call('GET', `/backup/files/${name}`, OWNER)).rawPayload;
-    const upload = await call('POST', '/backup/uploads', OWNER, bytes, 'application/octet-stream');
+    const bytes = (await call('GET', `/backup/files/${name}`, OWNER))
+      .rawPayload;
+    const upload = await call(
+      'POST',
+      '/backup/uploads',
+      OWNER,
+      bytes,
+      'application/octet-stream',
+    );
     expect(upload.statusCode).toBe(200);
     const { upload: id } = upload.json<{ upload: string }>();
     await pool.query('TRUNCATE bans RESTART IDENTITY CASCADE');
@@ -211,12 +243,19 @@ describe('Mini App backup routes', () => {
       confirm: 'REPLACE',
     });
     expect(restored.statusCode).toBe(200);
-    expect((await readdir(dir)).some((n) => n.startsWith('upload-'))).toBe(false);
-    expect((await pool.query('SELECT count(*) AS n FROM bans')).rows[0].n).toBe('1');
+    expect((await readdir(dir)).some((n) => n.startsWith('upload-'))).toBe(
+      false,
+    );
+    expect((await pool.query('SELECT count(*) AS n FROM bans')).rows[0].n).toBe(
+      '1',
+    );
   });
 
   it('refuses a wrong passphrase and a junk upload without changing anything', async () => {
-    const made = await call('POST', '/backup/files', OWNER, { passphrase: PASS, groups: ['core', 'bans'] });
+    const made = await call('POST', '/backup/files', OWNER, {
+      passphrase: PASS,
+      groups: ['core', 'bans'],
+    });
     const { name } = made.json<{ name: string }>();
     await pool.query('TRUNCATE bans RESTART IDENTITY CASCADE');
     const wrong = await call('POST', '/backup/restore', OWNER, {
@@ -225,40 +264,84 @@ describe('Mini App backup routes', () => {
       confirm: 'REPLACE',
     });
     expect(wrong.statusCode).toBe(400);
-    const upload = await call('POST', '/backup/uploads', OWNER, Buffer.from('not a backup at all'), 'application/octet-stream');
+    const upload = await call(
+      'POST',
+      '/backup/uploads',
+      OWNER,
+      Buffer.from('not a backup at all'),
+      'application/octet-stream',
+    );
     const { upload: id } = upload.json<{ upload: string }>();
-    const junk = await call('POST', '/backup/preview', OWNER, { source: { upload: id }, passphrase: PASS });
+    const junk = await call('POST', '/backup/preview', OWNER, {
+      source: { upload: id },
+      passphrase: PASS,
+    });
     expect(junk.statusCode).toBe(400);
     expect(restarts).toBe(0);
-    expect((await pool.query('SELECT count(*) AS n FROM bans')).rows[0].n).toBe('0');
+    expect((await pool.query('SELECT count(*) AS n FROM bans')).rows[0].n).toBe(
+      '0',
+    );
   });
 
   it('rejects names that are not backup files', async () => {
     for (const name of ['..%2F..%2Fetc%2Fpasswd', 'x.txt', 'manual-1.c2bak']) {
-      expect((await call('GET', `/backup/files/${name}`, OWNER)).statusCode).toBe(404);
-      expect((await call('DELETE', `/backup/files/${name}`, OWNER)).statusCode).toBe(404);
+      expect(
+        (await call('GET', `/backup/files/${name}`, OWNER)).statusCode,
+      ).toBe(404);
+      expect(
+        (await call('DELETE', `/backup/files/${name}`, OWNER)).statusCode,
+      ).toBe(404);
     }
-    const bad = await call('POST', '/backup/preview', OWNER, { source: { file: '../x' }, passphrase: PASS });
+    const bad = await call('POST', '/backup/preview', OWNER, {
+      source: { file: '../x' },
+      passphrase: PASS,
+    });
     expect(bad.statusCode).toBe(404);
     await writeFile(join(dir, 'keep.txt'), 'x');
   });
 
   it('saves a schedule only once a passphrase is set, and shows status without the passphrase', async () => {
-    const schedule = { enabled: true, mode: 'daily', at: '03:30', hours: 24, groups: ['core', 'bans'], telegram: 'file', keepLocal: 3 };
-    expect((await call('PUT', '/backup/schedule', OWNER, schedule)).statusCode).toBe(400);
-    expect((await call('PUT', '/backup/passphrase', OWNER, { passphrase: 'short' })).statusCode).toBe(400);
-    expect((await call('PUT', '/backup/passphrase', OWNER, { passphrase: PASS })).statusCode).toBe(200);
-    expect((await call('PUT', '/backup/schedule', OWNER, schedule)).statusCode).toBe(200);
+    const schedule = {
+      enabled: true,
+      mode: 'daily',
+      at: '03:30',
+      hours: 24,
+      groups: ['core', 'bans'],
+      telegram: 'file',
+      keepLocal: 3,
+    };
+    expect(
+      (await call('PUT', '/backup/schedule', OWNER, schedule)).statusCode,
+    ).toBe(400);
+    expect(
+      (await call('PUT', '/backup/passphrase', OWNER, { passphrase: 'short' }))
+        .statusCode,
+    ).toBe(400);
+    expect(
+      (await call('PUT', '/backup/passphrase', OWNER, { passphrase: PASS }))
+        .statusCode,
+    ).toBe(200);
+    expect(
+      (await call('PUT', '/backup/schedule', OWNER, schedule)).statusCode,
+    ).toBe(200);
     const status = await call('GET', '/backup', OWNER);
-    const body = status.json<{ schedule: { at: string }; passphraseSet: boolean }>();
+    const body = status.json<{
+      schedule: { at: string };
+      passphraseSet: boolean;
+    }>();
     expect(body.schedule.at).toBe('03:30');
     expect(body.passphraseSet).toBe(true);
     expect(status.body).not.toContain(PASS);
-    expect(JSON.stringify(fake.adminStore.recordAuditLog.mock.calls)).not.toContain(PASS);
+    expect(
+      JSON.stringify(fake.adminStore.recordAuditLog.mock.calls),
+    ).not.toContain(PASS);
   });
 
   it('sends a file to the requester’s own chat', async () => {
-    const made = await call('POST', '/backup/files', OWNER, { passphrase: PASS, groups: ['core'] });
+    const made = await call('POST', '/backup/files', OWNER, {
+      passphrase: PASS,
+      groups: ['core'],
+    });
     const { name } = made.json<{ name: string }>();
     const sent = await call('POST', `/backup/files/${name}/send`, OWNER);
     expect(sent.statusCode).toBe(200);

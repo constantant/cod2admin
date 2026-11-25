@@ -1,13 +1,13 @@
-import type {
-  BackupGroup,
-  BackupSchedule,
-} from '../miniapp/api-types.js';
+import type { BackupGroup, BackupSchedule } from '../miniapp/api-types.js';
 
 export const SCHEDULE_KEY = 'backup.schedule';
 /** When the schedule was turned on, saved beside it. */
 export function sinceOf(value: unknown): Date {
-  const raw = (value && typeof value === 'object' ? value : {}) as { since?: unknown };
-  const date = typeof raw.since === 'string' ? new Date(raw.since) : new Date(NaN);
+  const raw = (value && typeof value === 'object' ? value : {}) as {
+    since?: unknown;
+  };
+  const date =
+    typeof raw.since === 'string' ? new Date(raw.since) : new Date(NaN);
   return Number.isNaN(date.getTime()) ? new Date(0) : date;
 }
 
@@ -39,7 +39,9 @@ export function parseSchedule(value: unknown): BackupSchedule {
     unknown
   >;
   const groups = Array.isArray(raw.groups)
-    ? (raw.groups.filter((g) => GROUPS.includes(g as BackupGroup)) as BackupGroup[])
+    ? (raw.groups.filter((g) =>
+        GROUPS.includes(g as BackupGroup),
+      ) as BackupGroup[])
     : DEFAULT_SCHEDULE.groups;
   return {
     enabled: raw.enabled === true,

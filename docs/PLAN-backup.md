@@ -1,6 +1,6 @@
 # Backup export / import — plan
 
-Status: **planned 2026-11-25, nothing built.** Companion to `docs/PLAN.md` §7 (which only says
+Status: **B1–B4 built 2026-11-25** (library, CLI and installer step, Mini App page, schedule to Telegram); B5 is open. Not tried on a real server or in a real browser yet. See §11 for where the build differs from this plan. Companion to `docs/PLAN.md` §7 (which only says
 "run routine `pg_dump`", with nothing shipped to do it).
 Russian summary: `docs/PLAN-backup-ru.md` (keep in sync).
 
@@ -35,13 +35,13 @@ live only in Postgres on the same host as the bot.
 Tables come from three Drizzle schemas, each with its own migrations table
 (`admin_store_migrations`, `ban_store_migrations`, `watch_store_migrations`).
 
-| Group | Tables | Default |
-|---|---|---|
-| `core` | `admins`, `admin_permissions`, `admin_servers`, `telegram_users`, `servers`, `settings` | on, always |
-| `bans` | `bans`, `ban_ips`, `mutes` | on |
-| `history` | `audit_log`, `reports`, `player_notes`, `server_snapshots`, `known_players` | on |
-| `functions` | `custom_functions` | on |
-| `watch` | `watch_profiles`, `watch_profile_names`, `watch_lives`, `watch_population_days`, `watch_evidence` | **off** (large, ages out on a 14/90 day clock) |
+| Group       | Tables                                                                                            | Default                                        |
+| ----------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `core`      | `admins`, `admin_permissions`, `admin_servers`, `telegram_users`, `servers`, `settings`           | on, always                                     |
+| `bans`      | `bans`, `ban_ips`, `mutes`                                                                        | on                                             |
+| `history`   | `audit_log`, `reports`, `player_notes`, `server_snapshots`, `known_players`                       | on                                             |
+| `functions` | `custom_functions`                                                                                | on                                             |
+| `watch`     | `watch_profiles`, `watch_profile_names`, `watch_lives`, `watch_population_days`, `watch_evidence` | **off** (large, ages out on a 14/90 day clock) |
 
 **Never exported:** `mcp_pending`, `mcp_codes`, `mcp_grants`, `mcp_retired_refresh`, `mcp_access`
 (live OAuth sessions, they re-authorize) and the three `*_migrations` tables.
@@ -130,7 +130,7 @@ A scheduler in the gateway (one timer, like the daily watch prune) runs the expo
 
 - **Settings:** `settings` key `backup.schedule` =
   `{ enabled, interval: 'daily' | 'weekly' | 'every N hours', at: 'HH:MM' (server time zone),
-  groups, telegram: bool, keepLocal: N, lastRun, lastStatus }`. Default off.
+groups, telegram: bool, keepLocal: N, lastRun, lastStatus }`. Default off.
   Set from the Mini App Backup page or `/backup schedule daily 04:00`, `/backup off`.
 - **Passphrase:** never typed into a Telegram chat. It comes from env `BACKUP_PASSPHRASE` or is set
   on the Mini App page and stored encrypted with `SecretBox` in `settings`. No passphrase: the
@@ -159,21 +159,21 @@ A scheduler in the gateway (one timer, like the daily watch prune) runs the expo
 
 ## 7. Risks
 
-| Risk | Handling |
-|---|---|
-| Import wipes live data | Dry run first, typed confirmation, automatic pre-import snapshot, single transaction |
-| File leaks RCON passwords | Passphrase-encrypted secrets, owner-only, no passphrase in logs; the rest (audit, IPs) is sensitive too, so the docs say to store the file like a password |
-| New table forgotten | Registry drift spec (§2) |
-| Schema moves on between export and import | Per-table column lists (§3), format version, migration warnings |
-| Sequences left behind after import | `setval` per sequence, covered by a test that inserts after import |
-| Memory blowup on a big audit log | NDJSON streaming both ways, batched inserts (1000 rows) |
-| Stale in-memory state after Mini App import | Restart as in `/update`; ban poller paused during the run |
-| Import into a mid-migration DB | Run `migrate()` first, then import |
-| Backup sits in a Telegram chat for years | Whole-file encryption (§4); Telegram staff and anyone with the owner's account only get ciphertext. A weak passphrase is the weak point, so enforce a minimum length |
-| Passphrase lost | Warn on the page; files are unrecoverable, by design |
-| Upload above 50 MB or relay body limit | Drop optional groups, then split into parts, then notify-only (§6.1) |
-| Schedule silently stops | `lastStatus` on the page, owner message on failure, missed run catches up on start |
-| Owner changed `OWNER_TELEGRAM_ID` | Sent to the current owner only; schedule re-reads it each run |
+| Risk                                        | Handling                                                                                                                                                             |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Import wipes live data                      | Dry run first, typed confirmation, automatic pre-import snapshot, single transaction                                                                                 |
+| File leaks RCON passwords                   | Passphrase-encrypted secrets, owner-only, no passphrase in logs; the rest (audit, IPs) is sensitive too, so the docs say to store the file like a password           |
+| New table forgotten                         | Registry drift spec (§2)                                                                                                                                             |
+| Schema moves on between export and import   | Per-table column lists (§3), format version, migration warnings                                                                                                      |
+| Sequences left behind after import          | `setval` per sequence, covered by a test that inserts after import                                                                                                   |
+| Memory blowup on a big audit log            | NDJSON streaming both ways, batched inserts (1000 rows)                                                                                                              |
+| Stale in-memory state after Mini App import | Restart as in `/update`; ban poller paused during the run                                                                                                            |
+| Import into a mid-migration DB              | Run `migrate()` first, then import                                                                                                                                   |
+| Backup sits in a Telegram chat for years    | Whole-file encryption (§4); Telegram staff and anyone with the owner's account only get ciphertext. A weak passphrase is the weak point, so enforce a minimum length |
+| Passphrase lost                             | Warn on the page; files are unrecoverable, by design                                                                                                                 |
+| Upload above 50 MB or relay body limit      | Drop optional groups, then split into parts, then notify-only (§6.1)                                                                                                 |
+| Schedule silently stops                     | `lastStatus` on the page, owner message on failure, missed run catches up on start                                                                                   |
+| Owner changed `OWNER_TELEGRAM_ID`           | Sent to the current owner only; schedule re-reads it each run                                                                                                        |
 
 ## 8. Tests
 
@@ -216,3 +216,61 @@ A scheduler in the gateway (one timer, like the daily watch prune) runs the expo
 - Schedule choices: is daily at a fixed time enough, or do you want "every N hours" too?
 - Should a file over 50 MB be split into parts, or is dropping `history` and notifying enough?
 - Should the watch data (§2, off by default) be restorable at all, given it rebuilds itself?
+
+## 11. As built (2026-11-25)
+
+Where the code differs from the plan above, or settled a point the plan left open:
+
+- **One database, one transaction.** The three stores share one `DATABASE_URL`, so the import is a
+  single transaction, not one per store. Tables, columns, foreign keys and sequences are read from
+  Postgres at run time (`packages/backup/src/lib/db.ts`) instead of from the Drizzle schemas; the
+  registry (`registry.ts`) only names the tables, and `registry.spec.ts` checks it against the
+  migrated database.
+- **Secrets are plaintext inside the encrypted stream.** Because the whole file is encrypted (§4),
+  there is no separate `manifest.secrets.check` and no second layer: export decrypts the
+  `servers` secrets with the host key, import encrypts them with the target host's key. A wrong
+  passphrase shows up as a failed first block.
+- **Format:** `.c2bak` = 27-byte header (magic, scrypt salt and cost, nonce prefix), then 1 MiB
+  AES-256-GCM blocks (`packages/backup/src/lib/crypto.ts`). The NDJSON stream has a manifest with
+  every table and its columns up front, rows as `{"t":"r","n":table,"v":[...]}`, and an `end`
+  line with counts. There is no `sha256`: block authentication plus the last-block flag detect
+  damage and cut-off files.
+- **Host-only rows.** `settings.backup.passphrase` (encrypted with this host's key) is never
+  exported, and an import leaves it in place (`HOST_ROWS`).
+- **Restoring `core` empties `mcp_*`** through the foreign keys, as planned. An import refuses to
+  run if the cascade would reach any other table that is not in the file.
+- **Running gateway check.** A gateway holds a shared Postgres advisory lock for its whole life
+  (`presence.ts`); `cod2admin-backup import` asks for the exclusive one and refuses when it
+  cannot get it (`--force-running` overrides).
+- **Restart after a Mini App restore** is `process.exit(1)` 1.5 s after the answer, so systemd
+  (`Restart=on-failure`) and OpenRC's `supervise-daemon` start the bot again. With no supervisor
+  (the installer's "none" fallback) the bot stays down and has to be started by hand.
+- **Schedule modes:** `daily` at `HH:MM` and `every N hours` (1–720). State is in `settings`
+  (`backup.schedule`, with a `since` stamp; `backup.lastRun`). A slot missed while the bot was down
+  runs once at the next minute tick.
+- **Telegram delivery:** `sendDocument` to the owner's DM through the bot's route failover.
+  Over 45 MB: a copy without `watch`, then without `history`, is sent (the full file stays on the
+  host); if that is still over, it is split into `.001`, `.002` parts. Two retries (30 s, 2 min),
+  then a "Backup failed" message with no secrets.
+- **File names** in the backup folder: `cod2admin-` (scheduled), `manual-` (Backup page),
+  `pre-import-` (saved before every restore) and `send-` (temporary). Only `cod2admin-` files are
+  pruned by `keepLocal`. The folder is `BACKUP_DIR`, else `backups/` beside the update staging
+  folder; the installer creates it and writes `BACKUP_DIR` to `.env`.
+- **Not built:** restoring split parts from the Mini App (upload one whole file; the CLI joins
+  `.001` parts), merge mode and the `pg_dump` recipe (B5), and an existing install gets the
+  `cod2admin-backup` wrapper only after the installer is run again (an update does not add it).
+  Also not done: the web page has not been opened in a browser, and nothing was run against a
+  real server.
+
+### Using it
+
+```
+cod2admin-backup export /root/cod2admin.c2bak          # asks for a passphrase twice
+cod2admin-backup inspect /root/cod2admin.c2bak         # what is in it, nothing changed
+cod2admin-backup import  /root/cod2admin.c2bak         # stop the bot first; asks you to type yes
+cod2admin-backup import  part.c2bak.001                # joins .001, .002 ... next to it
+```
+
+`BACKUP_PASSPHRASE` or `--passphrase-file` replace the prompt. `install.sh` asks for a backup
+file after writing the config and restores it before the first start (`BACKUP_FILE` and
+`BACKUP_PASSPHRASE` in the config file for a non-interactive install).

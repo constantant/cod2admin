@@ -6,6 +6,15 @@ import {
 import { inject, Injectable } from '@angular/core';
 import type {
   ActionResponse,
+  BackupFileDto,
+  BackupPreviewRequest,
+  BackupPreviewResponse,
+  BackupRestoreRequest,
+  BackupRestoreResponse,
+  BackupSchedule,
+  BackupStatusResponse,
+  BackupUploadResponse,
+  CreateBackupRequest,
   AddAdminRequest,
   AddBanRequest,
   AddNoteRequest,
@@ -528,6 +537,73 @@ export class ApiService {
 
   removeVpnNetwork(asn: number) {
     return this.call<VpnResponse>(this.http.delete(`/api/vpn/networks/${asn}`));
+  }
+
+  backup() {
+    return this.call<BackupStatusResponse>(this.http.get('/api/backup'));
+  }
+
+  setBackupSchedule(schedule: BackupSchedule) {
+    return this.call<ActionResponse>(
+      this.http.put('/api/backup/schedule', schedule),
+    );
+  }
+
+  /** `null` forgets the saved passphrase. */
+  setBackupPassphrase(passphrase: string | null) {
+    return this.call<ActionResponse>(
+      this.http.put('/api/backup/passphrase', { passphrase }),
+    );
+  }
+
+  runBackup() {
+    return this.call<ActionResponse>(this.http.post('/api/backup/run', {}));
+  }
+
+  createBackup(request: CreateBackupRequest) {
+    return this.call<BackupFileDto>(
+      this.http.post('/api/backup/files', request),
+    );
+  }
+
+  downloadBackup(name: string) {
+    return this.call<Blob>(
+      this.http.get(`/api/backup/files/${encodeURIComponent(name)}`, {
+        responseType: 'blob',
+      }),
+    );
+  }
+
+  sendBackup(name: string) {
+    return this.call<ActionResponse>(
+      this.http.post(`/api/backup/files/${encodeURIComponent(name)}/send`, {}),
+    );
+  }
+
+  deleteBackup(name: string) {
+    return this.call<ActionResponse>(
+      this.http.delete(`/api/backup/files/${encodeURIComponent(name)}`),
+    );
+  }
+
+  uploadBackup(file: File) {
+    return this.call<BackupUploadResponse>(
+      this.http.post('/api/backup/uploads', file, {
+        headers: { 'Content-Type': 'application/octet-stream' },
+      }),
+    );
+  }
+
+  previewBackup(request: BackupPreviewRequest) {
+    return this.call<BackupPreviewResponse>(
+      this.http.post('/api/backup/preview', request),
+    );
+  }
+
+  restoreBackup(request: BackupRestoreRequest) {
+    return this.call<BackupRestoreResponse>(
+      this.http.post('/api/backup/restore', request),
+    );
   }
 
   relays() {
