@@ -6,6 +6,7 @@ import type { GatewayDeps, UpdateFeatureConfig } from '../deps.js';
 import type { GithubRelease } from '../github-releases.js';
 import {
   downloadReleaseAsset,
+  type DownloadProgress,
   runApplyUpdate,
   verifyChecksum,
   type ApplyUpdateProblem,
@@ -147,7 +148,17 @@ export async function updateActionCallback(
 
   const { release } = pending;
   await ctx.editMessageText(`Downloading ${release.tagName}…`);
-  const staged = await stageRelease(release, deps.updateConfig, chatId);
+  const showProgress = throttledProgress((progress) => {
+    void ctx
+      .editMessageText(downloadText(release.tagName, progress))
+      .catch(() => undefined); // an unchanged text or Telegram's edit limit must not fail the update
+  });
+  const staged = await stageRelease(
+    release,
+    deps.updateConfig,
+    chatId,
+    showProgress,
+  );
   if (!staged.ok) {
     await ctx.editMessageText(staged.message);
     await ctx.answerCallbackQuery();
@@ -180,6 +191,39 @@ export async function updateActionCallback(
   await ctx.answerCallbackQuery();
 }
 
+const MB = 1024 * 1024;
+const megabytes = (bytes: number): string => (bytes / MB).toFixed(1);
+
+/** `Downloading v1.27.1… 42% (3.2 of 7.5 MB)`, or the retry note when the connection dropped. */
+export function downloadText(tag: string, progress: DownloadProgress): string {
+  const size = progress.total
+    ? `${Math.floor((progress.received / progress.total) * 100)}% (${megabytes(progress.received)} of ${megabytes(progress.total)} MB)`
+    : `${megabytes(progress.received)} MB`;
+  const retry = progress.retrying
+    ? `\nThe connection dropped; trying again (${progress.attempt + 1} of ${progress.attempts}).`
+    : '';
+  return `Downloading ${tag}… ${size}${retry}`;
+}
+
+/**
+ * Passes progress on at most every `minMs`, and always the retry notice. A chat message can be
+ * edited only so often, and a download reports many times a second.
+ */
+export function throttledProgress(
+  show: (progress: DownloadProgress) => void,
+  minMs = 3000,
+  now: () => number = Date.now,
+): (progress: DownloadProgress) => void {
+  let last = 0;
+  return (progress) => {
+    if (!progress.retrying && now() - last < minMs) {
+      return;
+    }
+    last = now();
+    show(progress);
+  };
+}
+
 export type StagedRelease =
   | { ok: true; tarballPath: string; markerPath: string }
   | { ok: false; message: string };
@@ -193,11 +237,17 @@ export async function stageRelease(
   release: GithubRelease,
   config: UpdateFeatureConfig,
   chatId: number,
+  onProgress?: (progress: DownloadProgress) => void,
 ): Promise<StagedRelease> {
   const tarballPath = path.join(config.stagingDir, release.gatewayAsset.name);
   const checksumPath = path.join(config.stagingDir, release.checksumAsset.name);
   try {
-    await downloadReleaseAsset(release.gatewayAsset.downloadUrl, tarballPath);
+    await downloadReleaseAsset(
+      release.gatewayAsset.downloadUrl,
+      tarballPath,
+      fetch,
+      { onProgress },
+    );
     await downloadReleaseAsset(release.checksumAsset.downloadUrl, checksumPath);
   } catch (error) {
     return {

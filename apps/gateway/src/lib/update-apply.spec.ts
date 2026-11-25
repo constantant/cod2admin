@@ -8,6 +8,7 @@ import {
   runApplyUpdate,
   verifyChecksum,
   type ApplyUpdateProblem,
+  type DownloadProgress,
 } from './update-apply.js';
 
 describe('runApplyUpdate', () => {
@@ -213,6 +214,36 @@ describe('downloadReleaseAsset', () => {
     ).rejects.toThrow(/no data for .*slow or unstable/s);
     expect(fetchFn).toHaveBeenCalledTimes(3);
     expect(await readdir(dir)).toEqual([]);
+  });
+
+  it('reports progress, the whole size on a resume too, and the retry', async () => {
+    const dest = join(dir, 'asset.tar.gz');
+    const seen: DownloadProgress[] = [];
+    let calls = 0;
+    const fetchFn = vi.fn(async (_url: unknown, init?: RequestInit) =>
+      ++calls === 1
+        ? stalledResponse(Buffer.alloc(40, 'a'), init?.signal)
+        : new Response(Buffer.alloc(60, 'b'), {
+            status: 206,
+            headers: { 'content-range': 'bytes 40-99/100' },
+          }),
+    ) as unknown as typeof fetch;
+
+    await downloadReleaseAsset('https://x/a', dest, fetchFn, {
+      ...fast,
+      onProgress: (progress) => seen.push(progress),
+    });
+
+    expect(seen[0]).toMatchObject({ received: 40, total: 100, attempt: 1 });
+    expect(
+      seen.some((p) => p.retrying && p.attempt === 1 && p.total === 100),
+    ).toBe(true);
+    expect(seen.at(-1)).toMatchObject({
+      received: 100,
+      total: 100,
+      attempt: 2,
+      retrying: false,
+    });
   });
 
   it('takes longer than a minute in total as long as data keeps coming', async () => {

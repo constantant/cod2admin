@@ -1171,7 +1171,7 @@ describe('Mini App management routes', () => {
       expect(
         (await call('POST', '/update', OWNER, { tag: 'v99.0.0' })).statusCode,
       ).toBe(200);
-      expect(applyUpdate.run).toHaveBeenCalledTimes(1);
+      await vi.waitFor(() => expect(applyUpdate.run).toHaveBeenCalledTimes(1));
       const { writeFile } = await import('node:fs/promises');
       expect(vi.mocked(writeFile).mock.lastCall?.[1]).toContain(
         `CHAT_ID=${OWNER}`,
@@ -1183,6 +1183,7 @@ describe('Mini App management routes', () => {
         release('v99.0.0'),
       );
       await call('POST', '/update', OWNER, { tag: 'v99.0.0' });
+      await vi.waitFor(() => expect(applyUpdate.run).toHaveBeenCalled());
 
       applyUpdate.run.mock.calls[0]![2].onProblem({
         kind: 'failed',
@@ -1193,6 +1194,71 @@ describe('Mini App management routes', () => {
       expect((await call('GET', '/update', OWNER)).json().problem).toContain(
         'sudo: nope',
       );
+    });
+
+    it('answers at once and shows the download as it goes, then that it is applying', async () => {
+      const { downloadReleaseAsset } = await import('../lib/update-apply.js');
+      let finish!: () => void;
+      vi.mocked(downloadReleaseAsset).mockImplementationOnce(
+        async (_url, _dest, _fetch, options) => {
+          options?.onProgress?.({
+            received: 3_000_000,
+            total: 7_500_000,
+            attempt: 1,
+            attempts: 6,
+            retrying: false,
+          });
+          await new Promise<void>((resolve) => (finish = resolve));
+        },
+      );
+      fake.githubReleaseClient.getLatestRelease.mockResolvedValue(
+        release('v99.0.0'),
+      );
+
+      const started = await call('POST', '/update', OWNER, { tag: 'v99.0.0' });
+      expect(started.statusCode).toBe(200);
+      expect(applyUpdate.run).not.toHaveBeenCalled();
+
+      const during = (await call('GET', '/update', OWNER)).json();
+      expect(during.progress).toMatchObject({
+        tag: 'v99.0.0',
+        phase: 'downloading',
+        received: 3_000_000,
+        total: 7_500_000,
+      });
+      // A second tap while it downloads does not start another one.
+      expect(
+        (await call('POST', '/update', OWNER, { tag: 'v99.0.0' })).statusCode,
+      ).toBe(409);
+
+      finish();
+      await vi.waitFor(() => expect(applyUpdate.run).toHaveBeenCalledTimes(1));
+      expect(
+        (await call('GET', '/update', OWNER)).json().progress,
+      ).toMatchObject({ phase: 'applying' });
+    });
+
+    it('shows why a download failed, and lets the owner try again', async () => {
+      const { downloadReleaseAsset } = await import('../lib/update-apply.js');
+      vi.mocked(downloadReleaseAsset).mockRejectedValueOnce(
+        new Error('no data for 30s'),
+      );
+      fake.githubReleaseClient.getLatestRelease.mockResolvedValue(
+        release('v99.0.0'),
+      );
+
+      await call('POST', '/update', OWNER, { tag: 'v99.0.0' });
+      await vi.waitFor(async () =>
+        expect((await call('GET', '/update', OWNER)).json().problem).toContain(
+          'no data for 30s',
+        ),
+      );
+      const after = (await call('GET', '/update', OWNER)).json();
+      expect(after.progress).toBeNull();
+      expect(applyUpdate.run).not.toHaveBeenCalled();
+      expect(
+        (await call('POST', '/update', OWNER, { tag: 'v99.0.0' })).statusCode,
+      ).toBe(200);
     });
 
     it('refuses when up to date or the install cannot update itself', async () => {

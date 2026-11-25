@@ -834,6 +834,21 @@ export interface UpdateStatusResponse {
   checkError: string | null;
   /** The last update attempt's problem, if this process is still here to tell. */
   problem: string | null;
+  /** An update being downloaded or applied right now; `null` when none is. */
+  progress: UpdateProgressDto | null;
+}
+
+export interface UpdateProgressDto {
+  tag: string;
+  /** `downloading` shows a bar; `applying` means the bot is about to restart. */
+  phase: 'downloading' | 'applying';
+  received: number;
+  /** The file's size, once the server said. */
+  total: number | null;
+  attempt: number;
+  attempts: number;
+  /** The connection dropped and the bot is about to try again. */
+  retrying: boolean;
 }
 
 export interface ApplyUpdateRequest {

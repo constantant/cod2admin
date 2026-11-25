@@ -1348,6 +1348,7 @@ export function registerManagementRoutes(
         enabled: Boolean(deps.updateConfig),
         running,
         problem: state.updateProblem,
+        progress: state.updateProgress,
       };
       try {
         const release = await deps.githubReleaseClient.getLatestRelease();
@@ -1420,16 +1421,23 @@ export function registerManagementRoutes(
       if (!isNewerVersion(release.tagName, getRunningVersion())) {
         throw new ApiProblem(409, 'up_to_date', 'Already up to date.');
       }
-      state.updateProblem = null;
-      // The new version reports to this private chat with the bot (update-boot-check.ts).
-      const staged = await stageRelease(
-        release,
-        config,
-        request.actor.telegramId,
-      );
-      if (!staged.ok) {
-        throw new ApiProblem(502, 'update_failed', staged.message);
+      if (state.updateProgress) {
+        throw new ApiProblem(
+          409,
+          'update_running',
+          `Already updating to ${state.updateProgress.tag}.`,
+        );
       }
+      state.updateProblem = null;
+      state.updateProgress = {
+        tag: release.tagName,
+        phase: 'downloading',
+        received: 0,
+        total: null,
+        attempt: 1,
+        attempts: 1,
+        retrying: false,
+      };
       await audit(request, {
         action: 'update',
         target: release.tagName,
@@ -1438,19 +1446,48 @@ export function registerManagementRoutes(
           assetName: release.gatewayAsset.name,
         },
       });
-      runApplyUpdate(config.applyUpdateScriptPath, staged.tarballPath, {
-        onProblem: (problem) => {
-          void settleApplyProblem(problem, {
-            tagName: release.tagName,
-            command: `${config.applyUpdateScriptPath} ${staged.tarballPath}`,
-            markerPath: staged.markerPath,
-          }).then((text) => {
-            state.updateProblem = text;
-          });
-        },
+      // The download can take minutes on a slow route, longer than a proxy waits for an answer:
+      // answer now, and the page watches `progress` on GET /update. The new version reports to
+      // this private chat with the bot (update-boot-check.ts).
+      void (async () => {
+        const staged = await stageRelease(
+          release,
+          config,
+          request.actor.telegramId,
+          (progress) => {
+            if (state.updateProgress) {
+              state.updateProgress = {
+                ...state.updateProgress,
+                ...progress,
+              };
+            }
+          },
+        );
+        if (!staged.ok) {
+          state.updateProblem = staged.message;
+          state.updateProgress = null;
+          return;
+        }
+        state.updateProgress = { ...state.updateProgress!, phase: 'applying' };
+        runApplyUpdate(config.applyUpdateScriptPath, staged.tarballPath, {
+          onProblem: (problem) => {
+            void settleApplyProblem(problem, {
+              tagName: release.tagName,
+              command: `${config.applyUpdateScriptPath} ${staged.tarballPath}`,
+              markerPath: staged.markerPath,
+            }).then((text) => {
+              state.updateProblem = text;
+              state.updateProgress = null;
+            });
+          },
+        });
+      })().catch((error: unknown) => {
+        console.error('Mini App: the update failed:', error);
+        state.updateProblem = `Update failed: ${error instanceof Error ? error.message : String(error)}`;
+        state.updateProgress = null;
       });
       return {
-        message: `Applying ${release.tagName}… the bot restarts shortly and rolls back by itself if the new version fails to start.`,
+        message: `Downloading ${release.tagName}… watch the progress here; the bot restarts when it is done and rolls back by itself if the new version fails to start.`,
       };
     },
   );

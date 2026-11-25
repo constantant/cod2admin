@@ -90,6 +90,16 @@ export class MiniAppState {
   readonly limiter = new ActionLimiter();
   /** Why the last update from the app failed, until the next try. */
   updateProblem: string | null = null;
+  /** The update this process is downloading or applying, for the app's progress bar. */
+  updateProgress: {
+    tag: string;
+    phase: 'downloading' | 'applying';
+    received: number;
+    total: number | null;
+    attempt: number;
+    attempts: number;
+    retrying: boolean;
+  } | null = null;
   /**
    * The game mode per server: it only changes with the map, so it's read once per map (and again
    * after a while, in case an admin changed it some other way) instead of on every status poll.

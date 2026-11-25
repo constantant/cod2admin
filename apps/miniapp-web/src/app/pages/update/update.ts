@@ -3,12 +3,16 @@ import {
   Component,
   computed,
   inject,
+  type OnDestroy,
   type OnInit,
   signal,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import type { UpdateStatusResponse } from '@cod2admin/miniapp-api';
+import type {
+  UpdateProgressDto,
+  UpdateStatusResponse,
+} from '@cod2admin/miniapp-api';
 import { ApiService } from '../../core/api';
 import { Notify } from '../../shared/notify';
 import { dateLocale, T } from '../../shared/i18n';
@@ -52,7 +56,30 @@ interface ReleaseView {
           } @else {
             <p class="muted">{{ 'This is the latest version.' | t }}</p>
           }
-          @if (applying()) {
+          @if (data.progress; as progress) {
+            @if (progress.phase === 'downloading') {
+              <mat-progress-bar
+                [mode]="progress.total ? 'determinate' : 'indeterminate'"
+                [value]="percent(progress)"
+              />
+              <p>
+                {{ 'Downloading' | t }} {{ progress.tag }}…
+                {{ sizeText(progress) }}
+              </p>
+              @if (progress.retrying) {
+                <p class="muted">
+                  {{ 'The connection dropped; trying again.' | t }}
+                </p>
+              }
+            } @else {
+              <p>
+                {{
+                  'Updating. The bot restarts and this app reconnects by itself; the result comes to your chat with the bot.'
+                    | t
+                }}
+              </p>
+            }
+          } @else if (applying()) {
             <p>
               {{
                 'Updating. The bot restarts and this app reconnects by itself; the result comes to your chat with the bot.'
@@ -66,7 +93,7 @@ interface ReleaseView {
                   | t
               }}
             </p>
-          } @else if (data.available) {
+          } @else if (data.available && !data.progress) {
             <button mat-flat-button (click)="apply(data.latest!)">
               {{ 'Update to' | t }} {{ data.latest }}…
             </button>
@@ -152,7 +179,7 @@ interface ReleaseView {
     }
   `,
 })
-export class UpdatePage implements OnInit {
+export class UpdatePage implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly notify = inject(Notify);
 
@@ -175,14 +202,63 @@ export class UpdatePage implements OnInit {
   protected readonly loading = signal(false);
   protected readonly applying = signal(false);
 
+  private timer: ReturnType<typeof setInterval> | undefined;
+
   ngOnInit(): void {
     void this.load();
+  }
+
+  ngOnDestroy(): void {
+    this.stopWatching();
+  }
+
+  protected percent(progress: UpdateProgressDto): number {
+    return progress.total
+      ? Math.min(100, Math.floor((progress.received / progress.total) * 100))
+      : 0;
+  }
+
+  protected sizeText(progress: UpdateProgressDto): string {
+    const mb = (bytes: number) => (bytes / (1024 * 1024)).toFixed(1);
+    return progress.total
+      ? `${this.percent(progress)}% (${mb(progress.received)} / ${mb(progress.total)} MB)`
+      : `${mb(progress.received)} MB`;
+  }
+
+  /** Follows a download, and the restart after it, until the bot has nothing left to report. */
+  private watch(): void {
+    if (this.timer) {
+      return;
+    }
+    this.timer = setInterval(() => void this.refresh(), 2000);
+  }
+
+  private stopWatching(): void {
+    clearInterval(this.timer);
+    this.timer = undefined;
+  }
+
+  private async refresh(): Promise<void> {
+    try {
+      const data = await this.api.updateStatus();
+      this.data.set(data);
+      if (!data.progress) {
+        this.applying.set(false);
+        this.stopWatching();
+      }
+    } catch {
+      // The bot is restarting; ask again in a moment.
+    }
   }
 
   protected async load(): Promise<void> {
     this.loading.set(true);
     try {
-      this.data.set(await this.api.updateStatus());
+      const data = await this.api.updateStatus();
+      this.data.set(data);
+      if (data.progress) {
+        this.watch();
+      }
     } catch (error) {
       this.notify.error(error);
     } finally {
@@ -205,6 +281,8 @@ export class UpdatePage implements OnInit {
     try {
       this.notify.success((await this.api.applyUpdate(tag)).message);
       this.applying.set(true);
+      this.watch();
+      await this.refresh();
     } catch (error) {
       this.notify.error(error);
     } finally {

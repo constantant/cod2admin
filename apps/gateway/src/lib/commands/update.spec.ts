@@ -16,7 +16,9 @@ import { sampleRelease } from '../testing/fake-github-release-client.js';
 import { OWNER_ACCESS } from '../testing/fake-admin-store.js';
 import { getRunningVersion } from '../version.js';
 import {
+  downloadText,
   formatConfirmMessage,
+  throttledProgress,
   updateActionCallback,
   updateCommand,
   type UpdateCallbackContext,
@@ -186,6 +188,8 @@ describe('updateActionCallback', () => {
     expect(downloadReleaseAsset).toHaveBeenCalledWith(
       release.gatewayAsset.downloadUrl,
       expect.stringContaining(release.gatewayAsset.name),
+      expect.anything(),
+      { onProgress: expect.any(Function) },
     );
     expect(downloadReleaseAsset).toHaveBeenCalledWith(
       release.checksumAsset.downloadUrl,
@@ -290,5 +294,50 @@ describe('updateActionCallback', () => {
     );
     expect(adminStore.recordAuditLog).not.toHaveBeenCalled();
     expect(runApplyUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('download progress text', () => {
+  const base = { attempt: 1, attempts: 6, retrying: false };
+
+  it('shows percent and megabytes, or just megabytes when the size is unknown', () => {
+    expect(
+      downloadText('v1.27.1', {
+        ...base,
+        received: 3_145_728,
+        total: 7_864_320,
+      }),
+    ).toBe('Downloading v1.27.1… 40% (3.0 of 7.5 MB)');
+    expect(
+      downloadText('v1.27.1', { ...base, received: 1_048_576, total: null }),
+    ).toBe('Downloading v1.27.1… 1.0 MB');
+  });
+
+  it('says so when the connection dropped', () => {
+    expect(
+      downloadText('v1.27.1', {
+        ...base,
+        received: 1_048_576,
+        total: 2_097_152,
+        retrying: true,
+      }),
+    ).toContain('trying again (2 of 6)');
+  });
+
+  it('passes on at most one update per interval, but always a retry notice', () => {
+    let clock = 10_000;
+    const shown: number[] = [];
+    const progress = throttledProgress(
+      (p) => shown.push(p.received),
+      3000,
+      () => clock,
+    );
+    progress({ ...base, received: 1, total: 9 });
+    clock += 1000;
+    progress({ ...base, received: 2, total: 9 });
+    clock += 2500;
+    progress({ ...base, received: 3, total: 9 });
+    progress({ ...base, received: 4, total: 9, retrying: true });
+    expect(shown).toEqual([1, 3, 4]);
   });
 });

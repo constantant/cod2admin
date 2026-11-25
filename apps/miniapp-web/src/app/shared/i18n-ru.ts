@@ -611,6 +611,9 @@ export const RU_TEXT: Readonly<Record<string, string>> = {
   'Checking…': 'Проверка…',
   'in use': 'используется',
   'Add a relay': 'Добавить релей',
+  Downloading: 'Скачиваю',
+  'The connection dropped; trying again.':
+    'Соединение оборвалось, пробую снова.',
   Backups: 'Резервные копии',
   'Save the bot’s data, restore it, send it to Telegram':
     'Сохранить данные бота, восстановить их, отправить в Telegram',

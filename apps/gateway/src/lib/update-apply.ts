@@ -18,9 +18,22 @@ export interface DownloadOptions {
   /** Tries, each continuing where the last one stopped when the server allows it. */
   attempts?: number;
   retryDelayMs?: number;
+  /** Called as bytes arrive, and when an attempt fails and another is about to start. */
+  onProgress?: (progress: DownloadProgress) => void;
 }
 
-const DEFAULT_DOWNLOAD: Required<DownloadOptions> = {
+export interface DownloadProgress {
+  /** Bytes of the file on disk so far. */
+  received: number;
+  /** The whole file's size, when the server said. */
+  total: number | null;
+  attempt: number;
+  attempts: number;
+  /** The last attempt failed; this is the wait before the next one. */
+  retrying: boolean;
+}
+
+const DEFAULT_DOWNLOAD: Required<Omit<DownloadOptions, 'onProgress'>> = {
   idleMs: 30_000,
   totalMs: 15 * 60_000,
   attempts: 6,
@@ -47,7 +60,7 @@ export async function downloadReleaseAsset(
   fetchFn: FetchFn = fetch,
   options: DownloadOptions = {},
 ): Promise<void> {
-  const { idleMs, totalMs, attempts, retryDelayMs } = {
+  const { idleMs, totalMs, attempts, retryDelayMs, onProgress } = {
     ...DEFAULT_DOWNLOAD,
     ...options,
   };
@@ -55,6 +68,7 @@ export async function downloadReleaseAsset(
   await rm(partPath, { force: true });
   const startedAt = Date.now();
   let received = 0;
+  let knownTotal: number | null = null;
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
@@ -92,12 +106,23 @@ export async function downloadReleaseAsset(
         received = 0;
       }
       const expected = Number(res.headers?.get('content-length') ?? NaN);
+      // `Content-Range: bytes 40-99/100` names the whole file even when this reply is the rest.
+      const range = /\/(\d+)$/.exec(res.headers?.get('content-range') ?? '');
+      const total = range
+        ? Number(range[1])
+        : Number.isFinite(expected) && !resumed
+          ? expected
+          : null;
+      knownTotal = total ?? knownTotal;
+      const report = (retrying = false) =>
+        onProgress?.({ received, total, attempt, attempts, retrying });
       if (res.body) {
         const out = createWriteStream(partPath, { flags: resumed ? 'a' : 'w' });
         const counter = new Transform({
           transform(chunk: Buffer, _encoding, callback) {
             received += chunk.length;
             resetIdle();
+            report();
             callback(null, chunk);
           },
         });
@@ -133,6 +158,13 @@ export async function downloadReleaseAsset(
         break;
       }
       if (attempt < attempts) {
+        onProgress?.({
+          received,
+          total: knownTotal,
+          attempt,
+          attempts,
+          retrying: true,
+        });
         await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
       }
     } finally {
