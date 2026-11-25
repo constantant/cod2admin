@@ -22,6 +22,7 @@ export {
   isPermission,
   resolvePermissionGrant,
 } from './lib/permissions.js';
+export { SecretBox } from './lib/secrets.js';
 export { createAdminStore } from './lib/store.js';
 export {
   DEFAULT_SERVER_WATCH_SETTINGS,

@@ -32,6 +32,9 @@
     },
     {
       "path": "./packages/watch-store"
+    },
+    {
+      "path": "./packages/backup"
     }
   ],
   "compilerOptions": {}
