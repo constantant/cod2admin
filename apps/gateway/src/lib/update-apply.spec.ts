@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -92,15 +92,27 @@ describe('runApplyUpdate', () => {
 });
 
 function fakeFetch(body: Uint8Array, ok = true, status = 200): typeof fetch {
-  return vi.fn().mockResolvedValue({
-    ok,
-    status,
-    statusText: ok ? 'OK' : 'Error',
-    arrayBuffer: () =>
-      Promise.resolve(
-        body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength),
-      ),
-  }) as unknown as typeof fetch;
+  return vi.fn(async () =>
+    ok
+      ? new Response(body, { status })
+      : new Response('', { status, statusText: 'Error' }),
+  ) as unknown as typeof fetch;
+}
+
+/** A response whose body sends `first`, then goes quiet (never ends) until aborted. */
+function stalledResponse(first: Uint8Array, signal?: AbortSignal | null) {
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(first);
+      signal?.addEventListener('abort', () =>
+        controller.error(signal.reason ?? new Error('aborted')),
+      );
+    },
+  });
+  return new Response(body, {
+    status: 200,
+    headers: { 'content-length': '100' },
+  });
 }
 
 describe('downloadReleaseAsset', () => {
@@ -112,14 +124,18 @@ describe('downloadReleaseAsset', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it('writes the fetched bytes to destPath', async () => {
+  const fast = { retryDelayMs: 1, idleMs: 50 };
+
+  it('writes the fetched bytes to destPath and leaves no partial file', async () => {
     const dest = join(dir, 'asset.tar.gz');
     await downloadReleaseAsset(
       'https://example.com/asset.tar.gz',
       dest,
       fakeFetch(Buffer.from('hello world')),
+      fast,
     );
     expect((await readFile(dest)).toString()).toBe('hello world');
+    expect(await readdir(dir)).toEqual(['asset.tar.gz']);
   });
 
   it('throws when the response is not ok', async () => {
@@ -129,8 +145,94 @@ describe('downloadReleaseAsset', () => {
         'https://example.com/asset.tar.gz',
         dest,
         fakeFetch(Buffer.from(''), false, 404),
+        fast,
       ),
     ).rejects.toThrow(/404/);
+  });
+
+  it('does not retry a 404, but does retry a 503', async () => {
+    const dest = join(dir, 'asset.tar.gz');
+    const missing = fakeFetch(Buffer.from(''), false, 404);
+    await expect(
+      downloadReleaseAsset('https://x/a', dest, missing, fast),
+    ).rejects.toThrow();
+    expect(missing).toHaveBeenCalledTimes(1);
+
+    let calls = 0;
+    const flaky = vi.fn(async () =>
+      ++calls < 3
+        ? new Response('', { status: 503, statusText: 'Unavailable' })
+        : new Response('ok-bytes'),
+    ) as unknown as typeof fetch;
+    await downloadReleaseAsset('https://x/a', dest, flaky, fast);
+    expect((await readFile(dest)).toString()).toBe('ok-bytes');
+  });
+
+  it('resumes with a Range request after a stall instead of starting over', async () => {
+    const dest = join(dir, 'asset.tar.gz');
+    const first = Buffer.alloc(40, 'a');
+    const rest = Buffer.alloc(60, 'b');
+    const seen: Array<string | undefined> = [];
+    let calls = 0;
+    const fetchFn = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      seen.push((init?.headers as Record<string, string> | undefined)?.Range);
+      return ++calls === 1
+        ? stalledResponse(first, init?.signal)
+        : new Response(rest, { status: 206 });
+    }) as unknown as typeof fetch;
+
+    await downloadReleaseAsset('https://x/a', dest, fetchFn, fast);
+
+    expect(seen).toEqual([undefined, 'bytes=40-']);
+    expect(await readFile(dest)).toEqual(Buffer.concat([first, rest]));
+  });
+
+  it('starts again when the server ignores Range', async () => {
+    const dest = join(dir, 'asset.tar.gz');
+    let calls = 0;
+    const whole = Buffer.alloc(100, 'c');
+    const fetchFn = vi.fn(async (_url: unknown, init?: RequestInit) =>
+      ++calls === 1
+        ? stalledResponse(Buffer.alloc(30, 'x'), init?.signal)
+        : new Response(whole, { status: 200 }),
+    ) as unknown as typeof fetch;
+    await downloadReleaseAsset('https://x/a', dest, fetchFn, fast);
+    expect(await readFile(dest)).toEqual(whole);
+  });
+
+  it('gives up after the attempts, says why, and leaves nothing behind', async () => {
+    const dest = join(dir, 'asset.tar.gz');
+    const fetchFn = vi.fn(async (_url: unknown, init?: RequestInit) =>
+      stalledResponse(Buffer.alloc(10, 'z'), init?.signal),
+    ) as unknown as typeof fetch;
+    await expect(
+      downloadReleaseAsset('https://x/a', dest, fetchFn, {
+        ...fast,
+        attempts: 3,
+      }),
+    ).rejects.toThrow(/no data for .*slow or unstable/s);
+    expect(fetchFn).toHaveBeenCalledTimes(3);
+    expect(await readdir(dir)).toEqual([]);
+  });
+
+  it('takes longer than a minute in total as long as data keeps coming', async () => {
+    const dest = join(dir, 'asset.tar.gz');
+    const chunks = 6;
+    const body = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        for (let i = 0; i < chunks; i++) {
+          controller.enqueue(Buffer.alloc(10, 'd'));
+          await new Promise((r) => setTimeout(r, 30));
+        }
+        controller.close();
+      },
+    });
+    const fetchFn = vi.fn(
+      async () => new Response(body),
+    ) as unknown as typeof fetch;
+    // 6 * 30 ms is longer than idleMs (50) in total, but no single pause is.
+    await downloadReleaseAsset('https://x/a', dest, fetchFn, fast);
+    expect((await readFile(dest)).length).toBe(60);
   });
 });
 

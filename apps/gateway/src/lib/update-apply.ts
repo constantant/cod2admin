@@ -1,17 +1,43 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { closeSync, openSync, readFileSync } from 'node:fs';
-import { readFile, writeFile } from 'node:fs/promises';
+import { closeSync, createWriteStream, openSync, readFileSync } from 'node:fs';
+import { readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { Readable, Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
 
 type FetchFn = typeof fetch;
 
 const APPLY_UPDATE_TIMEOUT_MS = 5 * 60_000;
 
+export interface DownloadOptions {
+  /** Give up on an attempt when no bytes arrive for this long. */
+  idleMs?: number;
+  /** Give up on the whole download after this long. */
+  totalMs?: number;
+  /** Tries, each continuing where the last one stopped when the server allows it. */
+  attempts?: number;
+  retryDelayMs?: number;
+}
+
+const DEFAULT_DOWNLOAD: Required<DownloadOptions> = {
+  idleMs: 30_000,
+  totalMs: 15 * 60_000,
+  attempts: 6,
+  retryDelayMs: 3_000,
+};
+
+/** A 4xx other than "slow down" will not get better by asking again. */
+class FatalDownloadError extends Error {}
+
 /**
- * Downloads a release asset (docs/PLAN.md §13.3 step 2) to `destPath`. Gateway/checksum assets
- * are a couple MB at most, so this buffers in memory rather than streaming to disk — simpler and
- * avoids Node's WHATWG-stream/Node-stream interop entirely, at a size this doesn't matter.
+ * Downloads a release asset (docs/PLAN.md §13.3 step 2) to `destPath`.
+ *
+ * The archive is several MB and the route to GitHub can be slow (hosts in Russia), so there is no
+ * short limit on the whole transfer: an attempt only fails when it stalls (`idleMs` without a
+ * byte), and a failed attempt asks for the rest with a `Range` request instead of starting over
+ * (`totalMs` still caps everything). The bytes go to `<destPath>.part` and are moved into place
+ * only when complete, so a half file is never taken for a release.
  * `fetchFn` is injectable (defaults to the global `fetch`) for the same DI-over-mocking-globals
  * reason as `github-releases.ts`.
  */
@@ -19,15 +45,110 @@ export async function downloadReleaseAsset(
   url: string,
   destPath: string,
   fetchFn: FetchFn = fetch,
+  options: DownloadOptions = {},
 ): Promise<void> {
-  const res = await fetchFn(url, { signal: AbortSignal.timeout(60_000) });
-  if (!res.ok) {
-    throw new Error(
-      `Failed to download ${url}: ${res.status} ${res.statusText}`,
+  const { idleMs, totalMs, attempts, retryDelayMs } = {
+    ...DEFAULT_DOWNLOAD,
+    ...options,
+  };
+  const partPath = `${destPath}.part`;
+  await rm(partPath, { force: true });
+  const startedAt = Date.now();
+  let received = 0;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const controller = new AbortController();
+    let idleTimer = setTimeout(
+      () => controller.abort(new Error(`no data for ${idleMs / 1000}s`)),
+      idleMs,
     );
+    const totalTimer = setTimeout(
+      () => controller.abort(new Error('took too long overall')),
+      Math.max(1, totalMs - (Date.now() - startedAt)),
+    );
+    const resetIdle = () => {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(
+        () => controller.abort(new Error(`no data for ${idleMs / 1000}s`)),
+        idleMs,
+      );
+    };
+    try {
+      const res = await fetchFn(url, {
+        signal: controller.signal,
+        ...(received > 0 ? { headers: { Range: `bytes=${received}-` } } : {}),
+      });
+      if (!res.ok) {
+        const message = `Failed to download ${url}: ${res.status} ${res.statusText}`;
+        if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+          throw new FatalDownloadError(message);
+        }
+        throw new Error(message);
+      }
+      // A server that ignores Range sends the whole file again.
+      const resumed = received > 0 && res.status === 206;
+      if (!resumed) {
+        received = 0;
+      }
+      const expected = Number(res.headers?.get('content-length') ?? NaN);
+      if (res.body) {
+        const out = createWriteStream(partPath, { flags: resumed ? 'a' : 'w' });
+        const counter = new Transform({
+          transform(chunk: Buffer, _encoding, callback) {
+            received += chunk.length;
+            resetIdle();
+            callback(null, chunk);
+          },
+        });
+        try {
+          await pipeline(Readable.fromWeb(res.body as never), counter, out);
+        } catch (error) {
+          // What reached the disk is what a retry can build on.
+          received = await stat(partPath).then(
+            (info) => info.size,
+            () => 0,
+          );
+          throw controller.signal.aborted
+            ? (controller.signal.reason ?? error)
+            : error;
+        }
+      } else {
+        const buffer = Buffer.from(await res.arrayBuffer());
+        await writeFile(partPath, buffer);
+        received = buffer.length;
+      }
+      // `content-length` of a resumed response is only the rest, so it checks nothing here.
+      if (Number.isFinite(expected) && !resumed && received !== expected) {
+        throw new Error(`got ${received} of ${expected} bytes`);
+      }
+      await rename(partPath, destPath);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (error instanceof FatalDownloadError) {
+        break;
+      }
+      if (Date.now() - startedAt >= totalMs) {
+        break;
+      }
+      if (attempt < attempts) {
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+      }
+    } finally {
+      clearTimeout(idleTimer);
+      clearTimeout(totalTimer);
+    }
   }
-  const buffer = Buffer.from(await res.arrayBuffer());
-  await writeFile(destPath, buffer);
+  await rm(partPath, { force: true });
+  const reason =
+    lastError instanceof Error ? lastError.message : String(lastError);
+  if (lastError instanceof FatalDownloadError) {
+    throw lastError;
+  }
+  throw new Error(
+    `Failed to download ${url}: ${reason} (got ${received} bytes; the connection to GitHub is slow or unstable, try again in a few minutes)`,
+  );
 }
 
 /**
