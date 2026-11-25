@@ -149,6 +149,7 @@ export class RconClient {
   private readonly encoding: TextEncoding;
   private readonly rateLimiter: RateLimiter;
   private readonly mapReplyTimeoutMs: number;
+  private readonly onDamagedStatus: RconClientOptions['onDamagedStatus'];
 
   constructor(options: RconClientOptions) {
     this.host = options.host;
@@ -163,6 +164,7 @@ export class RconClient {
     this.rateLimiter = new RateLimiter(
       options.minSendIntervalMs ?? DEFAULT_MIN_SEND_INTERVAL_MS,
     );
+    this.onDamagedStatus = options.onDamagedStatus;
     this.mapReplyTimeoutMs =
       options.mapReplyTimeoutMs ?? DEFAULT_MAP_REPLY_TIMEOUT_MS;
   }
@@ -206,8 +208,18 @@ export class RconClient {
 
   /** Detailed status/player table via `rcon status` — includes IPs, unlike getStatus(). */
   async status(): Promise<ServerStatus> {
-    const raw = await this.rcon('status');
-    return parseRconStatusTable(raw);
+    // A reply can lose or reorder a UDP packet and splice two rows together (a name next to
+    // someone else's half-IP). Ask again a couple of times; the last answer is kept, minus the
+    // rows that still fail the shape check.
+    let status = parseRconStatusTable(await this.rcon('status'));
+    for (let attempt = 1; attempt <= 2 && status.damagedRows?.length; attempt++) {
+      this.onDamagedStatus?.(status.raw, status.damagedRows, attempt);
+      status = parseRconStatusTable(await this.rcon('status'));
+    }
+    if (status.damagedRows?.length) {
+      this.onDamagedStatus?.(status.raw, status.damagedRows, 3);
+    }
+    return status;
   }
 
   /**

@@ -21,6 +21,8 @@ export interface RconClientOptions {
   minSendIntervalMs?: number;
   /** How long `map()`'s single attempt waits for a reply before checking `getinfo`, in ms. Default 3000. */
   mapReplyTimeoutMs?: number;
+  /** Called with the raw reply and bad rows whenever a `status` table came back damaged. */
+  onDamagedStatus?: (raw: string, damagedRows: string[], attempt: number) => void;
 }
 
 export type CvarMap = Record<string, string>;
@@ -56,4 +58,6 @@ export interface ServerStatus {
   mapName?: string;
   hostname?: string;
   players: StatusPlayer[];
+  /** Table rows that failed the shape check (a damaged reply) and were left out of `players`. */
+  damagedRows?: string[];
 }

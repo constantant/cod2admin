@@ -392,4 +392,21 @@ describe('plainDisplayName', () => {
     expect(glued).toMatchObject({ num: 13, guid: '750895', name: 'vit' });
     expect(spaced).toMatchObject({ guid: '750895', name: 'two words' });
   });
+
+  it('drops a row spliced from two others and reports it as damaged', () => {
+    const table = [
+      'map: mp_toujane',
+      'num score ping guid   name            lastmsg address               qport rate',
+      '--- ----- ---- ------ --------------- ------- --------------------- ----- -----',
+      ' 13    42   33 750895 good^7                 0 198.51.100.13:28960     915 25000',
+      ' 32     0   -1      0 GokTURK^7             100 10014.224.155:28960     916 25000',
+      ' 33     1   50 111222 fine^7                 0 198.51.100.14:28960     917 25000',
+      '',
+    ].join('\n');
+
+    const status = parseRconStatusTable(table);
+
+    expect(status.players.map((p) => p.num)).toEqual([13, 33]);
+    expect(status.damagedRows).toHaveLength(1);
+  });
 });

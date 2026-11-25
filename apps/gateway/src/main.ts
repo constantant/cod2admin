@@ -122,7 +122,18 @@ const createRconClient = (server: {
   host: string;
   port: number;
   password: string;
-}) => new RconClient({ ...server, encoding: config.textEncoding });
+}) => new RconClient({
+  ...server,
+  encoding: config.textEncoding,
+  onDamagedStatus: (raw, rows, attempt) =>
+    console.warn(
+      `rcon status reply damaged (attempt ${attempt}); bad rows: ${JSON.stringify(rows.map(maskAddress))}; raw reply: ${JSON.stringify(maskAddress(raw))}`,
+    ),
+});
+
+/** Keeps IPs out of the log: the last two octets of any address are blanked. */
+const maskAddress = (text: string): string =>
+  text.replace(/\b(\d{1,3}\.\d{1,3})\.\d{1,3}\.\d{1,3}/g, '$1.x.x');
 
 const servers = await adminStore.listServers();
 const rconClients = new Map(

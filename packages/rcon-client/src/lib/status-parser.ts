@@ -191,6 +191,29 @@ function unwrapSignedPort(port: number | undefined): number | undefined {
   return port !== undefined && port < 0 ? port + 65536 : port;
 }
 
+const ROW_SHAPES: Record<string, RegExp> = {
+  num: /^\d+$/,
+  score: /^-?\d+$/,
+  ping: /^(-?\d+|CNCT|ZMBI)$/,
+  guid: /^\d+$/,
+  lastmsg: /^\d+$/,
+  address: /^(\d{1,3}(\.\d{1,3}){3}:-?\d+|loopback|bot)$/,
+  qport: /^-?\d+$/,
+  rate: /^\d+$/,
+};
+
+/**
+ * True when every single-token column of a row has the shape the engine prints. A reply whose UDP
+ * packets arrived out of order, or with one missing, joins the start of one row to the end of
+ * another (a name beside a stranger's half-IP like `10014.224.155`); such a row fails here.
+ */
+function rowLooksIntact(fields: Record<string, string>): boolean {
+  return Object.entries(fields).every(([column, value]) => {
+    const shape = ROW_SHAPES[column];
+    return shape === undefined || shape.test(value);
+  });
+}
+
 function fieldsToPlayer(fields: Record<string, string>): StatusPlayer | null {
   const num = toInt(fields['num']);
   if (num === undefined) {
@@ -265,6 +288,7 @@ export function parseRconStatusTable(raw: string): ServerStatus {
   const nameIndex = columnNames.indexOf('name');
 
   const players: StatusPlayer[] = [];
+  const damagedRows: string[] = [];
   for (let i = separatorIndex + 1; i < lines.length; i++) {
     const line = lines[i];
     if (line.trim() === '') {
@@ -310,11 +334,15 @@ export function parseRconStatusTable(raw: string): ServerStatus {
         fields['name'] = `${glued[2]}${line.slice(nameStart, nameEnd)}`.trim();
       }
     }
+    if (nameIndex !== -1 && !rowLooksIntact(fields)) {
+      damagedRows.push(line);
+      continue;
+    }
     const player = fieldsToPlayer(fields);
     if (player) {
       players.push(player);
     }
   }
 
-  return { raw, mapName, hostname, players };
+  return { raw, mapName, hostname, players, damagedRows };
 }
