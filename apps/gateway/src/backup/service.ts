@@ -1,3 +1,4 @@
+import { accessSync, constants, existsSync } from 'node:fs';
 import { mkdir, readdir, rename, rm, stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -23,13 +24,35 @@ export interface CreatedBackup {
   counts: Record<string, number>;
 }
 
-/** `BACKUP_DIR`, else a `backups` folder beside the update staging folder (outside the release dir). */
-export function backupDirFromEnv(env: NodeJS.ProcessEnv): string {
+/**
+ * `BACKUP_DIR`, else a `backups` folder beside the update staging folder (outside the release dir).
+ * The bot's own user cannot create that folder in an install folder owned by root (an install that
+ * was updated rather than re-installed has none), so then it falls back to `staging/backups`, which
+ * the bot owns.
+ */
+export function backupDirFromEnv(
+  env: NodeJS.ProcessEnv,
+  fs: {
+    exists(path: string): boolean;
+    writable(path: string): boolean;
+  } = {
+    exists: existsSync,
+    writable: (path) => {
+      try {
+        accessSync(path, constants.W_OK);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  },
+): string {
   if (env.BACKUP_DIR) return env.BACKUP_DIR;
-  if (env.UPDATE_STAGING_DIR) {
-    return join(dirname(env.UPDATE_STAGING_DIR), 'backups');
-  }
-  return join(process.cwd(), 'backups');
+  const staging = env.UPDATE_STAGING_DIR;
+  if (!staging) return join(process.cwd(), 'backups');
+  const beside = join(dirname(staging), 'backups');
+  if (fs.exists(beside) || fs.writable(dirname(staging))) return beside;
+  return join(staging, 'backups');
 }
 
 const stamp = (date: Date): string =>
