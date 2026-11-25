@@ -1,3 +1,14 @@
+## [1.26.4](https://github.com/constantant/cod2admin/releases/tag/v1.26.4) (2026-11-25)
+
+### 🩹 Fixes
+
+- drop spliced rows from a damaged rcon status reply, re-query, and log the raw reply ([7933066](https://github.com/constantant/cod2admin/commit/7933066))
+
+### ❤️ Thank You
+
+- Claude Sonnet 5.5
+- kk
+
 ## [1.26.3](https://github.com/constantant/cod2admin/releases/tag/v1.26.3) (2026-11-21)
 
 This was a version bump only, there were no code changes.
