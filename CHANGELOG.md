@@ -1,6 +1,8 @@
 ## [1.27.2](https://github.com/constantant/cod2admin/releases/tag/v1.27.2) (2026-11-25)
 
-This was a version bump only, there were no code changes.
+### 🩹 Fixes
+
+- **installer:** the install and update archive is 4.3 MB instead of 7.5 MB, because source maps, type files and readmes are left out ([703b133](https://github.com/constantant/cod2admin/commit/703b133))
 
 ## [1.27.1](https://github.com/constantant/cod2admin/releases/tag/v1.27.1) (2026-11-25)
 
