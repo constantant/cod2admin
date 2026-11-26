@@ -51,7 +51,13 @@ describe('BackupManager', () => {
   let sizeOf: (groups: readonly string[]) => number;
   const calls: string[][] = [];
   const service = {
-    async createFile({ groups, prefix = 'cod2admin' }) {
+    async createFile({
+      groups,
+      prefix = 'cod2admin',
+    }: {
+      groups: readonly string[];
+      prefix?: string;
+    }) {
       calls.push([...groups]);
       const name = `${prefix}-${String(calls.length).padStart(8, '0')}-000000.c2bak`;
       const path = join(dir, name);

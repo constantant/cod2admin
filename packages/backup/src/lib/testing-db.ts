@@ -25,6 +25,10 @@ export async function createScratchDb(): Promise<ScratchDb> {
   await migrateBan(url.toString());
   await migrateWatch(url.toString());
   const pool = new Pool({ connectionString: url.toString() });
+  // DROP DATABASE ... WITH (FORCE) kills any connection still open (a destroyed presence client
+  // may be mid-close on a slow CI runner); an idle-client error must not fail the run.
+  pool.on('error', () => undefined);
+  admin.on('error', () => undefined);
   return {
     url: url.toString(),
     pool,

@@ -67,6 +67,8 @@ describe('Mini App backup routes', () => {
     await migrateBan(dbUrl);
     await migrateWatch(dbUrl);
     pool = new Pool({ connectionString: dbUrl });
+    pool.on('error', () => undefined);
+    admin.on('error', () => undefined);
   });
   afterAll(async () => {
     await pool.end();
