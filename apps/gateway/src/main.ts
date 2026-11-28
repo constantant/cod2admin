@@ -21,6 +21,7 @@ import { createBot } from './lib/bot.js';
 import { loadConfig } from './lib/config.js';
 import type { GatewayDeps, UpdateFeatureConfig } from './lib/deps.js';
 import { startExpiryPoller } from './lib/expiry-poller.js';
+import { MapChangeTimeouts } from './lib/map-change-timeouts.js';
 import {
   ChatTemplates,
   CHAT_TEMPLATES_SETTING_KEY,
@@ -101,7 +102,9 @@ await migrateBanStore(config.databaseUrl);
 
 // Lets `cod2admin-backup import` see that a gateway is running (docs/PLAN-backup.md §5). A shared
 // advisory lock on a connection of its own: it never blocks another gateway.
-await holdGatewayPresence(new BackupPool({ connectionString: config.databaseUrl }));
+await holdGatewayPresence(
+  new BackupPool({ connectionString: config.databaseUrl }),
+);
 
 const adminStore = createAdminStore(
   config.databaseUrl,
@@ -130,14 +133,15 @@ const createRconClient = (server: {
   host: string;
   port: number;
   password: string;
-}) => new RconClient({
-  ...server,
-  encoding: config.textEncoding,
-  onDamagedStatus: (raw, rows, attempt) =>
-    console.warn(
-      `rcon status reply damaged (attempt ${attempt}); bad rows: ${JSON.stringify(rows.map(maskAddress))}; raw reply: ${JSON.stringify(maskAddress(raw))}`,
-    ),
-});
+}) =>
+  new RconClient({
+    ...server,
+    encoding: config.textEncoding,
+    onDamagedStatus: (raw, rows, attempt) =>
+      console.warn(
+        `rcon status reply damaged (attempt ${attempt}); bad rows: ${JSON.stringify(rows.map(maskAddress))}; raw reply: ${JSON.stringify(maskAddress(raw))}`,
+      ),
+  });
 
 /** Keeps IPs out of the log: the last two octets of any address are blanked. */
 const maskAddress = (text: string): string =>
@@ -234,6 +238,7 @@ if (config.vpnFlag.enabled) {
 }
 // /vpnkick (lib/vpn-kick.ts): off unless an admin turned it on; runs with the ban sweep.
 const vpnKick = new VpnKicker();
+const mapChangeTimeouts = new MapChangeTimeouts();
 vpnKick.setSettings(
   parseVpnKickSettings(await adminStore.getSetting(VPN_KICK_SETTING_KEY)),
 );
@@ -308,6 +313,7 @@ const deps: GatewayDeps = {
   vpn: config.vpnFlag.enabled ? vpnDatabase : NO_VPN_LOOKUP,
   vpnKick,
   knownPlayers,
+  mapChangeTimeouts,
   chatTemplates,
   telegramRoutes: {
     router: telegramRouter,
@@ -443,6 +449,7 @@ try {
     banStore,
     chatTemplates,
     rconClients,
+    mapChangeTimeouts,
     reportQueue: deps.reportQueue,
     createCardSender: (report) =>
       new WatchCardSender(bot, deps.reportRegistry, report),

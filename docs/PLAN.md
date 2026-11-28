@@ -273,6 +273,14 @@ logs`, not a filesystem tail. **Fixed** by giving `fs_homepath` its own separate
   parallel. The same server also split `rcon status` across 3 packets (1303+1303+115 bytes,
   split mid-line). The client used to read only the first one, which cut the player list
   roughly in half; it now joins all packets that arrive within 150ms of each other.
+- **Map change freezes (measured 2026-11-28 on the dev server).** The server answers nothing
+  while it loads a map. Its console prints `Hitch warning: N msec frame time` when the load ends:
+  252 of them in 2.5 days on the dev NAS (one per map change, mostly 3–6s, up to 39.6s, on a
+  busy hard-disk RAID). Queries sent meanwhile are answered when the load ends, but a freeze
+  longer than `rcon-client`'s ~10s of retries is a timeout. Such timeouts are expected, so the
+  gateway holds them back and drops them when the next good `status` shows a new map
+  (`apps/gateway/src/lib/map-change-timeouts.ts`). A timeout followed by the same map, or 90s of
+  silence, is still logged.
 - **Text encoding (fixed 2026-10-03).** CoD2 has no text encoding of its own. Names, chat,
   `say` text and `games_mp.log` are raw single-byte strings, shown using each player's Windows
   code page, which is CP1251 on Russian servers. `rcon-client` used to treat every byte as

@@ -47,5 +47,6 @@ export async function forgetServer(
 ): Promise<void> {
   await deps.adminStore.removeServer(alias);
   deps.rconClients.delete(alias);
+  deps.mapChangeTimeouts.forget(alias);
   stopReportTailer(alias, deps);
 }
