@@ -1,5 +1,9 @@
 ## [1.27.3](https://github.com/constantant/cod2admin/releases/tag/v1.27.3) (2026-11-28)
 
+### 🩹 Fixes
+
+- **gateway:** RCON timeouts while the game server loads a map are no longer logged as errors. The server answers nothing during a map load (seconds, sometimes longer than the bot's retries), so a timeout is held back and dropped when the server comes back on a new map. A timeout on the same map, or 90 seconds of silence, is still logged ([#17](https://github.com/constantant/cod2admin/pull/17))
+
 ### 🔥 Performance
 
 - **gateway:** share one rcon status per sweep round ([#17](https://github.com/constantant/cod2admin/pull/17))
