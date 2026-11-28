@@ -1,3 +1,14 @@
+## [1.27.3](https://github.com/constantant/cod2admin/releases/tag/v1.27.3) (2026-11-28)
+
+### 🔥 Performance
+
+- **gateway:** share one rcon status per sweep round ([#17](https://github.com/constantant/cod2admin/pull/17))
+
+### ❤️ Thank You
+
+- Claude Opus 5.5
+- Konstantin
+
 ## [1.27.2](https://github.com/constantant/cod2admin/releases/tag/v1.27.2) (2026-11-25)
 
 ### 🩹 Fixes
