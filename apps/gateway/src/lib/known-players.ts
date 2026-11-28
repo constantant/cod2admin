@@ -2,6 +2,10 @@ import type { AdminStore, KnownPlayer } from '@cod2admin/admin-store';
 import type { RconClient, StatusPlayer } from '@cod2admin/rcon-client';
 import type { ChatTemplates } from './chat-templates.js';
 import { displayName } from './commands/players.js';
+import {
+  reportRconError,
+  type MapChangeTimeouts,
+} from './map-change-timeouts.js';
 
 /**
  * Known players (docs/PLAN-known-players.md): a nickname plus the provider networks (ASNs) it
@@ -92,6 +96,8 @@ export interface KnownSweepDeps {
   rconClients: Map<string, RconClient>;
   adminStore: Pick<AdminStore, 'recordAuditLog'>;
   chatTemplates: ChatTemplates;
+  /** Holds back timeouts from a map load. Absent: every failure is logged at once. */
+  mapChangeTimeouts?: Pick<MapChangeTimeouts, 'report'>;
 }
 
 /** The live known-players list plus the sweep that enforces it. One per gateway. */
@@ -178,10 +184,12 @@ export class KnownPlayers {
           }
         }
       } catch (error) {
-        console.error(
-          `Known players sweep failed for server "${serverAlias}":`,
-          error,
-        );
+        reportRconError(deps.mapChangeTimeouts, serverAlias, error, () => {
+          console.error(
+            `Known players sweep failed for server "${serverAlias}":`,
+            error,
+          );
+        });
       }
     }
   }

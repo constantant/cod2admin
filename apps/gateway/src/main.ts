@@ -21,6 +21,7 @@ import { createBot } from './lib/bot.js';
 import { loadConfig } from './lib/config.js';
 import type { GatewayDeps, UpdateFeatureConfig } from './lib/deps.js';
 import { startExpiryPoller } from './lib/expiry-poller.js';
+import { MapChangeTimeouts } from './lib/map-change-timeouts.js';
 import {
   ChatTemplates,
   CHAT_TEMPLATES_SETTING_KEY,
@@ -234,6 +235,7 @@ if (config.vpnFlag.enabled) {
 }
 // /vpnkick (lib/vpn-kick.ts): off unless an admin turned it on; runs with the ban sweep.
 const vpnKick = new VpnKicker();
+const mapChangeTimeouts = new MapChangeTimeouts();
 vpnKick.setSettings(
   parseVpnKickSettings(await adminStore.getSetting(VPN_KICK_SETTING_KEY)),
 );
@@ -308,6 +310,7 @@ const deps: GatewayDeps = {
   vpn: config.vpnFlag.enabled ? vpnDatabase : NO_VPN_LOOKUP,
   vpnKick,
   knownPlayers,
+  mapChangeTimeouts,
   chatTemplates,
   telegramRoutes: {
     router: telegramRouter,
@@ -443,6 +446,7 @@ try {
     banStore,
     chatTemplates,
     rconClients,
+    mapChangeTimeouts,
     reportQueue: deps.reportQueue,
     createCardSender: (report) =>
       new WatchCardSender(bot, deps.reportRegistry, report),

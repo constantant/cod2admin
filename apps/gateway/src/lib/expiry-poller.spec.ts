@@ -1,5 +1,8 @@
 import type { BanIp } from '@cod2admin/ban-store';
-import type { ServerStatus } from '@cod2admin/rcon-client';
+import {
+  UdpQueryTimeoutError,
+  type ServerStatus,
+} from '@cod2admin/rcon-client';
 import { describe, expect, it, vi } from 'vitest';
 import { runSweepRound, shareStatusPerRound } from './expiry-poller.js';
 import { createFakeDeps } from './testing/fake-deps.js';
@@ -126,5 +129,45 @@ describe('runSweepRound', () => {
     await runSweepRound(deps);
 
     expect(rcon.status).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not log a ban sweep timeout from a map load', async () => {
+    const { deps, rcon, banStore } = createFakeDeps();
+    banStore.listActiveIpBans.mockResolvedValue([
+      { ip: '203.0.113.7' } as BanIp,
+    ]);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    rcon.status.mockResolvedValueOnce({ ...STATUS, mapName: 'mp_toujane' });
+    await runSweepRound(deps);
+
+    rcon.status.mockRejectedValueOnce(new UdpQueryTimeoutError('timed out'));
+    await runSweepRound(deps);
+    rcon.status.mockResolvedValueOnce({ ...STATUS, mapName: 'mp_decoy' });
+    await runSweepRound(deps);
+
+    expect(error).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it('logs a ban sweep timeout when the map did not change', async () => {
+    const { deps, rcon, banStore } = createFakeDeps();
+    banStore.listActiveIpBans.mockResolvedValue([
+      { ip: '203.0.113.7' } as BanIp,
+    ]);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    rcon.status.mockResolvedValueOnce({ ...STATUS, mapName: 'mp_toujane' });
+    await runSweepRound(deps);
+
+    rcon.status.mockRejectedValueOnce(new UdpQueryTimeoutError('timed out'));
+    await runSweepRound(deps);
+    expect(error).not.toHaveBeenCalled();
+    rcon.status.mockResolvedValueOnce({ ...STATUS, mapName: 'mp_toujane' });
+    await runSweepRound(deps);
+
+    expect(error).toHaveBeenCalledWith(
+      'Ban sweep failed for server "default":',
+      expect.any(UdpQueryTimeoutError),
+    );
+    error.mockRestore();
   });
 });

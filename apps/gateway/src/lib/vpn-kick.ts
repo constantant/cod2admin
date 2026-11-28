@@ -3,6 +3,10 @@ import type { RconClient, StatusPlayer } from '@cod2admin/rcon-client';
 import type { ChatTemplates } from './chat-templates.js';
 import { displayName } from './commands/players.js';
 import type { KnownPlayers } from './known-players.js';
+import {
+  reportRconError,
+  type MapChangeTimeouts,
+} from './map-change-timeouts.js';
 import type { VpnKind, VpnLookup } from './vpn-ranges.js';
 
 /**
@@ -79,6 +83,8 @@ export interface VpnKickSweepDeps {
   chatTemplates: ChatTemplates;
   /** Known name from a known ASN: never kicked for a VPN (known-players.ts). */
   knownPlayers?: Pick<KnownPlayers, 'isProtected'>;
+  /** Holds back timeouts from a map load. Absent: every failure is logged at once. */
+  mapChangeTimeouts?: Pick<MapChangeTimeouts, 'report'>;
 }
 
 /** The live `/vpnkick` state plus the sweep that enforces it. One per gateway. */
@@ -123,10 +129,12 @@ export class VpnKicker {
           await this.kick(deps, serverAlias, rcon, player, kind);
         }
       } catch (error) {
-        console.error(
-          `VPN kick sweep failed for server "${serverAlias}":`,
-          error,
-        );
+        reportRconError(deps.mapChangeTimeouts, serverAlias, error, () => {
+          console.error(
+            `VPN kick sweep failed for server "${serverAlias}":`,
+            error,
+          );
+        });
       }
     }
   }

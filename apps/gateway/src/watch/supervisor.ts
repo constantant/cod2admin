@@ -36,6 +36,10 @@ import {
 } from '@cod2admin/watch-store';
 import type { ChatTemplates } from '../lib/chat-templates.js';
 import { executeModerationAction } from '../lib/moderation-actions.js';
+import {
+  reportRconError,
+  type MapChangeTimeouts,
+} from '../lib/map-change-timeouts.js';
 import { createPlayerIdentityResolver } from '../lib/player-identity.js';
 import {
   parseLifeMessage,
@@ -129,6 +133,8 @@ export interface WatchSupervisorDeps {
   };
   rconClients: ReadonlyMap<string, WatchRcon>;
   banStore: BanStore;
+  /** Holds back timeouts from a map load. Absent: every failure is logged at once. */
+  mapChangeTimeouts?: Pick<MapChangeTimeouts, 'noteStatus' | 'report'>;
   /** Live game-chat lines. Absent: the built-in `{name} was kicked`. */
   chatTemplates?: ChatTemplates;
   watchStore?: WatchStore;
@@ -337,6 +343,7 @@ class Supervisor {
     fetchedAt = this.now(),
   ): void {
     this.held.set(alias, { status, fetchedAt });
+    this.deps.mapChangeTimeouts?.noteStatus(alias, status);
     this.dirty.add(alias);
     this.noted.add(alias);
     if (this.watchEnabled(alias)) {
@@ -1457,8 +1464,15 @@ class Supervisor {
           await client.status();
         } catch (error) {
           const message = error instanceof Error ? error.message : 'error';
-          this.log.warn(
-            `watch: ${server.alias} match status failed: ${message}`,
+          reportRconError(
+            this.deps.mapChangeTimeouts,
+            server.alias,
+            error,
+            () => {
+              this.log.warn(
+                `watch: ${server.alias} match status failed: ${message}`,
+              );
+            },
           );
         }
       }

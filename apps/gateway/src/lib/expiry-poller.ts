@@ -4,6 +4,7 @@ import {
 } from '@cod2admin/ban-store';
 import type { RconClient } from '@cod2admin/rcon-client';
 import type { GatewayDeps } from './deps.js';
+import { reportRconError } from './map-change-timeouts.js';
 
 const DEFAULT_INTERVAL_MS = 10_000;
 
@@ -16,6 +17,7 @@ type SweepDeps = Pick<
   | 'vpn'
   | 'knownPlayers'
   | 'vpnKick'
+  | 'mapChangeTimeouts'
 >;
 
 /**
@@ -23,15 +25,23 @@ type SweepDeps = Pick<
  * the life of the returned map. Every caller gets the same promise, a failure included, so a
  * server that doesn't answer costs one round of retries, not one per sweep. Nothing is fetched
  * until a sweep calls `status()`, so a sweep that is off still costs nothing. Other methods
- * (`kick`, `say`, ...) go straight to the real client.
+ * (`kick`, `say`, ...) go straight to the real client. `onStatus` sees each status that arrives.
  */
 export function shareStatusPerRound(
   clients: Map<string, RconClient>,
+  onStatus?: (
+    alias: string,
+    status: Awaited<ReturnType<RconClient['status']>>,
+  ) => void,
 ): Map<string, RconClient> {
   const shared = new Map<string, RconClient>();
   for (const [alias, client] of clients) {
     let pending: ReturnType<RconClient['status']> | undefined;
-    const status = () => (pending ??= client.status());
+    const status = () =>
+      (pending ??= client.status().then((result) => {
+        onStatus?.(alias, result);
+        return result;
+      }));
     shared.set(
       alias,
       new Proxy(client, {
@@ -52,17 +62,23 @@ export function shareStatusPerRound(
  * One poller round: the ban enforcement sweep, the GUID ban expiry sweep, and the `/known` and
  * `/vpnkick` sweeps, all reading one shared `rcon status` per server (see
  * {@link shareStatusPerRound}). Before, each sweep sent its own `status`, up to three per server
- * every 10s. Sweep failures are logged, not thrown.
+ * every 10s. Sweep failures are logged, not thrown, and a timeout from a map load is not logged
+ * at all (map-change-timeouts.ts).
  */
 export async function runSweepRound(deps: SweepDeps): Promise<void> {
-  const rconClients = shareStatusPerRound(deps.rconClients);
+  const timeouts = deps.mapChangeTimeouts;
+  const rconClients = shareStatusPerRound(deps.rconClients, (alias, status) =>
+    timeouts.noteStatus(alias, status),
+  );
   const round = { ...deps, rconClients };
   await Promise.all([
-    runBanEnforcementSweep(deps.banStore, rconClients).catch(
-      (error: unknown) => {
-        console.error('Ban enforcement sweep failed:', error);
-      },
-    ),
+    runBanEnforcementSweep(deps.banStore, rconClients, (alias, error) => {
+      reportRconError(timeouts, alias, error, () => {
+        console.error(`Ban sweep failed for server "${alias}":`, error);
+      });
+    }).catch((error: unknown) => {
+      console.error('Ban enforcement sweep failed:', error);
+    }),
     runBanExpirySweep(deps.banStore).catch((error: unknown) => {
       console.error('GUID ban expiry sweep failed:', error);
     }),
