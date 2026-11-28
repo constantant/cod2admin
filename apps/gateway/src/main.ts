@@ -102,7 +102,9 @@ await migrateBanStore(config.databaseUrl);
 
 // Lets `cod2admin-backup import` see that a gateway is running (docs/PLAN-backup.md §5). A shared
 // advisory lock on a connection of its own: it never blocks another gateway.
-await holdGatewayPresence(new BackupPool({ connectionString: config.databaseUrl }));
+await holdGatewayPresence(
+  new BackupPool({ connectionString: config.databaseUrl }),
+);
 
 const adminStore = createAdminStore(
   config.databaseUrl,
@@ -131,14 +133,15 @@ const createRconClient = (server: {
   host: string;
   port: number;
   password: string;
-}) => new RconClient({
-  ...server,
-  encoding: config.textEncoding,
-  onDamagedStatus: (raw, rows, attempt) =>
-    console.warn(
-      `rcon status reply damaged (attempt ${attempt}); bad rows: ${JSON.stringify(rows.map(maskAddress))}; raw reply: ${JSON.stringify(maskAddress(raw))}`,
-    ),
-});
+}) =>
+  new RconClient({
+    ...server,
+    encoding: config.textEncoding,
+    onDamagedStatus: (raw, rows, attempt) =>
+      console.warn(
+        `rcon status reply damaged (attempt ${attempt}); bad rows: ${JSON.stringify(rows.map(maskAddress))}; raw reply: ${JSON.stringify(maskAddress(raw))}`,
+      ),
+  });
 
 /** Keeps IPs out of the log: the last two octets of any address are blanked. */
 const maskAddress = (text: string): string =>
